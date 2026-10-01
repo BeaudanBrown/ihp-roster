@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'path\t%s\n' Application/Schema.sql Config/nix/scripts/haskell/generated-input-inventory
+schema_compiler="$(command -v build-generated-code 2>/dev/null || true)"
+if [ -n "$schema_compiler" ] && [ -f "$schema_compiler" ]; then
+    printf 'value\tschema-compiler\t%s\n' "$(sha256sum "$schema_compiler" | cut -d ' ' -f 1)"
+else
+    printf 'value\tschema-compiler\tmissing-build-generated-code\n'
+fi
+ihp_schema="${IHP_LIB:-}/IHPSchema.sql"
+if [ -n "${IHP_LIB:-}" ] && [ -f "$ihp_schema" ]; then
+    printf 'value\tihp-schema\t%s\n' "$(sha256sum "$ihp_schema" | cut -d ' ' -f 1)"
+else
+    printf 'value\tihp-schema\tmissing-ihp-schema\n'
+fi

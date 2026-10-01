@@ -1,7 +1,7 @@
 module Web.Timesheets.Responses
     ( requireTimesheetSurfaceContext
-    , respondWithSuggestedTimesheetForm
-    , respondWithTimesheetSuggestionOutcome
+    , respondWithRosterPrefillTimesheetForm
+    , respondWithTimesheetRosterPrefillOutcome
     , respondWithTimesheetReviewOutcome
     , requireTimesheetCalendarResult
     , requireCurrentTimesheetCalendar
@@ -10,6 +10,7 @@ module Web.Timesheets.Responses
     , requireTimesheetMutationContext
     , markStaleTimesheetCalendarResponseForRefresh
     , respondWithNewTimesheetForm
+    , respondWithTimesheetChooser
     , respondWithEditTimesheetForm
     , respondWithTimesheetCreateOutcome
     , respondWithTimesheetEditOutcome
@@ -34,28 +35,31 @@ import Application.Helper.View (ToastOverlayPosition (..),
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
+import Application.Helper.View.Toast (errorToast)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
+import qualified IHP.HSX.Markup as Markup
 import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai
-import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue,
                                        timesheetWeekScopeForAnchor,
-                                       timesheetsCandidateMountedFragments,
                                        timesheetsMountStateForFilters,
                                        timesheetsSurfaceFragmentKeys,
-                                       timesheetsSurfaceScope)
-import Web.Timesheets.Paths (timesheetWindowUrl, timesheetWindowUrlWithFilters)
+                                       timesheetsSurfaceScope,
+                                       timesheetsViewerMountedFragments)
+import Web.Timesheets.Paths (timesheetWindowUrlWithFilters)
 import Web.Timesheets.Projection
 import Web.Timesheets.Validation (TimesheetCalendarConflict (..))
+import Web.View.Timesheets.Chooser (TimesheetChooserView (..),
+                                    renderTimesheetChooserDialog)
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.Index
 import Web.View.Timesheets.New
-import Web.View.Timesheets.SuggestedNew
+import Web.View.Timesheets.RosterPrefillNew
 
 requireTimesheetCalendarResult :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => Either TimesheetCalendarConflict value -> IO value
 requireTimesheetCalendarResult = \case
@@ -90,78 +94,91 @@ requireCurrentTimesheetCalendarValues anchorDate expectedRevision = do
     venueConfig <- fetchVenueConfig
     when (venueConfig.rosterCalendarRevision /= expectedRevision) do
         setErrorMessage "The roster calendar changed. Review the refreshed window and try again."
-        earlyReturn $ redirectToPath (timesheetWindowUrl anchorDate timesheetFiltersFromRequest.filterStaffId)
+        earlyReturn $ redirectToPath (timesheetWindowUrlWithFilters anchorDate timesheetFiltersFromRequest)
     pure (timesheetWeekScopeForAnchor venueConfig anchorDate)
 
 requireTimesheetMutationContext :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO TimesheetRequestContext
 requireTimesheetMutationContext = do
     timesheetScope <- requireCurrentTimesheetMutationCalendar
-    timesheetFilters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+    timesheetFilters <- canonicalTimesheetFilters timesheetScope.timesheetWindowStart timesheetFiltersFromRequest
     pure TimesheetRequestContext { .. }
 
 requireTimesheetSurfaceContext :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSurfaceRequestState -> IO TimesheetRequestContext
 requireTimesheetSurfaceContext state = do
     timesheetScope <- requireCurrentTimesheetCalendar state
-    timesheetFilters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+    timesheetFilters <- canonicalTimesheetFilters state.surfaceRequestAnchorDate state.surfaceRequestFilters
     pure TimesheetRequestContext { .. }
 
-respondWithSuggestedTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe UUID -> TimesheetSuggestionFormOutcome -> IO ResponseReceived
-respondWithSuggestedTimesheetForm selectedStaffFilterId = \case
-    SuggestedTimesheetMissing -> do
+respondWithRosterPrefillTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe UUID -> TimesheetRosterPrefillFormOutcome -> IO ResponseReceived
+respondWithRosterPrefillTimesheetForm selectedStaffFilterId = \case
+    RosterPrefillTimesheetMissing -> do
         windowStart <- windowStartFromParamOrCurrent
-        setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
-        redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
-    SuggestedTimesheetCanonicalRedirect path -> redirectToPath path
-    SuggestedTimesheetTimingUnavailable workedOn -> respondWithNewTimesheetForm workedOn selectedStaffFilterId (Left TimesheetTimingUnavailable)
-    SuggestedTimesheetForm model -> respondSuggestedTimesheetDialog model
+        setErrorMessage "That rostered shift is no longer available for Timesheet prefill."
+        redirectToPath (timesheetWindowUrlWithFilters windowStart timesheetFiltersFromRequest)
+    RosterPrefillTimesheetCanonicalRedirect path -> redirectToPath path
+    RosterPrefillTimesheetTimingUnavailable workedOn -> respondWithNewTimesheetForm workedOn selectedStaffFilterId (Left TimesheetTimingUnavailable)
+    RosterPrefillTimesheetForm model -> respondRosterPrefillTimesheetDialog model
 
-respondSuggestedTimesheetDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => SuggestedTimesheetRenderModel -> IO ResponseReceived
-respondSuggestedTimesheetDialog suggestedTimesheetRenderModel =
+respondRosterPrefillTimesheetDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterPrefillTimesheetRenderModel -> IO ResponseReceived
+respondRosterPrefillTimesheetDialog rosterPrefillTimesheetRenderModel =
     if isHtmxRequest
-        then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
-        else render SuggestedNewView { .. }
+        then respondHtml (renderRosterPrefillTimesheetDialog rosterPrefillTimesheetRenderModel)
+        else render RosterPrefillNewView { .. }
 
-respondWithTimesheetSuggestionOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetSuggestionOutcome -> IO ResponseReceived
-respondWithTimesheetSuggestionOutcome context = \case
-    SuggestionUnavailable -> reject "That rostered shift is no longer available as a timesheet suggestion."
-    SuggestionTimingUnavailable -> respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId (Left TimesheetTimingUnavailable)
-    SuggestionInvalid model -> respondSuggestedTimesheetDialog model
-    SuggestionAccessDenied -> buildAccessDeniedResponse >>= respondAndStop
-    SuggestionCalendarConflict conflict -> requireTimesheetCalendarResult (Left conflict)
-    SuggestionChanged intent -> reject case intent of
-        CreateSuggestedTimesheet -> "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
-        ApproveSuggestedTimesheet -> "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
-    SuggestionApprovalFailed failure -> reject (appErrorSafeMessage failure)
-    SuggestionCompleted intent _ result ->
-        respondWithTimesheetCompletion context result (case intent of
-            CreateSuggestedTimesheet  -> "Rostered timesheet entry created"
-            ApproveSuggestedTimesheet -> "Rostered timesheet entry approved") True
+respondWithTimesheetRosterPrefillOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetRosterPrefillOutcome -> IO ResponseReceived
+respondWithTimesheetRosterPrefillOutcome context = \case
+    RosterPrefillUnavailable -> reject "That rostered shift is no longer available for Timesheet prefill."
+    RosterPrefillTimingUnavailable -> respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart (listToMaybe context.timesheetFilters.filterStaffIds) (Left TimesheetTimingUnavailable)
+    RosterPrefillInvalid model -> respondRosterPrefillTimesheetDialog model
+    RosterPrefillAccessDenied -> buildAccessDeniedResponse >>= respondAndStop
+    RosterPrefillCalendarConflict conflict -> requireTimesheetCalendarResult (Left conflict)
+    RosterPrefillChanged -> reject "That rostered shift changed before the Timesheet entry was created. Review the current prefill and try again."
+    RosterPrefillCompleted _ result ->
+        respondWithTimesheetCompletion context result "Rostered Timesheet entry created" True
   where
     reject message = do
         setErrorMessage message
-        redirectToPath (timesheetWindowUrl context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId)
+        redirectToPath (timesheetWindowUrlWithFilters context.timesheetScope.timesheetWindowStart context.timesheetFilters)
 
 respondWithTimesheetReviewOutcome :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetReviewOutcome -> IO ResponseReceived
 respondWithTimesheetReviewOutcome context = \case
     TimesheetReviewTimingInvalid -> respondAndStop (Wai.responseLBS status409 [("Content-Type", "text/plain")] "Repair the Timesheet timing before approval.")
     TimesheetReviewFailed failure -> do
         setErrorMessage (appErrorSafeMessage failure)
-        redirectToPath (timesheetWindowUrl context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId)
+        redirectToPath (timesheetWindowUrlWithFilters context.timesheetScope.timesheetWindowStart context.timesheetFilters)
     TimesheetReviewCalendarConflict conflict -> requireTimesheetCalendarResult (Left conflict)
     TimesheetReviewCompleted intent result ->
         respondWithTimesheetCompletion context result (case intent of
             ApproveTimesheet   -> "Timesheet entry approved"
             UnapproveTimesheet -> "Timesheet entry unapproved") False
 
+respondWithTimesheetChooser :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> TimesheetChooserOutcome -> IO ResponseReceived
+respondWithTimesheetChooser windowStart selectedStaffFilterId = \case
+    TimesheetChooserBlocked blocker -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left blocker)
+    TimesheetChooserDirectBlank model -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Right model)
+    TimesheetChooserRequired timesheetChooserRenderModel ->
+        if isHtmxRequest
+            then respondHtml (renderTimesheetChooserDialog timesheetChooserRenderModel)
+            else render TimesheetChooserView { .. }
+
 respondWithNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> Either TimesheetCreationBlocker NewTimesheetRenderModel -> IO ResponseReceived
 respondWithNewTimesheetForm windowStart selectedStaffFilterId = \case
     Left blocker -> do
-        setErrorMessage case blocker of
-            NoTimesheetStaff -> "No staff record found. Contact an administrator."
-            NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
-            NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
-            TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
-        redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
+        let message = case blocker of
+                NoTimesheetStaff -> "No staff record found. Contact an administrator."
+                NoEnabledTimesheetStaff -> "No staff at this venue have timesheets enabled. Enable timesheets in a staff member's profile before creating a timesheet."
+                ViewerTimesheetsDisabled -> "Your profile is set to 'No timesheets'. If you think this is wrong please ask a manager"
+                TimesheetStaffConfigurationRequired -> "Your timesheet pay configuration needs attention. Please ask a manager."
+                NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
+                NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
+                TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Reswap", "none")
+                respondHtml (renderToastOob ToastBottomCenter (errorToast message))
+            else do
+                setErrorMessage message
+                redirectToPath (timesheetWindowUrlWithFilters windowStart timesheetFiltersFromRequest)
     Right newTimesheetRenderModel ->
         if isHtmxRequest
             then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
@@ -179,7 +196,7 @@ respondWithTimesheetCompletion context result message closeDialog =
         then respondWithTimesheetMutationUpdate context.timesheetScope (timesheetsMountStateForFilters context.timesheetFilters) result.liveMutationTouchedResources message closeDialog
         else do
             setSuccessMessage message
-            redirectToPath (timesheetWindowUrl context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId)
+            redirectToPath (timesheetWindowUrlWithFilters context.timesheetScope.timesheetWindowStart context.timesheetFilters)
 
 respondWithTimesheetCreateOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetCreateOutcome -> IO ResponseReceived
 respondWithTimesheetCreateOutcome context = \case
@@ -189,7 +206,7 @@ respondWithTimesheetCreateOutcome context = \case
         result <- requireTimesheetCalendarResult outcome
         respondWithTimesheetCompletion context result "Timesheet entry created" True
   where
-    renderForm = respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId
+    renderForm = respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart (listToMaybe context.timesheetFilters.filterStaffIds)
 
 respondWithTimesheetEditOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetEditOutcome -> IO ResponseReceived
 respondWithTimesheetEditOutcome context = \case
@@ -209,13 +226,13 @@ respondWithTimesheetFragment requestKey fragment =
 
 respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [TimesheetProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetActorFragments scope mountState fragments extraHtml = do
-    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
+    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsViewerMountedFragments scope mountState)
     setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
 
 respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetResourceInvalidation scope mountState touchedResources extraHtml = do
-    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
+    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsViewerMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
 selectTimesheetMountedFragments :: TimesheetWeekScopeValue -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
@@ -229,6 +246,8 @@ selectTimesheetMountedFragments scope fragments mountedFragments =
             isJust (SurfaceLive.matchTimesheetDayColumnsLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionSidePanel ->
             isJust (SurfaceLive.matchTimesheetSidePanelContentLiveFragment mountedFragment.mountedFragmentKey)
+        TimesheetProjectionStaffContent ->
+            isJust (SurfaceLive.matchTimesheetStaffContentLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
             SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
                 == Just (addDays (toInteger dayOffset) scope.timesheetWindowStart, ())
@@ -249,7 +268,7 @@ respondWithTimesheetPreferenceUpdate scope mountState =
     respondWithTimesheetActorFragments
         scope
         mountState
-        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
+        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel, TimesheetProjectionStaffContent]
         mempty
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ResponseReceived
@@ -265,7 +284,7 @@ respondWithTimesheetMutationUpdate scope mountState touchedResources successMess
 renderTimesheetWindowPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> TimesheetViewFilters -> IO ResponseReceived
 renderTimesheetWindowPage windowStart filters =
     profileActionSpan "timesheets.page.render" do
-        let requestKey = TimesheetProjectionRequest windowStart (addDays 7 windowStart) filters.filterStaffId filters.filterRosterGroupId
+        let requestKey = TimesheetProjectionRequest windowStart (addDays 7 windowStart) filters
         projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
         profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
 
@@ -274,5 +293,5 @@ respondWithTimesheetWeekView indexView =
     if isHtmxRequest
         then do
             setHtmxPushUrl (timesheetWindowUrlWithFilters indexView.weekStartDate indexView.viewFilters)
-            profileActionSpan "timesheets.page.render_response" (respondHtmlProfiled (renderTimesheetWeekShell indexView))
+            profileActionSpan "timesheets.page.render_response" (respondHtmlProfiled (renderTimesheetWeekShell indexView <> renderDialogOverlayClearOob))
         else profileActionSpan "timesheets.page.render_response" (renderProfiled indexView)

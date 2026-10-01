@@ -3,6 +3,9 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
+bepis_runtime_prepare
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
@@ -12,16 +15,9 @@ DB_SOCKET="$PGHOST"
 APP_HEALTH_URL="$APP_BASE_URL"
 PID=""
 
-if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
-    if ! kill -0 "$PID" 2>/dev/null; then
-        rm -f "$PID_FILE"
-        PID=""
-    fi
-fi
-
 RUNNING=false
-if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+if runtime_status="$(bepis_runtime_observe "$PID_FILE" devenv 2>/dev/null)"; then
+    PID="$(awk '{for (i=1; i<=NF; i++) if ($i ~ /^pid=/) {sub(/^pid=/, "", $i); print $i}}' <<<"$runtime_status")"
     RUNNING=true
 fi
 
@@ -56,14 +52,11 @@ tracked_process_status() {
     local tracked_pid=""
     local tracked_ok=false
 
-    if [ -f "$pid_file" ]; then
-        tracked_pid=$(cat "$pid_file")
-        if kill -0 "$tracked_pid" 2>/dev/null; then
-            tracked_ok=true
-        else
-            rm -f "$pid_file"
-            tracked_pid=""
-        fi
+    local label="${pid_file##*/}"
+    label="${label%.pid}"
+    if tracked_status="$(bepis_runtime_observe "$pid_file" "$label" 2>/dev/null)"; then
+        tracked_pid="$(awk '{for (i=1; i<=NF; i++) if ($i ~ /^pid=/) {sub(/^pid=/, "", $i); print $i}}' <<<"$tracked_status")"
+        tracked_ok=true
     fi
 
     printf -v "$__ok_var" '%s' "$tracked_ok"

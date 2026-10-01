@@ -8,6 +8,7 @@ module Application.Xero.Timesheets.Buckets
     , bucketErrorSafeMessage
     , fetchPeriodXeroLocalEarningsBuckets
     , fetchPeriodXeroLocalEarningsBucketsExcludingEntries
+    , fetchXeroLocalEarningsBucketsForEntries
     ) where
 
 import Application.Error.Types (AppResult)
@@ -89,7 +90,7 @@ fetchPeriodXeroLocalEarningsBucketsExcludingEntries ::
     [UUID] ->
     IO (AppResult XeroBucketOutcome)
 fetchPeriodXeroLocalEarningsBucketsExcludingEntries venueId periodStart periodEnd skippedStaffIds excludedEntryIds =
-    Right <$> fetchBuckets
+    fetchBuckets
   where
     fetchBuckets = do
         approvedEntries <-
@@ -106,6 +107,10 @@ fetchPeriodXeroLocalEarningsBucketsExcludingEntries venueId periodStart periodEn
                 approvedEntries
                     |> filter (not . (`elem` skippedStaffIds) . (.staffId))
                     |> filter (not . (`elem` excludedEntryIds) . unpackId . (.id))
+        fetchXeroLocalEarningsBucketsForEntries venueId entries
+
+fetchXeroLocalEarningsBucketsForEntries :: (?modelContext :: ModelContext) => Id Venue -> [TimesheetEntry] -> IO (AppResult XeroBucketOutcome)
+fetchXeroLocalEarningsBucketsForEntries venueId entries = Right <$> do
         staffMembers <- query @Staff |> filterWhere (#venueId, unpackId venueId) |> filterWhereIn (#id, map (Id . (.staffId)) entries) |> fetch
         staffPayVersions <- query @StaffPayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries) |> fetch
         shiftTypePayVersions <- query @ShiftTypePayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries) |> fetch

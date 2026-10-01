@@ -33,6 +33,7 @@ let
   ];
   ignoredDirectoryRoots = [
     "${rootPath}/Test/Fixtures/private/rsa"
+    "${rootPath}/tooling/dist-newstyle"
   ];
   hasPathPrefix = prefix: path:
     path == prefix

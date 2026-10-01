@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE_ORIGINAL_ARGS=("$@")
 
 export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 PROFILE_SUITE_RUN_ID="${PROFILE_SUITE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
@@ -93,6 +94,15 @@ EOF
             ;;
     esac
 done
+
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(realpath "$(git rev-parse --show-toplevel)")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    export PROFILE_SUITE_RUN_ID PROFILE_SUITE_OUTPUT_DIR PROFILE_DATABASE_NAME
+    exec "$launcher" runners run --family profile-suite --workspace "$workspace" \
+        --run-id "$PROFILE_SUITE_RUN_ID" --artifact-dir "$(realpath -m "$PROFILE_SUITE_OUTPUT_DIR/failure")" -- \
+        env BEPIS_RUNNER_LEASED=1 "$0" "${PROFILE_ORIGINAL_ARGS[@]}"
+fi
 
 case "$PROFILE_DATABASE_NAME" in
     app_profile|app_profile_*)

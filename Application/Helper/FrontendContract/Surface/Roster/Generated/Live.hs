@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , matchRosterGridFrameLiveFragment
     , matchRosterGridToolbarLiveFragment
     , matchRosterRowLiveFragment
+    , matchRosterSettingsContentLiveFragment
     , matchRosterSlotsGridLiveFragment
     , matchRosterStaffPanelLiveFragment
     , matchRosterTemplateLibraryLiveFragment
@@ -26,6 +27,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
+    , rosterSettingsContentLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
     , rosterTemplateLibraryLiveFragment
@@ -192,6 +194,19 @@ matchRosterRowLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterRow
+
+rosterSettingsContentLiveFragment :: SurfaceFragmentKey
+rosterSettingsContentLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSettingsContent
+        noSurfaceFields
+
+matchRosterSettingsContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchRosterSettingsContentLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSettingsContent
 
 rosterSlotsGridLiveFragment :: SurfaceFragmentKey
 rosterSlotsGridLiveFragment =

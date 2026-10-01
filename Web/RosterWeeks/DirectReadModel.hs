@@ -20,7 +20,6 @@ module Web.RosterWeeks.DirectReadModel
     , fetchRosterNotificationPanelDataDirect
     , fetchRosterStaffPanelFactsForAuthorizedScopeDirect
     , fetchRosterTemplateLibraryDirect
-    , fetchRosterWageFilterStaffForAuthorizedScopeDirect
     , fetchRosterWageSlotsForAuthorizedWindowDirect
     , fetchRosterWindowFactsForAuthorizedScopeDirect
     , fetchRosterNotificationWindowDays
@@ -417,11 +416,6 @@ fetchRosterWageSlotsForAuthorizedWindowDirect authorizedScope windowFacts =
             , scope.rosterWindowEnd
             )
         pure (filterVisibleRosterSlots windowFacts.windowFactsDays allSlots)
-
-fetchRosterWageFilterStaffForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO [Staff]
-fetchRosterWageFilterStaffForAuthorizedScopeDirect authorizedScope =
-    profileActionSpan "roster.direct.fetch_wage_filter_staff" $
-        sortStaffForDisplay <$> fetchRosterGroupStaffForPanelDirect authorizedScope.authorizedRosterWindowScope.rosterWindowRosterGroupId
 
 fetchRosterStaffPanelFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO ([Staff], Set.Set UUID.UUID, Map.Map UUID.UUID Int)
 fetchRosterStaffPanelFactsForAuthorizedScopeDirect authorizedScope = do

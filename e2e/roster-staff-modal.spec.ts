@@ -80,6 +80,9 @@ test.describe('Roster Staff Modal', () => {
         const originalEmail = `${uniqueE2EValue('expired-trial-renewal')}@example.com`;
         const correctedEmail = `${uniqueE2EValue('corrected-trial-renewal')}@example.com`;
         runSql(`
+            DELETE FROM email_delivery_provider_states WHERE email_delivery_job_id IN (
+                SELECT id FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id = '${invitationId}'
+            );
             DELETE FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id = '${invitationId}';
             DELETE FROM venue_invitations WHERE staff_id = '${staffId}';
             INSERT INTO venue_invitations (id, venue_id, staff_id, email, expires_at)
@@ -108,6 +111,11 @@ test.describe('Roster Staff Modal', () => {
             await expect(modalMount).not.toContainText(originalEmail);
         } finally {
             runSql(`
+                DELETE FROM email_delivery_provider_states WHERE email_delivery_job_id IN (
+                    SELECT id FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id IN (
+                        SELECT id FROM venue_invitations WHERE staff_id = '${staffId}'
+                    )
+                );
                 DELETE FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id IN (
                     SELECT id FROM venue_invitations WHERE staff_id = '${staffId}'
                 );

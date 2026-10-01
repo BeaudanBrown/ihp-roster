@@ -2,7 +2,8 @@ module Test.Controller.SupportSpec where
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
-import Application.Helper.Controller (passkeyStepUpRedirectSessionKey)
+import Application.Helper.Controller (passkeyStepUpRedirectSessionKey,
+                                      passkeyVerifiedUserSessionKey)
 import Application.Helper.ControllerContext
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.Impersonation
@@ -730,6 +731,28 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
                 invalidStoredReturnPath `shouldBe` Just "/RosterWeeks"
                 effectiveUserId `shouldBe` Nothing
+
+        it "lets founders enter and switch impersonation without verification when strong authentication is disabled" $ withContext do
+            forM_ [False, True] \hasCopiedPasskey -> withCleanDb do
+                venue <- createVenueWithConfig "Optional Founder Verification Venue"
+                founder <- createUserRecordWithPlatformRole "optional-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "optional-worker@example.com" "staff" True
+                owner <- createUserRecord "optional-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                when hasCopiedPasskey (ensureTestUserHasPasskey founder)
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue founder venue.id do
+                        support <- callAction SupportAction
+                        support `responseStatusShouldBe` status200
+                        support `responseBodyShouldContain` "/ShowPasskeySetupDialog"
+                        entry <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue worker.id))]
+                        entry `responseStatusShouldBe` status302
+                        getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just worker.id
+                        switched <- callActionWithParams SwitchSupportImpersonationAction [("userId", cs (inputValue owner.id))]
+                        switched `responseStatusShouldBe` status302
+                        getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just owner.id
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
 
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do

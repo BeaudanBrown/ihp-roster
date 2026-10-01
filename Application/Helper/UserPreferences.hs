@@ -7,7 +7,7 @@ module Application.Helper.UserPreferences
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
-    , fetchCurrentUserShowWageEstimates
+    , fetchCurrentUserRosterPayDisplayMode
     , fetchCurrentUserHighlightOwnLiveShifts
     , fetchCurrentUserTimesheetPreferences
     , rosterLayoutModeIsDayColumns
@@ -15,16 +15,15 @@ module Application.Helper.UserPreferences
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserShowRosterWarnings
-    , upsertCurrentUserShowWageEstimates
+    , upsertCurrentUserRosterPayDisplayMode
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetShowApproved
-    , upsertCurrentUserTimesheetShowSuggestions
-    , upsertCurrentUserTimesheetShowWageEstimates
+    , upsertCurrentUserTimesheetWageDisplayMode
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
-                                      hasRole)
+                                      hasManagementMode)
 import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
 import Generated.Types
@@ -32,14 +31,13 @@ import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
     { userShowRosterWarnings     :: Bool
-    , userShowWageEstimates      :: Bool
+    , userRosterPayDisplayMode      :: RosterPayDisplayMode
     , userHighlightOwnLiveShifts :: Bool
     }
 
 data UserTimesheetPreferences = UserTimesheetPreferences
     { userTimesheetShowApproved      :: Bool
-    , userTimesheetShowSuggestions   :: Bool
-    , userTimesheetShowWageEstimates :: Bool
+    , userTimesheetWageDisplayMode   :: WageDisplayModeEnum
     }
     deriving (Eq, Show)
 
@@ -49,7 +47,7 @@ normaliseUserRosterPreferences maybePreferences =
         { -- Legacy column name is inverted for roster warning highlights: TRUE keeps
           -- conflict highlighting hidden, preserving the default disabled state.
           userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
-        , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
+        , userRosterPayDisplayMode = maybe RosterPayHidden (.rosterPayDisplayMode) maybePreferences
         , userHighlightOwnLiveShifts = maybe True (.highlightOwnLiveShifts) maybePreferences
         }
 
@@ -84,12 +82,12 @@ fetchCurrentRosterLayoutMode =
 
 fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowRosterWarnings
-    | not (hasRole Manager) = pure False
+    | not hasManagementMode = pure False
     | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
 
-fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentUserShowWageEstimates =
-    (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
+fetchCurrentUserRosterPayDisplayMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterPayDisplayMode
+fetchCurrentUserRosterPayDisplayMode =
+    (.userRosterPayDisplayMode) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserHighlightOwnLiveShifts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserHighlightOwnLiveShifts =
@@ -102,8 +100,7 @@ fetchCurrentUserTimesheetPreferences = do
         { -- The deployed column remains inverted for compatibility; positive
           -- Timesheets semantics stop at this storage boundary.
           userTimesheetShowApproved = not preferences.hideApproved
-        , userTimesheetShowSuggestions = preferences.showTimesheetSuggestions
-        , userTimesheetShowWageEstimates = preferences.showTimesheetWageEstimates
+        , userTimesheetWageDisplayMode = preferences.timesheetWageDisplayMode
         }
 
 fetchOrInitializeCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserPreference
@@ -158,21 +155,23 @@ upsertCurrentUserShowRosterWarnings showRosterWarnings = do
                 |> set #showShiftTypeHighlights hideRosterWarnings
                 |> createRecord
 
-upsertCurrentUserShowWageEstimates ::
+upsertCurrentUserRosterPayDisplayMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
+    RosterPayDisplayMode ->
     IO UserPreference
-upsertCurrentUserShowWageEstimates showWageEstimates = do
+upsertCurrentUserRosterPayDisplayMode rosterPayDisplayMode = do
     maybePreferences <- fetchCurrentUserPreferenceRecord
     case maybePreferences of
         Just preferences ->
             preferences
-                |> set #showWageEstimates showWageEstimates
+                |> set #rosterPayDisplayMode rosterPayDisplayMode
+                |> set #showWageEstimates (rosterPayDisplayMode /= RosterPayHidden)
                 |> updateRecord
         Nothing ->
             newRecord @UserPreference
                 |> set #userId (unpackId effectiveCurrentUser.id)
-                |> set #showWageEstimates showWageEstimates
+                |> set #rosterPayDisplayMode rosterPayDisplayMode
+                |> set #showWageEstimates (rosterPayDisplayMode /= RosterPayHidden)
                 |> createRecord
 
 upsertCurrentUserHighlightOwnLiveShifts ::
@@ -204,26 +203,14 @@ upsertCurrentUserTimesheetShowApproved showApproved = do
         |> set #timesheetPreferencesInitializedAt (Just now)
         |> updateRecord
 
-upsertCurrentUserTimesheetShowSuggestions ::
+upsertCurrentUserTimesheetWageDisplayMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
+    WageDisplayModeEnum ->
     IO UserPreference
-upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
+upsertCurrentUserTimesheetWageDisplayMode timesheetWageDisplayMode = do
     preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
     now <- getCurrentTime
     preferences
-        |> set #showTimesheetSuggestions showTimesheetSuggestions
-        |> set #timesheetPreferencesInitializedAt (Just now)
-        |> updateRecord
-
-upsertCurrentUserTimesheetShowWageEstimates ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
-    IO UserPreference
-upsertCurrentUserTimesheetShowWageEstimates showTimesheetWageEstimates = do
-    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
-    now <- getCurrentTime
-    preferences
-        |> set #showTimesheetWageEstimates showTimesheetWageEstimates
+        |> set #timesheetWageDisplayMode timesheetWageDisplayMode
         |> set #timesheetPreferencesInitializedAt (Just now)
         |> updateRecord

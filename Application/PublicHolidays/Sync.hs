@@ -3,26 +3,22 @@ module Application.PublicHolidays.Sync
     , PublicHolidayImport (..)
     , PublicHolidaySyncError (..)
     , PublicHolidaySyncSummary (..)
-    , dataVicImportantDatesResourceId
     , decodeDataVicPublicHolidayResponse
-    , fetchDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecordsForYears
     , parseDataVicDate
     , publicHolidayImportFromDataVic
-    , runDataVicPublicHolidaySync
-    , runDataVicPublicHolidaySyncForYears
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
-import Application.PublicHolidays.Override (fetchActivePublicHolidayOverrides, overriddenYears)
-import Application.PublicHolidays.Policy (targetPublicHolidayYears)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext)
+import Application.PublicHolidays.Override (fetchActivePublicHolidayOverrides,
+                                            overriddenYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Control.Exception as Exception
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Parser)
-import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -30,9 +26,7 @@ import qualified Data.Text.IO as TextIO
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
-import Network.HTTP.Simple
 import Text.Read (readMaybe)
-import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext)
 
 data DataVicHolidayRecord = DataVicHolidayRecord
     { arun          :: !(Maybe Text)
@@ -46,8 +40,7 @@ data DataVicHolidayRecord = DataVicHolidayRecord
     deriving (Eq, Show)
 
 data PublicHolidaySyncError
-    = PublicHolidayProviderUnavailable
-    | PublicHolidayResponseMalformed
+    = PublicHolidayResponseMalformed
     | PublicHolidayImportInvalid
     | PublicHolidayOverrideProtected
     deriving (Eq, Show)
@@ -112,44 +105,8 @@ instance Aeson.FromJSON DataVicSearchResult where
         DataVicSearchResult
             <$> object Aeson..: "records"
 
-dataVicImportantDatesResourceId :: ByteString.ByteString
-dataVicImportantDatesResourceId = "caaa47de-8626-46a6-aa28-3d948c15c5d9"
-
-runDataVicPublicHolidaySync ::
-    (?modelContext :: ModelContext) =>
-    IO PublicHolidaySyncSummary
-runDataVicPublicHolidaySync = do
-    today <- utctDay <$> getCurrentTime
-    runDataVicPublicHolidaySyncForYears (targetPublicHolidayYears today)
-
-runDataVicPublicHolidaySyncForYears ::
-    (?modelContext :: ModelContext) =>
-    [Integer] ->
-    IO PublicHolidaySyncSummary
-runDataVicPublicHolidaySyncForYears years = do
-    records <- fetchDataVicPublicHolidayRecords
-    importDataVicPublicHolidayRecordsForYears years records
-
-fetchDataVicPublicHolidayRecords :: IO [DataVicHolidayRecord]
-fetchDataVicPublicHolidayRecords = do
-    request <- parseRequest "https://discover.data.vic.gov.au/api/3/action/datastore_search"
-    let requestWithQuery =
-            request
-                |> setRequestMethod "GET"
-                |> setRequestQueryString
-                    [ ("resource_id", Just dataVicImportantDatesResourceId)
-                    , ("filters", Just "{\"dateType\":\"PUBLIC_HOLIDAY\"}")
-                    , ("limit", Just "500")
-                    ]
-    response <- httpLBS requestWithQuery
-    let statusCode = getResponseStatusCode response
-    when (statusCode < 200 || statusCode >= 300) do
-        throwExternalRuntime PublicHolidayProviderUnavailable
-    case decodeDataVicPublicHolidayResponse (getResponseBody response) of
-        Left _ ->
-            throwExternalRuntime PublicHolidayResponseMalformed
-        Right records -> pure records
-
+-- Anonymous network fetching is retired during authenticated shadow evaluation.
+-- Retain the decoder/importer for migration evidence and protected-write tests.
 decodeDataVicPublicHolidayResponse :: LByteString.ByteString -> Either String [DataVicHolidayRecord]
 decodeDataVicPublicHolidayResponse responseBody = do
     decoded <- Aeson.eitherDecode responseBody :: Either String DataVicSearchResponse

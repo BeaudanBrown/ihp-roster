@@ -32,6 +32,8 @@ let
             echo "devenv project command: no project checkout found; using packaged snapshot for $relative_path" >&2
         fi
 
+        # Preserve compiler discovery while nested runtime/test commands change PATH.
+        export BEPIS_TOOLING_BUILD_PATH="''${BEPIS_TOOLING_BUILD_PATH:-$PATH}"
         export BEPIS_SCRIPTS_ROOT="$scripts_root"
         export BEPIS_MAILHOG_ROOT=${pkgs.mailhog}
         export BEPIS_RIPGREP_ROOT=${pkgs.ripgrep}
@@ -75,6 +77,7 @@ in
         dev-workspace-test = script ../scripts/dev/workspace-test;
         in-env-test = script ../scripts/dev/in-env-test;
         dev-runtime-isolation-test = script ../scripts/dev/runtime-isolation-test;
+        runtime-lifecycle-test = script ../scripts/dev/runtime-lifecycle-test;
         devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
@@ -158,6 +161,8 @@ in
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
+        tooling-foundation-test = script ../scripts/verification/tooling-foundation-test;
+        runner-lifecycle-test = script ../scripts/verification/runner-lifecycle-test;
         verify-tooling = script ../scripts/verification/verify-tooling;
         date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
         verify-all = script ../scripts/verification/verify-all;
@@ -176,14 +181,14 @@ in
         http-repository-check = script ../scripts/verification/http-repository-check;
         production-manifest-check = script ../scripts/verification/production-manifest-check;
         production-inventory-check = script ../scripts/verification/production-inventory;
-        production-inspection-check = script ../scripts/verification/production-inspection-check;
         production-source-repository-check = script ../scripts/verification/production-source-repository-check;
         production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
+        glue-compatibility-test = script ../scripts/verification/glue-compatibility-test;
+        tooling-hls-test = script ../scripts/verification/tooling-hls-test;
         frontend-runtime-check = script ../scripts/verification/frontend-runtime-check;
-        architecture-repository-check = script ../scripts/verification/architecture-repository-check;
+        architecture-repository-check = script ../scripts/architecture/repository-check;
         documentation-repository-check = script ../scripts/verification/documentation-repository-check;
-        production-build-budget-check = script ../scripts/verification/production-build-budget;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
@@ -191,6 +196,7 @@ in
         ghci-config-test = script ../scripts/haskell/ghci-config-test;
         dev-db-reset = script ../scripts/db/reset-dev;
         dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
+        postgres-lifecycle-test = script ../scripts/db/postgres-lifecycle-test;
         seed-dev = script ../scripts/db/seed-dev;
         seed-profile = script ../scripts/db/seed-profile;
         profile-test-server = script ../scripts/profile/test-server;
@@ -202,7 +208,6 @@ in
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;
-        production-build-budget-test = script ../scripts/profile/production-build-budget-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
         profile-live-invalidation = script ../scripts/profile/live-invalidation;

@@ -26,6 +26,7 @@ const mobileTestFiles = [
     /.*feedback-acceptance\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
+    /.*timesheet-filters\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
 ];
 
@@ -47,7 +48,6 @@ export default defineConfig({
     reporter,
 
     globalSetup: './e2e/global-setup.ts',
-    globalTeardown: './e2e/global-teardown.ts',
 
     use: {
         baseURL,

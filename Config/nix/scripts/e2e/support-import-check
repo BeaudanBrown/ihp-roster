@@ -15,6 +15,7 @@ expected_modules=(
     runtime
     session
     timesheets
+    xero
 )
 
 if [[ -e e2e/test-helpers.ts ]]; then

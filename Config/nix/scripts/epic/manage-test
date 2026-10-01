@@ -4,10 +4,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 manage_source="$repo_root/Config/nix/scripts/epic/manage"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
-hls_wrapper="$repo_root/Config/nix/scripts/haskell/hls-lsp"
-hls_cache_command="$repo_root/Config/nix/scripts/haskell/hls-cache"
 fixture_root="$(mktemp -d)"
 export BEPIS_HLS_CACHE_PARENT="$fixture_root/hls-cache-parent"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 manage_command="$fixture_root/manage"
 scripts_root_replacement="$(printf '%s' "$repo_root/Config/nix/scripts" | sed 's/[\&|]/\\&/g')"
 scripts_root_token="@scripts""Root@"
@@ -29,7 +28,7 @@ fail() {
 assert_contains() {
     local haystack="$1"
     local needle="$2"
-    [[ "$haystack" == *"$needle"* ]] || fail "expected marker was absent: $needle"
+    [[ "$haystack" == *"$needle"* ]] || fail "expected marker was absent: $needle; got: $haystack"
 }
 
 run_manage() {
@@ -168,6 +167,15 @@ rebase_plan="$(run_manage sync --epic 270 --strategy rebase --json)"
 [ "$(jq -r '.rebaseSafety.checked | length' <<<"$rebase_plan")" -eq 3 ] \
     || fail "rebase plan did not inspect all fetch and push endpoints"
 
+git -C "$primary_repo" remote add unavailable "$fixture_root/missing-remote.git"
+set +e
+remote_query_failure="$(run_manage sync --epic 270 --strategy rebase --json 2>&1)"
+remote_query_failure_status=$?
+set -e
+[ "$remote_query_failure_status" -eq 65 ] || fail "remote-query failure used unexpected exit $remote_query_failure_status"
+assert_contains "$remote_query_failure" "does not appear to be a git repository"
+git -C "$primary_repo" remote remove unavailable
+
 run_manage sync --epic 270 --strategy rebase --apply --json >/dev/null
 git -C "$epic_path" merge-base --is-ancestor roster HEAD || fail "rebase sync did not place epic on target"
 [ "$(git -C "$epic_path" rev-list --parents -n1 HEAD | awk '{print NF}')" -eq 2 ] \
@@ -200,16 +208,25 @@ assert_contains "$worktree_cleanup" "cleanup must run from the recorded target c
 
 state_dir="$epic_path/.devenv/agent"
 mkdir -p "$state_dir"
-(cd "$epic_path" && exec sleep 300) &
-runtime_pid=$!
-printf '%s\n' "$runtime_pid" >"$state_dir/devenv.pid"
+runtime_pid="$("$repo_root/bin/tooling-run" runtime process start "$state_dir/devenv.pid" "$state_dir/devenv.owner.json" "$state_dir/devenv.log" devenv "$epic_path" -- sleep 300)"
 active_cleanup="$(run_manage cleanup --epic 270 --json)"
 [ "$(jq '.runtime.active | length' <<<"$active_cleanup")" -eq 1 ] || fail "cleanup dry-run omitted active runtime"
 kill -0 "$runtime_pid" 2>/dev/null || fail "cleanup dry-run terminated active runtime"
+"$repo_root/bin/tooling-run" runtime process stop "$state_dir/devenv.pid" "$state_dir/devenv.owner.json" devenv "$epic_path" 1000 >/dev/null
+runtime_pid=""
+
+(cd "$epic_path" && exec sleep 300) &
+runtime_pid=$!
+set +e
+foreign_cleanup="$(run_manage cleanup --epic 270 --approve --json 2>&1)"
+foreign_cleanup_status=$?
+set -e
+[ "$foreign_cleanup_status" -eq 75 ] || fail "foreign-process cleanup used unexpected exit $foreign_cleanup_status"
+assert_contains "$foreign_cleanup" "worktree processes survived"
+[ -d "$epic_path" ] || fail "foreign-process cleanup removed worktree"
 kill "$runtime_pid"
 wait "$runtime_pid" 2>/dev/null || true
 runtime_pid=""
-rm -f "$state_dir/devenv.pid"
 
 explicit_epic_state="$(
     env -u BEPIS_WORKSPACE_STATE_CONFIGURED -u BEPIS_WORKSPACE_REPO_ROOT \
@@ -220,22 +237,18 @@ explicit_epic_state="$(
         bash -c '. "$1"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"' \
         bash "$repo_root/Config/nix/scripts/lib/workspace.sh"
 )"
-(cd "$epic_path" && exec sleep 300) &
-runtime_pid=$!
-printf '%s\n' "$runtime_pid" >"$explicit_epic_state/devenv.pid"
+runtime_pid="$("$repo_root/bin/tooling-run" runtime process start "$explicit_epic_state/devenv.pid" "$explicit_epic_state/devenv.owner.json" "$explicit_epic_state/devenv.log" devenv "$epic_path" -- sleep 300)"
 configured_cleanup="$(run_manage_from_configured_caller cleanup --epic 270 --json)"
 [ "$(jq '.runtime.active | length' <<<"$configured_cleanup")" -eq 1 ] || fail "cleanup missed caller-configured active runtime"
 kill -0 "$runtime_pid" 2>/dev/null || fail "configured cleanup dry-run terminated active runtime"
-kill "$runtime_pid"
-wait "$runtime_pid" 2>/dev/null || true
+"$repo_root/bin/tooling-run" runtime process stop "$explicit_epic_state/devenv.pid" "$explicit_epic_state/devenv.owner.json" devenv "$epic_path" 1000 >/dev/null
 runtime_pid=""
-rm -f "$explicit_epic_state/devenv.pid"
 
-(
-    cd "$epic_path"
-    BEPIS_HLS_SERVER_COMMAND=true bash "$hls_wrapper" --lsp
-)
-epic_cache_root="$(cd "$epic_path" && bash "$hls_cache_command" status --json | jq -r .root)"
+epic_cache_status="$("$BEPIS_TOOLING_LAUNCHER" artifacts cache prepare \
+    --workspace "$epic_path" --parent "$BEPIS_HLS_CACHE_PARENT")"
+epic_cache_root="$(jq -r .root <<<"$epic_cache_status")"
+mkdir -p "$epic_cache_root/xdg/ghcide"
+printf 'fixture cache\n' >"$epic_cache_root/xdg/ghcide/fixture.hiedb"
 [ -d "$epic_cache_root" ] || fail "fixture did not create the epic HLS cache"
 cleanup_plan="$(run_manage cleanup --epic 270 --json)"
 [ "$(jq -r '.action' <<<"$cleanup_plan")" = cleanup ] || fail "cleanup plan action missing"
@@ -243,9 +256,7 @@ cleanup_plan="$(run_manage cleanup --epic 270 --json)"
 [ -d "$epic_path" ] || fail "dry-run cleanup removed worktree"
 [ -d "$epic_cache_root" ] || fail "dry-run cleanup removed the HLS cache"
 
-(cd "$epic_path" && exec sleep 300) &
-runtime_pid=$!
-printf '%s\n' "$runtime_pid" >"$state_dir/devenv.pid"
+runtime_pid="$("$repo_root/bin/tooling-run" runtime process start "$state_dir/devenv.pid" "$state_dir/devenv.owner.json" "$state_dir/devenv.log" devenv "$epic_path" -- sleep 300)"
 git -C "$primary_repo" update-ref -d refs/remotes/origin/epic-270
 git -C "$primary_repo" show-ref --verify --quiet refs/remotes/origin/epic-270 \
     && fail "fixture retained the remote-tracking ref"
@@ -301,8 +312,14 @@ git -C "$primary_repo" worktree add --quiet "$stale_path" epic-272
     cd "$stale_path"
     bash "$registry_command" register --epic 272 --target roster >/dev/null
 )
+stale_cache_status="$("$BEPIS_TOOLING_LAUNCHER" artifacts cache prepare \
+    --workspace "$stale_path" --parent "$BEPIS_HLS_CACHE_PARENT")"
+stale_cache_root="$(jq -r .root <<<"$stale_cache_status")"
+mkdir -p "$stale_cache_root/xdg/ghcide"
+printf 'stale fixture\n' >"$stale_cache_root/xdg/ghcide/fixture.hiedb"
 git -C "$primary_repo" worktree remove "$stale_path"
 run_manage cleanup --epic 272 --approve --json >/dev/null
+[ ! -e "$stale_cache_root" ] || fail "stale cleanup left HLS cache behind"
 if git -C "$primary_repo" show-ref --verify --quiet refs/heads/epic-272; then
     fail "stale cleanup left integrated branch behind"
 fi

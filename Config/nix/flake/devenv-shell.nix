@@ -3,7 +3,27 @@
     perSystem = { pkgs, inputs', config, ... }:
         let
             scriptDefinitions = import ./scripts.nix { inherit pkgs; };
-            projectSource = import ./project-source.nix { inherit pkgs; };
+            tooling = import ./tooling-packages.nix { inherit pkgs; };
+            repositoryRoot = ../../..;
+            frontendCheckSource = pkgs.lib.fileset.toSource {
+                root = repositoryRoot;
+                fileset = pkgs.lib.fileset.unions [
+                    (repositoryRoot + /tsconfig.json)
+                    (repositoryRoot + /frontend)
+                    (repositoryRoot + /static/app.js)
+                    (repositoryRoot + /static/dev-live-reload.js)
+                    (repositoryRoot + /scripts/frontend-test-registration.mjs)
+                    (repositoryRoot + /Config/nix/scripts/frontend/test)
+                    (repositoryRoot + /Config/nix/scripts/frontend/drift-check)
+                ];
+            };
+            haskellModuleCheckSource = pkgs.lib.fileset.toSource {
+                root = repositoryRoot;
+                fileset = pkgs.lib.fileset.unions [
+                    (pkgs.lib.fileset.fileFilter (file: file.hasExt "hs") repositoryRoot)
+                    (repositoryRoot + /Config/nix/scripts/haskell/module-name-check)
+                ];
+            };
             e2eTypeScriptDependencies = pkgs.buildNpmPackage {
                 pname = "ihp-roster-e2e-typescript-dependencies";
                 version = "1";
@@ -30,21 +50,20 @@
                     pkgs.esbuild
                     pkgs.typescript
                     pkgs.haskellPackages.weeder
-                    # Verification-only root evidence (stdlib TOML/JSON); not a runtime dependency.
-                    pkgs.python3
                     pkgs.mailhog
                     pkgs.poppler-utils
                     # Verification-only spreadsheet recalculation; excluded from ihp-app/production.
                     pkgs.libreoffice
                     pkgs.k6
                     pkgs.jq
+                    pkgs.just
                     pkgs.gh
                     pkgs.lsof
                     pkgs.procps
                     # flock protects workspace, database, and generated-state operations.
                     pkgs.util-linux
-                    # Offline API contracts and workbook verification invoke python3.
-                    pkgs.python3
+                    # Verification roots, offline API contracts and workbook checks invoke python3.
+                    (pkgs.python3.withPackages (python: [ python.pyyaml ]))
                     # Browser export checks inspect downloaded XLSX archives.
                     pkgs.unzip
                     # Repository authority checks invoke rg directly.
@@ -62,6 +81,9 @@
                 files.".ghci".source = ../../../Config/ghci;
 
                 env = {
+                    # Project script adapters use the current-worktree Cabal launcher directly.
+                    BEPIS_TOOLING_ENV = "1";
+                    BEPIS_TOOLING_BUILD_PATH = tooling.buildPath;
                     IHP_TELEMETRY_DISABLED = "1";
                     IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH = "false";
                     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
@@ -82,7 +104,7 @@
             };
 
             checks.frontend-drift = pkgs.runCommand "frontend-drift-check" {
-                src = projectSource;
+                src = frontendCheckSource;
                 nativeBuildInputs = [
                     pkgs.esbuild
                     pkgs.nodejs_22
@@ -99,7 +121,7 @@
             '';
 
             checks.haskell-module-names = pkgs.runCommand "haskell-module-name-check" {
-                src = projectSource;
+                src = haskellModuleCheckSource;
             } ''
                 cp -R "$src" source
                 chmod -R u+w source

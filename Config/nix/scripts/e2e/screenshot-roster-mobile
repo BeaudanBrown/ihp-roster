@@ -30,21 +30,27 @@ capture_device() {
         --selector-timeout-ms 120000
 }
 
-capture_device pixel-7 "Pixel 7"
-capture_device iphone-13 "iPhone 13"
-capture_device ipad-mini "iPad Mini"
+devices=(
+    'pixel-7|Pixel 7'
+    'iphone-13|iPhone 13'
+    'ipad-mini|iPad Mini'
+)
+for device_row in "${devices[@]}"; do
+    IFS='|' read -r slug device <<< "$device_row"
+    capture_device "$slug" "$device"
+done
 
-screenshot-page "$TARGET_PATH" "$OUT_DIR/galaxy-s9-plus-full.png" \
-    --viewport 360x740 \
-    --selector '#roster-week-shell' \
-    --navigation-timeout-ms 120000 \
-    --selector-timeout-ms 120000
-
-screenshot-page "$TARGET_PATH" "$OUT_DIR/galaxy-s9-plus-shell.png" \
-    --viewport 360x740 \
-    --selector '#roster-week-shell' \
-    --clip-selector '#roster-week-shell' \
-    --navigation-timeout-ms 120000 \
-    --selector-timeout-ms 120000
+for capture in full shell; do
+    args=(
+        --viewport 360x740
+        --selector '#roster-week-shell'
+        --navigation-timeout-ms 120000
+        --selector-timeout-ms 120000
+    )
+    if [ "$capture" = shell ]; then
+        args+=(--clip-selector '#roster-week-shell')
+    fi
+    screenshot-page "$TARGET_PATH" "$OUT_DIR/galaxy-s9-plus-$capture.png" "${args[@]}"
+done
 
 echo "Roster mobile screenshots saved under $OUT_DIR"

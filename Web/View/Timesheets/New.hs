@@ -5,12 +5,11 @@ module Web.View.Timesheets.New where
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
-import Web.Timesheets.Paths (timesheetWindowUrl)
+import Web.Timesheets.Paths (timesheetWindowUrlWithFilters)
 import Web.View.Prelude
 
-data NewTimesheetRenderModel = NewTimesheetRenderModel
-    { timesheetFormInputs       :: TimesheetFormInputs
-    , hasRosterSuggestionForDay :: Bool
+newtype NewTimesheetRenderModel = NewTimesheetRenderModel
+    { timesheetFormInputs :: TimesheetFormInputs
     }
 
 newtype NewView = NewView
@@ -20,8 +19,9 @@ newtype NewView = NewView
 instance View NewView where
     html NewView { newTimesheetRenderModel } =
         renderTimesheetEntryModal
+            GuardBlankTimesheet
             (timesheetModalTitle operationalDate)
-            (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
+            (timesheetWindowUrlWithFilters operationalDate inputs.viewFilters)
             newTimesheetFormId
             (renderTimesheetForm (newTimesheetFormRenderModel PageOverlayForm newTimesheetRenderModel))
       where
@@ -34,6 +34,7 @@ newTimesheetFormId = "timesheet-entry-create-form"
 renderNewTimesheetDialog :: NewTimesheetRenderModel -> Html
 renderNewTimesheetDialog newTimesheetRenderModel =
     renderTimesheetEntryDialog
+        GuardBlankTimesheet
         (timesheetModalTitle operationalDate)
         newTimesheetFormId
         (renderTimesheetForm (newTimesheetFormRenderModel HtmxOverlayForm newTimesheetRenderModel))
@@ -41,15 +42,16 @@ renderNewTimesheetDialog newTimesheetRenderModel =
     operationalDate = timesheetEntryOperationalDate newTimesheetRenderModel.timesheetFormInputs.timesheetEntry
 
 newTimesheetFormRenderModel :: OverlayFormMode -> NewTimesheetRenderModel -> TimesheetFormRenderModel
-newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInputs, hasRosterSuggestionForDay } =
+newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInputs } =
     TimesheetFormRenderModel
         { timesheetFormInputs
         , timesheetFormPresentation =
             TimesheetFormPresentation
                 { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
-                , formOrigin = if hasRosterSuggestionForDay then AdHocTimesheetFormWithSuggestion else AdHocTimesheetForm
+                , formOrigin = AdHocTimesheetForm
                 , actionUrl = pathTo CreateTimesheetEntryAction
                 , formId = newTimesheetFormId
                 , formMode
+                , formSurfaceAction = Nothing
                 }
         }

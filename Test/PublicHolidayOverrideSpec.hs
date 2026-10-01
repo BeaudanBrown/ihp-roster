@@ -1,6 +1,7 @@
 module Test.PublicHolidayOverrideSpec where
 
 import Application.PublicHolidays.Override
+import Application.PublicHolidays.OverrideIncident
 import Application.PublicHolidays.Sync
 import Application.WageSourceFacts
 import Application.WageSourcePolicy
@@ -68,6 +69,48 @@ overrideFixture = newRecord @PublicHolidayOverride
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
     describe "public holiday override persistence" do
+        it "emits exact review-window and expiry transitions without reminders" $ withContext do
+            withCleanDb do
+                _ <- createUserRecordWithPlatformRole "override-alert@example.com" "staff" (Just SuperAdmin) True
+                mapM_ createRecord calendar
+                _ <- createRecord overrideFixture
+                let windowOpens = addUTCTime (negate (7 * 24 * 60 * 60)) reviewDueAt
+                _ <- reconcilePublicHolidayOverridesAt (addUTCTime (-1) windowOpens)
+                query @OperationalIncidentEvent |> fetchCount >>= (`shouldBe` 0)
+                _ <- reconcilePublicHolidayOverridesAt windowOpens
+                _ <- reconcilePublicHolidayOverridesAt (addUTCTime 1 windowOpens)
+                _ <- reconcilePublicHolidayOverridesAt reviewDueAt
+                events <- query @OperationalIncidentEvent |> orderByAsc #eventSequence |> fetch
+                map (.transition) events `shouldBe` ["opened", "impact_escalated"]
+                map (.impactKey) events `shouldBe` ["review_window", "expired"]
+                incident <- query @OperationalIncident |> fetchOne
+                incident.stableIdentity `shouldBe` "VIC:2026:1"
+                incident.state `shouldBe` "open"
+
+        it "initially observes overdue only and starts a new audited cycle on extension" $ withContext do
+            withCleanDb do
+                actor <- createUserRecordWithPlatformRole "override-reviewer@example.com" "staff" (Just SuperAdmin) True
+                mapM_ createRecord calendar
+                override <- createRecord overrideFixture
+                _ <- reconcilePublicHolidayOverridesAt reviewDueAt
+                firstEvents <- query @OperationalIncidentEvent |> fetch
+                map (.impactKey) firstEvents `shouldBe` ["expired"]
+
+                let reviewedAt = addUTCTime 60 reviewDueAt
+                let nextDue = addUTCTime (30 * 24 * 60 * 60) reviewedAt
+                extended <- extendPublicHolidayOverrideReview actor override.id nextDue "verified calendar retained" reviewedAt
+                extended `shouldSatisfy` isJust
+                refreshed <- fetch override.id
+                refreshed.reviewCycle `shouldBe` 2
+                refreshed.reviewedByUserId `shouldBe` Just (unpackId actor.id)
+                incidents <- query @OperationalIncident |> orderByAsc #createdAt |> fetch
+                map (.stableIdentity) incidents `shouldBe` ["VIC:2026:1"]
+                map (.state) incidents `shouldBe` ["resolved"]
+
+                retired <- retirePublicHolidayOverride actor override.id "validated return to provider authority" (addUTCTime 1 reviewedAt)
+                retired `shouldSatisfy` isJust
+                fetchActivePublicHolidayOverrides `shouldReturn` []
+
         it "corrects only the known rows, retains import timestamps and records an idempotent audit" $ withContext do
             withCleanDb do
                 records <- loadDataVicHolidayFixture
@@ -137,18 +180,30 @@ databaseTests = aroundAll withDatabaseTestContext do
                 after <- query @PublicHoliday |> orderByAsc #id |> fetch
                 map (\h -> (h.id, h.holidayDate, h.importedAt)) after `shouldBe` map (\h -> (h.id, h.holidayDate, h.importedAt)) before
 
-        it "protects the pinned rows at the database boundary even after review expiry" $ withContext do
+        it "allows unprotected holiday writes with the seed dump's empty search_path" $ withContext do
+            withCleanDb do
+                withTransaction do
+                    unsafeSqlExecDiscardResult "SET LOCAL search_path = ''" ()
+                    unsafeSqlExecDiscardResult "INSERT INTO public.public_holidays (jurisdiction, holiday_date, name) VALUES ('VIC', DATE '2026-01-01', 'Seed regression')" ()
+                    unsafeSqlExecDiscardResult "UPDATE public.public_holidays SET name = 'Updated seed regression' WHERE name = 'Seed regression'" ()
+                    unsafeSqlExecDiscardResult "DELETE FROM public.public_holidays WHERE name = 'Updated seed regression'" ()
+                query @PublicHoliday |> fetchCount >>= (`shouldBe` 0)
+
+        it "protects the pinned rows with an empty search_path even after review expiry" $ withContext do
             withCleanDb do
                 mapM_ createRecord calendar
                 _ <- createRecord (overrideFixture |> set #verifiedAt (addUTCTime (-100) verifiedAt) |> set #reviewDueAt (addUTCTime (-1) verifiedAt))
                 withTransaction do
-                    forM_ [ "DELETE FROM public_holidays WHERE jurisdiction = 'VIC' AND holiday_date = DATE '2026-03-09'"
-                          , "UPDATE public_holidays SET holiday_date = DATE '2026-09-03' WHERE jurisdiction = 'VIC' AND holiday_date = DATE '2026-03-09'"
-                          , "INSERT INTO public_holidays (jurisdiction, holiday_date, name) VALUES ('VIC', DATE '2026-02-01', 'Unexpected')"
+                    unsafeSqlExecDiscardResult "SET LOCAL search_path = ''" ()
+                    forM_ [ "DELETE FROM public.public_holidays WHERE jurisdiction = 'VIC' AND holiday_date = DATE '2026-03-09'"
+                          , "UPDATE public.public_holidays SET holiday_date = DATE '2026-09-03' WHERE jurisdiction = 'VIC' AND holiday_date = DATE '2026-03-09'"
+                          , "INSERT INTO public.public_holidays (jurisdiction, holiday_date, name) VALUES ('VIC', DATE '2026-02-01', 'Unexpected')"
                           ] \statement -> do
                         unsafeSqlExecDiscardResult "SAVEPOINT protected_write" ()
                         result <- Exception.try (unsafeSqlExecDiscardResult statement ()) :: IO (Either Exception.SomeException ())
-                        result `shouldSatisfy` isLeft
+                        case result of
+                            Left failure -> Exception.displayException failure `shouldContain` "Public holiday year is protected by a reviewed override"
+                            Right () -> expectationFailure "Protected holiday write unexpectedly succeeded"
                         unsafeSqlExecDiscardResult "ROLLBACK TO SAVEPOINT protected_write" ()
                 query @PublicHoliday |> fetchCount >>= (`shouldBe` 14)
                 _ <- newRecord @PublicHoliday |> set #jurisdiction "NSW" |> set #holidayDate (fromGregorian 2026 3 9) |> set #name "Other state" |> createRecord

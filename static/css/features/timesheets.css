@@ -12,12 +12,8 @@
 
 .timesheet-settings-toggle-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
     gap: 0.5rem;
-}
-
-.timesheet-settings-toggle-grid:has(> .timesheet-settings-toggle:only-child) {
-    grid-template-columns: minmax(0, 1fr);
 }
 
 .timesheet-settings-toggle {
@@ -55,14 +51,12 @@
     white-space: nowrap;
 }
 
-.timesheet-wage-summary-label,
-.timesheet-day-wage-summary-label {
+.timesheet-wage-estimate-label {
     color: var(--app-muted);
     font-weight: 700;
 }
 
-.timesheet-wage-summary-total,
-.timesheet-day-wage-summary-total {
+.timesheet-wage-estimate-total {
     font-variant-numeric: tabular-nums;
 }
 
@@ -168,7 +162,7 @@
     transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
 }
 
-.timesheet-suggestion-card {
+.timesheet-prefill-card {
     border: 2px solid var(--app-info);
     background: linear-gradient(
         180deg,

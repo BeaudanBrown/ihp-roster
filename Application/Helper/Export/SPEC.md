@@ -20,6 +20,42 @@ cross-module safety and payroll contracts.
 - A generation failure or empty Staff Hours result does not persist a misleading
   export. ZIP bytes are base64 only at the text-backed persistence boundary.
 
+## Reviewed Selections
+
+- Before normal download or opening a filtered checklist, active unapproved
+  Timesheets in the selected operational-day period are listed for explicit
+  continue/cancel review, using the same warning flow as Xero. Cancel creates
+  no export. Continuing never makes those entries eligible; generation and
+  selection validation remain approved-only. Reopening starts a fresh review.
+- Download retains all-eligible behavior. Filtered selections are operation-local,
+  default to all eligible entries, and never change the period. Every output and
+  source-provenance row consumes the same validated snapshot. Explicit empty,
+  foreign, out-of-period, unapproved, deleted or changed identities fail closed;
+  refreshed checklists require review, never automatic retries. Checkbox changes
+  remain local until submission; the server still validates every selected identity.
+- The optional Xero pay-items family is excluded from standard definitions.
+  Editors always offer it, including venues with no Xero connection. Manual entry
+  requires only pay-item names and approved units: no sync, employee mappings,
+  earnings routing, late bindings or previous preparation/upload is required.
+  Managed names share Bepis's pay-item naming rules and use approved pay versions
+  and sealed component rate-boundary dates; imported items retain their pinned
+  local item name. Its weekly dates follow the venue week start, with day headers
+  such as `Monday 25/12`. Rows aggregate selected sealed quantities by staff and
+  local pay-item identity, not display label. Each staff member's complete group
+  of pay-item rows shares one fill, alternating white and grey (`#D9D9D9`)
+  between staff identities. Explicit thin cell borders remain visible over both
+  fills and around the headers. Employee and pay-item columns fit their longest
+  complete label on one line, without width caps or wrapping. Widths use Calibri
+  11 glyph advances plus cell padding rather than raw character counts; the Xero
+  table explicitly uses that font.
+  Missing or invalid approved ledger facts still fail closed.
+- Spreadsheet download filenames use the saved configuration name in lowercase
+  kebab case followed by the ISO date range, for example
+  `weekly-payroll-2026-09-14-to-2026-09-20.xlsx`. Separators and punctuation collapse
+  to hyphens; names without letters or digits fall back to `payroll-workbook`.
+  Ordinary sheets require no Xero setup. Nothing subtracts previously paid or
+  submitted work or calculates payroll adjustments, tax, super or net pay.
+
 ## Output Safety
 
 - Every CSV cell passes through `Render.csvCell`, including spreadsheet-formula

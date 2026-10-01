@@ -2,6 +2,7 @@ module Test.XeroContractSpec where
 
 import Application.Helper.Xero
 import qualified Application.Script.XeroPayItemProbe as XeroPayItemProbe
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
@@ -15,9 +16,13 @@ import IHP.Prelude
 import Network.HTTP.Simple (getResponseStatusCode, httpLBS)
 import Network.HTTP.Types.Status (status200, status400, status401, status403,
                                   status429)
+import System.Directory (removeFile)
 import System.Exit (ExitCode (ExitSuccess))
+import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcessWithExitCode)
 import Test.Hspec
+import Test.E2EXero (withE2EXero)
+import Test.Support.Environment (withEnvironmentVariable)
 import qualified Test.XeroMock as XeroMock
 
 tests :: Spec
@@ -27,6 +32,39 @@ tests =
         accountingSpec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-accounting.yaml")
         payrollV2Spec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2.yaml")
         earningsRatesSpec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2-earnings-rates.local.yaml")
+
+        it "keeps the browser Xero boundary closed and rejects missing, malformed and foreign fixtures" do
+            withSystemTempDirectory "e2e-xero-boundary" \directory -> do
+                let path = directory <> "/fixture.json"
+                    unavailable = Left (XeroHttpError "Missing or invalid E2E Xero fixture")
+                -- Even a regressed adapter must not reach real Xero in this test.
+                XeroMock.fixedXeroResponse status403 (Aeson.object []) \urls ->
+                    withXeroRequestBaseUrlsForTest urls $
+                        withEnvironmentVariable "E2E_XERO_FIXTURE" (Just path) $
+                            withE2EXero do
+                                client <- currentXeroClient
+                                let drafts tenant = client.fetchPayRuns "access-token" tenant XeroMock.samplePayRunQuery
+                                forM_ ["not JSON", "{}", "{\"tenantId\":\"fixture\",\"payRuns\":{}}"] \contents -> do
+                                    LByteString.writeFile path contents
+                                    drafts "fixture" `shouldReturn` unavailable
+                                LByteString.writeFile path "{\"tenantId\":\"fixture\",\"payRuns\":[]}"
+                                drafts "fixture" `shouldReturn` Right []
+                                drafts "another-tenant" `shouldReturn` unavailable
+                                removeFile path
+                                drafts "fixture" `shouldReturn` unavailable
+                                let denied = Left (XeroHttpError "Unexpected E2E Xero operation")
+                                sequence_
+                                    [ operation `shouldReturn` denied
+                                    | operation <-
+                                        [ void <$> client.exchangeCodeForToken XeroMock.testConfig "code"
+                                        , void <$> client.fetchConnectedTenants "token"
+                                        , client.deleteXeroConnection "token" "connection"
+                                        , void <$> client.createPayItem "token" "tenant" "key" (Aeson.object [])
+                                        , void <$> client.fetchTimesheets "token" "tenant" XeroMock.sampleTimesheetQuery
+                                        , void <$> client.fetchTimesheet "token" "tenant" "timesheet"
+                                        , void <$> client.updateTimesheet "token" "tenant" "key" "timesheet" (Aeson.object [])
+                                        ]
+                                    ]
 
         it "verifies checksums and provenance for the complete vendored source bundle" do
             (exitCode, stdoutText, stderrText) <- readProcessWithExitCode "python3" ["scripts/check-xero-openapi-contract"] ""

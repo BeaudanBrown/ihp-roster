@@ -7,8 +7,8 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 ## Terms And Authority
 
 - A **roster shift** is the current roster definition.
-- A **suggestion** is a transient server projection of an eligible roster shift;
-  it is neither persisted nor a status.
+- A **roster-prefill candidate** is a transient server projection of an eligible
+  roster shift shown only in the pre-form chooser; it is neither persisted nor a status.
 - A **Timesheet entry** is the persisted work record used for review, approval,
   export, and payroll.
 - Entries are venue- and staff-scoped. Staff manage their own visible entries;
@@ -44,71 +44,143 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 ## Presentation Preferences And Side Panel
 
-- `Show approved`, `Show suggestions`, and (where authorized) `Show wage estimates`
-  are global per-user preferences and default on when Timesheets preferences are
-  first initialized. They do not enter Bepis-generated Timesheets URLs, fragment
-  requests, or mutation envelopes. The viewed week and authorized manager staff
+- `Show approved` is a global per-user preference and defaults on when Timesheets
+  preferences are first initialized. The obsolete suggestion-visibility control
+  is absent. The independent
+  estimated-pay display mode defaults Hidden. These preferences do not enter
+  Bepis-generated Timesheets URLs, fragment
+  requests, or mutation envelopes. The viewed week and authorized Staff, shift-type,
   and roster-group filters are URL state; additional query fields are ignored
   rather than interpreted as compatibility state. Filters never grant authority.
-  The roster-group filter is available only when at least two active current-venue
-  groups exist; otherwise roster-group URL state canonicalizes to All roster groups.
-  Selecting one
-  retains only entries linked to a source slot in that group and transient
-  suggestions from that group; ad-hoc entries have no group and appear only
-  under All roster groups.
+  Staff, shift types, and roster groups are multi-select URL filters: OR within
+  each category, AND between categories, and an empty selection means All.
+  Shift-type filtering is available to everyone; Staff and roster groups require
+  Manager mode. Options are alphabetical active current-venue items plus historical
+  items referenced by the full authorized, non-deleted week before presentation
+  filters (including Show approved). Historical choices are labelled and disappear
+  when absent from another week; their selections are removed silently.
+  The roster-group category appears only with at least two available groups;
+  otherwise its state canonicalizes to All. When Manager mode is off, Staff and
+  roster-group parameters are removed, but shift-type selections remain and the
+  effective viewer is scoped to their own records.
+  Every entry has an immutable closed roster-group classification: a named
+  roster group or explicit No roster group. Selecting one roster group retains
+  only entries classified to that group. The pre-form chooser ignores these
+  presentation filters. All roster groups includes explicit No roster group entries; there is
+  no separate No roster group filter. Cards render `Shift type - Group` and keep
+  archived historical group names available as labels without exposing archived
+  groups outside their historical weeks as filter choices.
+- One global per-user Manager mode preference is shared with Roster and defaults
+  on. Manager, admin, and owner users with active linked Staff can change it from
+  the ordinary toggle that remains the first control in Settings. Missing active
+  linked Staff forces effective mode on while
+  leaving the saved preference unchanged; unimpersonated founder support is also
+  forced on without a switch. Impersonation uses only the effective user's role,
+  Staff, and preference. Turning mode off applies worker-equivalent read and write
+  scope, removes management notes and review actions, and turning it back on starts
+  with All staff and All roster groups.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
   desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
-  filters. Its counts exclude transient suggestions, ignore the staff card
-  filter, and reflect the selected roster group.
-- Manager row hover/focus highlights matching persisted and suggestion cards;
+  filters. Its counts include persisted entries only, ignore the staff card
+  filter and Show approved, and reflect selected roster groups and shift types.
+- Filters and adjacent Clear filters live in the right-hand Settings panel, not
+  the week toolbar. Filters opens one modal using the shared app accordion with
+  independently collapsible sections and summaries. Managers start collapsed;
+  staff's sole Shift types section opens expanded. One modal body scrolls; the
+  sections retain the modal's normal padding both at rest and while sticky.
+  Scrolling options are clipped below the current header, so neither content nor
+  the moving card's decoration shows above it or through its rounded corners. Headers do not stack and Apply/Cancel remain visible. Options
+  reuse staff-list row styling, including hover and keyboard-focus highlights.
+  There is no search. Section Clear
+  changes only the draft; Apply replaces the week shell and closes the modal.
+  Cancel, Escape and backdrop dismiss silently and discard the draft.
+  Clear filters in Settings applies immediately without changing week or saved preferences.
+  Empty days with active filters say "No timesheets match your filters".
+- Untouched new blank forms dismiss silently, including after reverting all
+  changes to their initial values. Changed blank/edit forms require confirmation;
+  roster-prefilled new forms always confirm, since source selection is not saving.
+- Manager row hover/focus highlights matching persisted entry cards;
   pinning keeps that presentation relationship. Keyboard row activation opens
   the existing staff profile dialog. Highlight and pin state never alter URLs or
   query results.
 
-## Roster Suggestions
+## Grouped Roster-Prefill Chooser
 
-A suggestion exists only while its roster group/week/slot is active and live,
-the shift is complete and explicitly Staff-assigned, linked staff and shift type
-are eligible for Timesheets, and no active entry owns that source slot. Open,
-trial, roster-only, deleted, incomplete, or already-materialized shifts do not
-produce suggestions.
+Clicking a day's `+` loads the complete authorized candidate set for that
+Operational day, independent of current Staff and roster-group presentation
+filters. The chooser renders `Your shifts`, `Blank timesheet`, and, in Manager
+mode where applicable, `Other staff shifts`. Group headings appear when the set
+spans multiple active roster-group classifications. Own shifts order by start and
+end; other shifts order by group, start, Staff name, then stable slot ID.
 
-Suggestions are derived on every projection with no background rows or grace
-period. Their day follows the source Roster day's explicit Operational date,
-independently of the local start calendar date. Windows are venue-wide across
-all active roster groups. Staff see only their own; managers see their normal
-venue scope.
+A roster-prefill candidate exists only while its roster group and day are active,
+the day is Published, the slot is complete and explicitly Staff-assigned, linked
+Staff and shift type are active and Timesheet-eligible, and no active entry owns
+that source slot. Open, trial, roster-only, deleted, incomplete, or already-
+materialized shifts are absent. Candidates are derived on request with no
+background rows or grace period. Their day follows the source Roster day's
+explicit Operational date independently of the local start calendar date. Staff
+see only their own; management sees its normal venue Staff scope.
+
+Blank choices bind both default Staff and immutable classification before opening
+the form. They expose only classification-valid Staff options as full-width
+`Blank timesheet` buttons. The chooser is bypassed only when its complete contents
+are exactly one blank choice and no roster shift; one roster shift always retains
+explicit source selection. A roster shift's whole card is its accessible selection
+link. Chooser cards have no pay or approval controls.
 
 ## Materialization And History
 
+- Day add controls remain available when creation is blocked. An HTMX attempt
+  returns a shared error toast without replacing the page or opening a dialog.
+  A worker whose valid pay assignment is No timesheets sees: "Your profile is set
+  to 'No timesheets'. If you think this is wrong please ask a manager". Managers
+  and above with no eligible current-venue staff receive a venue-wide explanation;
+  their own No timesheets setting never blocks creating entries for eligible
+  colleagues. Missing staff and invalid pay configuration remain distinct reasons.
+  These presentation checks do not change historical visibility/edit permissions
+  or replace server-side mutation authorization.
+
 - Materialization locks and revalidates the source slot, then snapshots staff,
-  instants, timezone, shift type, automatic break, and immutable source ID.
-  The partial source-slot uniqueness constraint and lock make concurrent retries
-  idempotent.
-- Staff creation and ordinary Save create unapproved entries. Authorized
-  managers may atomically materialize and approve; failed approval rolls back
-  the new entry completely.
-- Roster edits never mutate an existing Timesheet snapshot. Soft-deleting the
-  entry may make the current source eligible for a new snapshot while retaining
-  deleted history. Ad-hoc entries remain unrelated to suggestions.
+  instants, timezone, shift type, automatic break, immutable source ID, and the
+  source roster-group classification. Source classification does not depend on
+  the assigned Staff member's current group memberships. The partial source-slot
+  uniqueness constraint and lock make concurrent retries idempotent.
+- Staff and manager roster-prefill Save create unapproved entries. Approval is
+  available only as a separate action on the resulting persisted card; chooser
+  and prefill forms never save-and-approve.
+- Roster edits and membership changes never mutate an existing Timesheet
+  snapshot. Soft-deleting the entry may make the current source eligible for a
+  new snapshot while retaining deleted history. Blank entries remain unrelated
+  to roster-prefill candidates. A blank entry uses No roster group for zero memberships, its
+  sole group for one membership, and requires the pre-form group choice owned by
+  the grouped chooser when multiple memberships exist.
 - Staff cannot reassign roster-derived entries. Managers may correct staff in
-  scope, but source identity and Operational date remain immutable.
+  scope only to Staff currently valid for the immutable classification; edits
+  with unchanged Staff remain valid after membership changes. Source identity,
+  Operational date, and roster-group classification remain immutable.
 
 ## Wage Estimates, Approval And Payroll
 
-- Wage estimates are an independent global per-user preference, enabled when
-  Timesheets preferences are first initialized. Workers may view their own estimates; venue admins and owners may
-  view authorized staff estimates; supervisors and managers do not receive the
-  control or amounts.
-- The week summary and each day summary aggregate only currently visible cards,
-  so staff and roster-group filtering, Show approved, and Show suggestions all
-  change the total.
-  Approved entries consume sealed immutable ledger facts; unapproved entries
-  and transient suggestions use canonical draft evaluation. Failed calculations
-  remain unavailable and are excluded from the clearly partial total rather
-  than becoming zero. Only platform super admins see draft source warnings.
+- Timesheet wage display is an independent persisted mode: Hidden, Filtered
+  timesheets, All timesheets, or Filtered timesheets (all timesheets). New users
+  default Hidden. Worker, Supervisor, and Manager roles are always restricted to
+  their effective linked Staff; Admin and Owner receive venue scope only while
+  Manager mode is on, and support impersonation follows the effective actor.
+  Requested Staff filters and highlight pins never grant pay authority.
+- Filtered summaries use shown persisted entries after Staff, shift-type,
+  roster-group, and Show approved filters. All summaries use persisted non-deleted entries in the
+  selected week within pay authority and ignore those presentation filters. Day
+  summaries apply the same rules to that day. Roster-prefill candidates never contribute.
+  Combined mode renders the visible amount followed by the all amount in
+  parentheses. Failed calculations are excluded rather than treated as zero;
+  visible and overall unavailable counts remain distinct and personal summaries
+  never reveal another Staff member's counts. Personal copy says `Your estimated
+  pay`; venue scope says `Estimated gross wages`. Approved entries consume sealed
+  immutable ledger facts and unapproved entries use canonical draft evaluation.
+  Only platform super admins see draft source warnings.
 - Approval status, actor, timestamp, staff pay version, and shift-type pay
   version change consistently. Fixtures and migrations must never assert only an
   approval boolean.
@@ -127,6 +199,11 @@ fragments and publish typed touched resources for passive viewers. Roster
 publication, relevant slot changes, pay-mode changes, and trial adoption touch
 the affected Timesheet week resources. Date moves refresh old and new visible
 scopes. Week/filter requests use the Surface-declared shell synchronization.
+Filter navigation replaces the scope-bearing shell so fragment URLs, hidden action
+fields, and canonical URL state move together. The shared same-feature HTMX
+lifecycle keeps an open tools shelf on its selected tab and restores its scroll
+position. Fragment GETs and their canonical redirects retain all authorized
+multi-select categories; a refresh must not silently reset selections.
 
 Legacy automatic roster-to-Timesheet jobs remain retired: publication creates no
 entry, the compatibility toggle stays false, and historical jobs remain audit

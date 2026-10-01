@@ -73,8 +73,8 @@ bash ./bin/style-audit
 echo "verify-full: current architecture authority"
 architecture-repository-check
 
-echo "verify-full: optimized production package and consolidated inspection"
-production-inspection-check
+echo "verify-full: optimized production package, artifacts, and isolation"
+production-package-smoke
 
 echo "verify-full: billing contracts"
 billing-contract-check

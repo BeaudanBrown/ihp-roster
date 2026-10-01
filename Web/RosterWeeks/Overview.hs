@@ -57,7 +57,7 @@ buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
          ]
     where
         applyVisibleRosterDayScope queryBuilder =
-            if hasRole Manager
+            if hasManagementMode
                 then queryBuilder
                 else queryBuilder |> filterWhere (#publicationState, Published)
 

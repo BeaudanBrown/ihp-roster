@@ -21,13 +21,23 @@ This document retains cross-module scheduling and state-transition rules.
   to two rows. Existing stored row counts are preserved; copying an existing
   source day preserves its row count, while missing source days use two.
 - Managers, venue admins, owners, and unimpersonated founder support receive
-  capabilities only through server-side checks. During founder impersonation,
+  capabilities only through server-side checks. A global per-user Manager mode
+  preference shared with Timesheets defaults on. Eligible users with active linked
+  Staff may switch it off from the ordinary toggle that remains the first control
+  in Settings; missing active linked Staff forces effective mode on without
+  overwriting the preference, and unimpersonated founder support has no
+  switch. With mode off, published rosters for assigned groups remain fully visible
+  and read-only, drafts retain only the hidden placeholder, management mutations
+  are rejected, and Staff inventory/profile access plus self-service tools remain.
+  Group selection retains an authorized requested group, otherwise uses the first
+  assigned active group in configured order; zero groups render a safe empty page
+  with Settings and the switch. During founder impersonation,
   visibility, controls, self-service, profile gates, and private preferences use
   the effective user's Staff identity and venue role; founder authority does not
   bypass them. Staff cannot edit unpublished weeks and must not see draft detail
   behind the mounted placeholder.
-- Publishing is the staff-visibility gate. Returning to draft hides transient
-  Timesheet suggestions but never changes an existing Timesheet entry.
+- Publishing is the staff-visibility gate. Returning to draft removes transient
+  roster-prefill candidates from the Timesheet chooser but never changes an existing entry.
 
 ## Shift And Time Authority
 
@@ -56,7 +66,7 @@ Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
   Existing invalid shifts remain renderable with a subtle repair indicator and
   standard edit dialog; untrustworthy clocks stay blank. They may only be
   corrected or deleted and cannot be published, copied, projected into payroll,
-  or offered as Timesheet suggestions.
+  or offered as Timesheet roster-prefill candidates.
 - Effective roster-only shifts still require valid boundaries but skip Award
   projected-duration validation. Timesheet-producing shifts use the canonical
   projected-duration/pay boundary.
@@ -64,14 +74,14 @@ Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
 ## Open Shifts And Publication
 
 Complete Open shifts are publishable and visible as `OPEN`, but contribute no
-staff counts, conflicts, wage estimates, or Timesheet suggestions. Draft editors
+staff counts, conflicts, wage estimates, or Timesheet roster-prefill candidates. Draft editors
 may switch Staff/Open. On a Published roster, only authorized editors may perform one
 atomic Open-to-valid-Staff fill; all protected fields remain locked. That fill
 touches both Roster and Timesheet resources. Staffed Published shifts and ordinary
 staff projections remain read-only.
 
 Publishing never creates Timesheet rows. A complete Published linked-staff shift
-becomes a transient Timesheet suggestion; trial staff and Open shifts do not.
+becomes a transient Timesheet roster-prefill candidate; trial staff and Open shifts do not.
 Materialized entries are immutable snapshots of their roster source. Later
 roster edits expose warnings but never rewrite or delete those entries.
 
@@ -145,20 +155,43 @@ error classification.
 The row-grid, day-column, and direct timeline URL are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
-unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
-neither totals nor errors. Wage visibility and staff filtering remain
-server-authorized and transient. Draft wage-source maintenance warnings are
-visible only to platform super admins on both full pages and fragment responses;
-ordinary venue roles retain amounts and calculation errors, not provider warnings.
+unsealed boundary as a Timesheet roster-prefill candidate; roster-only shifts contribute
+neither totals nor errors. The independently persisted roster pay display mode defaults
+to Hidden. Total only shows the window summary and calculation warnings; Daily + total
+also shows per-day amounts in both layouts. Hidden skips estimation. Existing enabled
+preferences migrate to Daily + total; disabled preferences remain Hidden. Timesheet
+pay display preferences remain independent.
+Staff and management panel containers share one settings renderer and settings
+model, including full-page and settings-fragment responses. Settings > Display
+includes `Expected pay` for eligible linked Staff, including impersonated Staff,
+and `Expected wages` for management audiences, alongside own-shift highlighting.
+Both offer Hidden, Total only, and Daily + total. Full-page and live-fragment
+responses honor the same mode; Total only reserves no day-row wage column. Management-only sections remain optional
+and capability-gated; preference endpoints independently authorize changes.
+Worker, Supervisor, and Manager roles always receive only their effective linked
+Staff's authorized visible shifts. Admin and Owner receive selected-group venue
+totals in Manager mode and personal totals while it is off. Unimpersonated
+support receives selected-group venue totals; impersonation follows the effective
+actor. Missing eligible linked Staff means no personal estimate. Day-column totals
+are labelled `Expected pay` outside Manager mode and `Wages` within Manager mode.
+Staff highlight pins and assignment filters never alter wage scope or totals, and no wage request
+decoration exists. Draft wage-source maintenance warnings are visible only to
+platform super admins on both full pages and fragment responses; ordinary venue
+roles retain amounts and calculation errors, not provider warnings.
 
-Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
+Managers receive Staff, Templates, and Settings in the shared transient SidePanel
+while Manager mode is on. With mode off, Staff inventory remains available,
+templates and management controls disappear, and self-service quick tools remain
+in Settings.
 Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
 visibility, and responsive tools shelf used by Timesheets and manager Unavailability. Published rosters
 may highlight the effective viewer's own assigned shifts from a global user
 preference. A manager's transient hover or pinned staff highlight takes
 precedence; draft rosters never apply the own-shift default. Highlight and panel
-visibility do not alter URLs or business projections.
+visibility do not alter URLs or business projections. Roster-group selection uses
+typed HTMX navigation, updating the canonical URL and mounted scope together;
+the shared same-feature shelf lifecycle retains an open Settings shelf.
 
 ## Live Updates
 

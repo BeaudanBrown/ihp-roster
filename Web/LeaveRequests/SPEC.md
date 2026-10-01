@@ -5,7 +5,8 @@
 - Records are venue- and staff-scoped. Backing status is `pending`, `approved`,
   or `denied`; lifecycle transitions append event/audit provenance rather than
   silently deleting reviewed history. Staff may soft-delete only their own pending
-  requests from Profile; approved and denied history remains read-only.
+  requests from Profile; approved and denied history retains a visible disabled
+  Delete action and remains read-only.
 - `end_date` is exclusive. A one-day unavailable period is `[day, day + 1)`.
 - Staff-facing copy uses **Unavailability**, **Unavailable period**, and **Add
   unavailable time** while the backing schema retains leave terminology.
@@ -37,7 +38,9 @@
 - Admins, owners, and founder support may manage venue-wide blackout periods;
   managers may only view them. Blackout dates are inclusive, venue-local,
   non-overlapping, and at most 366 days. Their normalized reason is visible to
-  staff.
+  staff. Blackout validation replaces only the submitted form, retaining its
+  surrounding open editor and other unfinished forms. A successful save returns
+  the saved period to its collapsed summary.
 - Any new unavailable range overlapping a blackout is rejected in full, with no
   role override. Existing requests remain valid when a later blackout is added.
 - The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.

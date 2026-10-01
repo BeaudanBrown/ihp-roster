@@ -4,6 +4,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Live
     , matchTimesheetDayColumnsLiveFragment
     , matchTimesheetDaySectionLiveFragment
     , matchTimesheetSidePanelContentLiveFragment
+    , matchTimesheetStaffContentLiveFragment
     , matchTimesheetToolbarLiveFragment
     , matchTimesheetWindowLiveScope
     , timesheetDayColumnsLiveFragment
@@ -17,6 +18,7 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live (matchTimesheetDayColumnsLiveFragment,
                                                                               matchTimesheetDaySectionLiveFragment,
                                                                               matchTimesheetSidePanelContentLiveFragment,
+                                                                              matchTimesheetStaffContentLiveFragment,
                                                                               matchTimesheetToolbarLiveFragment,
                                                                               timesheetDayColumnsLiveFragment,
                                                                               timesheetDaySectionLiveFragment,

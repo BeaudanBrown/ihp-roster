@@ -18,8 +18,6 @@ module Web.RosterWeeks.AuthorizedScope
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
-import Application.Helper.Controller (fetchCurrentUserStaff)
-import Application.Helper.ControllerAccess (fetchVenueConfig)
 import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.RosterGroups (fetchViewableRosterGroupsForCurrentStaff)
 import Web.Controller.Prelude
@@ -37,7 +35,7 @@ data RosterAuthorizationContext = RosterAuthorizationContext
 loadRosterAuthorizationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterAuthorizationContext
 loadRosterAuthorizationContext = do
     authorizationVenueConfig <- profileActionSpan "roster.snapshot.fetch_venue_config" fetchVenueConfig
-    authorizationCurrentStaff <- profileActionSpan "roster.snapshot.fetch_current_staff" fetchCurrentUserStaff
+    authorizationCurrentStaff <- profileActionSpan "roster.snapshot.fetch_current_staff" (pure effectiveStaffOrNothing)
     authorizationRosterGroups <- profileActionSpan "roster.snapshot.fetch_viewable_groups" (fetchViewableRosterGroupsForCurrentStaff authorizationCurrentStaff)
     pure RosterAuthorizationContext { .. }
 

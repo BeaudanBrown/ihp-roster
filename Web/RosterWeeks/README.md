@@ -20,7 +20,7 @@ mutation invocation, and response selection; HSX lives in
   Week capture and locked Week application.
 - `Projection.hs` and `Responses.hs` — layout-dependent mutation projection
   and response shape; `Paths.hs` and `Dom.hs` — canonical URLs and DOM identity.
-- `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —
+- `Capabilities.hs`, `Filters.hs`, `WageEstimates.hs`, and `Overview.hs` —
   authorization/presentation projections.
 - `Application/RosterNotification/` — immutable notification snapshots and
   durable per-recipient delivery.
@@ -193,14 +193,9 @@ roles so their existing hover/focus appearance uses the same generic runtime.
 The contained day-timeline Surface declares its own shift-group roles; it does
 not reach through its mount boundary to reuse outer-roster elements. Views and
 tests consume generated role names rather than raw staff/slot ID attributes or
-feature-specific highlight selectors. When wage estimates are enabled for an
-admin-authorized viewer, the same opaque staff pin also selects a transient
-mount-local wage filter. A generated roster DTO identifies the authoritative
-wage fragment targets and a generated outbound DTO carries the opaque pinned
-key on fragment refetches. The server validates the staff against the current
-venue/group panel before filtering slots into the canonical wage evaluator.
-Child and passive refreshes retain this context; replacing the roster mount
-resets it.
+feature-specific highlight selectors. Staff pins are presentation-only and
+never decorate requests or alter wage authority, scope, or totals. Replacing
+the roster mount resets the transient pin.
 
 ## Staff-Panel Sort And Tab Contract
 

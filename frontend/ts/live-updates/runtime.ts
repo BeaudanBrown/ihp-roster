@@ -1,5 +1,6 @@
 import { dialogDismissedEvent, interactionSessionEndEvent, interactionSessionStartEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
 import { createActiveInteractionSessionTracker } from "../interaction/session-state";
+import { detailTarget } from "../shared/lifecycle";
 import { createLiveUpdateConnection, type LiveUpdateConnection } from "./connection";
 import { createLiveUpdateDiagnostics } from "./diagnostics";
 import { createLiveUpdateInvalidationRuntime } from "./invalidation";
@@ -42,7 +43,10 @@ export function enableLiveUpdateRuntime(): void {
             activeSurfaceInstances.delete(instance.instanceId);
             diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
         });
-        reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
+        reconciliation.retained.forEach((instance) => {
+            refresher.activateOwner(instance.ownerEl);
+            activeSurfaceInstances.set(instance.instanceId, instance);
+        });
         reconciliation.added.forEach((instance) => {
             refresher.activateOwner(instance.ownerEl);
             activeSurfaceInstances.set(instance.instanceId, instance);
@@ -53,7 +57,11 @@ export function enableLiveUpdateRuntime(): void {
     function syncRuntime(): void {
         reconcileMounts();
         const desired = collectDesiredSurfaceSubscriptions(document, reportSurfaceConfigError);
-        if (desired.size === 0) activeSurfaceInstances.clear();
+        if (desired.size === 0) {
+            disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+                diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+            });
+        }
         connection?.sync(desired);
     }
 
@@ -78,7 +86,8 @@ export function enableLiveUpdateRuntime(): void {
         refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
         refresher.flushFocusedFragmentsWithoutActiveInputs();
     });
-    document.addEventListener("htmx:afterSwap", () => {
+    document.addEventListener("htmx:afterSwap", (event) => {
+        refresher.handleFormEvent(event);
         refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
         window.setTimeout(syncRuntime, 0);
     });
@@ -87,10 +96,35 @@ export function enableLiveUpdateRuntime(): void {
     document.addEventListener(dialogDismissedEvent, () => window.setTimeout(syncRuntime, 0));
 
     const scheduleFocusedFlush = () => window.setTimeout(refresher.flushFocusedFragmentsWithoutActiveInputs, 0);
+    for (const name of ["htmx:beforeRequest", "htmx:beforeOnLoad", "htmx:beforeSwap", "htmx:afterRequest"]) {
+        document.addEventListener(name, (event) => {
+            if (name === "htmx:beforeRequest") {
+                const initiator = detailTarget(event, "elt");
+                if (initiator instanceof Element) refresher.markProtectionChanged(initiator);
+            }
+            refresher.handleFormEvent(event);
+            if (name === "htmx:afterRequest") scheduleFocusedFlush();
+        });
+    }
+    for (const name of ["input", "change"]) {
+        document.addEventListener(name, (event) => {
+            if (event.target instanceof Element) refresher.formChanged(event.target);
+        });
+    }
     document.addEventListener("focusout", scheduleFocusedFlush);
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+}
+
+export function disposeTrackedSurfaceInstances(
+    activeSurfaceInstances: Map<string, FrontendSurfaceMountedInstance>,
+    disposeOwner: (ownerEl: HTMLElement) => void,
+): FrontendSurfaceMountedInstance[] {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
 }
 
 function instanceDebugDetail(instance: FrontendSurfaceMountedInstance): Record<string, unknown> {

@@ -147,7 +147,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterWageEstimatePreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("showWageEstimates", "true")]
+                            [("anchorDate", "2025-01-06"), ("rosterPayDisplayMode", "roster_pay_daily")]
                 layoutResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
@@ -158,12 +158,12 @@ tests = aroundAll withDatabaseTestContext do
                         let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
                 refreshesPersonalRosterSettings warningResponse
                 refreshesPersonalRosterSettings wageResponse
                 let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders layoutResponse)
                 layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
                 layoutTriggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
@@ -197,6 +197,7 @@ tests = aroundAll withDatabaseTestContext do
                          , RosterLive.rosterDayRailLiveFragment
                          , RosterLive.rosterWageRailLiveFragment
                          , RosterLive.rosterStaffPanelLiveFragment
+                         , RosterLive.rosterSettingsContentLiveFragment
                          ]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
@@ -226,6 +227,7 @@ tests = aroundAll withDatabaseTestContext do
                                , RosterLive.rosterWageRailLiveFragment
                                , RosterLive.rosterSlotsGridLiveFragment
                                , RosterLive.rosterStaffPanelLiveFragment
+                               , RosterLive.rosterSettingsContentLiveFragment
                                , RosterLive.rosterDaySectionLiveFragment (unpackId rosterDayId)
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 0
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1

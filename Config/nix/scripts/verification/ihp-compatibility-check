@@ -51,6 +51,6 @@ graph=$(nix eval --json .#packages.x86_64-linux --apply '
       standalone = p.${"script-" + name}.drvPath;
     }) p.unoptimized-prod-server.scriptBinaries;
   }')
-jq -e '.optimized != .unoptimized and (.scripts | length == 8) and
+jq -e '.optimized != .unoptimized and (.scripts | length == 9) and
   (.scripts | all(.packaged == .standalone))' <<< "$graph" >/dev/null
-echo "ihp-compatibility: server and eight dedicated script outputs passed"
+echo "ihp-compatibility: server and nine dedicated script outputs passed"

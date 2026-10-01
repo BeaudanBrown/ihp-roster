@@ -1,8 +1,8 @@
 import { expect, type Locator, type Page, type Request } from '@playwright/test';
-import { dialogMountDomAttr, dialogOverlayMountDomId, toggleRootDomAttr } from '../../frontend/ts/generated/contracts';
+import { dialogMountDomAttr, dialogOverlayMountDomId, rosterSidePanelShelfToggleDomAttr, toggleRootDomAttr } from '../../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from '../timeouts';
-import { runSql } from './database';
-import { gotoWhenReady, runActionUntilRequestStarts } from './runtime';
+import { runSql, sqlString } from './database';
+import { gotoWhenReady, runActionUntilRequestStarts, waitForLiveRecovery } from './runtime';
 import { loginAs } from './session';
 
 const dialogOverlaySelector = `#${dialogOverlayMountDomId}`;
@@ -48,18 +48,38 @@ type OpenRosterOptions = {
 };
 
 export async function openRosterSettings(page: Page) {
+    await waitForLiveRecovery(page, E2E_TIMEOUT.liveUpdate, E2E_TIMEOUT.quick);
+    const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+    if (await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'false') {
+        await shelfToggle.click();
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'true');
+    }
     const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true }).first();
     const settingsPane = page.locator('#roster-staff-panel-settings-pane');
+    if (!(await settingsTab.isVisible())) {
+        const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
+        if (await mobilePanelToggle.isVisible()) await mobilePanelToggle.click();
+    }
     await expect(settingsTab).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await expect.poll(async () => {
+        if (!(await settingsTab.isVisible())) {
+            const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
+            if (await mobilePanelToggle.isVisible()) await mobilePanelToggle.click();
+        }
         const selected = (await settingsTab.getAttribute('aria-selected')) === 'true';
         const paneVisible = await settingsPane.isVisible();
-        if (!selected || !paneVisible) {
-            await settingsTab.click().catch(() => {});
-            return false;
-        }
-        return true;
-    }, { timeout: E2E_TIMEOUT.assertion }).toBe(true);
+        if (!selected) await settingsTab.click().catch(() => {});
+        return selected && paneVisible;
+    }, { timeout: E2E_TIMEOUT.liveUpdate }).toBe(true);
+}
+
+async function closeMobileRosterTools(page: Page) {
+    const closeButton = page.getByRole('button', { name: 'Close Roster tools' });
+    const shelfContent = page.locator('.app-side-panel-shelf-content');
+    if (await closeButton.isVisible()) {
+        await closeButton.click();
+        await expect(shelfContent).toBeHidden({ timeout: E2E_TIMEOUT.action });
+    }
 }
 
 export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMode = 'day_rows') {
@@ -67,7 +87,9 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
     await expect(frame).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
     if ((await frame.getAttribute('data-roster-layout')) !== layoutMode) {
-        const staffTab = page.getByRole('tab', { name: 'Staff', exact: true }).first();
+        const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+        const restoreClosedShelf = await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'false';
+        const staffTab = page.getByRole('tab', { name: 'Staff', exact: true, includeHidden: true }).first();
         const restoreStaffTab = (await staffTab.getAttribute('aria-selected')) === 'true';
         await openRosterSettings(page);
         const settingsPanel = page.locator('#roster-staff-panel-settings-pane');
@@ -77,23 +99,28 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
         const gridFrameRefreshPromise = page.waitForResponse((response) =>
             response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekGridFrameFragment'),
         );
-        const staffPanelRefreshPromise = page.waitForResponse((response) =>
-            response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'),
+        const settingsRefreshPromise = page.waitForResponse((response) =>
+            response.request().method() === 'GET' && response.url().includes('/ShowRosterSettingsFragment'),
         );
         await settingsPanel.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
-        const [preferenceResponse, gridFrameRefresh, staffPanelRefresh] = await Promise.all([
+        const [preferenceResponse, gridFrameRefresh, settingsRefresh] = await Promise.all([
             preferenceResponsePromise,
             gridFrameRefreshPromise,
-            staffPanelRefreshPromise,
+            settingsRefreshPromise,
         ]);
         expect(preferenceResponse.status(), await preferenceResponse.text()).toBe(200);
         expect(gridFrameRefresh.status(), await gridFrameRefresh.text()).toBe(200);
-        expect(staffPanelRefresh.status(), await staffPanelRefresh.text()).toBe(200);
-        await Promise.all([gridFrameRefresh.finished(), staffPanelRefresh.finished()]);
+        expect(settingsRefresh.status(), await settingsRefresh.text()).toBe(200);
+        await Promise.all([gridFrameRefresh.finished(), settingsRefresh.finished()]);
         await expect(frame).toHaveAttribute('data-roster-layout', layoutMode, { timeout: E2E_TIMEOUT.assertion });
+        await waitForLiveRecovery(page, E2E_TIMEOUT.liveUpdate, E2E_TIMEOUT.quick);
         if (restoreStaffTab) {
             await staffTab.click();
             await expect(page.locator('#roster-staff-panel-staff-pane')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        }
+        if (restoreClosedShelf) {
+            await shelfToggle.click();
+            await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
         }
     }
 
@@ -131,6 +158,15 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         useCurrentSession = false,
     } = options;
 
+    if (ensureEditable) {
+        runSql(`
+            INSERT INTO user_preferences (user_id, manager_mode_enabled)
+            SELECT id, TRUE FROM users WHERE email = ${sqlString(email)}
+            ON CONFLICT (user_id) DO UPDATE SET
+                manager_mode_enabled = TRUE,
+                updated_at = NOW();
+        `);
+    }
     if (!useCurrentSession) {
         await loginAs(page, email, password);
     }
@@ -158,6 +194,7 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     );
     await expect(page.locator('#roster-content')).toBeVisible();
     await ensureRosterLayout(page, rosterLayoutMode);
+    await closeMobileRosterTools(page);
 
     if (ensureDraft) {
         const publishToggle = page.getByRole('switch', { name: 'Published' });
@@ -171,12 +208,14 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         await expect(page.locator('.roster-grid-frame')).toBeVisible();
 
         if (!ensureEditable) {
+            await closeMobileRosterTools(page);
             return;
         }
 
         const hasEditableRows = (await editableRosterRows(page).count()) > 0;
         const hasAddRowControl = await firstRosterDayAddButton(page).isVisible().catch(() => false);
         if (hasEditableRows || hasAddRowControl || step === maxWeekAdvances) {
+            await closeMobileRosterTools(page);
             return;
         }
 

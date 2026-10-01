@@ -1,16 +1,18 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.StaffPanel
-    ( renderrosterStaffPanelLiveFragment
+    ( renderRosterSidePanel
+    , renderrosterStaffPanelLiveFragment
     , renderrosterStaffPanelLiveFragmentWithSwap
     ) where
 
+import Application.Helper.Controller (hasManagementMode)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog,
                                                      OpenRosterStaffEditDialog,
                                                      OpenTrialStaffInvitationDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
                                                              appShellActionAttrs,
+                                                             appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -29,7 +31,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Profiling (profileHtmlComponent, profileHtmlComponentWithCounters)
+import Application.Helper.Profiling (profileHtmlComponent,
+                                     profileHtmlComponentWithCounters)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import qualified Data.Text as Text
@@ -48,7 +51,9 @@ import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelRenderModel (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
-import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel,
+                                           rosterSettingsFromStaffPanel)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickTools)
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
@@ -57,19 +62,31 @@ renderrosterStaffPanelLiveFragment =
 
 
 renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterStaffPanelRenderModel -> Html
-renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
+renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries }
+    | not currentUserIsManager = mempty
+    | otherwise = [hsx|
+        <div id={rosterStaffPanelFragmentId} class="app-side-panel-pane-content" hx-swap-oob={maybeSwapOob}>
+            {renderRosterStaffPanelHeader panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id (length staffPanelRosterGroups > 1) staffPanelScope}
+            {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id (sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries)}
+        </div>
+    |]
+  where
+    panelStaffMembers = map (.staff) staffPanelEntries
+
+renderRosterSidePanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
+renderRosterSidePanel panelModel =
     if currentUserIsManager
         then profileHtmlComponent "render.roster.staff_panel_fragment" $
             renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
-                { sidePanelRegionId = Just rosterStaffPanelFragmentId
+                { sidePanelRegionId = Nothing
                 , sidePanelRegionClass = Text.unwords rosterStaffPanelFragmentClasses
-                , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+                , sidePanelRegionExtraAttrs = []
                 }
                 (renderRosterStaffPanel panelModel)
         else mempty
 
 renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } =
+renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelEntries } =
     profileHtmlComponentWithCounters "render.roster.staff_panel_component"
         [ ("render.roster.staff_panel", 1)
         , ("render.roster.staff_panel_entry", length staffPanelEntries)
@@ -79,17 +96,13 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurren
         (renderRosterStaffPanelTabs (isJust templatePanelContent) staffPanelContent (fromMaybe mempty templatePanelContent) settingsPanelContent)}
 |]
     where
-        hasMultipleRosterGroups = length staffPanelRosterGroups > 1
-        panelStaffMembers = map (.staff) staffPanelEntries
-        renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries
-        staffPanelContent = [hsx|
-            {renderRosterStaffPanelHeader panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
-            {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id renderedPanelStaff}
-        |]
+        staffPanelContent = renderrosterStaffPanelLiveFragment panelModel
         templatePanelContent = do
             templateLibrary <- panelModel.staffPanelTemplateLibrary
             pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
-        settingsPanelContent = renderRosterSettingsPanel panelModel
+        settingsPanelContent =
+            maybe mempty renderRosterSelfServiceQuickTools panelModel.staffPanelSelfServicePanel
+                <> renderRosterSettingsPanel (rosterSettingsFromStaffPanel panelModel)
 
 
 renderRosterStaffPanelShell :: Html -> Html
@@ -144,7 +157,7 @@ renderRosterStaffPanelHeader anchorDate currentRosterGroupId hasMultipleRosterGr
             <h2 class="h5 mb-0">Staff</h2>
         </div>
         <div class="app-side-panel-content-header-actions roster-staff-panel-header-actions">
-            {renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId}
+            {when hasManagementMode (renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId)}
             {when hasMultipleRosterGroups (renderStaffScopeToggle anchorDate currentRosterGroupId panelScope)}
         </div>
     </div>
@@ -324,15 +337,15 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionC
 
 renderStaffPayConfigurationWarning :: (?context :: ControllerContext) => RosterStaffPanelEntry -> Html
 renderStaffPayConfigurationWarning entry
-    | not currentUserIsManager || not entry.staffPayConfigurationRequired = mempty
+    | not hasManagementMode || not entry.staffPayConfigurationRequired = mempty
     | otherwise = [hsx|<span class="text-warning small" role="img" tabindex="0" title={warningText} aria-label={warningText}>(!)</span>|]
   where
     warningText :: Text
     warningText = "Pay configuration required. A venue admin must choose a default pay rate or “No Timesheets (roster only).”"
 
-renderTrialStaffInviteButton :: Day -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
+renderTrialStaffInviteButton :: (?context :: ControllerContext) => Day -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
 renderTrialStaffInviteButton anchorDate currentRosterGroupId staffDisplayLabel entry
-    | not (isAdoptableTrialStaff entry.staff) = mempty
+    | not hasManagementMode || not (isAdoptableTrialStaff entry.staff) = mempty
     | otherwise =
         renderAppShellActionHtmxControl
             (appShellActionByMarker @OpenTrialStaffInvitationDialog)

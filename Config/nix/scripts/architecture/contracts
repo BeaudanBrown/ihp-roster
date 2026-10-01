@@ -15,18 +15,17 @@ build_dir="${ARCHITECTURE_CONTRACTS_BUILD_DIR:-$(ihp_roster_verification_build_d
 # Match typecheck/Hspec options so this generator reuses their application
 # artifacts instead of recompiling the graph into a disposable directory.
 mkdir -p "$(dirname "$output_path")"
+snapshot_dir=""
+tmp_output=""
+trap 'rm -f -- "$tmp_output"; if [ -n "$snapshot_dir" ]; then rm -rf -- "$snapshot_dir"; fi' EXIT
 if generator="$(frontend_contract_tool_binary generate-bepis-architecture-contracts)"; then
     echo "architecture-contracts: using isolated tooling package" >&2
 else
     GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
-    ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
-    # shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
-    ghc $GHC_OPTS Application/Script/GenerateBepisArchitectureContracts.hs \
-        -main-is Application.Script.GenerateBepisArchitectureContracts \
-        -odir "$build_dir/obj" \
-        -hidir "$build_dir/hi" \
-        -o "$build_dir/generate-bepis-architecture-contracts" >/dev/null
-    generator="$build_dir/generate-bepis-architecture-contracts"
+    snapshot_dir="$(mktemp -d)"
+    generator="$snapshot_dir/generate-bepis-architecture-contracts"
+    bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$build_dir" "$GHC_OPTS" architecture-build-lock -- \
+        bash "$BEPIS_SCRIPTS_ROOT/architecture/build-image" "$build_dir" "$GHC_OPTS" "$generator"
 fi
 
 tmp_output="$(mktemp "$(dirname "$output_path")/.bepis-contracts.json.XXXXXX")"

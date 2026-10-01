@@ -23,9 +23,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (sqlQueryScalar)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -162,7 +162,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
-                response `responseBodyShouldContain` "btn-outline-success"
+                response `responseBodyShouldContain` "type=\"checkbox\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-1\""
+                response `responseBodyShouldContain` "type=\"checkbox\" checked=\"checked\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-2\""
                 response `responseBodyShouldContain` "app-toggle-button"
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "class=\"visually-hidden app-toggle-button-input\" type=\"checkbox\""
@@ -220,9 +221,9 @@ tests = aroundAll withDatabaseTestContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"profile-details-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-leave-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-details-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-leave-shell-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldNotContain` "id=\"profile-rsa-collapse\""
                 response `responseBodyShouldNotContain` "accordion-collapse collapse show"
 
@@ -230,7 +231,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams EditProfileAction [("section", "security")]
 
                 securityResponse `responseStatusShouldBe` status200
-                securityResponse `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse show\""
+                securityResponse `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse show\""
 
         it "temporarily hides profile RSA section" $ withContext do
             withCleanDb do
@@ -353,6 +354,14 @@ tests = aroundAll withDatabaseTestContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+                let Right preferenceResource = encodeDurableResource (staffPreferencesResource (unpackId staff.id))
+                    Right profileResource = encodeDurableResource (staffProfileResource (unpackId staff.id))
+                query @LiveInvalidationEventResource
+                    |> filterWhere (#resourceKey, preferenceResource.durableResourceKey)
+                    |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEventResource
+                    |> filterWhere (#resourceKey, profileResource.durableResourceKey)
+                    |> fetchCount >>= (`shouldBe` 0)
 
         it "keeps server validation authoritative for crossed and out-of-range preference endpoints" $ withContext do
             withCleanDb do
@@ -392,7 +401,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
-                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "ignores staff status fields submitted by workers" $ withContext do

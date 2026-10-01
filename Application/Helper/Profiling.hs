@@ -25,7 +25,9 @@ import qualified Data.UUID.V4 as UUIDv4
 import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Controller.Render (renderHtml, respondHtml)
-import IHP.ControllerSupport (ControllerContext, Respond, ResponseReceived, respondWith)
+import IHP.ControllerSupport (ControllerContext, Respond, ResponseReceived,
+                              respondWith)
+import qualified IHP.HSX.Markup as Markup
 import IHP.Prelude
 import IHP.ViewSupport (View)
 import Network.HTTP.Types (status200)
@@ -35,7 +37,6 @@ import qualified Network.Wai as Wai
 import OpenTelemetry.Attributes (Attribute, toAttribute)
 import qualified System.Environment as Environment
 import System.IO.Unsafe (unsafePerformIO)
-import qualified IHP.HSX.Markup as Markup
 
 data RequestProfile = RequestProfile
     { requestProfileId :: !Text

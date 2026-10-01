@@ -74,9 +74,11 @@ publication remain independently owned and must still be observed in tests.
 Submission tests create real preparation records and call
 `submitXeroDraftTimesheetsForPreparation`, preserving strict mock provider requests
 and persisted parent/source/status assertions. Reservation-conflict outcomes and
-persisted reconciliation snapshot readers remain live contracts. Confirmation
-uses one fresh reconciliation read, not comparison with an earlier reviewed
-snapshot; safe drafts can be updated immediately and unsafe states still block.
+persisted reconciliation snapshot readers remain live contracts. Period selection
+first requires explicit acknowledgement when unapproved Timesheets will be
+excluded. Final submission confirmation uses one fresh reconciliation read, not
+comparison with an earlier reviewed snapshot; safe drafts can be updated
+immediately and unsafe states still block.
 
 Catalogue fixture keys and effective dates come from `deriveXeroPayItemRequirements`.
 Fixtures needing unavailable managed matches must declare that gap explicitly,

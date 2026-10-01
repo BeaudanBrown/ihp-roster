@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Profile
     , ProfileScope
     , ProfileSurface
     , StaffDetailsSection
+    , StaffPayWarningSection
     , StaffLeaveSection
     , StaffVisibleUnavailabilityBlackouts
     , StaffPreferencesSection
@@ -75,6 +76,8 @@ data StaffId
 data ProfileDetailsSection
 data ProfilePreferencesSection
 data StaffDetailsSection
+data StaffPayWarningSection
+data StaffProfilePayWarning
 data StaffPreferencesSection
 data StaffLeaveSection
 data StaffVisibleUnavailabilityBlackouts
@@ -173,7 +176,6 @@ type ProfileSurface =
              , 'Eager
              , 'Live
              , 'DependsOn StaffProfileResource '[ 'FromScope StaffId ]
-             , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
              ]
          , Fragment ProfilePreferencesSection '[] '[ 'MountTarget ProfilePreferences '[], 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Action UpdateProfileDetails StaffProfileFields StaffProfileSubmitOptions
@@ -202,8 +204,8 @@ type StaffSurface =
              , 'Eager
              , 'Live
              , 'DependsOn StaffProfileResource '[ 'FromScope StaffId ]
-             , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
              ]
+         , Fragment StaffPayWarningSection '[] '[ 'MountTarget StaffProfilePayWarning '[], 'Eager, 'Live, 'DependsOn StaffProfileResource '[ 'FromScope StaffId ] ]
          , Fragment StaffPreferencesSection '[] '[ 'MountTarget StaffProfilePreferences '[], 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Fragment StaffVisibleUnavailabilityBlackouts
             '[]

@@ -2,23 +2,32 @@
 
 module Test.OverlaySpec where
 
-import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay,
+                                                     DeleteTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime
-import Application.Helper.FrontendContract.Overlay.Runtime (dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
+import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..),
+                                                            dialogDismissalGuardAttrs,
+                                                            dialogPointerDismissBlurAttrs,
+                                                            navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
+import Application.Helper.View.Timesheets
 import Application.Helper.View.Toast
 import Config
-import qualified Data.Text as Text
 import qualified Data.List as List
+import qualified Data.Text as Text
+import Generated.Types
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import qualified IHP.HSX.Parser as Hsx
+import IHP.ModelSupport
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import IHP.HSX.Markup (Html)
-import qualified IHP.HSX.Markup as HtmlRenderer
 import Text.Megaparsec.Pos (initialPos)
+import Web.Timesheets.Filters (emptyTimesheetViewFilters)
+import Web.View.RosterWeeks.ShiftDialog
 
 pureTests :: Spec
 pureTests = do
@@ -33,16 +42,29 @@ pureTests = do
                     , ("data-bepis-navigation-loading-config", "{\"loadingMessage\":\"Please wait while Bepis opens Stripe's secure billing page.\",\"loadingTitle\":\"Opening Stripe\"}")
                     ]
 
+        it "renders exact generated unsaved-dismissal configuration" do
+            dialogDismissalGuardAttrs DialogDismissalGuardConfigValue
+                { dismissalGuardFormId = "timesheet-entry-edit-form"
+                , dismissalGuardImmediately = False
+                , dismissalGuardConfirmationTitle = "Discard unsaved changes?"
+                , dismissalGuardKeepEditingLabel = "Keep editing"
+                , dismissalGuardDiscardLabel = "Discard changes"
+                }
+                `shouldBe`
+                    [ ("data-bepis-dialog-dismissal-guard", "true")
+                    , ("data-bepis-dialog-dismissal-guard-config", "{\"confirmationTitle\":\"Discard unsaved changes?\",\"discardLabel\":\"Discard changes\",\"formId\":\"timesheet-entry-edit-form\",\"guardImmediately\":false,\"keepEditingLabel\":\"Keep editing\"}")
+                    ]
+
 -- Literal expectations deliberately do not call the production attribute builders.
 buttonCases :: Bool -> [(Text, OverlayButtonAction, Text, [(Text, Text)], [[(Text, Text)]], [(Text, Text)])]
 buttonCases page =
     [ ("close", OverlayCloseAction, if page then "a" else "button", if page then [("href", "/close")] else [("type", "button"), ("data-bepis-dialog-close", "true")], [], [])
     , ("submit", OverlaySubmitFormAction "edit-form", "button", submitAttrs "Working...", [], [])
-    , ("loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving", "button", submitAttrs "Saving", [], [])
+    , ("loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" True [], "button", submitAttrs "Saving", [], [])
+    , ("disabled loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" False [("data-bepis-checkbox-list-submit", "true")], "button", submitAttrs "Saving" <> [("disabled", "disabled"), ("data-bepis-checkbox-list-submit", "true")], [], [])
     , ("navigate", OverlayNavigateAction "/next", "a", [("href", "/next")], [], [])
-    , ("native form", DialogFormAction "DELETE" "/delete" fields (Just "Really delete?"), "button", [("type", "submit")], [nativeFormAttrs], ("_method", "DELETE") : fields)
-    , ("navigation loading form", DialogNavigationLoadingFormAction "DELETE" "/delete" fields (Just "Really delete?") "Opening" "Please wait", "button", [("type", "submit")], [nativeFormAttrs <> [("data-bepis-navigation-loading", "true"), ("data-bepis-navigation-loading-config", "{&quot;loadingMessage&quot;:&quot;Please wait&quot;,&quot;loadingTitle&quot;:&quot;Opening&quot;}")]], ("_method", "DELETE") : fields)
-    , ("generated form", GeneratedDialogFormAction (appShellActionByMarker @DeleteTimesheetEntryOverlay) route (("_method", "DELETE") : fields) (Just "Really delete?"), "button", [("type", "submit")], [generatedFormAttrs], ("routeField", "route-value") : ("_method", "DELETE") : fields)
+    , ("navigation loading form", DialogNavigationLoadingFormAction "DELETE" "/delete" fields "Opening" "Please wait", "button", [("type", "submit")], [nativeFormAttrs <> [("data-bepis-navigation-loading", "true"), ("data-bepis-navigation-loading-config", "{&quot;loadingMessage&quot;:&quot;Please wait&quot;,&quot;loadingTitle&quot;:&quot;Opening&quot;}")]], ("_method", "DELETE") : fields)
+    , ("generated form", GeneratedDialogFormAction (appShellActionByMarker @DeleteTimesheetEntryOverlay) route (("_method", "DELETE") : fields), "button", [("type", "submit")], [generatedFormAttrs], ("routeField", "route-value") : ("_method", "DELETE") : fields)
     ]
   where
     fields = [("csrfToken", "token-value"), ("entryId", "entry-value")]
@@ -52,12 +74,12 @@ buttonCases page =
         }
     submitAttrs loadingLabel =
         [("type", "submit"), ("form", "edit-form"), ("data-bepis-dialog-submit", "true"), ("data-bepis-dialog-submit-config", "{&quot;loadingLabel&quot;:&quot;" <> loadingLabel <> "&quot;}")]
-    nativeFormAttrs = [("method", "POST"), ("action", "/delete"), ("class", "app-modal-footer-form"), ("onsubmit", "return window.confirm(&quot;Really delete?&quot;);")]
+    nativeFormAttrs = [("method", "POST"), ("action", "/delete"), ("class", "app-modal-footer-form")]
     generatedFormAttrs =
         [("method", if page then "POST" else "post"), ("action", "/native-delete"), ("class", "app-modal-footer-form")]
             <> if page
-                then [("onsubmit", "return window.confirm(&quot;Really delete?&quot;);")]
-                else [("hx-delete", "/htmx-delete"), ("hx-target", "#dialog-overlay-mount"), ("hx-swap", "innerHTML"), ("hx-push-url", "false"), ("hx-confirm", "Delete this timesheet entry? This cannot be undone.")]
+                then []
+                else [("hx-delete", "/htmx-delete"), ("hx-target", "#dialog-overlay-mount"), ("hx-swap", "innerHTML"), ("hx-push-url", "false")]
 
 -- Use IHP's existing markup parser rather than a parallel attribute scanner.
 parseRenderedOverlay :: Html -> IO Hsx.Node
@@ -73,7 +95,7 @@ elementNodes _ = []
 
 nodeName :: Hsx.Node -> Text
 nodeName (Hsx.Node name _ _ _) = name
-nodeName _ = ""
+nodeName _                     = ""
 
 nodeAttrs :: Hsx.Node -> [(Text, Text)]
 nodeAttrs (Hsx.Node _ attrs _ _) = List.sort [(name, value) | Hsx.StaticAttribute name (Hsx.TextValue value) <- attrs]
@@ -93,7 +115,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let config = defaultDialogOverlayConfig "Buttons" mempty [OverlayButton "Action" "contract-button" action]
                         tree <- parseRenderedOverlay (case closeUrl of
-                            Nothing -> renderDialogOverlay config
+                            Nothing  -> renderDialogOverlay config
                             Just url -> renderPageDialogModal url config)
                         let controls = filter (\node -> lookup "class" (nodeAttrs node) == Just "contract-button") (elementNodes tree)
                         map (\node -> (nodeName node, nodeAttrs node, nodeText node)) controls
@@ -110,16 +132,78 @@ databaseTests = aroundAll withDatabaseTestContext do
                             [OverlayButton "Cancel" "contract-button" OverlayCloseAction, OverlayButton "Save" "contract-button" (OverlaySubmitFormAction "edit-form")])
                             { dialogOverlayStartButtons = [OverlayButton "First" "contract-button" (OverlayNavigateAction "/first"), OverlayButton "Second" "contract-button" (OverlayNavigateAction "/second")] }
                     tree <- parseRenderedOverlay (case closeUrl of
-                        Nothing -> renderDialogOverlay config
+                        Nothing  -> renderDialogOverlay config
                         Just url -> renderPageDialogModal url config)
                     map nodeText (filter (\node -> lookup "class" (nodeAttrs node) == Just "contract-button") (elementNodes tree))
                         `shouldBe` ["First", "Second", "Cancel", "Save"]
                     let emptyConfig = defaultDialogOverlayConfig "Empty" mempty []
                     emptyTree <- parseRenderedOverlay (case closeUrl of
-                        Nothing -> renderDialogOverlay emptyConfig
+                        Nothing  -> renderDialogOverlay emptyConfig
                         Just url -> renderPageDialogModal url emptyConfig)
                     filter (\node -> maybe False (Text.isInfixOf "app-modal-footer") (lookup "class" (nodeAttrs node))) (elementNodes emptyTree)
                         `shouldBe` []
+
+        it "retains dismissal guards on direct page dialogs" $ withContext do
+            withCurrentControllerContext do
+                let guard = DialogDismissalGuardConfigValue "timesheet-entry-edit-form" False "Discard unsaved changes?" "Keep editing" "Discard changes"
+                let config = (defaultDialogOverlayConfig "Edit Timesheet" mempty []) { dialogOverlayDismissalGuard = Just guard }
+                tree <- parseRenderedOverlay (renderPageDialogModal "/Timesheets" config)
+                let guardedDialogs = filter (\node -> lookup "data-bepis-dialog-dismissal-guard" (nodeAttrs node) == Just "true") (elementNodes tree)
+                map nodeAttrs guardedDialogs `shouldSatisfy` any (elem ("data-bepis-dialog-mount", "true"))
+                map nodeAttrs guardedDialogs `shouldSatisfy` all (elem ("aria-modal", "true"))
+                map nodeAttrs guardedDialogs `shouldSatisfy` all (notElem ("aria-hidden", "true"))
+
+        forM_ [1, 15] \step ->
+            forM_ autofocusCases \(label, failures, manager, ownEntry, origin, hasBreak, expected) ->
+                it ("selects one eligible timesheet autofocus target: " <> label <> " step " <> cs (tshow step)) $ withContext do
+                    withCurrentControllerContext do
+                        let base = autofocusTimesheetModel
+                            entry = base.timesheetFormInputs.timesheetEntry
+                            annotated = entry { meta = entry.meta { annotations = [(field, TextViolation "Invalid") | field <- failures] }
+                                              , breakStartsAt = if hasBreak then Just entry.startsAt else Nothing
+                                              , breakEndsAt = if hasBreak then Just entry.endsAt else Nothing }
+                            model = base
+                                { timesheetFormInputs = base.timesheetFormInputs
+                                    { timesheetEntry = annotated, viewerIsManager = manager, pickerStep = step
+                                    , currentViewerStaffId = if ownEntry then Just entry.staffId else Nothing }
+                                , timesheetFormPresentation = base.timesheetFormPresentation { formOrigin = origin }
+                                }
+                        tree <- parseRenderedOverlay (renderTimesheetFormFields model)
+                        length (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree)) `shouldBe` 1
+                        autofocusControlNames tree `shouldBe` [expected]
+
+        forM_ [("default", emptyRosterShiftDialogValues, False, "startTime")
+              , ("role before time", emptyRosterShiftDialogValues { rosterShiftTypeError = Just "Invalid", rosterShiftEndError = Just "Invalid" }, False, "shiftTypeId")
+              , ("staff before time", emptyRosterShiftDialogValues { rosterShiftStaffError = Just "Invalid", rosterShiftStartError = Just "Invalid" }, False, "staffId")
+              , ("end time", emptyRosterShiftDialogValues { rosterShiftEndError = Just "Invalid" }, False, "endTime")
+              , ("disabled fields", emptyRosterShiftDialogValues { rosterShiftTypeError = Just "Invalid", rosterShiftStartError = Just "Invalid" }, True, "staffId")]
+            \(label, values, assignmentOnly, expected) ->
+                it ("selects one eligible roster autofocus target: " <> label) $ withContext do
+                    withCurrentControllerContext do
+                        tree <- parseRenderedOverlay (renderRosterShiftDialog (autofocusRosterDialog values assignmentOnly))
+                        length (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree)) `shouldBe` 1
+                        autofocusControlNames tree `shouldBe` [expected]
+
+        it "declares shell autofocus only for dialogs without a form-owned target" $ withContext do
+            withCurrentControllerContext do
+                forM_ [renderDialogOverlay dialogConfig, renderDialogOverlayBodyOnly "Body" "" mempty] \markup -> do
+                    tree <- parseRenderedOverlay markup
+                    map (lookup "role" . nodeAttrs) (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree))
+                        `shouldBe` [Just "dialog"]
+                tree <- parseRenderedOverlay (renderKeyboardDialogOverlay dialogConfig)
+                filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree) `shouldSatisfy` null
+
+        it "renders confirmation as an explicit dialog with a native loading submit" $ withContext do
+            withCurrentControllerContext do
+                let html = renderText (renderConfirmationDialog
+                        ((defaultConfirmationDialogConfig "Confirm" mempty "confirm-form" mempty)
+                            { confirmationDialogLoadingLabel = "Saving…" }))
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-confirmation=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "form=\"confirm-form\""
+                html `shouldSatisfy` Text.isInfixOf "type=\"submit\""
+                html `shouldSatisfy` Text.isInfixOf "Saving…"
+                html `shouldSatisfy` not . Text.isInfixOf "hx-confirm"
+                html `shouldSatisfy` not . Text.isInfixOf "window.confirm"
 
         it "owns the exact dialog mount clear OOB fragment" $ withContext do
             withCurrentControllerContext do
@@ -144,6 +228,21 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
 
+        it "renders an optional unsaved-dismissal guard on the dialog root" $ withContext do
+            withCurrentControllerContext do
+                let guard = DialogDismissalGuardConfigValue
+                        { dismissalGuardFormId = "edit-form"
+                        , dismissalGuardImmediately = False
+                        , dismissalGuardConfirmationTitle = "Discard unsaved changes?"
+                        , dismissalGuardKeepEditingLabel = "Keep editing"
+                        , dismissalGuardDiscardLabel = "Discard changes"
+                        }
+                    html = renderText (renderKeyboardDialogOverlay dialogConfig
+                        { dialogOverlayDismissalGuard = Just guard })
+
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-dismissal-guard=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "Discard unsaved changes?"
+
         it "opts keyboard dialogs into one generated content focus region" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderKeyboardDialogOverlay dialogConfig)
@@ -165,7 +264,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
                 html `shouldSatisfy` Text.isInfixOf "id=\"toast-overlay-mount\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-mount=\"true\""
-                html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-config=\"{&quot;autoHideMs&quot;:3200}\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-config=\"{&quot;autoHideMs&quot;:5000}\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-close=\"true\""
                 html `shouldSatisfy` Text.isInfixOf "aria-label=\"Dismiss\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-overlay-toast"
@@ -176,6 +275,61 @@ databaseTests = aroundAll withDatabaseTestContext do
             "Generated overlay"
             (HtmlRenderer.toHtml ("Body" :: Text))
             (defaultOverlayButtons "generated-overlay-form")
+
+autofocusCases :: [(String, [Text], Bool, Bool, TimesheetFormOrigin, Bool, Text)]
+autofocusCases =
+    [ ("default", [], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("start before end", ["startsAt", "endsAt"], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("end", ["endsAt"], False, True, AdHocTimesheetForm, False, "endTime")
+    , ("role before time", ["endsAt", "shiftTypeId"], False, True, AdHocTimesheetForm, False, "shiftTypeId")
+    , ("editable staff", ["staffId", "shiftTypeId"], True, False, AdHocTimesheetForm, False, "staffId")
+    , ("hidden worker staff", ["staffId", "endsAt"], False, True, AdHocTimesheetForm, False, "endTime")
+    , ("locked roster staff", ["staffId", "endsAt"], False, False, RosteredTimesheetForm, False, "endTime")
+    , ("editable roster staff", ["staffId", "endsAt"], True, False, RosteredTimesheetForm, False, "staffId")
+    , ("inactive break", ["breakStartsAt"], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("break start", ["breakStartsAt", "breakEndsAt"], False, True, AdHocTimesheetForm, True, "breakStartTime")
+    , ("break end", ["breakEndsAt"], False, True, AdHocTimesheetForm, True, "breakEndTime")
+    , ("own comment", ["staffComment"], False, True, AdHocTimesheetForm, False, "staffComment")
+    , ("read-only comment", ["staffComment", "managerNote"], True, False, AdHocTimesheetForm, False, "managerNote")
+    , ("absent manager note", ["managerNote"], False, True, AdHocTimesheetForm, False, "startTime")
+    ]
+
+-- Native controls carry names directly; picker buttons use their field's hidden
+-- transport. Inspect rendered structure, not the production focus-selection code.
+autofocusControlNames :: Hsx.Node -> [Text]
+autofocusControlNames tree =
+    [name | node <- elementNodes tree, isJust (lookup "autofocus" (nodeAttrs node)), Just name <- [lookup "name" (nodeAttrs node)]]
+    <> [name | field <- elementNodes tree, isJust (lookup "data-bepis-time-picker-field" (nodeAttrs field))
+             , any (\node -> nodeName node == "button" && isJust (lookup "autofocus" (nodeAttrs node))) (elementNodes field)
+             , input <- elementNodes field, nodeName input == "input", Just name <- [lookup "name" (nodeAttrs input)]]
+
+autofocusTimesheetModel :: TimesheetFormRenderModel
+autofocusTimesheetModel = TimesheetFormRenderModel
+    { timesheetFormInputs = TimesheetFormInputs
+        { timesheetEntry = (newRecord @TimesheetEntry)
+            { startsAt = UTCTime day 0, endsAt = UTCTime day (8 * 3600)
+            , timezone = "Australia/Melbourne", operationalDate = day }
+        , staffMembers = [], shiftTypes = [], calendarRevision = 0
+                                , viewFilters = emptyTimesheetViewFilters
+        , currentViewerStaffId = Nothing, pickerStart = "00:00", pickerEnd = "23:45", pickerStep = 15, viewerIsManager = False
+        }
+    , timesheetFormPresentation = TimesheetFormPresentation
+        { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
+        , formSurfaceAction = Nothing
+        , formOrigin = AdHocTimesheetForm, actionUrl = "/CreateTimesheetEntry", formId = "focus-form", formMode = HtmxOverlayForm }
+    }
+  where
+    day = fromGregorian 2026 9 21
+
+autofocusRosterDialog :: RosterShiftDialogValues -> Bool -> RosterShiftDialogData
+autofocusRosterDialog values assignmentOnly = RosterShiftDialogData
+    { rosterShiftDialogMode = EditRosterShiftDialog { dialogRosterSlotId = def }
+    , rosterShiftDialogTitle = "Focus", rosterShiftDialogStaff = [], rosterShiftDialogStaffOptionStates = mempty
+    , rosterShiftDialogPayInvalidStaffIds = mempty, rosterShiftDialogShiftTypes = []
+    , rosterShiftDialogTimePickerStart = "00:00", rosterShiftDialogTimePickerEnd = "23:45", rosterShiftDialogTimePickerStep = 15
+    , rosterShiftDialogValues = values, rosterShiftDialogAssignmentOnly = assignmentOnly
+    , rosterShiftDialogAnchorDate = fromGregorian 2026 9 21, rosterShiftDialogCalendarRevision = 0
+    }
 
 renderText :: Html -> Text
 renderText = cs . HtmlRenderer.renderMarkupLazyText

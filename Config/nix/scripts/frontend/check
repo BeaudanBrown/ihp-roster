@@ -6,13 +6,7 @@ cd "$repo_root"
 
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/contracts-check"
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapters-check"
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-guardrails"
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-compile-fail-check"
-tsc --project tsconfig.json --noEmit
 node scripts/check-frontend-contract-empty.mjs < Test/Fixtures/frontend-contract/representative.ts.golden
-e2e-typecheck
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/no-ts-nocheck"
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/no-broad-switch-defaults"
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/test"
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/drift-check"
+frontend-runtime-check

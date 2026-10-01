@@ -67,7 +67,7 @@ rosterGridStructuralFragments =
 
 rosterGridStructuralAndStaffPanelFragments :: [RosterProjectionFragment]
 rosterGridStructuralAndStaffPanelFragments =
-    rosterGridStructuralFragments <> [rosterStaffPanelFragment]
+    rosterGridStructuralFragments <> [rosterStaffPanelFragment, RosterProjectionSettings]
 
 rosterGridInnerAndStaffPanelFragments :: [RosterProjectionFragment]
 rosterGridInnerAndStaffPanelFragments =
@@ -76,6 +76,7 @@ rosterGridInnerAndStaffPanelFragments =
     , RosterProjectionWageRail
     , RosterProjectionSlotsGrid
     , rosterStaffPanelFragment
+    , RosterProjectionSettings
     ]
 
 

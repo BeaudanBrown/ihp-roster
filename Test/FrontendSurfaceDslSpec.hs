@@ -42,13 +42,13 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
+import qualified IHP.HSX.Markup as HtmlRenderer
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 import Test.Hspec
 import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
-import qualified IHP.HSX.Markup as HtmlRenderer
-import IHP.HSX.MarkupQQ (hsx)
 
 data TestLoad
 data TestPanel
@@ -373,6 +373,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , ("browser-fixture-side-panel-panel", "data-bepis-browser-fixture-browser-fixture-side-panel-panel")
                        , ("browser-fixture-side-panel-toggle", "data-bepis-browser-fixture-browser-fixture-side-panel-toggle")
                        , ("browser-fixture-side-panel-label", "data-bepis-browser-fixture-browser-fixture-side-panel-label")
+                       , ("side-panel-shelf", "data-bepis-browser-fixture-side-panel-shelf")
+                       , ("side-panel-shelf-toggle", "data-bepis-browser-fixture-side-panel-shelf-toggle")
                        , ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
                        , ("staff-highlight-member", "data-bepis-browser-fixture-staff-highlight-member")
                        , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
@@ -386,6 +388,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
                 [ ("browser-fixture-side-panel", ["collapsed", "expanded"])
+                , ("side-panel-shelf", ["shelf-closed", "shelf-open"])
                 , ("browser-fixture-mode", ["calm", "busy"])
                 ]
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
@@ -521,6 +524,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe`
                 [ ("data-bepis-browser-fixture-browser-fixture-side-panel-root", "true")
                 , ("data-bepis-browser-fixture-browser-fixture-side-panel", "collapsed")
+                , ("data-bepis-browser-fixture-side-panel-shelf", "shelf-closed")
                 ]
         surfaceSidePanelMainAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
             `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-main", "true")]
@@ -627,8 +631,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 ]
         surfaceFieldsText scopeFields
             `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("windowStartDate", "2025-01-20"), ("windowEndDate", "2025-01-27"), ("rosterCalendarRevision", "2")]
-        let absentOptionalFields :: SurfaceFields '[ 'OptionalField TimesheetsSurface.StaffFilterId 'WireUUID]
-            absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing &: noSurfaceFields
+        let absentOptionalFields :: SurfaceFields '[ 'OptionalField RequestFilterId 'WireUUID]
+            absentOptionalFields = surfaceOptionalField @RequestFilterId Nothing &: noSurfaceFields
         surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
         surfaceFieldsText absentOptionalFields `shouldBe` []
         let nullFields :: SurfaceFields '[ 'NullableField NullableTestField 'WireText]
@@ -647,8 +651,9 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` "fixture:~null"
         let actionFields =
                 surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
-                    &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
-                    &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterId Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.StaffFilterIds Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterIds Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.ShiftTypeFilterIds Nothing
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
         surfaceFieldNameFrom @TimesheetsSurface.AnchorDate actionFields `shouldBe` "anchorDate"
@@ -769,8 +774,9 @@ tests = describe "FrontendSurface DSL foundation" do
                         &: surfaceField @TimesheetsSurface.RosterCalendarRevision (1 :: Int)
                         &: noSurfaceFields
                     )
-                    ( surfaceField @TimesheetsSurface.StaffFilterId Nothing
-                        &: surfaceField @TimesheetsSurface.RosterGroupFilterId Nothing
+                    ( surfaceField @TimesheetsSurface.StaffFilterIds []
+                        &: surfaceField @TimesheetsSurface.RosterGroupFilterIds []
+                        &: surfaceField @TimesheetsSurface.ShiftTypeFilterIds []
                         &: noSurfaceFields
                     )
                     [fragment]
@@ -933,7 +939,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
         map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
-        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"]
         surface.surfaceBrowserDomTokens `shouldBe` []
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
@@ -945,8 +951,9 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.mountStateFields)
             |> fmap (map (\field -> (field.fieldName, field.fieldWire)))
             `shouldBe` Just
-                [ ("staffFilterId", WireOptionalIR WireUuidIR)
-                , ("rosterGroupFilterId", WireOptionalIR WireUuidIR)
+                [ ("staffFilterIds", WireListIR WireUuidIR)
+                , ("rosterGroupFilterIds", WireListIR WireUuidIR)
+                , ("shiftTypeFilterIds", WireListIR WireUuidIR)
                 ]
         let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions
@@ -985,7 +992,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountConfig ="
         frontendSurfaceContractsTypeScript `shouldNotContainText` "TimesheetsTimesheetsMountStateMountState"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export type TimesheetsMountState ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-side-panel-content\",\"timesheet-day-section\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-side-panel-content\",\"timesheet-staff-content\",\"timesheet-day-section\"]"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
     it "renders marker-indexed roster column-edit roles and closed states" do
@@ -1110,6 +1117,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-wage-rail"
                        , "roster-slots-grid"
                        , "roster-staff-panel"
+                       , "roster-settings-content"
                        , "roster-week-overview"
                        , "roster-template-library"
                        , "roster-day-section"
@@ -1122,14 +1130,17 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` Just ["rosterDayId", "rowIndex"]
         map (.htmxActionName) surface.surfaceHtmxActions
             `shouldBe` [ "navigate-roster-week"
+                       , "switch-roster-group"
                        , "toggle-roster-warnings"
                        , "toggle-roster-wage-estimates"
+                       , "toggle-roster-manager-mode"
                        , "toggle-roster-own-live-shift-highlight"
                        , "sort-roster-week"
                        , "toggle-roster-week-live-status"
                        , "show-roster-notification-confirmation"
                        , "create-roster-notification-run"
                        , "toggle-roster-assignment-filters"
+                       , "open-copy-roster-week-confirmation"
                        , "copy-roster-week"
                        , "create-roster-week-slot-definition"
                        , "delete-roster-week-slot-definition"
@@ -1175,6 +1186,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-side-panel-panel"
                        , "data-bepis-roster-side-panel-toggle"
                        , "data-bepis-roster-side-panel-label"
+                       , "data-bepis-roster-side-panel-shelf"
+                       , "data-bepis-roster-side-panel-shelf-toggle"
                        , "data-bepis-roster-column-editor"
                        , "data-bepis-roster-column-edit-start"
                        , "data-bepis-roster-column-edit-done"
@@ -1183,7 +1196,6 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-image-export-projection"
                        , "data-bepis-roster-image-export-row"
                        , "data-bepis-roster-image-export-cell"
-                       , "data-bepis-roster-wage-filter-config"
                        , "data-bepis-roster-week-overview-panel"
                        , "data-bepis-roster-week-overview-day"
                        , "data-bepis-roster-week-overview-today"
@@ -1215,6 +1227,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
                 [ ("side-panel", ["collapsed", "expanded"])
+                , ("side-panel-shelf", ["shelf-closed", "shelf-open"])
                 , ("column-editing", ["inactive", "active"])
                 , ("image-export-format", ["png"])
                 , ("week-overview-availability", ["loaded", "unloaded"])
@@ -1269,9 +1282,8 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportCell = { imageExportText: string; imageExportEndEllipsis: boolean };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWageFilterConfig = { wageFilterEnabled: boolean; wageFilterRefreshTargetIds: ReadonlyArray<string>; wageFilterRequestTargetIds: ReadonlyArray<string> };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWageFilterRequest = { pinnedStaffKey?: string };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export function encodeRosterWageFilterRequest"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "RosterWageFilter"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "pinnedStaffKey"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewDayConfig = { weekOverviewDate: FrontendContractDay; weekOverviewSelectedLabel: string; weekOverviewLeaveDisplay: string; weekOverviewAssignedDisplay: string; weekOverviewHoursDisplay: string; weekOverviewSummaryText: string; weekOverviewWeekLabel: string; weekOverviewNavigationUrl: string; weekOverviewAvailability: string; weekOverviewClosure: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"

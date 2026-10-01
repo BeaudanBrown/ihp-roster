@@ -17,6 +17,7 @@ mkdir -p "$fixture_repo"
 
 managed_fixture_postgres() {
     env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
         TEST_POSTGRES_MODE=managed \
         TEST_POSTGRES_PROFILE=migration-rehearsal \
         TEST_POSTGRES_REPO_ROOT="$fixture_repo" \
@@ -71,6 +72,7 @@ run_harness() {
     (
         cd "$fixture_repo"
         env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+            BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
             bash "$harness" "$@"
     )
 }
@@ -90,12 +92,40 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$fixture_root/unpinned-bin/migrate"
 chmod +x "$fixture_root/unpinned-bin/migrate"
 if (
     cd "$fixture_repo"
-    PATH="$fixture_root/unpinned-bin:$PATH" bash "$harness" --from-ref "$predecessor_commit"
+    BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
+        PATH="$fixture_root/unpinned-bin:$PATH" bash "$harness" --from-ref "$predecessor_commit"
 ) >"$fixture_root/unpinned.out" 2>"$fixture_root/unpinned.err"; then
     echo "migration-rehearsal-test: expected an unpinned migrate binary to be rejected" >&2
     exit 1
 fi
 grep -F 'active migrate does not match the candidate-pinned IHP runner' "$fixture_root/unpinned.err" >/dev/null
+
+cat >"$fixture_root/failing-postgres-manager" <<'EOF'
+#!/usr/bin/env bash
+echo 'fixture manager ensure failure' >&2
+exit 42
+EOF
+chmod +x "$fixture_root/failing-postgres-manager"
+postgres_binary="$("$source_repo/bin/tooling-run" postgres --print-binary)"
+migrate_runner="$(readlink -f "$(command -v migrate)")"
+if "$postgres_binary" rehearsal-run \
+    --workspace "$fixture_repo" \
+    --from-ref "$predecessor_commit" \
+    --runner "$migrate_runner" \
+    --expected-runner "$migrate_runner" \
+    --candidate-ihp-source "$fixture_root" \
+    --postgres-manager "$fixture_root/failing-postgres-manager" \
+    --recipe "$source_repo/Config/nix/scripts/db/migration-rehearsal-recipe" \
+    >"$fixture_root/manager-failure.out" 2>"$fixture_root/manager-failure.err"; then
+    echo "migration-rehearsal-test: expected PostgreSQL manager ensure failure" >&2
+    exit 1
+fi
+grep -F 'fixture manager ensure failure' "$fixture_root/manager-failure.err" >/dev/null
+run_root="$fixture_repo/.pi/tmp/migration-rehearsal"
+if [ -d "$run_root" ] && find "$run_root" -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .; then
+    echo "migration-rehearsal-test: manager ensure failure retained an unrequested run directory" >&2
+    exit 1
+fi
 
 noop_started_at="$(date +%s)"
 if ! run_harness --from-ref "$predecessor_commit" >"$fixture_root/noop.out" 2>"$fixture_root/noop.err"; then
@@ -113,6 +143,49 @@ noop_database="$(sed -n 's/^database=//p' "$fixture_root/noop.out")"
 socket="$(managed_fixture_postgres ensure)"
 if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$noop_database"; then
     echo "migration-rehearsal-test: no-op database was not cleaned up" >&2
+    exit 1
+fi
+
+MIGRATION_REHEARSAL_DATABASE=postgres \
+MIGRATION_REHEARSAL_FRESH_DATABASE=template1 \
+MIGRATION_REHEARSAL_SOCKET=/tmp/untrusted \
+MIGRATION_REHEARSAL_RUN_DIR=/tmp/untrusted \
+    run_harness --from-ref "$predecessor_commit" >"$fixture_root/env.out" 2>"$fixture_root/env.err"
+env_database="$(sed -n 's/^database=//p' "$fixture_root/env.out")"
+[[ "$env_database" == migration_rehearsal_* ]] || {
+    echo "migration-rehearsal-test: caller environment overrode the owned database" >&2
+    exit 1
+}
+
+valid_predecessor_schema="$fixture_root/valid-predecessor-schema.sql"
+cp "$fixture_repo/Application/Schema.sql" "$valid_predecessor_schema"
+cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL,
+);
+SQL
+git -C "$fixture_repo" add Application/Schema.sql
+git -C "$fixture_repo" commit -qm 'malformed predecessor schema fixture'
+restore_failure_predecessor="$(git -C "$fixture_repo" rev-parse HEAD)"
+cp "$valid_predecessor_schema" "$fixture_repo/Application/Schema.sql"
+git -C "$fixture_repo" add Application/Schema.sql
+git -C "$fixture_repo" commit -qm 'restore valid candidate schema'
+if run_harness --from-ref "$restore_failure_predecessor" --keep-failure-artifacts \
+    >"$fixture_root/restore.out" 2>"$fixture_root/restore.err"; then
+    echo "migration-rehearsal-test: expected predecessor schema restore failure" >&2
+    exit 1
+fi
+grep -F 'failed to load predecessor IHP/application schema' "$fixture_root/restore.err" >/dev/null
+restore_artifact_dir="$(sed -n 's/^artifact_dir=//p' "$fixture_root/restore.err")"
+[ -n "$restore_artifact_dir" ] && [ -s "$restore_artifact_dir/setup.log" ] \
+    && [ "$(wc -c < "$restore_artifact_dir/setup.log")" -le 65536 ] || {
+    echo "migration-rehearsal-test: restore failure evidence was not retained and bounded" >&2
+    exit 1
+}
+restore_database="$(sed -n 's/^database=//p' "$fixture_root/restore.out")"
+if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$restore_database"; then
+    echo "migration-rehearsal-test: restore-failure database was not cleaned up" >&2
     exit 1
 fi
 
@@ -188,20 +261,22 @@ git -C "$fixture_repo" commit -qm 'interrupt candidate migration'
 (
     cd "$fixture_repo"
     exec env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+        BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
         bash "$harness" --from-ref "$predecessor_commit"
 ) >"$fixture_root/interrupt.out" 2>"$fixture_root/interrupt.err" &
 interrupt_pid=$!
 interrupt_database=""
-for _ in $(seq 1 200); do
+for _ in $(seq 1 600); do
     interrupt_database="$(sed -n 's/^database=//p' "$fixture_root/interrupt.out" 2>/dev/null || true)"
     if [ -n "$interrupt_database" ] \
-        && psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$interrupt_database"; then
+        && find "$fixture_repo/.pi/tmp/migration-rehearsal" -name migrate.ready -type f -print -quit 2>/dev/null | grep -q .; then
         break
     fi
     sleep 0.05
 done
-[ -n "$interrupt_database" ] || {
-    echo "migration-rehearsal-test: interrupt fixture did not create a database" >&2
+[ -n "$interrupt_database" ] \
+    && find "$fixture_repo/.pi/tmp/migration-rehearsal" -name migrate.ready -type f -print -quit 2>/dev/null | grep -q . || {
+    echo "migration-rehearsal-test: interrupt fixture did not reach migration execution" >&2
     exit 1
 }
 runner_active=0

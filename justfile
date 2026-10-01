@@ -34,17 +34,13 @@ android-stop:
     nix run .#bepis-pwa-android -- stop
 
 tunnel-grill:
-    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
-    ssh -N -T \
-        -L "${PORT}:localhost:${PORT}" \
-        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
-        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
-        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
-        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
-        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
-        grill
+    just _workspace-tunnel grill
 
 tunnel-agent:
+    just _workspace-tunnel agent
+
+[private]
+_workspace-tunnel target:
     eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
         -L "${PORT}:localhost:${PORT}" \
@@ -53,7 +49,7 @@ tunnel-agent:
         -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
         -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
         -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
-        agent
+        {{target}}
 
 db:
     dev-db-reset

@@ -32,9 +32,10 @@ renderRosterTemplateCaptureInput ::
     Day ->
     Text ->
     Maybe Text ->
+    Bool ->
     Text ->
     Html
-renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submittedMode errorMessage =
+renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submittedMode assignmentInvalid errorMessage =
     renderDialogOverlay (defaultDialogOverlayConfig
             "Save current week as template"
             (renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateCaptureAction fields) route [hsx|
@@ -45,6 +46,7 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
                 </div>
                 <fieldset>
                     <legend class="h6">Assignments</legend>
+                    {assignmentError}
                     {renderAssignmentModeChoice (surfaceFieldNameFrom @Surface.CaptureAssignmentMode fields) submittedMode KeepValidStaffAssignments "Keep valid Staff assignments"}
                     {renderAssignmentModeChoice (surfaceFieldNameFrom @Surface.CaptureAssignmentMode fields) submittedMode MakeEveryShiftOpen "Make every shift Open"}
                 </fieldset>
@@ -53,6 +55,7 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
             , dialogOverlaySubmitButton "Save template" rosterTemplateCaptureFormId
             ])
   where
+    assignmentError = when assignmentInvalid [hsx|<p class="text-danger" role="alert">Choose an assignment option.</p>|]
     fields = RosterAction.previewRosterTemplateCaptureActionFields submittedName KeepValidStaffAssignments Nothing Nothing
     actionUrl = appendQueryParams (pathTo PreviewRosterTemplateCaptureAction { rosterGroupId }) [("anchorDate", tshow anchorDate)]
     route = captureActionRoute actionUrl
@@ -66,7 +69,7 @@ renderAssignmentModeChoice :: Text -> Maybe Text -> RosterTemplateCaptureAssignm
 renderAssignmentModeChoice fieldName submittedMode mode label = [hsx|
     <div class="form-check">
         <label class="form-check-label">
-            <input class="form-check-input" type="radio" name={fieldName} value={value} checked={submittedMode == Just value}/>
+            <input class="form-check-input" type="radio" name={fieldName} value={value} checked={submittedMode == Just value} required="required"/>
             {label}
         </label>
     </div>

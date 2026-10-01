@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="tooling-foundation-test"
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+trap 'rm -rf "$fixture_root"' EXIT
+fail() { echo "$program: $*" >&2; exit 1; }
+
+PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal test --offline --project-dir="$repo_root" --project-file=tooling.project \
+    --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null
+PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
+    --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null \
+    || fail "compatibility Cabal project did not resolve the canonical tooling project"
+core_test="$(PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
+    --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
+
+lock="$fixture_root/interop.lock"
+ready="$fixture_root/holder-ready"
+"$core_test" --hold-lock "$lock" "$ready" 10000000 &
+holder=$!
+for _ in $(seq 1 100); do
+    [ -f "$ready" ] && break
+    sleep 0.01
+done
+[ -f "$ready" ] || fail "Haskell lock holder did not become ready"
+if flock -n "$lock" true; then fail "Bash flock entered while Haskell held the lock"; fi
+kill -TERM "$holder"
+wait "$holder" 2>/dev/null || true
+flock -n "$lock" true || fail "terminated Haskell holder retained the lock"
+rm -f "$ready"
+"$core_test" --spawn-child "$lock" "$ready"
+[ -f "$ready" ] || fail "close-on-exec lock probe did not run"
+flock -w 0.5 "$lock" true || fail "executed child inherited the Haskell lock descriptor"
+
+# One source-only fixture for the real package/source-filter checks. Never copy
+# build outputs into the cold bootstrap or mutate the operator's checkout.
+fixture_repo="$fixture_root/repo"
+mkdir -p "$fixture_repo"
+(
+    cd "$repo_root"
+    while IFS= read -r -d '' path; do
+        if [ -e "$path" ] || [ -L "$path" ]; then printf '%s\0' "$path"; fi
+    done < <(git ls-files --cached --others --exclude-standard -z) \
+        | tar --null --files-from=- --create
+) | tar --extract --directory="$fixture_repo"
+
+bootstrap_repo="$fixture_root/bootstrap"
+mkdir -p "$bootstrap_repo/bin"
+cp "$fixture_repo/bin/tooling-run" "$bootstrap_repo/bin/tooling-run"
+cp "$fixture_repo/tooling.project" "$bootstrap_repo/tooling.project"
+cp -a "$fixture_repo/tooling" "$bootstrap_repo/tooling"
+git -C "$bootstrap_repo" init -q
+for forbidden in App.cabal Application build/Generated tooling/dist-newstyle; do
+    [ ! -e "$bootstrap_repo/$forbidden" ] || fail "cold bootstrap retained $forbidden"
+done
+# A shell reload can change PATH without changing the compiler (for example,
+# direnv's layout or the devenv script profile). Exercise real discovery in the
+# isolated shell; do not manually provide the stable path we are testing.
+nix develop --ignore-environment "$repo_root#tooling" --command bash -c '
+    set -euo pipefail
+    command -v direnv >/dev/null
+    PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build --offline --dry-run \
+        --project-dir="$2" --project-file=tooling.project --builddir="$3/shell-build" all >/dev/null
+    "$1/bin/tooling-run" workspace contract >"$3/cold.out"
+    before="$(find "$1/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+    mkdir "$3/reloaded-shell-bin"
+    PATH="$3/reloaded-shell-bin:$PATH" "$1/bin/tooling-run" workspace contract >"$3/reloaded.out"
+    after="$(find "$1/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+    if [ "$before" != "$after" ]; then
+        echo "tooling-foundation-test: shell PATH change reconfigured an unchanged compiler" >&2
+        exit 1
+    fi
+    cmp "$3/cold.out" "$3/reloaded.out"
+' bash "$bootstrap_repo" "$repo_root" "$fixture_root" \
+    || fail "independent shell bootstrap or stable compiler discovery failed"
+configuration_before="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+mkdir "$fixture_root/runtime-bin"
+BEPIS_TOOLING_ENV=1 PATH="$fixture_root/runtime-bin:$PATH" \
+    "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/warm.out"
+configuration_after="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+[ "$configuration_before" = "$configuration_after" ] || fail "runtime PATH change reconfigured the compiler"
+grep -q '"identityVersion":1' "$fixture_root/cold.out" || fail "cold bootstrap omitted workspace contract"
+cmp -s "$fixture_root/cold.out" "$fixture_root/warm.out" || fail "warm bootstrap changed output"
+
+printf '\nthis is not Haskell\n' >>"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
+if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/dirty.out" 2>"$fixture_root/dirty.err"; then
+    fail "dirty compile failure executed successfully"
+fi
+[ ! -s "$fixture_root/dirty.out" ] || fail "dirty compile failure executed stale output"
+cp "$repo_root/tooling/workspace-state/app/Main.hs" "$bootstrap_repo/tooling/workspace-state/app/Main.hs"
+mkdir -p "$bootstrap_repo/tooling/workspace-state/app/Fixture"
+sed -i '/^executable bepis-workspace-state$/a\  other-modules: Fixture.Untracked' \
+    "$bootstrap_repo/tooling/workspace-state/bepis-workspace-state.cabal"
+printf 'module Fixture.Untracked where\ninvalid =\n' >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
+awk '{ print; if ($0 == "module Main (main) where") print "\nimport Fixture.Untracked ()" }' \
+    "$bootstrap_repo/tooling/workspace-state/app/Main.hs" >"$fixture_root/Main.hs"
+mv "$fixture_root/Main.hs" "$bootstrap_repo/tooling/workspace-state/app/Main.hs"
+if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/untracked.out" 2>"$fixture_root/untracked.err"; then
+    fail "untracked compile failure executed successfully"
+fi
+[ ! -s "$fixture_root/untracked.out" ] || fail "untracked compile failure executed stale output"
+printf 'module Fixture.Untracked where\nmessage :: String\nmessage = "fresh-untracked"\n' \
+    >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
+printf 'module Main (main) where\nimport Fixture.Untracked (message)\nimport System.Environment (getEnv)\nmain :: IO ()\nmain = do\n    path <- getEnv "PATH"\n    putStrLn (message <> ":" <> path)\n' \
+    >"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
+BEPIS_TOOLING_ENV=1 PATH="$fixture_root/runtime-bin:$PATH" \
+    "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/recovered.out"
+grep -Fxq "fresh-untracked:$fixture_root/runtime-bin:$PATH" "$fixture_root/recovered.out" \
+    || fail "dirty/untracked edits or the caller's runtime PATH were lost"
+
+# Resolve the locked input once through Git, not 82 raw path-flake snapshots of
+# a checkout containing growing build/output/log directories. Package sources
+# still come from the live fixture, including dirty and untracked files.
+nixpkgs="$(nix eval --raw --impure --no-write-lock-file --expr "(builtins.getFlake \"git+file://$repo_root\").inputs.nixpkgs.outPath")"
+snapshot() {
+    nix eval --json --impure --expr "
+        let
+            pkgs = import $nixpkgs { system = builtins.currentSystem; };
+            tools = import $repo_root/Config/nix/flake/tooling-packages.nix { inherit pkgs; root = $fixture_repo; };
+        in builtins.mapAttrs (_: package: package.drvPath)
+            (builtins.removeAttrs tools [ \"ghc\" \"sources\" \"buildPath\" ]) // {
+                production = toString (import $repo_root/Config/nix/flake/project-source.nix { inherit pkgs; root = $fixture_repo; });
+                runnersSource = toString tools.sources.runners;
+            }"
+}
+baseline="$(snapshot)"
+runners_source="$(jq -r .runnersSource <<<"$baseline")"
+[ ! -e "$runners_source/test" ] || fail "runner package retained tests"
+[ ! -e "$runners_source/README.md" ] || fail "runner package retained documentation"
+assert_effects() {
+    local description="$1" expected="$2" actual
+    actual="$(snapshot)"
+    if ! jq -en --argjson before "$baseline" --argjson after "$actual" --arg expected "$expected" '
+        ([$before | keys[] | select(. != "runnersSource") as $key |
+            select($before[$key] != $after[$key]) | $key] | sort) ==
+        ($expected | split(",") | map(select(length > 0)) | sort)
+    ' >/dev/null; then
+        diff -u <(jq -S . <<<"$baseline") <(jq -S . <<<"$actual") >&2 || true
+        fail "$description: expected changed owners [$expected]"
+    fi
+}
+
+for path in Main.hs Application/Schema.sql static/manifest.json Config/nix/modules/ihp-roster.nix; do
+    printf '\n ' >>"$fixture_repo/$path"
+done
+assert_effects 'application edit' production
+for path in Main.hs Application/Schema.sql static/manifest.json Config/nix/modules/ihp-roster.nix; do
+    cp "$repo_root/$path" "$fixture_repo/$path"
+done
+printf '\n-- test isolation probe\n' >>"$fixture_repo/tooling/runners/test/Main.hs"
+printf '\nDocumentation probe.\n' >>"$fixture_repo/tooling/README.md"
+assert_effects 'tests and documentation' ''
+printf '\n-- Cabal invalidation probe\n' >>"$fixture_repo/tooling/runners/bepis-runners.cabal"
+assert_effects 'Cabal manifest' runners
+cp "$repo_root/tooling/runners/bepis-runners.cabal" "$fixture_repo/tooling/runners/bepis-runners.cabal"
+assert_effects 'restored Cabal manifest' ''
+mkdir -p "$fixture_repo/tooling/unrelated-family"
+printf 'unrelated\n' >"$fixture_repo/tooling/unrelated-family/source"
+assert_effects 'new unrelated family' ''
+
+# Each mutation starts from the same implementation baseline. Compare every
+# owner, including production, instead of hand-repeating pairwise assertions.
+while read -r path owners; do
+    printf '\n-- source invalidation probe\n' >>"$fixture_repo/$path"
+    assert_effects "$path" "$owners"
+    cp "$repo_root/$path" "$fixture_repo/$path"
+done <<'CASES'
+tooling/workspace-state/src/Bepis/Tooling/Workspace/State.hs workspaceState,postgres,runtime,epicLifecycle
+tooling/postgres/src/Bepis/Tooling/Postgres.hs postgres
+tooling/runtime/src/Bepis/Tooling/Runtime.hs runtime,epicLifecycle
+tooling/epic-lifecycle/src/Bepis/Tooling/Epic.hs epicLifecycle
+tooling/artifacts/src/Bepis/Tooling/Artifacts.hs artifacts
+tooling/runners/src/Bepis/Tooling/Runners.hs runners
+tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs core,workspaceState,postgres,runtime,epicLifecycle,artifacts,runners
+CASES
+
+echo "$program: ok"

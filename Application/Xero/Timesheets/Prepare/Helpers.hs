@@ -3,7 +3,8 @@ module Application.Xero.Timesheets.Prepare.Helpers
     , SelectedPreparationPeriodError (..)
     , activePayItemRequirement
     , fetchPreparationDecisions
-    , fetchXeroPayRunsForPreparation
+    , fetchXeroDraftPayRuns
+    , draftPayRunsFromPreparation
     , findSelectedPayRun
     , isPendingStaffAutoMatch
     , markPreparationFailed
@@ -18,7 +19,6 @@ module Application.Xero.Timesheets.Prepare.Helpers
     , preparationReadinessRequest
     , preparationReadinessView
     , preparationRunHasPeriod
-    , preparationRunPosted
     , preparationStaffRow
     , readinessAllowsAutomaticPayItemSubmit
     , readinessErrorSummary
@@ -37,6 +37,7 @@ module Application.Xero.Timesheets.Prepare.Helpers
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
+import Application.Helper.TimesheetSelection
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection (durableXeroClientErrorText)
@@ -102,12 +103,10 @@ refreshPreparationRunStatus run remoteTimesheets = do
             staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
             let pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
                 manualStaffCount = length (filter staffNeedsXeroDecision staffRows)
-                postedBlocked = preparationRunPosted run
                 hasSelectedPeriod = preparationRunHasPeriod run
                 (status, errorSummary)
                     | pendingDecisionCount > 0 || manualStaffCount > 0 = (NeedsApproval, Nothing)
                     | not hasSelectedPeriod = (Started, Nothing)
-                    | postedBlocked = (XeroTimesheetPreparationRunStatusEnumBlocked, Just "The selected Xero pay run is posted. Draft timesheet creation is blocked.")
                     | readinessHasMissingPayItemAccountCode readiness = (NeedsApproval, Nothing)
                     | not (readinessAllowsAutomaticPayItemSubmit readiness) = (XeroTimesheetPreparationRunStatusEnumBlocked, Just (readinessErrorSummary readiness))
                     | otherwise = (ReadyForPreview, Nothing)
@@ -125,15 +124,15 @@ markPreparationFailed run message =
         |> set #errorSummary (Just message)
         |> updateRecord
 
-fetchXeroPayRunsForPreparation :: XeroClient -> Text -> Text -> XeroTimesheetPreparationRun -> IO (Either Text [XeroPayRunRef])
-fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
+fetchXeroDraftPayRuns :: XeroClient -> Text -> Text -> IO (Either Text [XeroPayRunRef])
+fetchXeroDraftPayRuns xeroClient accessToken tenantId =
     fetchPage 1 []
     where
         fetchPage page acc = do
             let query =
                     XeroPayRunQuery
                         { xeroPayRunIfModifiedSince = Nothing
-                        , xeroPayRunWhere = Just ("PayrollCalendarID==Guid(\"" <> fromMaybe "" run.selectedPayrollCalendarId <> "\")")
+                        , xeroPayRunWhere = Just "PayRunStatus==DRAFT"
                         , xeroPayRunOrder = Just "PayRunPeriodStartDate DESC"
                         , xeroPayRunPage = Just page
                         }
@@ -141,19 +140,24 @@ fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
                 Left err -> pure (Left ("Xero pay-run check failed: " <> durableXeroClientErrorText err))
                 Right refs ->
                     let nextAcc = acc <> refs
-                        selectedFound = isJust (findSelectedPayRun run refs)
-                        passedSelectedPeriod =
-                            case (run.payPeriodStart, listToMaybe (reverse refs)) of
-                                (Just selectedStart, Just oldestOnPage) -> oldestOnPage.xeroPayRunPeriodStart < selectedStart
-                                _                                      -> False
-                     in if selectedFound || passedSelectedPeriod || length refs < 100
-                            then pure (Right nextAcc)
+                     in if length refs < 100
+                            then pure (Right (filter (\payRun -> fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT") nextAcc))
                             else fetchPage (page + 1) nextAcc
 
+-- Only this preparation's successful live response is eligible. Historical
+-- cached pay runs may have been posted or deleted since their last upsert.
+draftPayRunsFromPreparation :: XeroTimesheetPreparationRun -> [XeroPayRunRef]
+draftPayRunsFromPreparation run =
+    fromMaybe [] (AesonTypes.parseMaybe (Aeson.withObject "pay runs" (Aeson..: "remotePayRuns")) run.remotePayRunsJson)
+        |> filter (\payRun -> fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT")
+
 findSelectedPayRun :: XeroTimesheetPreparationRun -> [XeroPayRunRef] -> Maybe XeroPayRunRef
-findSelectedPayRun run =
-    List.find \payRun ->
-        payRun.xeroPayRunCalendarId == fromMaybe "" run.selectedPayrollCalendarId
+findSelectedPayRun run refs =
+    List.find matches (List.sortOn (.xeroPayRunId) refs)
+  where
+    matches payRun =
+        fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT"
+            && payRun.xeroPayRunCalendarId == fromMaybe "" run.selectedPayrollCalendarId
             && Just payRun.xeroPayRunPeriodStart == run.payPeriodStart
             && Just payRun.xeroPayRunPeriodEnd == run.payPeriodEnd
 
@@ -245,28 +249,15 @@ preparationReadinessRequest run remoteTimesheets = do
         , readinessXeroPayRunStatus = run.xeroPayRunStatus
         , readinessRemoteTimesheets = remoteTimesheets
         , readinessSkippedStaffIds = []
+        , readinessSelection = case run.selectedEntriesJson of
+            Just value -> case Aeson.fromJSON value of
+                Aeson.Success identities -> ExplicitSelection identities
+                Aeson.Error _ -> ExplicitSelection []
+            Nothing -> ExplicitSelection []
         }
 
 preparationReadinessView :: XeroTimesheetPreparationRun -> XeroTimesheetReadiness -> XeroTimesheetReadinessView
-preparationReadinessView run readiness =
-    let baseView = xeroTimesheetReadinessView readiness
-     in if preparationRunPosted run
-            then
-                baseView
-                    { timesheetReadinessReady = False
-                    , timesheetReadinessBlockers =
-                        XeroTimesheetIssueView
-                            { timesheetIssueCode = "xero_pay_run_posted"
-                            , timesheetIssueSeverity = "blocker"
-                            , timesheetIssueMessage = "The selected Xero pay run is posted. Draft timesheet creation is blocked."
-                            , timesheetIssueHint = Nothing
-                            , timesheetIssueTimesheetEntryId = Nothing
-                            , timesheetIssueExpectedActiveCalculationId = Nothing
-                            , timesheetIssueExpectedApprovalTimestamp = Nothing
-                            }
-                            : baseView.timesheetReadinessBlockers
-                    }
-            else baseView
+preparationReadinessView _ = xeroTimesheetReadinessView
 
 preparationStaffRow :: [XeroTimesheetPreparationDecision] -> XeroStaffMappingRow -> XeroPreparationStaffRow
 preparationStaffRow decisions row =
@@ -317,11 +308,6 @@ activePayItemRequirement :: XeroPayItemRequirement -> Bool
 activePayItemRequirement requirement =
     not (xeroPayItemRequirementIsIgnored requirement.payItemRequirementStatus)
 
-preparationRunPosted :: XeroTimesheetPreparationRun -> Bool
-preparationRunPosted run =
-    maybe False ((== "posted") . Text.toCaseFold . Text.strip) run.xeroPayRunStatus
-
-
 periodOptionFromPreparationRun :: XeroTimesheetPreparationRun -> Maybe XeroTimesheetPeriodOption
 periodOptionFromPreparationRun run = do
     selectedPeriodKey <- run.selectedPeriodKey
@@ -338,11 +324,8 @@ periodOptionFromPreparationRun run = do
             , periodOptionPaymentDate = run.paymentDate
             , periodOptionXeroPayRunId = run.xeroPayRunId
             , periodOptionXeroPayRunStatus = run.xeroPayRunStatus
-            , periodOptionBlocked = preparationRunPosted run
-            , periodOptionBlockReason =
-                if preparationRunPosted run
-                    then Just "This Xero pay run is posted."
-                    else Nothing
+            , periodOptionBlocked = False
+            , periodOptionBlockReason = Nothing
             , periodOptionDerivedFromSyncedXero = isJust run.xeroPayRunId
             , periodOptionWithinDefaultWindow = True
             , periodOptionLatestSubmissionStatus = Nothing

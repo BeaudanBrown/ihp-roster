@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { dialogMountDomAttr, passkeySetupPromptDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
+import { enableVirtualPasskeyAuthenticator } from './support/passkeys';
 import { dismissOptionalPasskeySetupPrompt, loginAs } from './support/session';
 import { gotoWhenReady } from './support/runtime';
 
@@ -44,6 +46,55 @@ test.describe('Authentication', () => {
 
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+    });
+
+    test('optional prompt inspection waits for delayed document initialization', async ({ page }) => {
+        await enableVirtualPasskeyAuthenticator(page);
+        await gotoWhenReady(page, '/NewSession', '#email');
+        await page.fill('#email', 'e2e-worker@example.com');
+        await page.fill('#password', 'test-password-123');
+
+        let delayedBundles = 0;
+        await page.route(/\/app\.js(?:\?|$)/, async (route) => {
+            delayedBundles += 1;
+            // Fault injection, not a normal-flow settlement sleep: the shell is
+            // already server-rendered while its dismissal listener is unavailable.
+            await new Promise((resolve) => setTimeout(resolve, E2E_TIMEOUT.quick));
+            await route.continue();
+        });
+        await page.click('button[type="submit"]', { noWaitAfter: true });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/);
+        await expect(page.locator('#roster-content')).toBeVisible();
+        const prompt = page.locator(`[${passkeySetupPromptDomAttr}]`).first();
+        await expect(prompt.locator(`[${dialogMountDomAttr}]`)).toHaveCount(1);
+        await dismissOptionalPasskeySetupPrompt(page);
+        expect(delayedBundles).toBeGreaterThan(0);
+        await expect(prompt.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
+
+        await page.unroute(/\/app\.js(?:\?|$)/);
+        await page.reload();
+        await expect(prompt.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
+    });
+
+    test('valid restored cookies retain optional dismissal without another password mutation', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await page.context().clearCookies();
+        // A fresh Page has no page-local init scripts from the first login.
+        const restoredPage = await page.context().newPage();
+        const passwordMutations: string[] = [];
+        restoredPage.on('request', (request) => {
+            if (request.method() === 'POST' && new URL(request.url()).pathname.includes('Session')) {
+                passwordMutations.push(request.url());
+            }
+        });
+        try {
+            await loginAs(restoredPage, 'e2e-worker@example.com', 'test-password-123');
+            await expect(restoredPage.locator('#roster-content')).toBeVisible();
+            await expect(restoredPage.locator(`[${passkeySetupPromptDomAttr}] [${dialogMountDomAttr}]`)).toHaveCount(0);
+            expect(passwordMutations).toEqual([]);
+        } finally {
+            await restoredPage.close();
+        }
     });
 
     test('roster requires authentication', async ({ page }) => {

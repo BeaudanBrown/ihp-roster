@@ -2,6 +2,8 @@ module Test.XeroTimesheetSubmissionSpec where
 
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
+import Application.Helper.TimesheetSelection
+import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.Timesheets.Submission
@@ -52,6 +54,22 @@ tests =
     aroundAll withDatabaseTestContext do
         describe "Xero draft timesheet submission" do
             (identitySpec, payrollSpec) <- runIO XeroMock.loadXeroOpenApiSpecs
+
+            it "submits only explicitly selected staff and shifts" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly"
+                        [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        , EntrySpec 1 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        , EntrySpec 0 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        ]
+                    prepareConnectionForStrictMock fixture.connection
+                    let selected = fromMaybe (error "missing entry") (head fixture.entries)
+                        request = fixture.request { readinessSelection = ExplicitSelection [timesheetSelectionIdentity selected] }
+                    run <- submitWithStrictResponses identitySpec payrollSpec (fixture { request = request }) [emptyTimesheetsResponse] [successfulTimesheetResponse] [] >>= expectRun
+                    submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
+                    length submissions `shouldBe` 1
+                    sources <- query @XeroTimesheetSubmissionEntry |> fetch
+                    map (.timesheetEntryId) sources `shouldBe` [unpackId selected.id]
 
             it "creates draft timesheets through the strict Xero mock and persists request/response/source state" $ withContext do
                 withCleanDb do
@@ -201,7 +219,7 @@ tests =
                     prepareConnectionForStrictMock fixture.connection
                     outcome <- submitWithStrictResponses identitySpec payrollSpec fixture [timesheetsResponse fixture "employee-a" "APPROVED"] [] []
                     case outcome of
-                        Left message -> message `shouldBe` "Xero already has a non-draft timesheet for this employee and period. Update or delete it in Xero before continuing."
+                        Left message -> message `shouldBe` "Xero already has a non-editable timesheet for this employee and period. Bepis cannot replace processed timesheets, even with another draft pay run. Use a custom workbook containing the Xero pay-items sheet for manual entry in Xero."
                         Right _ -> expectationFailure "Expected fresh non-draft state to block submission"
                     query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
                     query @XeroTimesheetSubmission |> fetchCount `shouldReturn` 0

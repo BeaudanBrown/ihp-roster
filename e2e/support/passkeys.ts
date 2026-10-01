@@ -132,7 +132,8 @@ export async function loginAsPrivilegedUserWithSeededPasskeySession(
     password = 'test-password-123',
 ) {
     await loginAsWithFreshBrowserSession(page, email, password);
-    await page.waitForLoadState('networkidle', { timeout: E2E_TIMEOUT.action }).catch(() => {});
+    // Fresh login already proves the authenticated document and live mounts;
+    // the explicit test-only response below owns strong-session verification.
     await markCurrentSessionPasskeyVerified(page);
 }
 

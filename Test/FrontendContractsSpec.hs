@@ -261,7 +261,6 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionIncludeIR (Contract.HtmxTypedSyntaxIR "#filters" [])
                 , Contract.HtmxActionSyncIR (Contract.HtmxTypedSyntaxIR "closest form:queue" [])
                 , Contract.HtmxActionIndicatorIR (Contract.HtmxTypedSyntaxIR "#spinner" [])
-                , Contract.HtmxActionConfirmIR "Continue?"
                 , Contract.HtmxActionSelectIR (Contract.HtmxTypedSyntaxIR "#fragment" [])
                 , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#target" [])
                 , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "outerHTML" [])
@@ -278,7 +277,6 @@ tests = describe "Frontend contract generator foundation" do
                        , ("hx-include", "#filters")
                        , ("hx-sync", "closest form:queue")
                        , ("hx-indicator", "#spinner")
-                       , ("hx-confirm", "Continue?")
                        , ("hx-select", "#fragment")
                        , ("hx-target", "#target")
                        , ("hx-swap", "outerHTML")
@@ -310,6 +308,19 @@ tests = describe "Frontend contract generator foundation" do
             [("accountCode", Just ""), ("accountCode", Just "")] of
             Left _  -> pure ()
             Right _ -> expectationFailure "repeated empty optional accountCode parsed successfully"
+
+    it "allows an omitted timesheet confirmation filter without relaxing calendar or scalar fields" do
+        let parse = parseAppShellActionParamPairs @AppShell.OpenTimesheetDeleteConfirmationDialog
+        let calendar = [("anchorDate", Just "2025-01-06"), ("rosterCalendarRevision", Just "1")]
+        forM_ [calendar, calendar <> [("staffFilterId", Just "00000000-0000-0000-0000-000000000001")]] \params ->
+            case parse params of
+                Left errors -> expectationFailure (cs (show errors))
+                Right _     -> pure ()
+        forM_ [take 1 calendar, drop 1 calendar, calendar <> take 1 calendar, calendar <> drop 1 calendar,
+               calendar <> [("staffFilterId", Just ""), ("staffFilterId", Just "")]] \params ->
+            case parse params of
+                Left _ -> pure ()
+                Right _ -> expectationFailure "missing calendar or repeated scalar fields parsed successfully"
 
     it "keeps migrated app-owned request values nominal and closed" do
         closedScalarLiterals @FeedbackTypeEnum `shouldBe` ["bug", "suggestion", "other"]

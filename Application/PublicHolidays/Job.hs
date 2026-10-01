@@ -2,7 +2,6 @@
 
 module Application.PublicHolidays.Job
     ( enqueuePublicHolidayRefreshJob
-    , performPublicHolidayRefreshJob
     , performPublicHolidayRefreshJobWith
     , publicHolidayRefreshJobDedupeKey
     , publicHolidayRefreshJobKind
@@ -13,6 +12,7 @@ import Application.Async.Error (AppJobError (..))
 import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 import Application.Helper.SurfaceResource
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.PublicHolidays.Sync
@@ -23,7 +23,6 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 newtype PublicHolidayRefreshPayload = PublicHolidayRefreshPayload
     { payloadJurisdiction :: Text
@@ -56,12 +55,6 @@ enqueuePublicHolidayRefreshJob requestedByUserId =
             , dedupeKey = Just publicHolidayRefreshJobDedupeKey
             , runAt = Nothing
             }
-
-performPublicHolidayRefreshJob ::
-    (?modelContext :: ModelContext) =>
-    AppJob ->
-    IO ()
-performPublicHolidayRefreshJob = performPublicHolidayRefreshJobWith runDataVicPublicHolidaySync
 
 performPublicHolidayRefreshJobWith
     :: (?modelContext :: ModelContext)
@@ -102,8 +95,7 @@ performPublicHolidayRefreshJobWith syncAction appJob = do
 publicHolidaySyncJobError :: Exception.SomeException -> AppJobError
 publicHolidaySyncJobError exception =
     case Exception.fromException exception of
-        Just PublicHolidayProviderUnavailable -> JobTransportUnavailable
-        Just PublicHolidayResponseMalformed   -> JobMalformedResponse
-        Just PublicHolidayImportInvalid       -> JobValidationRejected
-        Just PublicHolidayOverrideProtected   -> JobValidationRejected
-        Nothing                               -> JobUnexpectedSynchronousFailure
+        Just PublicHolidayResponseMalformed -> JobMalformedResponse
+        Just PublicHolidayImportInvalid     -> JobValidationRejected
+        Just PublicHolidayOverrideProtected -> JobValidationRejected
+        Nothing                             -> JobUnexpectedSynchronousFailure

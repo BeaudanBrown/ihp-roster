@@ -20,6 +20,7 @@ import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewD
 import Application.Helper.PasswordResetTokens (findActivePasswordResetToken,
                                                issuePasswordResetToken)
 import Config
+import qualified Control.Exception as Exception
 import Crypto.WebAuthn.Model.Types (Origin (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
@@ -33,9 +34,9 @@ import IHP.AuthSupport.Authentication (verifyPassword)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -515,6 +516,44 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
                 response `responseBodyShouldContain` "/PasskeyStepUp"
 
+        it "lets an unverified founder manage copied passkeys when strong authentication is disabled" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Founder Optional Passkey Venue"
+                founder <- createUserRecordWithPlatformRole "optional-passkey-founder@example.com" "staff" (Just SuperAdmin) True
+                passkey <- createTestPasskeyRecord founder "Copied production passkey"
+
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue founder venue.id do
+                        registration <- callAction BeginPasskeyRegistrationAction
+                        registration `responseStatusShouldBe` status200
+                        response <- callAction SendNewDevicePasskeySetupEmailAction
+                        response `responseStatusShouldBe` status302
+                        token <- query @PasskeySetupToken |> fetchOne
+                        token.userId `shouldBe` unpackId founder.id
+                        token.requestedByUserId `shouldBe` Just (unpackId founder.id)
+                        deletion <- callAction (DeletePasskeyAction passkey.id)
+                        deletion `responseStatusShouldBe` status302
+                        query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` False
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+                        getSession @Text passkeyVerifiedAtSessionKey `shouldReturn` Nothing
+
+        it "keeps ordinary passkey management protected when strong authentication is disabled" $ withContext do
+            forM_ [Worker, VenueAdmin, VenueOwner] \role -> withCleanDb do
+                venue <- createVenueWithConfig "Ordinary Optional Passkey Venue"
+                user <- createUserRecord "optional-passkey-user@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user role
+                passkey <- createTestPasskeyRecord user "Existing passkey"
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue user venue.id do
+                        response <- callAction SendNewDevicePasskeySetupEmailAction
+                        response `responseStatusShouldBe` status302
+                        query @PasskeySetupToken |> fetchCount `shouldReturn` 0
+                        deletion <- callAction (DeletePasskeyAction passkey.id)
+                        deletion `responseStatusShouldBe` status302
+                        lookup HTTP.hLocation (responseHeaders deletion) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                        query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` True
+
         it "requires fresh passkey verification before sending a new-device setup link" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unverified New Device Setup Venue"
@@ -702,6 +741,72 @@ tests = aroundAll withDatabaseTestContext do
                     , "staff_password_reset_requested"
                     ]
 
+        it "rolls back a staff passkey token and audit when delivery enqueue fails" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Passkey Delivery Rollback Venue"
+                admin <- createUserRecord "passkey-delivery-rollback-admin@example.com" "admin" True
+                target <- createUserRecord "passkey-delivery-rollback-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_passkey_delivery_enqueue() RETURNS trigger AS 'BEGIN IF NEW.job_kind = ''email_delivery'' AND NEW.related_table = ''passkey_setup_tokens'' THEN RAISE EXCEPTION ''forced passkey delivery enqueue failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_passkey_delivery_enqueue BEFORE INSERT ON app_jobs FOR EACH ROW EXECUTE FUNCTION test_reject_passkey_delivery_enqueue()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_passkey_delivery_enqueue ON app_jobs" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_passkey_delivery_enqueue()" ()
+
+                failure <- Exception.bracket_ installFailure removeFailure do
+                    Exception.try
+                        (withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callAction (SendStaffPasskeySetupEmailAction targetStaff.id)
+                        )
+                        :: IO (Either Exception.SomeException Wai.Response)
+
+                case failure of
+                    Left _ -> pure ()
+                    Right response -> response `responseStatusShouldBe` status500
+                query @PasskeySetupToken |> fetchCount `shouldReturn` 0
+                query @AppJob |> filterWhere (#relatedTable, Just "passkey_setup_tokens") |> fetchCount `shouldReturn` 0
+                query @AuditEvent |> filterWhere (#eventType, "staff_passkey_setup_requested") |> fetchCount `shouldReturn` 0
+
+        it "rolls back a staff password token and audit when delivery enqueue fails" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Password Delivery Rollback Venue"
+                admin <- createUserRecord "password-delivery-rollback-admin@example.com" "admin" True
+                target <- createUserRecord "password-delivery-rollback-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_password_delivery_enqueue() RETURNS trigger AS 'BEGIN IF NEW.job_kind = ''email_delivery'' AND NEW.related_table = ''password_reset_tokens'' THEN RAISE EXCEPTION ''forced password delivery enqueue failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_password_delivery_enqueue BEFORE INSERT ON app_jobs FOR EACH ROW EXECUTE FUNCTION test_reject_password_delivery_enqueue()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_password_delivery_enqueue ON app_jobs" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_password_delivery_enqueue()" ()
+
+                failure <- Exception.bracket_ installFailure removeFailure do
+                    Exception.try
+                        (withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callAction (SendStaffPasswordResetEmailAction targetStaff.id)
+                        )
+                        :: IO (Either Exception.SomeException Wai.Response)
+
+                case failure of
+                    Left _ -> pure ()
+                    Right response -> response `responseStatusShouldBe` status500
+                query @PasswordResetToken |> fetchCount `shouldReturn` 0
+                query @AppJob |> filterWhere (#relatedTable, Just "password_reset_tokens") |> fetchCount `shouldReturn` 0
+                query @AuditEvent |> filterWhere (#eventType, "staff_password_reset_requested") |> fetchCount `shouldReturn` 0
+
         it "requires fresh passkey verification for every staff credential link and returns to the staff profile" $ withContext do
             withCleanDb do
                 setEnv "DISABLE_EMAIL_DELIVERY" "1"
@@ -731,6 +836,29 @@ tests = aroundAll withDatabaseTestContext do
                     lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 query @PasskeySetupToken |> fetchCount `shouldReturn` 0
                 query @PasswordResetToken |> fetchCount `shouldReturn` 0
+
+        it "waives staff credential-link verification only for founders when strong authentication is disabled" $ withContext do
+            forM_ [False, True] \isFounder -> withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Optional Credential Verification Venue"
+                actor <- createUserRecordWithPlatformRole "optional-credential-actor@example.com" "staff" (if isFounder then Just SuperAdmin else Nothing) True
+                unless isFounder do
+                    _ <- createVenueMembershipRecord venue actor VenueOwner
+                    pure ()
+                target <- createUserRecord "optional-credential-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue actor venue.id do
+                        forM_ [SendStaffPasskeySetupEmailAction targetStaff.id, SendStaffPasskeyRecoveryEmailAction targetStaff.id, SendStaffPasswordResetEmailAction targetStaff.id] \action -> do
+                            response <- callAction action
+                            response `responseStatusShouldBe` status302
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+                query @PasskeySetupToken |> fetchCount `shouldReturn` (if isFounder then 2 else 0)
+                query @PasswordResetToken |> fetchCount `shouldReturn` (if isFounder then 1 else 0)
 
         it "lets a super admin send a password reset for active linked staff in an arbitrary selected venue" $ withContext do
             withCleanDb do
@@ -1032,7 +1160,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "passkey-list@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
                 now <- getCurrentTime
-                _ <- createTestPasskeyRecord user "Phone passkey"
+                passkey <- createTestPasskeyRecord user "Phone passkey"
                     >>= updateRecord . set #lastUsedAt (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now))
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -1043,11 +1171,26 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "less than 2 months ago"
                 response `responseBodyShouldContain` "Delete"
                 response `responseBodyShouldContain` "Email setup link for another device"
-                response `responseBodyShouldContain` "Delete this passkey? You may need to verify with a passkey before it is removed."
+                response `responseBodyShouldContain` "hx-get=\"/ShowPasskeyDeleteConfirmation?passkeyId="
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` cs (pathTo (ShowPasskeyDeleteConfirmationAction passkey.id))
+                response `responseBodyShouldNotContain` "hx-confirm="
+                response `responseBodyShouldNotContain` "window.confirm"
                 response `responseBodyShouldNotContain` "Created"
                 response `responseBodyShouldNotContain` "Rename"
                 response `responseBodyShouldNotContain` "id=\"passkey-management-name\""
                 response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
+
+                confirmation <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowPasskeyDeleteConfirmationAction passkey.id)
+                confirmation `responseStatusShouldBe` status200
+                confirmation `responseBodyShouldContain` "Delete <strong>Phone passkey</strong>?"
+                confirmation `responseBodyShouldContain` "You may need to verify with a passkey before it is removed."
+                confirmation `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
+                confirmation `responseBodyShouldContain` cs (pathTo (DeletePasskeyAction passkey.id))
+                confirmation `responseBodyShouldNotContain` "hx-confirm="
+                confirmation `responseBodyShouldNotContain` "window.confirm"
+                query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists >>= (`shouldBe` True)
 
         it "requires fresh passkey verification before an ordinary user deletes a passkey" $ withContext do
             withCleanDb do

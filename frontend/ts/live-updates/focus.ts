@@ -80,6 +80,7 @@ export function createFocusedFieldProtection(targetWindow: Window, targetDocumen
             case "focused-field":
                 return focusedFieldProtection(fragment.protection);
             case "replace":
+            case "dirty-form":
                 return null;
             default:
                 return assertNever(fragment.protection);

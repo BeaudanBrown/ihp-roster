@@ -21,6 +21,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , switchRosterGroupAction
+    , switchRosterGroupActionFields
     , OpenCopyRosterWeekConfirmationActionOperation
     , openCopyRosterWeekConfirmationAction
     , openCopyRosterWeekConfirmationActionFields
@@ -45,6 +47,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
+    , parseToggleRosterManagerModeActionParams
     , parseToggleRosterWarningsActionParams
     , parseToggleRosterWeekLiveStatusActionParams
     , removeRosterRowAction
@@ -68,6 +71,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , ToggleRosterWageEstimatesActionOperation
     , toggleRosterWageEstimatesAction
     , toggleRosterWageEstimatesActionFields
+    , ToggleRosterManagerModeActionOperation
+    , toggleRosterManagerModeAction
+    , toggleRosterManagerModeActionFields
     , ToggleRosterWarningsActionOperation
     , toggleRosterWarningsAction
     , toggleRosterWarningsActionFields
@@ -76,7 +82,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , toggleRosterWeekLiveStatusActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddRosterRowActionOperation,
+import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (switchRosterGroupAction,
+                                                                            switchRosterGroupActionFields,
+                                                                            AddRosterRowActionOperation,
                                                                             CreateRosterTemplateCaptureActionOperation,
                                                                             NavigateRosterWeekActionOperation,
                                                                             PreviewRosterTemplateCaptureActionOperation,
@@ -84,6 +92,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             ToggleRosterOwnLiveShiftHighlightActionOperation,
                                                                             ToggleRosterStaffScopeActionOperation,
                                                                             ToggleRosterWageEstimatesActionOperation,
+                                                                            ToggleRosterManagerModeActionOperation,
                                                                             ToggleRosterWarningsActionOperation,
                                                                             ToggleRosterWeekLiveStatusActionOperation,
                                                                             addRosterRowAction,
@@ -124,6 +133,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             parseToggleRosterOwnLiveShiftHighlightActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
+                                                                            parseToggleRosterManagerModeActionParams,
                                                                             parseToggleRosterWarningsActionParams,
                                                                             parseToggleRosterWeekLiveStatusActionParams,
                                                                             previewRosterTemplateApplicationAction,
@@ -147,6 +157,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             toggleRosterStaffScopeActionParamsPresent,
                                                                             toggleRosterWageEstimatesAction,
                                                                             toggleRosterWageEstimatesActionFields,
+                                                                            toggleRosterManagerModeAction,
+                                                                            toggleRosterManagerModeActionFields,
                                                                             toggleRosterWarningsAction,
                                                                             toggleRosterWarningsActionFields,
                                                                             toggleRosterWeekLiveStatusAction,

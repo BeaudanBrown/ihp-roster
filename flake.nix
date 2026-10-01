@@ -25,6 +25,7 @@
                 ihp.flakeModules.default
                 ./Config/nix/flake/ihp-app.nix
                 ./Config/nix/flake/devenv-shell.nix
+                ./Config/nix/flake/tooling.nix
                 ./Config/nix/flake/android-emulator.nix
                 ./Config/nix/flake/exports.nix
             ];

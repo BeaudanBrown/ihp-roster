@@ -96,6 +96,7 @@
                         hs-opentelemetry-instrumentation-wai
                         hs-opentelemetry-propagator-w3c
                         hs-opentelemetry-sdk
+                        http-client-tls
                         http-conduit
                         ip
                         postgresql-simple

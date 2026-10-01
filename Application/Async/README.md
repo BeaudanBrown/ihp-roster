@@ -18,3 +18,8 @@ and its bounded jitter window.
 Persisted `app_jobs.last_error`, job results, provider mirrors, and user-facing
 copy must never contain raw provider payloads, credentials, SQL values, parser
 diagnostics, or exception text.
+
+The host-local watchdog requests a minute-bucketed `worker_heartbeat` job through
+the least-privilege database function. Successful dispatch through this registry
+is the worker heartbeat authority. The watchdog itself is a systemd service in
+`bepis-dotfiles`, outside this queue; it never executes customer or payroll work.

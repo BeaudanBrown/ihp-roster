@@ -5,10 +5,13 @@ unset DEVENV_AGENT_STATE_DIR BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_ST
     DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 source_repo="$(git rev-parse --show-toplevel)"
+# Foundation owns fresh-checkout bootstrap. This fixture exercises concurrent
+# runtime ownership, not another cold Cabal build in each disposable checkout.
+export BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run"
 fixture_root="$(mktemp -d)"
 primary_repo="$fixture_root/repo"
-epic_one="$fixture_root/repo-epic-901"
-epic_two="$fixture_root/repo-epic-902"
+epic_one="$fixture_root/repo-concurrency-one"
+epic_two="$fixture_root/repo-concurrency-two"
 one_test_root="$fixture_root/test-postgres-901"
 two_test_root="$fixture_root/test-postgres-902"
 port_offset=""
@@ -155,13 +158,13 @@ run_primary() {
     )
 }
 
-first_provision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --json)"
-second_provision="$(run_primary "$provision_command" --epic 902 --base "$target_branch" --json)"
+first_provision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
+second_provision="$(run_primary "$provision_command" --epic 902 --base "$target_branch" --name concurrency-two --json)"
 [ "$(jq -r '.path' <<<"$first_provision")" = "$epic_one" ] || fail "first stable worktree path mismatch"
 [ "$(jq -r '.path' <<<"$second_provision")" = "$epic_two" ] || fail "second stable worktree path mismatch"
 [ "$(jq -r '.slot' <<<"$first_provision")" = 1 ] || fail "first worktree slot mismatch"
 [ "$(jq -r '.slot' <<<"$second_provision")" = 2 ] || fail "second worktree slot mismatch"
-reprovision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --json)"
+reprovision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
 [ "$(jq -r '.path, .slot' <<<"$reprovision")" = "$(printf '%s\n1' "$epic_one")" ] \
     || fail "idempotent reprovisioning changed identity"
 [ "$(run_primary "$registry_command" inspect --all --json | jq 'length')" = 2 ] \

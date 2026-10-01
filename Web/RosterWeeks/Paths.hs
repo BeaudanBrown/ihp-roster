@@ -17,6 +17,7 @@ module Web.RosterWeeks.Paths
     , rosterDropStaffUrl
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
+    , rosterManagerModePreferenceUrl
     , rosterOwnLiveShiftHighlightPreferenceUrl
     , rosterTimelineWindowUrl
     , rosterDayTimelineContentFragmentUrl
@@ -30,6 +31,7 @@ module Web.RosterWeeks.Paths
     , rosterWeekDaySectionFragmentUrl
     , rosterWeekRowFragmentUrl
     , rosterWeekStaffPanelFragmentUrl
+    , rosterSettingsFragmentUrl
     , rosterWindowBaseUrl
     , rosterWindowUrl
     , rosterWeekWithDateUrl
@@ -136,6 +138,10 @@ rosterWeekSlotsGridFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekSlotsGridFragmentUrl anchorDate rosterGroupId =
     replaceQueryParams (pathTo ShowRosterWeekSlotsGridFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
+rosterSettingsFragmentUrl :: Day -> Id RosterGroup -> Maybe Day -> Text
+rosterSettingsFragmentUrl anchorDate rosterGroupId maybeTimelineDate =
+    replaceQueryParams (pathTo ShowRosterSettingsFragmentAction { anchorDate = tshow anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
+
 rosterWeekStaffPanelFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl anchorDate rosterGroupId =
     replaceQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
@@ -238,6 +244,10 @@ rosterWarningPreferenceUrl anchorDate rosterGroupId =
 rosterWageEstimatePreferenceUrl :: Day -> Id RosterGroup -> Text
 rosterWageEstimatePreferenceUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo UpdateRosterWageEstimatePreferenceAction) (rosterWindowActionQuery anchorDate rosterGroupId)
+
+rosterManagerModePreferenceUrl :: Day -> Id RosterGroup -> Text
+rosterManagerModePreferenceUrl anchorDate rosterGroupId =
+    appendQueryParams (pathTo ToggleRosterManagerModeAction) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterOwnLiveShiftHighlightPreferenceUrl :: Day -> Id RosterGroup -> Text
 rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =

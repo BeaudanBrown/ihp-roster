@@ -3,48 +3,35 @@ set -euo pipefail
 
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
-
-# shellcheck source=Config/nix/scripts/frontend/generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
-
-state_dir="$(frontend_generated_state_dir)"
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+state_dir="$(dev-agent-state-dir)/generated-code"
 manifest="$state_dir/frontend-contracts.manifest"
 interval="${FRONTEND_GENERATED_WATCH_INTERVAL:-${FRONTEND_CONTRACTS_WATCH_INTERVAL:-2}}"
 build_root="${FRONTEND_GENERATED_WATCH_BUILD_DIR:-$state_dir/watch-build}"
 mkdir -p "$state_dir" "$build_root"
-if ! frontend_generated_watch_lock; then
-    echo "frontend-generated-watch: another watcher already owns this workspace" >&2
-    exit 75
+
+if [ "${BEPIS_GENERATED_WATCH_LOCKED:-0}" != 1 ]; then
+    exec "$tooling_launcher" artifacts lock-exec --lock "$state_dir/contracts-watch.lock" --nonblocking -- \
+        env BEPIS_GENERATED_WATCH_LOCKED=1 "$0" "$@"
 fi
 
-regenerate() (
-    frontend_generation_lock
-
-    local input_hash output_hash
-    input_hash="$(frontend_contract_input_hash)"
-    output_hash="$(frontend_contract_output_hash)"
-    if frontend_manifest_matches "$manifest" "$input_hash" "$output_hash"; then
-        exit 0
-    fi
-
-    echo "[frontend-generated-watch] regenerating Haskell adapters and TypeScript contracts"
-    FRONTEND_SURFACE_ADAPTERS_BUILD_DIR="$build_root/surface-adapters" frontend-surface-adapters
-    FRONTEND_CONTRACTS_BUILD_DIR="$build_root/contracts" frontend-contracts
-    frontend_write_manifest \
-        "$manifest" \
-        "$(frontend_contract_input_hash)" \
-        "$(frontend_contract_output_hash)"
-)
-
+export FRONTEND_SURFACE_ADAPTERS_BUILD_DIR="$build_root/surface-adapters"
+export FRONTEND_CONTRACTS_BUILD_DIR="$build_root/contracts"
 failed_state=""
 while true; do
-    current_input="$(frontend_contract_input_hash)"
-    current_output="$(frontend_contract_output_hash)"
+    current_input="$("$tooling_launcher" artifacts snapshot --root "$repo_root" --inventory-command "$scripts_root/frontend/contracts-input-inventory")"
+    current_output="$("$tooling_launcher" artifacts snapshot --root "$repo_root" --inventory-command "$scripts_root/frontend/contracts-output-inventory")"
     current_state="$current_input:$current_output"
-    if frontend_manifest_matches "$manifest" "$current_input" "$current_output"; then
+    if "$tooling_launcher" artifacts manifest check "$manifest" "$current_input" "$current_output"; then
         failed_state=""
     elif [ "$current_state" != "$failed_state" ]; then
-        if regenerate; then
+        echo "[frontend-generated-watch] regenerating Haskell adapters and TypeScript contracts"
+        if "$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \
+            --lock "$state_dir/generation.lock" --manifest "$manifest" \
+            --input-command "$scripts_root/frontend/contracts-input-inventory" \
+            --output-command "$scripts_root/frontend/contracts-output-inventory" -- \
+            "$scripts_root/frontend/generate-contract-artifacts" >/dev/null; then
             failed_state=""
         else
             failed_state="$current_state"

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
+# shellcheck source=runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 
 bepis_workspace_resource_warn() {
     echo "workspace-cpu: warning: $*" >&2
@@ -26,11 +28,6 @@ bepis_workspace_resource_names() {
 
 bepis_workspace_resource_systemctl() {
     local command="${BEPIS_SYSTEMCTL_COMMAND:-systemctl}"
-    "$command" --user "$@"
-}
-
-bepis_workspace_resource_systemd_run() {
-    local command="${BEPIS_SYSTEMD_RUN_COMMAND:-systemd-run}"
     "$command" --user "$@"
 }
 
@@ -66,23 +63,7 @@ bepis_workspace_resource_exec() {
     local slot="$3"
     shift 3
 
-    if [ "${BEPIS_WORKSPACE_CPU_SHARING:-on}" = off ]; then
-        bepis_workspace_resource_warn "CPU sharing explicitly disabled; launching uncontained"
-        exec "$@"
-    fi
-    if ! bepis_workspace_resource_available; then
-        bepis_workspace_resource_warn "cgroup v2 user-systemd unavailable; launching uncontained"
-        exec "$@"
-    fi
-    if ! bepis_workspace_resource_prepare "$common_dir" "$kind" "$slot"; then
-        bepis_workspace_resource_warn "cannot prepare equal-weight workspace slice; launching uncontained"
-        exec "$@"
-    fi
-    if bepis_workspace_resource_in_expected_slice; then
-        exec "$@"
-    fi
-    exec "${BEPIS_SYSTEMD_RUN_COMMAND:-systemd-run}" --user --scope --quiet --collect \
-        --slice="$BEPIS_WORKSPACE_RESOURCE_SLICE" -- "$@"
+    exec "$(bepis_runtime_launcher)" runtime resource exec "$common_dir" "$kind" "$slot" -- "$@"
 }
 
 # Re-exec one outer development command into the same equal-weight workspace
@@ -146,9 +127,14 @@ bepis_workspace_pid_is_caller_ancestor() {
 bepis_workspace_pid_in_path() {
     local pid="$1"
     local path="$2"
-    local proc="/proc/$pid" cwd
+    local proc="/proc/$pid" cwd field value process_uid=""
     [ -r "$proc/status" ] || return 1
-    [ "$(awk '/^Uid:/ {print $2; exit}' "$proc/status" 2>/dev/null)" = "$(id -u)" ] || return 1
+    # This runs for every PID, including fresh revalidation before signalling.
+    # Shell reads avoid two external processes per entry; missing UID fails shut.
+    while read -r field value _; do
+        if [ "$field" = Uid: ]; then process_uid="$value"; break; fi
+    done <"$proc/status" 2>/dev/null || return 1
+    [ "$process_uid" = "$EUID" ] || return 1
     cwd="$(readlink "$proc/cwd" 2>/dev/null || true)"
     [ "$cwd" = "$path" ] || [[ "$cwd" == "$path/"* ]]
 }
@@ -192,17 +178,14 @@ bepis_workspace_hls_status() {
     local workspace_cache
     workspace_processes="$(bepis_workspace_processes_in_path "$path")"
     now="$(date +%s)"
-    if declare -F bepis_hls_cache_identity_for_path >/dev/null \
-        && declare -F bepis_hls_cache_status_json_for_identity >/dev/null; then
-        bepis_hls_cache_identity_for_path "$path"
-        workspace_cache="$(bepis_hls_cache_status_json_for_identity)"
-    else
-        workspace_cache='{"state":"unavailable","root":null,"bytes":0,"active":false}'
-    fi
+    workspace_cache="$("$(bepis_runtime_launcher)" artifacts cache status \
+        --workspace "$path" --parent "${BEPIS_HLS_CACHE_PARENT:-/var/tmp/bepis-hls-$(id -u)}" 2>/dev/null \
+        || printf '%s\n' '{"state":"unavailable","root":null,"bytes":0,"active":false}')"
 
     while IFS= read -r row; do
         command="$(jq -r '.command' <<<"$row")"
         [[ "$command" == *haskell-language-server* ]] || continue
+        [[ "$command" != *"bepis-artifacts cache exec"* ]] || continue
         pid="$(jq -r '.pid' <<<"$row")"
         [ -r "/proc/$pid/status" ] || continue
 

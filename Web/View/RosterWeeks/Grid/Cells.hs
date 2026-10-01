@@ -17,10 +17,10 @@ module Web.View.RosterWeeks.Grid.Cells
     , shiftTypeBadgeColourKey
     ) where
 
-import Application.Helper.Controller (hasRole)
+import Application.Helper.Controller (hasManagementMode)
 import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
-import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
-                                                             appShellActionAttrs,
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionAttrs,
+                                                             appShellActionByMarker,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
@@ -99,7 +99,7 @@ renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay c
             (lookupRosterSlotForBlock rosterDay rowIndex slotName renderIndexes)
   where
     renderExisting slot
-        | hasRole Manager && rosterShiftIsOpen slot = renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes rosterDay.operationalDate calendarRevision blockIndex slot
+        | hasManagementMode && rosterShiftIsOpen slot = renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes rosterDay.operationalDate calendarRevision blockIndex slot
         | otherwise = renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot
 
 lookupRosterSlotForBlock :: RosterDay -> Int -> RosterWindowLane -> RosterRenderIndexes -> Maybe RosterSlot
@@ -334,7 +334,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers _shif
         missingEndTime = publishAttempted && isJust staffId && isNothing endTime
         missingShiftType = publishAttempted && isJust staffId && isNothing shiftTypeId
         groupKey = rosterShiftGroupKey target
-        canLaunch = isEditable || (isOpen && hasRole Manager)
+        canLaunch = isEditable || (isOpen && hasManagementMode)
         endTimeField =
             if endTimesEnabled
                 then [hsx|

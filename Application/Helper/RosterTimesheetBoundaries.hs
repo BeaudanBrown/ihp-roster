@@ -19,7 +19,7 @@ data RosterSlotBoundaryError
     deriving (Eq, Show)
 
 -- | Project the exact authoritative boundary snapshot materialized by a
--- Timesheet suggestion, including its automatic unpaid meal break.
+-- Timesheet roster prefill, including its automatic unpaid meal break.
 projectRosterSlotTimesheetBoundaries :: RosterSlot -> Either RosterSlotBoundaryError AuthoritativeBoundaries
 projectRosterSlotTimesheetBoundaries slot = do
     startsAt <- maybe (Left RosterSlotBoundariesIncomplete) Right slot.startsAt

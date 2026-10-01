@@ -52,25 +52,20 @@ or `.so` output. `production-package-smoke` enforces those artifacts, rejects
 app-lib in the packaged runtime closure or binary dynamic-link tables, and then
 launches every allowlisted executable.
 
-`baselines/production-build/final-regression-budget.json` owns stable ceilings
-for app-lib self-size, module count, artifact kinds/counts (including symlinked
-artifacts), production module, direct-package, and executable inventories, and
-a 600 MiB aggregate installed `.hi` limit. Its `measurement_profile` retains the
-complete build baseline; `module_count_inspection_profile` is supplementary
-realized-output evidence for count-only reconciliation, not a build-time or
-memory baseline.
-`production-build-budget-check` applies them to an explicit profile, or to the
-current realized app-lib after `production-package-smoke`. The default interface
-ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
-exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
-authority into those interfaces; new paths do not inherit an exception.
+Artifact checks compare installed interfaces with the current generated
+`app-lib.cabal` module declarations, not historical counts. They require the
+static archive and package metadata and reject missing/unexpected interfaces,
+extra build ways, unknown artifacts, and broken links. Focused fixtures run with
+`bash ./bin/in-env node --test scripts/production-artifacts.test.mjs`.
 
-Machine memory is deliberately evidence, not a blocking budget: process RSS is
-sampled, builder-specific, and showed substantial run-to-run variance on NAS.
-The profiler retains clean revision, builder, effective core, RSS, cgroup, swap,
-and timing evidence, but `production-build-budget-check` enforces only stable
-app-owned output and inventory properties. It does not cap GHC memory or fail a
-release from a machine-global memory reading.
+Module/package counts and interface/output sizes are diagnostic evidence, not
+release ceilings. Splitting a module or adding reviewed functionality must not
+require a numeric baseline reconciliation. `production-build-profile` remains
+an opt-in investigation with bounded sizes, counts, timing, memory, and
+same-builder comparison evidence; it is not part of `verify-full`. See
+[the profiling runbook](../../docs/runbooks/production-build-profiling.md) and
+[ADR 0011](../../docs/adr/0011-structural-production-checks-not-footprint-budgets.md).
+No profiler value caps GHC or substitutes for a successful production build.
 
 After intentionally adding or changing a module or script:
 
@@ -106,7 +101,12 @@ Managed E2E PostgreSQL reserves 400 connections: eight shards × (two pools of
 at most 20 plus two dedicated listeners) = 336, with 64 slots for fixtures,
 administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
 (default 20); live capacity drift fails closed. This does not change Hspec,
-development, external or production PostgreSQL settings.
+development, external or production PostgreSQL settings. Hspec, E2E, and
+profiling entrypoints share `bepis-runners` run IDs, owned run directories,
+workspace-wide port-block leases, collision checks, process-group cancellation,
+and failure evidence. E2E still starts web and worker subprocesses separately and
+stops both before releasing its PostgreSQL lifecycle lock; Playwright, k6, and
+telemetry summary processors remain application-owned commands.
 
 `just dev` and `just ddev` start the registered AppJob worker alongside the web
 app through `dev-foreground`, with the same workspace database and environment.
@@ -138,14 +138,133 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Verification Group Durations
+
+E2E defaults to legacy native Playwright sharding (`E2E_GROUPING=legacy`).
+The opt-in experiment `E2E_GROUPING=duration` makes complete, argument-free
+multi-shard runs discover current membership and ask `bepis-runners e2e-groups`
+to assign whole file/project groups by advisory duration.
+`Config/nix/e2e-duration-baseline.json` retains training provenance, not a test
+manifest or success cache. New groups receive conservative estimates; changed
+counts scale estimates; stale estimates cannot select or omit tests. Native
+run/database/port/process ownership, hooks, serial suites and retries remain
+unchanged. Group plans/selectors accompany durable reports and failures. Each
+shard owns a distinct blob filename, including when Playwright receives
+`--test-list` instead of `--shard`.
+
+Focused/custom-argument invocations retain native Playwright sharding. Whole-file
+assignment alone does not establish fixture independence: retain exact full/fast
+membership and clean repeated acceptance, including fixture-order controls.
+
+The #605 browser outcome is no default scheduling change. Complete full/fast
+preflights passed, but repeated matched acceptance was rejected after a staff-save
+response timeout required a retry. Scoped diagnosis did not reproduce that
+failure and later full diagnostics exposed distinct browser failures. Neither
+clean subsets nor subsequent passing diagnostics establish accepted benefit or
+resolve those failures. Retain the opt-in policy, regression fixtures and rejected
+evidence; do not promote duration grouping without fresh complete acceptance.
+
+Hspec retains whole-suite grouping and source order. Advisory runtime weights
+use inclusive native example-callback observations, not reset-only sums; suite
+context startup/teardown remains separate. Runtime and memory acceptance uses
+complete real executions, never the scheduler's predicted load.
+
+## Reset Isolation Eligibility
+
+Keep the closed `Application.Fixture.Reset` manifest and its
+`TRUNCATE ... RESTART IDENTITY CASCADE` contract. Suite metadata saying committed
+visibility is unnecessary does not prove rollback eligibility. `withCleanDb`
+accepts an already-bound `IO` action: wrapping that value in a transaction can
+leave writes on its original pool. The normal venue fixture starts its own
+transaction, which IHP does not allow to nest. Controller mocking also rebuilds
+middleware from its own `MockContext`; rebinding one model context is insufficient.
+
+No blanket rollback reset was adopted. Representative high-reset controller
+suites retain their existing fixtures, transaction boundaries, provider mocks,
+listeners and cross-venue assertions. A future narrower seam needs demonstrated
+connection ownership, observer/side-effect isolation, constraint/savepoint and
+sequence semantics, exception/cancellation cleanup, and measured benefit—not
+metadata alone or aggregate reset time presented as critical-path savings.
+
+`Test.ResetIsolationSpec` exercises real bound/captured writes, independent
+observers, nested fixture rejection, transactional test-only DDL and typed
+constraint/aborted-transaction failures. It also preserves the current unowned
+live-invalidation sequence behavior: neither rollback nor `RESTART IDENTITY`
+rewinds that sequence. Context lifecycle tests retain exception/async cleanup
+coverage; `fixture-reset-manifest-test` remains the complete manifest authority.
+
+## Calculator Compatibility Verification
+
+`payroll-workbook/libreoffice-recalculate.py` accepts one workbook and formula
+expectations, with optional `--next` separated cases (maximum four). A batch uses
+one private LibreOffice profile, but calculates, saves XLSX, reopens and verifies
+each document independently; all document components must close before the next
+case. Failures, including between documents or during cleanup, fail the command.
+The existing 30-second watchdog covers the entire batch, including startup;
+individual documents cannot extend it. The caller retains its 40-second outer
+bound and escalation. Workbook inputs are not modified.
+
+Only the two configured variants inside one PayrollWorkbook example share this
+lifecycle. Other calculator examples still start cold; no resource crosses Hspec
+example boundaries and no existing assertion/tier membership is removed. Real
+Calc adversarial fixtures and the startup/deadline fixtures run in `verify-tooling`.
+Suite metadata separately records real `externalTools`: PayrollWorkbook remains
+pure/BroadAcceptance with `LibreOfficeCalc`, not an HTTP/provider mock.
+
+## Shared Verification Compiler Ownership
+
+Typecheck, Hspec, E2E and local architecture generation share the incremental
+verification graph. `haskell/ghc-build-run` acquires the same canonical sibling
+`.owner.lock` through native artifact command ownership before option preparation,
+compilation or private image copying. Cancellation retains ownership until the
+command's children stop. It does not lock source editing or certify complete
+compiler/TH/native input identity; GHC remains the freshness authority under the
+normal immutable Nix toolchain/package closure.
+
+Hspec's stable image lives at `build/Verification/bin/HspecMain` (or beneath
+`VERIFICATION_BUILD_DIR`); `hspec-baseline inventory` follows that default. Hspec,
+E2E and the local architecture generator execute independent copies after the
+build lease ends, never writable hardlinks to an image another build can replace.
+Packaged architecture generation remains independent. Runtime test results are
+not cached, and runtime/database ownership and isolation are unchanged. The
+normal serial-writer recommendation still applies outside these coordinated
+shared-graph owners. `scripts/verification-build.test.py` exercises real GHC,
+linked native inputs, private snapshots, contention and interrupted publication.
+
 ## Compiler Warning And Reachability Evidence
 
-`application-warnings` first builds dependency interfaces, then forces each
-inventoried, non-generated production subject in an isolated one-shot GHC
-session. Warning flags alone do not invalidate those interfaces; a multi-file
-forced `-c` session can load a subject's cached instances before compiling it
-and report duplicate instances. Generated/dependency code remains interface-only
-in the strict pass. Real compiler fixtures cover both cold and warm caches.
+`application-warnings` forces one GHC `--make` graph and filters structured
+compiler diagnostics against inventoried, non-generated production subjects.
+It rejects owned warnings, compiler failures and malformed diagnostics; generated
+warnings stay outside application authority. Forcing the graph prevents warm
+interfaces from hiding warnings, while `--make` avoids duplicate instances from
+multi-file `-c`. Real compiler fixtures retain cold/warm, generated-dependency
+and instance-import regressions. No separate warning cache or per-module GHC
+processes are needed. The native artifact owner serializes the entire warning
+pass, including option preparation and diagnostic consumption, for one canonical
+output directory. Missing warning attribution is malformed evidence, not a
+reason to silently classify a warning as generated. Different output directories
+remain independent. No stamp written before compilation certifies strict success.
+
+At the post-staging #601 control (revision `f5efca62`, 586 owned subjects), seven
+warm runs measured median 90.010s / observed maximum 94.721s; three fresh-output
+runs measured 90.595s / 94.785s, retaining Nix/package/OS caches. This is material
+cost, not evidence of a safe cache speedup. Retain the forced graph rather than
+introduce an unproved complete-success certificate: the real-GHC fixtures show
+that Template Haskell file and environment changes must invalidate success even
+when module bytes are unchanged. A future result cache must first prove frozen
+inputs and complete compiler/TH/environment identity; the existing option stamp
+and source inventory do not do so. The unchanged-hit target does not apply while
+there is no success cache. Tests also cover deletion, compiler failure, malformed
+diagnostics, warning-policy overrides and concurrent callers; cooperative
+cancellation is owned by [the native artifact tool](../../tooling/README.md#lock-ownership).
+
+`typed-error-boundary-check` scans the same owned inventory with HLint's
+unchanged project restriction policy, disabling only shipped rewrite hints
+that this primitive/category gate does not report. Structured restriction and
+parse-error diagnostics fail the gate; ordinary `lint` retains all its hints.
+Real compiler/scanner fixtures compare restricted-function diagnostics and
+approved category owners with default HLint, including policy/parse failures.
 
 Unused imports are errors. Required controller/AutoRoute instance imports say
 `()` explicitly; marker/type imports remain normal compiler-checked uses.
@@ -157,9 +276,12 @@ require constructor-local labels, not unsafe getters. Exhaustive constructor
 patterns remain valid; no route/JSON metadata or application ADTs change.
 
 `weeder-check` retains its complete source sweep, canonical `weeder.toml`,
-`unused-types=false` and baseline gate. It also emits
+`unused-types=false` and baseline gate. For optional root-set diagnostics, run
+`bash ./bin/in-env weeder-check --advisory`. This emits
 `build/Verification/weeder/reachability-advisory.json` (under `WEEDER_BUILD_DIR`
 when overridden), reusing the same HIE rather than compiling another graph.
+The extra advisory analyses are not part of `verify-full`; default runs remove
+previous advisory evidence rather than leave an apparently current report.
 Root-set comparisons distinguish production from test/development retention.
 Script ownership comes from the existing module/script/executable inventories;
 canonical roots are narrowed, never supplemented with blanket handwritten roots.
@@ -169,8 +291,12 @@ hashes; it is not a call-path report or evidence that every test seam is dead.
 Framework-generated executable mains have no value mapping in the executable
 inventory and remain explicitly qualified, rather than inventing one.
 
-Source changes during compilation/analysis, missing or deleted-module HIE, and
-scanner errors replace old success with an unavailable report. Freshness relies
+Source/HIE additions or changes during compilation/analysis, missing or
+deleted-module HIE, baseline/analysis/tool executable drift, changed revision or
+dirty provenance, and scanner errors replace old success with an unavailable
+report. Capture provenance is retained, never relabelled from publication-time
+HEAD. Compiler/Weeder executable identity assumes the normal immutable Nix
+closure; it is not an arbitrary mutable external-input success certificate. Freshness relies
 on the owner's completed GHC sweep and unchanged source content across it, not
 mtime ordering: GHC can retain HIE for touched but byte-identical source. The
 snapshot/report helpers are phases of that owner, not a substitute for running
@@ -190,6 +316,28 @@ only explicit tombstones permit absent paths. Capture scanner output before
 once. Its temporary repositories come from tracked source and exercise the real
 wrapper entrypoints; unrelated enum/package authorities are stubbed only in
 these scanner fixtures. Real repository gates remain separately required.
+
+## Glue Compatibility And Change Footprint
+
+`glue-compatibility-test` executes the public generated-watcher alias, mobile
+screenshot matrix, and both SSH tunnel roles against isolated fake dependencies.
+It retains exact argument order, exit status, capture count, viewport, port-map,
+and destination assertions without contacting a browser, tunnel, or remote
+service. `tooling-hls-test` resolves one module from every independent package
+and repeats resolution from `tooling/`, while `hie-bios-test` retains the
+application cradle contract.
+
+For a glue-only issue, use the issue's pinned fixed point and reviewed scope as
+the deterministic physical-line report contract:
+
+```bash
+git diff --numstat <fixed-point> -- <reviewed-path>...
+```
+
+Report added lines, deleted lines, net lines, deleted forwarding files, and the
+unique assertions retained by their canonical owner. Binary entries are not a
+valid line report. This is change evidence, not a second source inventory or
+task tracker.
 
 ## Test-only Haskell dependencies
 
@@ -216,6 +364,23 @@ transitively—`aeson` retains QuickCheck and monolithic `ihp` retains Hspec—b
 those packages are not direct app declarations. Hspec, compile-failure, and
 tooling dependencies remain in their separate development/tool package sets.
 
+## Independent developer tooling packages
+
+`.#tooling` exposes the app-independent packages documented in
+`tooling/README.md`. Epic orientation and Git lifecycle ownership live in
+`bepis-epic-lifecycle`; compatibility scripts only locate `bin/tooling-run` and
+provide service paths. Planning is read-only, synchronization requires
+`--apply`, and integration or cleanup requires `--approve`. The owner validates
+v1 workspace identity, pinned refs, all remote endpoints before a rebase, owned
+runtime evidence, HLS cache cleanup, and lock-protected compare-and-delete
+registry state before destructive worktree or branch cleanup.
+
+`bepis-artifacts` owns cache markers and lifecycle locks, deterministic explicit
+inventory hashing, atomic generation manifests, stable-input publication, and
+validated managed-tree replacement. HLS, generated Haskell, frontend contracts,
+Surface adapters, JavaScript bundles, and GHC cache adapters retain their public
+commands while supplying only application-specific inventories and recipes.
+
 ## Frontend-contract tooling package
 
 `frontend-contract-tool-module-inventory.tsv` is the exact closure of the three
@@ -240,7 +405,20 @@ so uncommitted authoring remains usable; CI and `verify-full` set
 `frontend-contract-package-check` is blocking in both paths. It checks the
 exact binary set, retains interface/build-resource metrics, and reruns generated
 TypeScript, all generated Haskell adapters plus private proofs, and architecture
-emission through packaged binaries. In `verify-full`, the later single
+emission through packaged binaries. Adapter validation reuses the locked
+compiler dependency cache, not generated results: each invocation renders and
+compiles fresh modules/private proofs and compares the exact managed output.
+Temporary staging paths must not invalidate unchanged dependency configuration.
+The dependency inventory includes authored/untracked Application, Web and Config
+sources plus ignored schema modules under `build/Generated`, schema SQL, effective
+options, compiler executable bytes/configuration and package database metadata.
+These conservative invalidation inputs are not proof-success certificates. GHC
+still validates every fresh subject and its dependencies; changed/missing/extra
+managed bytes and interrupted or invalid private proofs cannot inherit success.
+The compiler-probe metadata assumes the normal immutable Nix package closure;
+it does not certify arbitrary undeclared TH inputs or external mutable libraries.
+Real-owner regressions live in `scripts/surface-adapter-check.test.mjs`.
+In `verify-full`, the later single
 `production-package-smoke` traversal proves the optimized production closure
 does not reference this tooling output. Generated repository artifacts are
 accepted only when those package-backed freshness checks pass.

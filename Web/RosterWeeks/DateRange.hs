@@ -27,7 +27,8 @@ module Web.RosterWeeks.DateRange
     , fetchRosterWindowFromDays
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash

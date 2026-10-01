@@ -6,7 +6,7 @@ module Application.Fixture.Reset
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Database.PostgreSQL.Simple.Types as PGTypes
-import IHP.ModelSupport (sqlExecDiscardResult)
+import IHP.ModelSupport (unsafeSqlExecDiscardResult)
 import IHP.Prelude
 
 -- | Closed manifest of application-owned tables from Application/Schema.sql.
@@ -51,6 +51,14 @@ applicationTableNames =
     , "live_resource_versions"
     , "live_invalidation_events"
     , "app_jobs"
+    , "operational_incidents"
+    , "operational_incident_events"
+    , "operational_incident_event_recipients"
+    , "host_watchdog_dispatches"
+    , "host_watchdog_statuses"
+    , "email_delivery_provider_states"
+    , "email_delivery_webhook_events"
+    , "email_delivery_resend_requests"
     , "roster_templates"
     , "roster_template_completions"
     , "roster_template_days"
@@ -107,7 +115,7 @@ applicationTableNames =
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase =
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         (PGTypes.Query (TextEncoding.encodeUtf8 resetStatement))
         ()
   where

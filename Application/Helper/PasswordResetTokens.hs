@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Application.Helper.PasswordResetTokens
     ( activePasswordResetTokenById
     , findActivePasswordResetToken
@@ -29,12 +31,13 @@ issuePasswordResetToken ::
 issuePasswordResetToken targetUser requestedByUserId venueId =
     issuePasswordResetTokenWith targetUser requestedByUserId venueId (const (pure ()))
 
+-- The audit hook is invoked only after the per-user transaction owns ModelContext.
 issuePasswordResetTokenWith ::
     (?modelContext :: ModelContext) =>
     User ->
     Id User ->
     Id Venue ->
-    (PasswordResetToken -> IO ()) ->
+    ((?modelContext :: ModelContext) => PasswordResetToken -> IO ()) ->
     IO (PasswordResetToken, Text)
 issuePasswordResetTokenWith targetUser requestedByUserId venueId afterIssue = do
     rawToken <- generateOpaqueToken
@@ -73,7 +76,7 @@ issuePasswordResetTokenInCurrentTransaction ::
     User ->
     Id User ->
     Id Venue ->
-    (PasswordResetToken -> IO ()) ->
+    ((?modelContext :: ModelContext) => PasswordResetToken -> IO ()) ->
     Text ->
     Text ->
     UTCTime ->

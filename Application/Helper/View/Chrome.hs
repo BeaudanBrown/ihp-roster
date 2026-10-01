@@ -192,7 +192,7 @@ renderAppAccordionItem AppAccordionItemConfig { appAccordionItemId, appAccordion
             id={appAccordionItemId <> "-collapse"}
             class={accordionCollapseClass appAccordionItemIsOpen}
             aria-labelledby={appAccordionItemId <> "-heading"}
-            data-bs-parent={"#" <> appAccordionItemParentId}
+            data-bs-parent={if Text.null appAccordionItemParentId then Nothing else Just ("#" <> appAccordionItemParentId)}
         >
             <div class={classes [("accordion-body", True), (appAccordionItemBodyClass, not (Text.null appAccordionItemBodyClass))]}>
                 {appAccordionItemBody}

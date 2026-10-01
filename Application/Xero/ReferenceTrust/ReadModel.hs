@@ -133,13 +133,6 @@ activeJobActivity now job =
         JobStatusRunning -> XeroReferenceSyncRunning
         JobStatusRetry -> XeroReferenceSyncRetryWaiting job.runAt
         JobStatusNotStarted
-            | job.runAt > now && appJobRetryNumber job > 0 -> XeroReferenceSyncRetryWaiting job.runAt
+            | job.runAt > now && job.runAt > job.createdAt -> XeroReferenceSyncRetryWaiting job.runAt
             | otherwise -> XeroReferenceSyncQueued
         _ -> XeroReferenceSyncIdle
-
-appJobRetryNumber :: AppJob -> Int
-appJobRetryNumber job =
-    fromMaybe 0 $
-        AesonTypes.parseMaybe
-            (Aeson.withObject "Xero reference sync payload" (\object -> object Aeson..:? "retryNumber" AesonTypes..!= 0))
-            job.payload

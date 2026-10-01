@@ -28,12 +28,6 @@ declare global {
             eventName: string;
             dispatchPageReady: (detail?: unknown) => void;
         };
-        allIntervals?: number[];
-        allTimeouts?: number[];
-        unsafeSetInterval?: Window["setInterval"];
-        unsafeSetTimeout?: Window["setTimeout"];
-        clearAllIntervals?: () => void;
-        clearAllTimeouts?: () => void;
         flatpickr?: (element: HTMLInputElement, config: FlatpickrConfig) => unknown;
     }
 

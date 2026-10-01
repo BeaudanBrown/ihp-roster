@@ -50,22 +50,29 @@ text with escaped feedback content, triage diagnostics, an explicitly labelled
 venue-local timestamp, and the Feedback review URL. Sender and reply-to remain
 system-controlled. Moderation does not enqueue submitter notifications.
 
-## Wage-source alert mail kinds
+## Wage-source incident mail
 
-Versioned FWC and DataVic alert kinds reference a completed
-`wage_source_health_check` job. That domain job snapshots only bounded source facts,
-never raw refresh exceptions or rendered mail. Final refresh failures evaluate after
-the tenth attempt; successful refreshes schedule one check just after the shared
-8-day or 45-day freshness boundary. A newer complete snapshot supersedes the delayed
-check without cancelling it.
+FWC and DataVic health checks now reconcile one source-scoped operational incident
+instead of sending independently for failure, missing, stale and annual symptoms.
+The retained health-check result contains bounded diagnostic snapshots for Support,
+while the incident event is the durable mail reference. Final refresh failures still
+qualify only after the tenth attempt. Successful refreshes enqueue immediate recovery
+reconciliation plus a check just after the 8-day or 45-day freshness boundary; the
+host refresh sweeps also enqueue reconciliation independently of each refresh attempt.
 
-Failure, missing, stale, and annual-FWC incidents use separate semantic keys. DataVic
-missing/stale incidents aggregate the Melbourne-local previous, current, and next
-years. Annual FWC evaluation begins with the earliest affected active venue calendar
-and is the only condition deferred when no active venue exists. Alert recipients are
-active platform super admins selected at incident evaluation; their addresses and the
-incident snapshot remain authoritative after enqueue, including when the source
-recovers before delivery.
+Symptoms are aggregated before dispatch. Provider failure remains distinct from
+usable payroll coverage, and a verified holiday override may mitigate affected-year
+coverage without resolving DataVic provider failure. Higher declared payroll impact
+can create one escalation; unchanged polls create no reminders. DataVic coverage uses
+the Melbourne-local previous, current and next years. Annual FWC evaluation begins
+with the earliest affected active venue calendar and is the only condition deferred
+when no active venue exists. Active platform super admins are snapshotted per event;
+a queued event remains deliverable after later source or recipient changes.
+
+Legacy wage-source mail kinds remain dispatchable for already queued jobs. The cutover
+migration seeds only a bounded incident sentinel from historical jobs, preserving all
+old queue history while suppressing blind deployment re-alerts until recovery and a
+genuine recurrence.
 
 ## Award drift and billing mail kinds
 
@@ -137,6 +144,22 @@ then. Enabled obsolete jobs are `delivery_skipped`; disabled jobs are
 `delivery_disabled`; sent, skipped, disabled, consumed, replaced, revoked, and final
 failure paths clear recoverable password/passkey delivery material. Direct account-mail
 transport and domain-specific transport fakes no longer exist.
+
+## Host watchdog direct delivery
+
+The Rozzy host watchdog is the sole worker-independent exception to queued
+application delivery. Its systemd-owned local outbox snapshots active platform
+super-admin recipients through security-definer database functions exposed only
+to the peer-authenticated `bepis_watchdog` role. It sends the same bounded
+operational transition through Resend with a stable event/recipient idempotency
+key, then mirrors the incident event and aggregate direct dispatch outcome into
+Support. It never reads customer/payroll records or application provider secrets,
+and cannot send business notifications. Database or Resend failure retains the
+same local event for retry; it does not create reminders or a fallback channel.
+The same boundary projects only Rozzy's latest backup-snapshot and isolated
+restore-verification timestamps plus bounded unit result labels. Backup contents,
+snapshot identifiers, repository credentials and routine success email remain
+outside the application database.
 
 ## Closed transport architecture and operations
 

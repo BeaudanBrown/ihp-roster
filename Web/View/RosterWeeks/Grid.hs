@@ -26,6 +26,7 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
+import Application.Helper.Controller (hasManagementMode)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
@@ -46,7 +47,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
-import Application.Helper.Profiling (profileHtmlComponent, profileHtmlComponentWithCounters)
+import Application.Helper.Profiling (profileHtmlComponent,
+                                     profileHtmlComponentWithCounters)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeValue)
@@ -72,11 +74,10 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (RosterWeekScopeVal
 import Web.RosterWeeks.Paths (rosterDayMutationUrl)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.Types
-import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
-import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
+import Web.View.RosterWeeks.StaffPanel (renderRosterSidePanel)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelinePanel)
 
@@ -128,7 +129,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData (isJust gridTemplateLibrary) gridRosterDays gridRenderIndexes)
         renderStaffPanelMount =
             if currentUserIsManager
-                then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
+                then renderRosterSidePanel RosterStaffPanelRenderModel
                     { staffPanelRosterWeek = gridRosterWeek
                     , staffPanelWeekStartDate = gridModel.gridWeekStartDate
                     , staffPanelCalendarRevision = gridModel.gridRosterCalendarRevision
@@ -137,7 +138,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelAssignmentFilters = gridModel.gridAssignmentFilters
                     , staffPanelViewCapabilities = gridModel.gridViewCapabilities
                     , staffPanelRosterLayoutMode = gridModel.gridRosterLayoutMode
-                    , staffPanelShowWageEstimates = gridModel.gridShowWageEstimates
+                    , staffPanelRosterPayDisplayMode = gridModel.gridRosterPayDisplayMode
                     , staffPanelShowRosterWarnings = gridModel.gridShowRosterWarnings
                     , staffPanelHighlightOwnLiveShifts = gridModel.gridHighlightOwnLiveShifts
                     , staffPanelViewMode = gridViewMode
@@ -145,12 +146,13 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelEntries = gridPanelStaff
                     , staffPanelTemplateLibrary = gridModel.gridTemplateLibrary
                     , staffPanelNotificationPanelData = gridNotificationPanelData
+                    , staffPanelSelfServicePanel = gridStaffSelfServicePanel
                     }
                 else mempty
         layoutBody = [hsx|
             {renderrosterContentLiveFragment gridModel}
             {renderStaffPanelMount}
-            {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
+            {unless currentUserIsManager (renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel)}
         |]
         layout = if rosterHasSidePanel gridModel
             then renderSidePanelLayout rosterSidePanelRenderAttrs SidePanelRegionConfig
@@ -193,8 +195,6 @@ renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderMode
 renderRosterMainPanel gridModel =
     profileHtmlComponent "render.roster.main_panel" [hsx|
         <div class="app-panel mb-5 mb-xl-0 roster-main-panel">
-            <span hidden
-                  {...rosterWageFilterConfigAttrs (currentUserIsAdmin && gridModel.gridShowWageEstimates) gridModel.gridRosterDays gridModel.gridRosterLayoutMode gridModel.gridViewMode}></span>
             {renderrosterGridToolbarLiveFragment (rosterToolbarRenderModelFromGrid gridModel)}
             {renderrosterGridFrameLiveFragment gridModel}
         </div>
@@ -231,7 +231,7 @@ renderrosterGridFrameLiveFragment =
     renderrosterGridFrameLiveFragmentWithSwap Nothing
 
 renderrosterGridFrameLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings, gridViewMode, gridAllSlots } =
+renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterPayDisplayMode, gridShowRosterWarnings, gridViewMode, gridAllSlots } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
         timelineRosterDay = case gridViewMode of
@@ -270,7 +270,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
                     else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              {...rosterColumnEditorAttrs RosterColumnEditingInactive}
-             data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
+             data-roster-wages={if gridRosterPayDisplayMode == RosterPayDaily && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              {...if not rosterIsHiddenDraft && not isTimelineLayout && not isDayColumnsLayout then rosterImageExportProjectionAttrs else []}>
             {gridBody}
@@ -296,7 +296,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
      in frameHtml
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
-rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridRosterCalendarRevision, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
+rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridRosterCalendarRevision, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridRosterPayDisplayMode, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
     RosterDayRenderModel
         { dayIsEditable = rosterWeekIsEditable gridRosterWeek
         , daySlotNames = gridSlotNames
@@ -311,7 +311,7 @@ rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignm
         , dayRosterLayoutMode = gridRosterLayoutMode
         , dayRosterEndTimesEnabled = gridRosterEndTimesEnabled
         , dayRosterWagePrediction = gridRosterWagePrediction
-        , dayShowWageEstimates = gridShowWageEstimates
+        , dayRosterPayDisplayMode = gridRosterPayDisplayMode
         , dayShowRosterWarnings = gridShowRosterWarnings
         , dayPublicHolidays = gridPublicHolidays
         , dayPublishAttempted = gridPublishAttempted
@@ -338,17 +338,20 @@ renderDayRowsWageAmount (Just prediction) date =
             </div>
         |]
 
-renderDayColumnWageEstimate :: Maybe RosterWagePrediction -> Day -> Html
+renderDayColumnWageEstimate :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Day -> Html
 renderDayColumnWageEstimate Nothing _ = mempty
 renderDayColumnWageEstimate (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Wages for day">
-                <span class="roster-day-wage-label">Wages</span>
+            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label={wageLabel <> " for day"}>
+                <span class="roster-day-wage-label">{wageLabel}</span>
                 <span>{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
             </div>
         |]
+  where
+    wageLabel :: Text
+    wageLabel = if hasManagementMode then "Wages" else "Expected pay"
 
 rosterSlotsHorizontalSnapConfig :: HorizontalSnapConfig
 rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroupProperty
@@ -359,7 +362,7 @@ rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroup
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWindowState -> [RosterWindowLane] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
-    {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
+    {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) (renderrosterWageRailLiveFragment dayModel rosterDays)}
     {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
 |]
 
@@ -469,7 +472,7 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
 
 rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWindowState -> Bool
 rosterWeekIsEditable maybeRosterWeek =
-    currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
+    hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
 
 renderRosterColumnEditStartButton :: Bool -> Html
 renderRosterColumnEditStartButton True = [hsx|
@@ -667,12 +670,16 @@ renderrosterWageRailLiveFragment =
 renderrosterWageRailLiveFragmentWithSwap :: Maybe Text -> RosterDayRenderModel -> [RosterDay] -> Html
 renderrosterWageRailLiveFragmentWithSwap maybeSwapOob dayModel rosterDays = [hsx|
     <div id={rosterWageRailFragmentId} class="roster-wage-rail" aria-label="Roster wages" hx-swap-oob={maybeSwapOob}>
+        {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) contents}
+    </div>
+|]
+  where
+    contents = [hsx|
         <div class="roster-wage-rail-head">Wages</div>
         <div class="roster-wage-rail-body">
             {forEach rosterDays (renderRosterWageRailSection dayModel)}
         </div>
-    </div>
-|]
+    |]
 
 renderRosterWageRailSection :: RosterDayRenderModel -> RosterDay -> Html
 renderRosterWageRailSection RosterDayRenderModel { dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction } rosterDay =
@@ -731,7 +738,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                         {renderTimelineLink rosterDay}
                     </div>
                     <div class="roster-day-column-wage-slot">
-                        {renderDayColumnWageEstimate dayRosterWagePrediction date}
+                        {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) (renderDayColumnWageEstimate dayRosterWagePrediction date)}
                     </div>
                     <div class="roster-day-column-control-slot">
                         {renderDayColumnHeaderControls dayIsEditable dayModel.dayCalendarRevision rosterDay}
@@ -933,7 +940,7 @@ renderDayColumnHeaderControls isEditable calendarRevision rosterDay
 
 renderToggleClosedButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderToggleClosedButton calendarRevision rosterDay =
-    if currentUserIsManager
+    if hasManagementMode
         then
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
@@ -952,7 +959,7 @@ renderToggleClosedButton calendarRevision rosterDay =
 
 renderAddRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderAddRowButton calendarRevision rosterDay =
-    if currentUserIsManager
+    if hasManagementMode
         then renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.addRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
@@ -966,7 +973,7 @@ renderAddRowButton calendarRevision rosterDay =
 
 renderDeleteLastRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Int -> Html
 renderDeleteLastRowButton calendarRevision rosterDay rowIndex =
-    if currentUserIsManager
+    if hasManagementMode
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
              in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.removeRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|

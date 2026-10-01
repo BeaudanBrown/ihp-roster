@@ -17,6 +17,8 @@ constraint. They are not implementation guidance.
   tool comparison retained for future browser-agent/tooling decisions.
 - `typed-contract-authority.md` — implemented epic #328 baseline, topology
   counts, and exit evidence retained to support ADR 0002's zero-bypass boundary.
+- `verification-performance-baseline-2026-09-16.md` — reproducible baseline and
+  retained comparison evidence for verification-performance epic #576.
 - `xero-payroll-au-v2-openapi-research-2026-07-23.md` — official-source evidence
   that the required Payroll AU contract was unavailable, retained for future
   provider-contract review.

@@ -21,9 +21,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (inputValue)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -167,7 +167,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "disabled=\"disabled\""
                 response `responseBodyShouldNotContain` "id=\"staff-email\""
                 response `responseBodyShouldNotContain` "id=\"invite-email\""
-                response `responseBodyShouldContain` "Show shift end times in roster"
+                response `responseBodyShouldContain` "Show shift end times"
+                response `responseBodyShouldContain` "name=\"rosterEndTimesEnabled\""
                 response `responseBodyShouldNotContain` "Auto-create pending timesheets"
                 response `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 response `responseBodyShouldNotContain` "venue-timezone"

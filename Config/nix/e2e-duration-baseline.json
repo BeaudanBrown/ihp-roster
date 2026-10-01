@@ -1,0 +1,534 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "revision": "b3324e27f687a31d3a6bd6618f201313a11b1319",
+    "report": ".pi/tmp/605-browser-control/browser-report.json",
+    "sha256": "5914af06ae3d5f4a2acb4dfd2b9f2f4465a9123a6c1d9683d303167338307f30",
+    "tests": 309,
+    "note": "One clean complete native8-shard control after auth/calculator outcomes. Advisory placement estimates only; not a result cache or speedup claim."
+  },
+  "groups": [
+    {
+      "project": "desktop-chromium",
+      "file": "admin-invites.spec.ts",
+      "testCount": 2,
+      "milliseconds": 12175
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "admin-roster-ui-polish.spec.ts",
+      "testCount": 3,
+      "milliseconds": 7288
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "admin-roster-window-start-day.spec.ts",
+      "testCount": 1,
+      "milliseconds": 3058
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "admin-shift-types-live.spec.ts",
+      "testCount": 3,
+      "milliseconds": 12480
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "admin-slot-names.spec.ts",
+      "testCount": 1,
+      "milliseconds": 6376
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "auth.spec.ts",
+      "testCount": 7,
+      "milliseconds": 9769
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "billing.spec.ts",
+      "testCount": 2,
+      "milliseconds": 9530
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "browser-failure-recovery.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1681
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "browser-runtime-bundle.spec.ts",
+      "testCount": 2,
+      "milliseconds": 732
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "display-density.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1871
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "dst-time-boundaries.spec.ts",
+      "testCount": 2,
+      "milliseconds": 3285
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "exports-authz.spec.ts",
+      "testCount": 3,
+      "milliseconds": 5254
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "exports-payroll-downloads.spec.ts",
+      "testCount": 1,
+      "milliseconds": 8683
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "feedback-acceptance.spec.ts",
+      "testCount": 1,
+      "milliseconds": 8151
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "feedback-diagnostics.spec.ts",
+      "testCount": 3,
+      "milliseconds": 3987
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "feedback-moderation.spec.ts",
+      "testCount": 1,
+      "milliseconds": 4175
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "feedback-voting.spec.ts",
+      "testCount": 1,
+      "milliseconds": 2291
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "header-navigation.spec.ts",
+      "testCount": 2,
+      "milliseconds": 2758
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "homepage.spec.ts",
+      "testCount": 3,
+      "milliseconds": 1088
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "live-fragment-multiview.spec.ts",
+      "testCount": 6,
+      "milliseconds": 29272
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "live-fragment-request-lifetime.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1127
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "live-fragment-submit-regressions.spec.ts",
+      "testCount": 10,
+      "milliseconds": 16907
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "no-autofocus.spec.ts",
+      "testCount": 16,
+      "milliseconds": 18576
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "overlay-capability.spec.ts",
+      "testCount": 3,
+      "milliseconds": 4709
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "passkeys.spec.ts",
+      "testCount": 11,
+      "milliseconds": 26402
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "pwa-install.spec.ts",
+      "testCount": 6,
+      "milliseconds": 11367
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "registration.spec.ts",
+      "testCount": 5,
+      "milliseconds": 2830
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-action-helper.spec.ts",
+      "testCount": 1,
+      "milliseconds": 875
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-assignment-filters.spec.ts",
+      "testCount": 1,
+      "milliseconds": 6907
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-assignment-sidebar.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1276
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-duplicate-conflicts.spec.ts",
+      "testCount": 3,
+      "milliseconds": 8225
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-layout-scale.spec.ts",
+      "testCount": 3,
+      "milliseconds": 4020
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-live-fragments.spec.ts",
+      "testCount": 8,
+      "milliseconds": 21363
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-notification.spec.ts",
+      "testCount": 3,
+      "milliseconds": 15487
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-pointer-effects.spec.ts",
+      "testCount": 7,
+      "milliseconds": 31735
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-row-controls.spec.ts",
+      "testCount": 8,
+      "milliseconds": 21940
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-settings-toggle-labels.spec.ts",
+      "testCount": 2,
+      "milliseconds": 9168
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-side-panel.spec.ts",
+      "testCount": 2,
+      "milliseconds": 7259
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-staff-highlight.spec.ts",
+      "testCount": 5,
+      "milliseconds": 11052
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-staff-modal.spec.ts",
+      "testCount": 6,
+      "milliseconds": 12420
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-staff-panel-sorting.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1526
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-template-modals.spec.ts",
+      "testCount": 7,
+      "milliseconds": 14096
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-time-picker.spec.ts",
+      "testCount": 5,
+      "milliseconds": 21579
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "roster-week-overview.spec.ts",
+      "testCount": 6,
+      "milliseconds": 10310
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "shift-preferences-autosave.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1670
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "side-panel-consistency.spec.ts",
+      "testCount": 3,
+      "milliseconds": 5034
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "styling-regression.spec.ts",
+      "testCount": 4,
+      "milliseconds": 5234
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "support-venue-switcher.spec.ts",
+      "testCount": 6,
+      "milliseconds": 16076
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "timesheet-unsaved-dismissal.spec.ts",
+      "testCount": 2,
+      "milliseconds": 6036
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "timesheets-side-panel.spec.ts",
+      "testCount": 4,
+      "milliseconds": 4969
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "toggle-capability.spec.ts",
+      "testCount": 5,
+      "milliseconds": 9715
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "ui-region-capabilities.spec.ts",
+      "testCount": 2,
+      "milliseconds": 1037
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "unavailability-archive-pagination.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1341
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "unavailability-blackouts.spec.ts",
+      "testCount": 1,
+      "milliseconds": 13944
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "unavailability-side-panel.spec.ts",
+      "testCount": 2,
+      "milliseconds": 2879
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "unavailability-threshold.spec.ts",
+      "testCount": 1,
+      "milliseconds": 3796
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "venue-owner-onboarding.spec.ts",
+      "testCount": 3,
+      "milliseconds": 13693
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "venue-scope.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1594
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "week-navigation.spec.ts",
+      "testCount": 2,
+      "milliseconds": 4427
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "week-toolbar-responsive.spec.ts",
+      "testCount": 4,
+      "milliseconds": 5955
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "workflow-dialog-keyboard.spec.ts",
+      "testCount": 3,
+      "milliseconds": 7489
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "xero-import-filter.spec.ts",
+      "testCount": 1,
+      "milliseconds": 553
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "xero-imported-pay-item-dropdowns.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1834
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "xero-pay-item-import.spec.ts",
+      "testCount": 2,
+      "milliseconds": 3979
+    },
+    {
+      "project": "desktop-chromium",
+      "file": "xero-timesheet-preparation.spec.ts",
+      "testCount": 3,
+      "milliseconds": 7857
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "feedback-acceptance.spec.ts",
+      "testCount": 1,
+      "milliseconds": 12168
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "feedback-diagnostics.spec.ts",
+      "testCount": 3,
+      "milliseconds": 6004
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "feedback-moderation.spec.ts",
+      "testCount": 1,
+      "milliseconds": 5022
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "feedback-voting.spec.ts",
+      "testCount": 1,
+      "milliseconds": 2741
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "mobile-experience.spec.ts",
+      "testCount": 9,
+      "milliseconds": 26163
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "roster-mobile.spec.ts",
+      "testCount": 9,
+      "milliseconds": 44914
+    },
+    {
+      "project": "galaxy-s9-plus",
+      "file": "roster-template-modals.spec.ts",
+      "testCount": 1,
+      "milliseconds": 2741
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "feedback-acceptance.spec.ts",
+      "testCount": 1,
+      "milliseconds": 11124
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "feedback-diagnostics.spec.ts",
+      "testCount": 3,
+      "milliseconds": 5317
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "feedback-moderation.spec.ts",
+      "testCount": 1,
+      "milliseconds": 4927
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "feedback-voting.spec.ts",
+      "testCount": 1,
+      "milliseconds": 2955
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "mobile-experience.spec.ts",
+      "testCount": 11,
+      "milliseconds": 26513
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "pwa-install.spec.ts",
+      "testCount": 6,
+      "milliseconds": 11846
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "roster-mobile.spec.ts",
+      "testCount": 11,
+      "milliseconds": 42115
+    },
+    {
+      "project": "mobile-chromium",
+      "file": "roster-template-modals.spec.ts",
+      "testCount": 6,
+      "milliseconds": 20450
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "feedback-acceptance.spec.ts",
+      "testCount": 1,
+      "milliseconds": 11035
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "feedback-diagnostics.spec.ts",
+      "testCount": 3,
+      "milliseconds": 5931
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "feedback-moderation.spec.ts",
+      "testCount": 1,
+      "milliseconds": 5337
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "feedback-voting.spec.ts",
+      "testCount": 1,
+      "milliseconds": 3652
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "mobile-experience.spec.ts",
+      "testCount": 9,
+      "milliseconds": 25193
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "roster-mobile.spec.ts",
+      "testCount": 9,
+      "milliseconds": 31544
+    },
+    {
+      "project": "tablet-chromium",
+      "file": "roster-template-modals.spec.ts",
+      "testCount": 1,
+      "milliseconds": 1750
+    }
+  ]
+}

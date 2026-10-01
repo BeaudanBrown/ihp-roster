@@ -13,23 +13,22 @@ import Application.Error.Boundary
 import Application.Error.Domain
 import Application.Error.Types
 import Application.Error.Wire
-import Application.Helper.NavigationContextInitialization (deferNavigationContextInitialization,
-                                                           navigationContextInitializationMiddleware)
-import Application.Helper.Telemetry (withTelemetrySpan)
 import Application.Helper.FrontendContract.Contracts (frontendContractsTypeScript)
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
+import Application.Helper.NavigationContextInitialization (deferNavigationContextInitialization,
+                                                           navigationContextInitializationMiddleware)
+import Application.Helper.Telemetry (withTelemetrySpan)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft, isRight)
-import Data.IORef (newIORef, modifyIORef', readIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import IHP.Controller.Response (respondWith)
-import Test.Support.Response (captureStoppedResponses)
 import IHP.ModelSupport (RecordNotFoundException (..))
 import IHP.Prelude
 import Network.HTTP.Types (status200, status422, status500)
@@ -38,6 +37,7 @@ import qualified Network.Wai as Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import Network.Wai.Test
 import Test.Hspec
+import Test.Support.Response (captureStoppedResponses)
 
 data BoundaryFixtureAction = BoundaryFixtureAction
     deriving (Data, Typeable)

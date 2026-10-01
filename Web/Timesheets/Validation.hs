@@ -13,6 +13,8 @@ module Web.Timesheets.Validation
     , ensureStaffAssignmentAllowed
     , ensureStaffAssignmentAllowedForExisting
     , ensureTimesheetVisibility
+    , requireBlankTimesheetClassification
+    , submittedTimesheetRosterGroupClassification
     , resetApprovalOnEdit
     , timesheetCoreChanged
     ) where
@@ -30,6 +32,7 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Prelude
 import Web.Controller.Prelude
+import Web.Timesheets.RosterGroupClassification
 
 -- Thrown under the calendar lock; mutation owners catch only after their
 -- transaction unwinds. Returning Left inside that transaction would not roll back.
@@ -37,6 +40,22 @@ data TimesheetCalendarConflict = TimesheetCalendarChanged
     deriving stock (Eq, Show)
 
 instance Exception.Exception TimesheetCalendarConflict
+
+requireBlankTimesheetClassification :: (?request :: Request, ?respond :: Respond) => IO TimesheetRosterGroupClassification
+requireBlankTimesheetClassification = case paramOrNothing @Text "blankClassification" of
+    Just "none" -> pure TimesheetNoRosterGroup
+    Just value -> case Text.stripPrefix "group:" value >>= UUID.fromText of
+        Just groupId -> pure (TimesheetInRosterGroup groupId)
+        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+    Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+
+submittedTimesheetRosterGroupClassification :: (?request :: Request, ?respond :: Respond) => IO (Maybe TimesheetRosterGroupClassification)
+submittedTimesheetRosterGroupClassification =
+    case (paramOrNothing @Text "rosterGroupClassification", paramOrNothing @UUID "rosterGroupId") of
+        (Nothing, Nothing) -> pure Nothing
+        (Just "no_roster_group", Nothing) -> pure (Just TimesheetNoRosterGroup)
+        (Just "in_roster_group", Just groupId) -> pure (Just (TimesheetInRosterGroup groupId))
+        _ -> accessDeniedUnless False >> pure Nothing
 
 -- Constructed only after ordinary form validation and identity/eligibility checks.
 -- The mutation derives approval reset; callers cannot supply that decision.
@@ -63,7 +82,7 @@ ensureTimesheetVisibility entry =
     if isJust entry.deletedAt
         then accessDeniedUnless False
         else
-            unless (hasRole Manager) do
+            unless hasManagementMode do
                 maybeStaff <- fetchCurrentUserStaff
                 let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
                 accessDeniedUnless ownsEntry
@@ -85,7 +104,7 @@ timesheetStaffAssignmentAllowed staffId = do
         |> filterWhere (#id, Id staffId)
         |> fetchOneOrNothing
     let eligible = maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff
-    if not eligible || hasRole Manager
+    if not eligible || hasManagementMode
         then pure eligible
         else do
             maybeCurrentStaff <- fetchCurrentUserStaff
@@ -94,7 +113,12 @@ timesheetStaffAssignmentAllowed staffId = do
 ensureStaffAssignmentAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | existingEntry.staffId == staffId = pure ()
-    | otherwise = ensureStaffAssignmentAllowed staffId
+    | otherwise = do
+        ensureStaffAssignmentAllowed staffId
+        matchesClassification <- case timesheetRosterGroupClassification existingEntry of
+            Nothing -> pure False
+            Just classification -> staffMatchesTimesheetRosterGroup existingEntry.venueId staffId classification
+        accessDeniedUnless matchesClassification
 
 ensureShiftTypeAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureShiftTypeAllowed shiftTypeId = timesheetShiftTypeAllowed shiftTypeId >>= accessDeniedUnless
@@ -339,7 +363,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
     applyCommentFields originalEntry record =
         let ownsEntry = currentViewerStaffId == Just record.staffId
             staffComment = if ownsEntry then normalizedTextParam "staffComment" else originalEntry.staffComment
-            managerNote = if hasRole Manager then normalizedTextParam "managerNote" else originalEntry.managerNote
+            managerNote = if hasManagementMode then normalizedTextParam "managerNote" else originalEntry.managerNote
          in record
                 |> set #staffComment staffComment
                 |> set #managerNote managerNote

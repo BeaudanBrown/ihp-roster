@@ -109,7 +109,7 @@ legacy_authority_queries="$(
         Application/Xero/Timesheets/Preview.hs \
         Web/Admin/RosterWindowStartDay.hs \
         Web/Timesheets/Projection.hs \
-        Web/Timesheets/Suggestion.hs \
+        Web/Timesheets/RosterPrefill.hs \
         || true
 )"
 [[ -z "$legacy_authority_queries" ]] \

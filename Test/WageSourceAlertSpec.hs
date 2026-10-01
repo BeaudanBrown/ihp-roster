@@ -3,6 +3,7 @@ module Test.WageSourceAlertSpec where
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
 import Application.EmailDelivery
+import Application.OperationalIncident (operationalIncidentMailKind)
 import Application.WageSourceAlert.Job
 import Application.WageSourceAlert.Types
 import Application.WageSourcePolicy (dataVicMaximumAge, fwcMaximumAge)
@@ -49,6 +50,19 @@ tests = aroundAll withDatabaseTestContext do
                     Right () -> expectationFailure "Expected invalid wage-source health-check provenance"
                     Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
 
+        it "coalesces only the current periodic sweep instead of being permanently blocked by an older check" $ withContext do
+            withCleanDb do
+                legacy <-
+                    newRecord @AppJob
+                        |> set #jobKind wageSourceHealthCheckJobKind
+                        |> set #dedupeKey (Just "wage-source-health-check:fwc_mapd:scheduled_freshness_check:Nothing")
+                        |> createRecord
+
+                first <- enqueueWageSourcePeriodicReconciliation FwcWageSource
+                second <- enqueueWageSourcePeriodicReconciliation FwcWageSource
+                first.id `shouldBe` second.id
+                first.id `shouldNotBe` legacy.id
+
         it "waits for the final refresh attempt and records manual/timer class without raw errors" $ withContext do
             withCleanDb do
                 manualUser <- createUserRecord "source-manual@example.com" "staff" True
@@ -88,8 +102,6 @@ tests = aroundAll withDatabaseTestContext do
                 mapMaybe payloadRecipientAccountId emailJobs
                     `shouldMatchList`
                         [ unpackId firstActive.id
-                        , unpackId firstActive.id
-                        , unpackId secondActive.id
                         , unpackId secondActive.id
                         ]
                 mapMaybe payloadRecipientAccountId emailJobs
@@ -118,7 +130,7 @@ tests = aroundAll withDatabaseTestContext do
                 (find ((== RefreshFailedAlert) . (.alertKind)) firstSnapshots >>= (.refreshTriggerClass))
                     `shouldBe` Just TimerRefresh
                 emailJobs <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetch
-                length emailJobs `shouldBe` 2
+                length emailJobs `shouldBe` 1
                 healthChecks <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
                 length healthChecks `shouldBe` 2
 
@@ -207,7 +219,7 @@ tests = aroundAll withDatabaseTestContext do
                 healthCheck <- createHealthCheck FwcWageSource FinalRefreshFailure sourceJob now Nothing
                 performWageSourceHealthCheckJobAt now healthCheck
                 emailJobs <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetch
-                let Just missingEmail = find ((== Just (alertMailKind FwcWageSource SourceMissingAlert)) . payloadMailKind) emailJobs
+                let Just missingEmail = find ((== Just operationalIncidentMailKind) . payloadMailKind) emailJobs
                 createFwcSuccess now
                 _ <- recipient |> set #deactivatedAt (Just now) |> set #platformRole Nothing |> updateRecord
                 calls <- newIORef (0 :: Int)

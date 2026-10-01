@@ -18,8 +18,8 @@ function runQuery(cwd, payload) {
   });
 }
 
-function runGeneratedContractsQuery(target, includeConsumers) {
-  const result = runQuery(repoRoot, {
+function runGeneratedContractsQuery(fixtureRoot, target, includeConsumers) {
+  const result = runQuery(fixtureRoot, {
     name: "generated-contracts",
     args: { target, includeConsumers },
   });
@@ -88,11 +88,23 @@ test("focused queries reject stale facts and leave current facts untouched", (t)
   assert.match(staleContractResult.stderr, /output\/architecture\/bepis-contracts\.json/);
 });
 
-test("generated-contracts query keeps structured output bounded and focused", () => {
-  const allSurfaces = runGeneratedContractsQuery("all", true);
+test("generated-contracts query keeps structured output bounded and focused", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "architecture-query-contracts-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "output/architecture"), { recursive: true });
+  fs.writeFileSync(path.join(root, "output/architecture/facts.json"), JSON.stringify({
+    inputFingerprint: architectureFactFingerprint(root),
+    frontend: { contracts: {
+      sources: ["Application/Helper/FrontendContract/Surface/Roster.hs"],
+      generated: [{ path: "frontend/ts/generated/contracts.ts", exports: ["Roster"], dataAttributes: [] }],
+      reflectedSurfaceContracts: { surfaces: [{ name: "roster" }, { name: "billing" }] },
+      consumers: Array.from({ length: 24 }, (_, n) => ({ path: `frontend/ts/roster/part-${n}.ts`, imports: ["Roster"] })),
+    } },
+  }));
+  const allSurfaces = runGeneratedContractsQuery(root, "all", true);
   assert.ok(allSurfaces.tables.find((table) => table.title === "reflected surfaces").rows.length > 1);
 
-  const withConsumers = runGeneratedContractsQuery("roster", true);
+  const withConsumers = runGeneratedContractsQuery(root, "roster", true);
   const reflectedSurfaces = withConsumers.tables.find((table) => table.title === "reflected surfaces");
   assert.deepEqual(reflectedSurfaces.rows.map((row) => row.surface), ["roster"]);
 
@@ -100,7 +112,7 @@ test("generated-contracts query keeps structured output bounded and focused", ()
   assert.ok(consumerFiles.rows.length <= 20);
   assert.ok(withConsumers.warnings.some((warning) => warning.includes("consumer files omitted")));
 
-  const withoutConsumers = runGeneratedContractsQuery("roster", false);
+  const withoutConsumers = runGeneratedContractsQuery(root, "roster", false);
   assert.equal(withoutConsumers.tables.some((table) => table.title === "consumer groups"), false);
   assert.equal(withoutConsumers.tables.some((table) => table.title === "consumer files"), false);
 });

@@ -8,7 +8,201 @@ commands through the project wrapper:
 bash ./bin/in-env <command>
 ```
 
-The profiling commands use isolated `app_profile*` databases, dedicated compiled app processes, and a locked four-port allocation for the app, IHP IDE reservation, and Collector gRPC/HTTP endpoints. They do not inherit the primary development app's port pair, so they can run alongside `just ddev` without changing or restarting it. Generated artifacts are written under `output/profile*` and are ignored by git.
+The profiling commands use isolated `app_profile*` databases, dedicated compiled app processes, and native runner leases for the app and Collector gRPC/HTTP endpoints. The compiled app does not start an IHP IDE or inherit the development port pair, so profiling can run alongside `just ddev` without changing or restarting it. Shared compiler writes use the native artifact lock; each profile runs a private executable snapshot. Generated artifacts are written under `output/profile*` and are ignored by git.
+
+## Verification Pipeline Profiling
+
+Verification timing is meaningful only when revision, inputs, cache state, host
+pressure, and selected test tier match. Before runtime E2E, confirm the checkout
+and slot:
+
+```bash
+bash ./bin/in-env dev-workspace-info --json
+git rev-parse HEAD
+git diff --binary HEAD | sha256sum
+git ls-files -o --exclude-standard -z | sha256sum
+```
+
+Run one command at a time through that checkout's `bin/in-env`; concurrent
+wrapper entries can race on generated devenv files. Record the exact argument
+vector, UTC start, monotonic wall time, exit status, tool versions, logical CPU
+and memory totals. Collect metadata before starting the command timer; stop it
+at process exit, before sampler teardown. Use per-command child CPU deltas and
+per-process memory evidence, not inherited/cumulative child counters from a
+multi-command shell. Timestamp stdout/stderr so the existing `verify-fast:` and
+`verify-full:` markers define stage boundaries. Retain test/example counts,
+shards, projects/devices, retries, flakes and skips.
+
+Sample command descendants and host `/proc/stat`, `/proc/loadavg`, and
+`/proc/pressure/{cpu,io,memory}` at a low rate. Report descendant user/system
+CPU and peak RSS separately from host pressure. Descendant accounting excludes
+Nix-daemon and pre-existing database/application services; host samples include
+unrelated work. Record cache-lock, Nix evaluation/substitution/build, network,
+remote-builder, database setup/reset, linking, startup, test, and teardown waits
+when their owners expose them. Never infer idle time from low child CPU while a
+daemon performs the build.
+
+Use these cache-state names:
+
+- **retained-cache observation**: all useful workspace, user, Nix and OS caches
+  remain; document command order.
+- **immediate warm repeat**: unchanged revision and inputs, same command-owned
+  outputs, run immediately after the producer.
+- **output-cold**: point a supported command-owned build/output variable at a
+  new empty directory; retain package, Nix and OS caches. For example:
+
+  ```bash
+  TYPECHECK_BUILD_DIR="$PWD/.pi/tmp/verification-profile/typecheck-cold" \
+    bash ./bin/in-env typecheck
+  ```
+
+- **machine-cold**: package/Nix/OS cache eviction. Do not use this on a shared
+  development host without explicit approval; it is not required for routine
+  comparisons.
+
+Capture `verify-fast` and `verify-full` from process entry to exit. A canonical
+failure remains an end-to-end failed observation: retain its stopping stage and
+do not invoke later stages and call the result a pipeline pass. Then measure
+representative focused Haskell, frontend, and E2E commands, environment entry,
+and immediate warm repeats. Focused results are additive diagnostics and never
+inherit full-gate authority. `verify-fast` does not replace complete Hspec,
+complete Playwright, production, schema/migration, package, or deployment
+authority.
+
+Only a successful producer may publish a handoff. Static proof reuse requires
+an identity covering source, generated and dependency inputs, compiler/package
+environment, flags, inventories, and policy. Runtime results are not reusable
+merely because source hashes match. A failed or interrupted `verify-full` run
+supplies neither complete-gate evidence nor its later generated-tooling,
+architecture, production-closure, and browser handoffs.
+
+For a before/after conclusion, use the same revision class, cache definition,
+command order, host, toolchain, shard/device selection, and network/builder
+policy. Prefer at least three successful quiet-host runs per state; report
+median, tail, peak memory and every failure rather than selecting the fastest
+run. Preserve raw local logs and bounded machine-readable summaries under
+`.pi/tmp/`; retain only reviewed comparison evidence with continuing value in
+`docs/archive/`.
+
+### Command recorder
+
+The Linux [command recorder](../../scripts/profiling/verification-measure.py)
+is opt-in; its `--help` and source own current options and artifact bounds:
+
+```bash
+bash ./bin/in-env env BEPIS_SCRIPTS_ROOT="$PWD/Config/nix/scripts" \
+  python3 scripts/profiling/verification-measure.py run \
+  --output .pi/tmp/verification-command-01 --owner typecheck \
+  --cache-state retained -- typecheck
+bash ./bin/in-env python3 scripts/profiling/verification-measure.py inspect \
+  .pi/tmp/verification-command-01
+```
+
+Choose a new output directory per attempt; existing or symlinked paths are
+rejected. Artifacts are bounded private JSON, not command logs. Only a digest of
+argv is stored; command stdout/stderr pass through to the terminal unchanged.
+Owner labels must be public, non-sensitive identifiers. Revision and input
+provenance are collected before command timing. `provenance.json` fingerprints
+tracked changes, untracked files and generated Haskell/TypeScript sources,
+without storing input paths or contents. Keep inputs quiescent: this is a
+bounded, best-effort diagnostic snapshot, not atomic proof or cache identity.
+Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
+remain unavailable. With the explicitly selected current-workspace scripts root,
+metadata also queries the native workspace owner and fingerprints its Haskell,
+frontend-contract and JavaScript generation manifests. Absent manifests differ
+from unavailable ownership. Merely inspecting an unrelated Git tree never
+executes helpers found in that tree. Tooling source is covered by revision and
+tracked/untracked provenance, not by a second lifecycle implementation; compiled
+tooling binaries, other ignored inputs, external dependencies and compiler
+configuration are not complete identities here. Record these separately under
+the protocol above. Older artifacts remain inspectable only
+with the evidence required by their original schema.
+
+`inspect` validates the completion schema and returns the recorded exit status;
+missing, corrupt or incomplete evidence returns 2. Completion is diagnostic,
+never gate or cache authority. SIGINT/SIGTERM are forwarded to the command's new
+process group, with a ten-second grace before kill escalation (configurable
+from 1–60 using `--termination-grace-seconds`). An interrupted
+command cannot become successful because its signal handler returns zero. A
+hard-killed recorder leaves no completed result. Detached services remain their
+existing owner's cleanup responsibility; do not use this recorder to manage
+production processes.
+
+CPU is the kernel accounting for this waited command and descendants it waited
+for, excluding recorder metadata and pre-existing services/daemons. Memory is
+sampled simultaneous descendant RSS, not summed historical maxima or unique
+physical memory: shared pages can be double-counted, and short-lived/reparented
+processes can be missed. No samples means unavailable, not zero. The timer has
+up to a polling interval plus sampling latency; collection overhead is included
+in the observation.
+
+The [Hspec](../../Config/nix/scripts/haskell/hspec-test) and
+[E2E](../../Config/nix/scripts/e2e/e2e) owners emit opt-in phase boundaries.
+`phases.json` reports monotonic intervals relative to command start, including
+emission overhead; compilation is **not**
+linker-only time. Overlapping shard/parallel intervals must not be summed as
+command elapsed time. An unfinished phase has no invented duration. `observed`
+means some boundaries were captured, not complete phase coverage; uninstrumented
+owners remain unavailable. Journal overflow and malformed evidence fail
+inspection without replacing the original
+command exit status. Event emission failure does not change Hspec selection,
+retry, cleanup or failure semantics. For paired overhead controls, run the same
+command through `env -u BEPIS_VERIFICATION_EVENTS`; never interpret that control's
+missing phase evidence as zero work.
+
+Closed `observations` record actual dependency-manifest/build-option reuse or
+reset decisions and native generation outcomes, without private paths or inputs.
+Dependency-cache scopes 1/2 identify adapter validation/negative fixtures; scope
+0 is unspecified. Generation scopes 1/2/3 identify Haskell/contracts/JavaScript.
+Reuse of dependencies is **not** reuse of successful verification. Lock intervals
+cover acquisition calls plus diagnostic overhead, not kernel-only wait time or
+proof of contention; no nonblocking probe or lock policy change is introduced.
+Unsupported linker configurations are explicitly unavailable. Other owners'
+internal contention/cache decisions remain unobserved rather than inferred.
+
+App readiness uses the existing login-page probe; Stripe uses Warp's before-main-loop
+callback. Worker readiness observes acknowledged PostgreSQL LISTEN subscriptions,
+not merely a live PID or queued subscription. These are startup observations,
+not continuing health guarantees or new test gates. Worker/Stripe deaths already
+observed at cleanup, or explicitly rejected by the runtime launcher, close
+unfinished startup intervals only after the runtime owner confirms termination;
+that timestamp is the observation time, not the exact time of death. Intentional
+cleanup and death after readiness do not become startup failures.
+
+MailHog's opt-in, owner-reaped observer checks its loopback HTTP API and SMTP
+banner, sends only QUIT, and neither reads mail bodies nor sends mail. An
+observation timeout leaves startup unfinished; observed producer death records
+failure. With profiling disabled no observer is launched. Browser intervals
+cover the Playwright command, not a separately measured browser-ready boundary.
+There is no single runner-owned browser-ready instant: projects launch lazily
+and tests own multiple contexts. Adding a fixture callback would measure that
+fixture's setup, not universal browser readiness; this attribution is deliberately
+unavailable rather than inferred from app readiness or command launch.
+The opt-in [GHC observer](../../scripts/profiling/verification-ghc.py) records
+actual link-driver launch/completion inside the existing Hspec/E2E compile
+intervals, not timestamps inferred from compiler output. These intervals include
+driver launch/emission overhead; do not add them to enclosing compile durations.
+GHC's `-pgml` hook clears configured linker flags and no-PIE support, so the
+observer restores both from the current compiler settings. Caller-supplied tool
+or settings overrides bypass observation rather than guessing their effective
+configuration. No hook is installed with profiling disabled. A warm build may
+not invoke the linker; absent intervals never mean a measured zero duration.
+`resets.json` contains bounded, process-local Hspec aggregates by registered suite
+and shard: attempts, failures and monotonic elapsed nanoseconds, including failed
+reset attempts. Schema version 2 additionally records
+`exampleDurationNanoseconds`: inclusive example callback time, including reset,
+fixture, application and external-tool work, even for no-reset or failed
+callbacks. Suite context startup/teardown is excluded; nested counters overlap
+and must not be added together. Version 1 remains readable but has no callback
+duration. The reset SQL and cleanup policy are unchanged. A native counter
+is updated per reset; one aggregate publisher runs at shard completion, never a
+Python process per reset. Thread-local suite scopes are not guessed for spawned
+threads: unscoped work is explicit. Missing/crashed producers remain unavailable
+or partial, not zero. A successfully published empty aggregate is observed zero.
+These are sums of reset or callback work, not wall-clock critical paths; do not
+sum shard maxima. Callback medians can train advisory suite weights, but only
+matched complete-tier runs establish scheduling benefit. The separate legacy `HSPEC_METRICS_DIR` raw-line diagnostics are unchanged
+and must have identical settings in both measurement arms.
 
 ## Request Instrumentation
 

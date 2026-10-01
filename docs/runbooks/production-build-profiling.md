@@ -21,10 +21,11 @@ Artifacts are bounded and written under
 - `profile.md` — concise human summary;
 - `build.log` — final 4 MiB of build output at most.
 
-`Config/nix/baselines/production-build/` retains reviewed baseline summaries;
-`staging-ea144503-grill.json` is the historical pre-boundary comparison point,
-while `issue-350-final-regression-gates.json` records the accepted closeout
-profiles and target disposition. Do not commit raw logs or output links.
+`Config/nix/baselines/production-build/` retains historical measurement evidence,
+not current release policy. Any budget decisions or retired command names in
+those captures describe their original revisions. New investigations retain
+profiles in their artifact directories; no count reconciliation is required.
+Do not commit raw logs or output links.
 
 ## Safe NAS And Grill Procedure
 
@@ -57,22 +58,17 @@ The bounded comparison records identities, whether builder system/core settings
 match, and absolute deltas for time, memory, swap, package sizes, module count,
 and largest interface size.
 
-Apply stable packaging and interface budgets to a retained profile with:
+Profiling is opt-in and does not run in `verify-full`. Size, interface, and
+module-count deltas are diagnostic, not automatic failures or baseline-update
+requirements. See [ADR 0011](../adr/0011-structural-production-checks-not-footprint-budgets.md).
+`production-package-smoke` separately enforces current package declarations,
+static-only artifacts, source/dependency isolation, runtime links, and executable
+launches; a profile is not a substitute for those checks.
 
-```bash
-bash ./bin/in-env production-build-budget-check <artifact-dir>/profile.json
-```
-
-With no profile argument, first run `production-package-smoke`; the check then
-inspects that exact realized app-lib without rebuilding it. Stable CI budgets do
-not assert or cap host memory. NAS memory remains retained benchmark evidence:
-record the clean revision, effective cores, RSS, cgroup growth, swap, and service
-load, but do not turn a sampled machine-global value into a release gate. Retain
-the resulting profile and a bounded issue summary; do not commit raw logs.
-
-Use `--no-rebuild` only to inspect an already-present historical output; it
-intentionally provides no build memory or CPU evidence and is not a complete
-baseline.
+Use `--no-rebuild` to inspect the current derivation's already-present output
+without rebuilding. It intentionally provides no build memory or CPU evidence
+and is not a complete build baseline. Preserve clean revision, effective cores,
+RSS, cgroup growth, swap, and service-load context when comparing builds.
 
 ## Interpreting Memory
 
@@ -101,10 +97,11 @@ pressure affected the run and must remain part of the comparison.
    and effective cores with a same-builder clean profile. Treat concurrent work,
    changed services, changed cores, or output/configuration differences as
    non-comparable evidence.
-5. First run the deterministic budget and package checks. If they pass, diagnose
-   machine pressure separately from app-owned output growth. Lower parallelism
-   may be tested as an operational mitigation only in a new named profile; it
-   does not revise the accepted build architecture or erase the failed run.
+5. Run `production-package-smoke` to distinguish packaging violations from
+   resource problems. Compare output growth with prior profiles and diagnose
+   machine pressure separately. Lower parallelism may be tested as an
+   operational mitigation only in a new named profile; it does not revise the
+   accepted build architecture or erase the failed run.
 
 Never delete store paths, stop customer services, switch NixOS configuration,
 or reset data as part of diagnosis. Escalate repeated unexplained kills with the

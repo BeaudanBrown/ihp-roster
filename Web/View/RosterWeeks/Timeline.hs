@@ -5,7 +5,7 @@ module Web.View.RosterWeeks.Timeline
     , renderRosterDayTimelinePanel
     ) where
 
-import Application.Helper.Controller (hasRole)
+import Application.Helper.Controller (hasManagementMode)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
@@ -82,7 +82,7 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
         slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterLaneId, [slot]) | slot <- daySlots ]
         staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- gridModel.gridStaffMembers ]
         shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- gridModel.gridShiftTypes ]
-        editable = currentUserIsManager && maybe False (not . (.windowIsPublished)) gridModel.gridRosterWeek && not rosterDay.isClosed
+        editable = hasManagementMode && maybe False (not . (.windowIsPublished)) gridModel.gridRosterWeek && not rosterDay.isClosed
         timelineWindow = timelineWindowFromGridModel gridModel
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
@@ -169,7 +169,7 @@ renderTimelineDropzone timelineWindow (minute, targetKey) =
 renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
 renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =
     let isOpen = rosterShiftIsOpen timelineShiftSlot
-        canLaunch = editable || (isOpen && hasRole Manager)
+        canLaunch = editable || (isOpen && hasManagementMode)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         groupKey = "existing:" <> tshow timelineShiftSlot.id

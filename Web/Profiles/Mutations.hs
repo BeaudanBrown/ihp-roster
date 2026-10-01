@@ -9,8 +9,6 @@ import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
-import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
-                                                 replaceStaffShiftPreferences)
 import Application.Helper.SurfaceResource
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Web.Controller.Prelude
@@ -24,13 +22,12 @@ data ProfileUpdateMutationResult = ProfileUpdateMutationResult
     }
     deriving (Eq, Show)
 
-updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> [ShiftPreferenceSelection] -> IO (Maybe (LiveMutationResult ProfileUpdateMutationResult))
-updateCurrentUserProfile openSection staffInput submittedSelections =
+updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> IO (Maybe (LiveMutationResult ProfileUpdateMutationResult))
+updateCurrentUserProfile openSection staffInput =
     withDurableLiveMutationOutcome publicationFor do
         maybeExistingStaff <- fetchCurrentUserStaff
         let performUpdate = do
                 staff <- upsertCurrentUserStaff staffInput
-                replaceStaffShiftPreferences staff submittedSelections
                 let isProfileCompleted = requiredProfileFieldsCompleted staff
                 let wasProfileCompleted = effectiveCurrentUser.isProfileCompleted
                 effectiveCurrentUser
@@ -60,7 +57,6 @@ profileUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 profileUpdateTouchedResources staff =
     [ leaveAvailabilityWarningsResource staff.venueId
     , staffProfileResource (unpackId staff.id)
-    , staffPreferencesResource (unpackId staff.id)
     ]
 
 upsertCurrentUserStaff :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Staff -> IO Staff

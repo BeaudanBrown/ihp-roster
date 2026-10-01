@@ -19,6 +19,7 @@ module Application.Helper.FrontendContract.Toggle.Runtime
     , ToggleListItemValue
     , canonicalToggleDomAttributes
     , namedBooleanToggleField
+    , namedCheckboxToggleField
     , surfaceToggleListItemField
     , surfaceToggleScalarField
     , toggleBreakRegion
@@ -209,6 +210,15 @@ namedBooleanToggleField fieldName =
         fieldName
         (toggleScalarTarget @'WireBool True)
         (toggleScalarTarget @'WireBool False)
+
+-- | Presence-based native checkbox fields omit their unchecked value. Keep this
+-- distinct from Boolean fields whose controllers expect an explicit false.
+namedCheckboxToggleField :: Text -> ToggleFieldBinding
+namedCheckboxToggleField fieldName =
+    checkedToggleFieldBinding
+        fieldName
+        (toggleScalarTarget @'WireBool True)
+        ToggleTargetOmitted
 
 checkedToggleFieldBinding :: Text -> ToggleTarget -> ToggleTarget -> ToggleFieldBinding
 checkedToggleFieldBinding fieldName checkedTarget uncheckedTarget

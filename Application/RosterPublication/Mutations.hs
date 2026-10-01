@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Application.RosterPublication.Mutations
     ( normalizePublishedRosterWindows
     , withRosterCalendarLockInCurrentTransaction
@@ -37,9 +39,12 @@ withRosterCalendarLockInCurrentTransaction venueId action = do
         (PG.Only lockKey)
     action
 
-withRosterWindowDateLock :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO value -> IO value
+-- Keep the body context-polymorphic until 'withTransaction' installs its
+-- transaction runner; accepting a pre-bound 'IO' action lets writes escape it.
+withRosterWindowDateLock :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> ((?modelContext :: ModelContext) => IO value) -> IO value
 withRosterWindowDateLock venueId rosterGroupId windowStart windowEnd action =
-    withTransaction (withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action)
+    withTransaction do
+        withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action
 
 withRosterWindowDateLockInCurrentTransaction :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO value -> IO value
 withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action =

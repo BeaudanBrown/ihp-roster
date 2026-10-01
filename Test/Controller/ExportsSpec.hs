@@ -3,17 +3,20 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
-import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
-                                    TimesheetIntegrityError (TimesheetTimingInvalid))
+import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetReview
+import Application.Helper.TimesheetSelection
+import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
+                                    TimesheetIntegrityError (TimesheetTimingInvalid))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (isRight)
+import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -24,8 +27,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status
@@ -47,6 +50,178 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "warns before normal and filtered exports, with scoped approved-only continuations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Export review"
+                admin <- createUserRecord "export-review@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                approvedStaff <- createStaffRecord venue (Just admin) "Approved" "Worker"
+                draftStaff <- createStaffRecord venue Nothing "Unapproved" "Worker"
+                let start = fromGregorian 2025 1 6
+                    end = fromGregorian 2025 1 12
+                approved <- createApprovedTimesheetEntryRecordAt venue approvedStaff admin start (UTCTime end 0)
+                draft <- createTimesheetEntryRecord venue draftStaff end
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays (-1) start)
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays 1 end)
+                deleted <- createTimesheetEntryRecord venue draftStaff start
+                _ <- deleted |> set #deletedAt (Just (UTCTime end 0)) |> updateRecord
+                foreignVenue <- createVenueWithConfig "Foreign review"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
+                _ <- createTimesheetEntryRecord foreignVenue foreignStaff start
+                rows <- fetchUnapprovedTimesheets venue.id start end
+                map (.unapprovedTimesheetEntry.id) rows `shouldBe` [draft.id]
+                let downloadParams = [("exportType", "approved_timesheets_csv"), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                    selectionParams = [("selectionExportType", "approved_timesheets_csv"), ("selectionRangeStart", "2025-01-06"), ("selectionRangeEnd", "2025-01-12"), ("selectedTimesheetEntries", "[]")]
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    forM_ [[], [("HX-Request", "true")]] \headers -> withRequestHeaders headers do
+                        warning <- callActionWithParams CreateExportJobAction downloadParams
+                        warning `responseStatusShouldBe` status200
+                        warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                        warning `responseBodyShouldContain` "Unapproved Worker"
+                        warning `responseBodyShouldNotContain` "Foreign Worker"
+                        warning `responseBodyShouldContain` "Continue anyway"
+                        warning `responseBodyShouldContain` "Cancel"
+                        warning `responseBodyShouldContain` "/ConfirmTimesheetExportDownload"
+                        when (not (null headers)) do
+                            lookup "HX-Reswap" (responseHeaders warning) `shouldBe` Just "innerHTML"
+                            lookup "HX-Redirect" (responseHeaders warning) `shouldBe` Nothing
+                        query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    -- Cancel/close has no server write. Reopening rechecks drafts.
+                    filtered <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams OpenTimesheetExportSelectionAction selectionParams)
+                    filtered `responseBodyShouldContain` "/ConfirmTimesheetExportSelection"
+                    filtered `responseBodyShouldNotContain` "Choose shifts for export"
+                    checklist <- callActionWithParams ConfirmTimesheetExportSelectionAction selectionParams
+                    checklist `responseBodyShouldContain` "Choose shifts for export"
+                    checklist `responseBodyShouldNotContain` "Unapproved Worker"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    downloaded <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams ConfirmTimesheetExportDownloadAction selectionParams)
+                    downloaded `responseStatusShouldBe` status200
+                    lookup "HX-Redirect" (responseHeaders downloaded) `shouldSatisfy` isJust
+                job <- query @ExportJob |> fetchOne
+                sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId job.id) |> fetch
+                map (.timesheetEntryId) sources `shouldBe` [unpackId approved.id]
+
+        forM_ [ConfirmTimesheetExportDownloadAction, ConfirmTimesheetExportSelectionAction] \confirmation -> do
+            it ("rejects missing/malformed continuation fields for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Invalid export review"
+                    admin <- createUserRecord "invalid-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue admin VenueAdmin
+                    withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        forM_ [[], [("selectionRangeStart", "not-a-day"), ("selectionRangeEnd", "2025-01-12"), ("selectionExportType", "unknown"), ("selectedTimesheetEntries", "[]")]] \params -> do
+                            response <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams confirmation params)
+                            response `responseStatusShouldBe` status200
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
+            it ("denies managers continuation access for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Denied export review"
+                    manager <- createUserRecord "denied-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue manager Manager
+                    response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction confirmation)
+                    response `responseStatusShouldBe` status302
+                    lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
+        it "exports manual Xero pay-item names and sealed units without any Xero setup" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Unlinked manual workbook"
+                admin <- createUserRecord "manual-workbook@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Level 1" 30 2.5 3 1 1.5 1.75
+                shift <- createShiftTypeRecord venue level "Bar"
+                staffUser <- createUserRecord "manual-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                first <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 9 0 0), setTestEndTime (TimeOfDay 12 0 0)]
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 19 0 0), setTestEndTime (TimeOfDay 21 0 0)]
+                result <- fetchWorkbookXeroQuantities venue.id [first, second]
+                case result of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Ordinary - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 5
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Evening After 7pm Loading - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== defaultWeekEpoch)
+                        map (.xeroQuantityStaffName) quantities `shouldSatisfy` all (== "Ava Worker")
+                selected <- fetchWorkbookXeroQuantities venue.id [first]
+                fmap (sum . map (.xeroQuantityUnits)) selected `shouldBe` Right 3
+                mismatchedVersion <- fetchWorkbookXeroQuantities venue.id [first |> set #staffPayVersionId Nothing]
+                mismatchedVersion `shouldSatisfy` isLeft
+                mismatchedApproval <- fetchWorkbookXeroQuantities venue.id [first |> set #approvedAt (Just (addUTCTime 1 approvedAt))]
+                mismatchedApproval `shouldSatisfy` isLeft
+                components <- query @TimesheetPayEarningsComponent |> fetch
+                map (.xeroMappingLegacyFallback) components `shouldSatisfy` all not
+                map (.xeroEarningsRateId) components `shouldSatisfy` all isNothing
+                query @XeroConnection |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetPayComponentXeroBinding |> fetchCount >>= (`shouldBe` 0)
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    created <- callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Manual Xero"), ("payrollWorkbookSheetFamilies", "[\"xero-pay-items\"]")]
+                    created `responseStatusShouldBe` status302
+                    configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                    generated <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12"), ("payrollWorkbookConfigurationId", cs (tshow configuration.id))]
+                    generated `responseStatusShouldBe` status200
+                    generated `responseBodyShouldNotContain` "toast"
+                exportJob <- query @ExportJob |> fetchOne
+                let archive = Zip.toArchive . LBS.fromStrict . Base64.decodeLenient . encodeUtf8 . fromMaybe "" $ exportJob.fileContents
+                strings <- archiveEntryText "xl/sharedStrings.xml" archive
+                strings `shouldSatisfy` Text.isInfixOf "Ordinary - Level 1 - "
+                strings `shouldSatisfy` Text.isInfixOf "Evening After 7pm Loading - Level 1 - "
+                sheet <- archiveEntryText "xl/worksheets/sheet1.xml" archive
+                sheet `shouldSatisfy` Text.isInfixOf "<v>5</v>"
+                sheet `shouldSatisfy` Text.isInfixOf "<v>2</v>"
+                let lastDay = fromGregorian 2025 1 12
+                overnight <- createAndApproveEntry venue staff lastDay admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 22 0 0), setTestEndTime (TimeOfDay 2 0 0)]
+                overnightQuantities <- fetchWorkbookXeroQuantities venue.id [overnight]
+                case overnightQuantities of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        quantities `shouldSatisfy` (not . null)
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== lastDay)
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Late Night After Midnight Loading - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+
+        forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \exportType ->
+            it (cs ("uses precisely the reviewed selection for " <> exportJobTypeToText exportType)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Selected export"
+                    owner <- createUserRecord "selected-export@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
+                    staff <- createStaffRecord venue (Just owner) "Selected" "Worker"
+                    let day = fromGregorian 2025 1 10
+                    first <- createApprovedTimesheetEntryRecordAt venue staff owner day (UTCTime day 0)
+                    second <- createApprovedTimesheetEntryRecordAt venue staff owner (addDays 1 day) (UTCTime day 0)
+                    let directParams = [("exportType", cs (exportJobTypeToText exportType)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                        selectedParams entries =
+                            [ ("selectionExportType", cs (exportJobTypeToText exportType))
+                            , ("selectionRangeStart", "2025-01-06")
+                            , ("selectionRangeEnd", "2025-01-12")
+                            , ("selectedTimesheetEntries", cs (Aeson.encode (map (encodeTimesheetSelectionIdentity . timesheetSelectionIdentity) entries)))
+                            ]
+                        newestJob = query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                    direct <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams CreateExportJobAction directParams)
+                    direct `responseStatusShouldBe` status302
+                    allJob <- newestJob
+                    allSelected <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first, second]))
+                    allSelected `responseStatusShouldBe` status302
+                    selectedAllJob <- newestJob
+                    selectedAllJob.fileContents `shouldBe` allJob.fileContents
+                    selectedResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    selectedResponse `responseStatusShouldBe` status302
+                    selectedJob <- newestJob
+                    sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId selectedJob.id) |> fetch
+                    map (.timesheetEntryId) sources `shouldBe` [unpackId first.id]
+                    -- Stale and empty filtered requests never create ready jobs.
+                    _ <- first |> set #updatedAt (addUTCTime 1 first.updatedAt) |> updateRecord
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams []))
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 3)
+
         it "redirects unauthenticated users from export jobs page" $ withContext do
             response <- callAction ExportJobsAction
             response `responseStatusShouldBe` status302
@@ -76,10 +251,17 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateExportJobAction
+                    warning <- callActionWithParams CreateExportJobAction
                         [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
                         , ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
+                        ]
+                    warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                    callActionWithParams ConfirmTimesheetExportDownloadAction
+                        [ ("selectionExportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("selectionRangeStart", "2025-01-06")
+                        , ("selectionRangeEnd", "2025-01-12")
+                        , ("selectedTimesheetEntries", "[]")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -236,7 +418,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #importedXeroPayItemId (Just importedItem.id)
                 staffUser <- createUserRecord "imported-payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
@@ -256,6 +438,11 @@ tests = aroundAll withDatabaseTestContext do
                     Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Worker, Ava Bar")
+                connection <- fetch (Id importedItem.xeroConnectionId :: Id XeroConnection)
+                _ <- connection |> set #connectionStatus ("disconnected" :: Text) |> updateRecord
+                manual <- fetchWorkbookXeroQuantities venue.id [entry]
+                fmap (map (\quantity -> (quantity.xeroQuantityPayItemName, quantity.xeroQuantityUnits))) manual
+                    `shouldBe` Right [("Xero Weekend Rate", 8)]
 
         it "limits staff-hours payroll exports to the requested date range" $ withContext do
             withCleanDb do
@@ -811,7 +998,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText PayrollWorkbookXlsx
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
-                exportJob.fileName `shouldBe` Just "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
+                exportJob.fileName `shouldBe` Just "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
                 exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
@@ -833,7 +1020,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders response) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll_workbook-2025-01-06-to-2025-01-12.xlsx\""
+                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
@@ -942,6 +1129,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 generateResponse `responseStatusShouldBe` status302
                 exportJob <- query @ExportJob |> fetchOne
+                exportJob.fileName `shouldBe` Just "summary-then-wages-2025-01-06-to-2025-01-12.xlsx"
                 auditEventsAfterGeneration <- query @AuditEvent |> fetch
                 map (.eventType) auditEventsAfterGeneration `shouldBe` ["export_generated"]
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))

@@ -29,7 +29,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWindow,
                                            fetchRosterShiftPreferencesForWindow)
-import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.Types
 
 fetchRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]

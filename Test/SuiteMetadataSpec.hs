@@ -9,6 +9,17 @@ import Test.Suite.Selection (hspecArgumentsMayFilter)
 tests :: Spec
 tests = do
     describe "suite metadata validation" do
+        it "classifies a real calculator independently of database isolation and transport mocks" do
+            let calculator = (pureMetadata "calculator" BroadAcceptance [P6]) { externalTools = [LibreOfficeCalc] }
+            suiteKind calculator `shouldBe` PureSuite
+            calculator.externalMocks `shouldBe` []
+            validateSuiteMetadata calculator `shouldBe` []
+
+        it "rejects duplicate external tool requirements" do
+            let calculator = (pureMetadata "calculator" BroadAcceptance []) { externalTools = [LibreOfficeCalc, LibreOfficeCalc] }
+            validateSuiteMetadata calculator
+                `shouldContain` ["calculator: duplicate external tool requirement: LibreOfficeCalc"]
+
         it "rejects committed visibility without broad clean-state isolation" do
             let invalid =
                     suiteMetadataFromDefinition

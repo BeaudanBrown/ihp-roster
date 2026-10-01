@@ -2,12 +2,14 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import {
     dialogOverlayMountDomId,
     timePickerClearDomAttr,
+    timePickerModalDomId,
     timePickerTriggerDomAttr,
     toggleInputDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, runActionUntilRequestStarts } from './support/runtime';
 import { loginAs } from './support/session';
+import { chooseBlankTimesheet } from './support/timesheets';
 
 async function submitTimesheetDialogWithEnter(page: Page, form: Locator) {
     const response = await runActionUntilRequestStarts(page, (request) =>
@@ -26,7 +28,20 @@ test.describe('Workflow dialog keyboard controls', () => {
     test('keeps Timesheet tabbing in visual order while starting on Shift Start', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        // HTMX applies autofocus during settlement. The app must not also pick
+        // an initial target synchronously during afterSwap/page-ready handling.
+        const focusedDuringSwap = page.evaluate((mountId) => new Promise<boolean>((resolve) => {
+            const onSwap = (event: Event) => {
+                const mount = event.target;
+                if (!(mount instanceof HTMLElement) || mount.id !== mountId) return;
+                document.removeEventListener('htmx:afterSwap', onSwap);
+                resolve(mount.contains(document.activeElement));
+            };
+            document.addEventListener('htmx:afterSwap', onSwap);
+        }), dialogOverlayMountDomId);
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
+        expect(await focusedDuringSwap).toBe(false);
 
         const dialogMount = page.locator(`#${dialogOverlayMountDomId}`);
         const form = dialogMount.locator('#timesheet-entry-create-form');
@@ -71,24 +86,35 @@ test.describe('Workflow dialog keyboard controls', () => {
         await expect(dialogMount).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
     });
 
-    test('focuses the first invalid field after an HTMX validation replacement', async ({ page }) => {
+    for (const invalidIndex of [0, 1]) test(`server selects invalid ${invalidIndex === 0 ? 'start' : 'end'} time for autofocus after an HTMX validation replacement`, async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
 
         const dialogMount = page.locator(`#${dialogOverlayMountDomId}`);
         const form = dialogMount.locator('#timesheet-entry-create-form');
         const startTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).first();
         await expect(startTrigger).toBeFocused();
-        await startTrigger.click();
+        const invalidTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).nth(invalidIndex);
+        await invalidTrigger.click();
+        // Bootstrap focuses the picker after opening completes. A click during
+        // its entrance motion can land outside Clear before pointer release.
+        await expect(page.locator(`#${timePickerModalDomId}`)).toBeFocused();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
+        await expect(invalidTrigger).toBeFocused();
 
         await submitTimesheetDialogWithEnter(page, form);
 
-        const invalidStart = dialogMount.locator('#timesheet-entry-create-form').locator(`[${timePickerTriggerDomAttr}]`).first();
-        await expect(invalidStart).toHaveAttribute('aria-invalid', 'true');
-        await expect(invalidStart).toBeFocused();
+        const invalidField = dialogMount.locator('#timesheet-entry-create-form').locator(`[${timePickerTriggerDomAttr}]`).nth(invalidIndex);
+        await expect(invalidField).toHaveAttribute('aria-invalid', 'true');
+        await expect(dialogMount.locator('[autofocus]')).toHaveCount(1);
+        await expect(invalidField).toHaveAttribute('autofocus', 'autofocus');
+        await expect(invalidField).toBeFocused();
         await page.keyboard.press('Escape');
+        const discardDialog = page.getByRole('dialog', { name: 'Discard unsaved timesheet?' });
+        await expect(discardDialog).toBeVisible();
+        await discardDialog.getByRole('button', { name: 'Discard timesheet' }).click();
         await expect(dialogMount).toBeEmpty({ timeout: E2E_TIMEOUT.action });
     });
 });

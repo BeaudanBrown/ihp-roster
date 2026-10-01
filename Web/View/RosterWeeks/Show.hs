@@ -1,6 +1,7 @@
 module Web.View.RosterWeeks.Show where
 
-import Application.Helper.Controller (currentUserIsImpersonating)
+import Application.Helper.Controller (currentUserIsImpersonating,
+                                      managerModeToggleVisible)
 import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
@@ -14,6 +15,7 @@ import Web.RosterWeeks.Types
 import Web.View.Passkeys.SetupModal
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid (renderRosterLayout)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterManagerModePreferenceFormWithoutGroup)
 
 instance View ShowView where
     html = renderRosterWeekShell
@@ -36,7 +38,12 @@ renderNoRosterGroupShell NoRosterGroupView { .. } =
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
-            , appPageBody = renderPasskeySetupPrompt noRosterGroupPasskeyStrongAuthenticationRequired noRosterGroupPasskeySetupPrompt <> emptyState
+            , appPageBody =
+                renderPasskeySetupPrompt noRosterGroupPasskeyStrongAuthenticationRequired noRosterGroupPasskeySetupPrompt
+                    <> emptyState
+                    <> if managerModeToggleVisible
+                        then [hsx|<div class="app-panel mt-3"><div class="app-panel-body"><h2 class="h5">Settings</h2>{renderRosterManagerModePreferenceFormWithoutGroup noRosterGroupAnchorDate}</div></div>|]
+                        else mempty
             }
      in [hsx|
         <section id={rosterWeekShellId} hx-history-elt="true">

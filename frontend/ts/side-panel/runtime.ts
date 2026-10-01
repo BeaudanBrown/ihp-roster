@@ -10,6 +10,7 @@ import {
 } from "../generated/contracts";
 import { detailRoot, detailTarget, onAppPageReady } from "../shared/lifecycle";
 import { dialogDismissedDetail } from "../dialog-overlays/lifecycle";
+import { setPageOverlay } from "../shared/page-overlay";
 import {
     closestOwnedSurfaceRole,
     closestSurfaceMount,
@@ -294,10 +295,9 @@ function installResponsiveShelves(): void {
     type Snapshot = { root: HTMLElement; surface: string; name: string; scrolls: ScrollPosition[] };
     const pending = new WeakMap<object, Snapshot>();
     const pendingOob = new Map<string, Snapshot>();
-    const inertBefore = new Map<HTMLElement, boolean>();
+    const overlayOwner = {};
     let active: Shelf | null = null;
     let shelfFocus: HTMLElement | null = null;
-    let lockedScroll: { x: number; y: number } | null = null;
     let header: HTMLElement | null = null;
     let headerObserver: ResizeObserver | null = null;
     let shelfAnimation: Animation | null = null;
@@ -344,42 +344,17 @@ function installResponsiveShelves(): void {
         shelf.root.setAttribute(definition.shelfStateAttribute, open ? definition.shelfOpenValue : definition.shelfClosedValue);
     }
 
-    function restoreInert(): void {
-        inertBefore.forEach((previous, element) => { element.inert = previous; });
-        inertBefore.clear();
-    }
-
-    function block(element: HTMLElement): void {
-        if (!inertBefore.has(element)) inertBefore.set(element, element.inert);
-        element.inert = true;
-    }
-
     function lockBackground(shelf: Shelf): void {
-        // Inert siblings along the shelf's ancestor chain, not the ancestor
-        // itself: the panel and nested Surface forms must remain interactive.
-        const page = shelf.panel.closest(`[${appPageContentDomAttr}]`);
-        let child: Element = shelf.panel;
-        while (page && child !== page && child.parentElement) {
-            for (const sibling of child.parentElement.children) {
-                if (sibling !== child && sibling instanceof HTMLElement) block(sibling);
-            }
-            child = child.parentElement;
-        }
-        if (!lockedScroll) {
-            lockedScroll = { x: window.scrollX, y: window.scrollY };
-            document.body.style.setProperty("--app-shelf-scroll-offset", `${-lockedScroll.y}px`);
-            document.body.classList.add("app-shelf-scroll-locked");
-        }
+        // The shelf leaves navigation usable; a dialog above it isolates the
+        // entire body instead. Both retain their own shared scroll-lock claim.
+        const page = shelf.panel.closest<HTMLElement>(`[${appPageContentDomAttr}]`);
+        setPageOverlay(overlayOwner, page ? { element: shelf.panel, boundary: page, priority: 0 } : null);
+        document.body.classList.add("app-shelf-scroll-locked");
     }
 
     function unlockBackground(): void {
-        restoreInert();
-        if (!lockedScroll) return;
-        const position = lockedScroll;
-        lockedScroll = null;
-        document.body.classList.remove("app-shelf-scroll-locked");
-        document.body.style.removeProperty("--app-shelf-scroll-offset");
-        window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+        setPageOverlay(overlayOwner, null);
+        document.body?.classList.remove("app-shelf-scroll-locked");
     }
 
     function updateGeometry(): void {
@@ -399,6 +374,7 @@ function installResponsiveShelves(): void {
     }
 
     function reconcile(): void {
+        if (document.body === null) return;
         const all = shelves();
         const enabled = mobile.matches && all.length > 0;
         document.body.classList.toggle("app-has-mobile-shelf", enabled);
@@ -409,7 +385,6 @@ function installResponsiveShelves(): void {
             headerObserver = header ? new ResizeObserver(updateGeometry) : null;
             if (header) headerObserver?.observe(header);
         }
-        restoreInert();
         active = null;
         for (const shelf of all) {
             if (!mobile.matches) setOpen(shelf, false);
@@ -601,5 +576,5 @@ function installResponsiveShelves(): void {
     window.visualViewport?.addEventListener("scroll", updateGeometry);
     window.addEventListener("pagehide", () => { cancelSlide(); active = null; shelfFocus = null; unlockBackground(); });
     window.addEventListener("pageshow", reconcile);
-    reconcile();
+    if (document.readyState !== "loading") reconcile();
 }

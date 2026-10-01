@@ -35,6 +35,8 @@
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'supervisor', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
+CREATE TYPE roster_pay_display_mode AS ENUM ('roster_pay_hidden', 'roster_pay_total', 'roster_pay_daily');
+CREATE TYPE wage_display_mode_enum AS ENUM ('hidden', 'visible_timesheets', 'all_timesheets', 'visible_and_all_timesheets');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
 CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
 CREATE TYPE leave_request_status_enum AS ENUM ('pending', 'approved', 'denied');
@@ -49,6 +51,7 @@ CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_af
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
+CREATE TYPE roster_timesheet_group_classification_enum AS ENUM ('in_roster_group', 'no_roster_group');
 CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE feedback_lifecycle_enum AS ENUM ('private', 'public', 'archived');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
@@ -197,6 +200,9 @@ CREATE TABLE user_preferences (
     timesheet_preferences_initialized_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    manager_mode_enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    timesheet_wage_display_mode wage_display_mode_enum DEFAULT 'hidden' NOT NULL,
+    roster_pay_display_mode roster_pay_display_mode DEFAULT 'roster_pay_hidden' NOT NULL,
     UNIQUE(user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
@@ -766,7 +772,14 @@ CREATE TABLE public_holiday_overrides (
     retired_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     correction_before JSONB NOT NULL,
     correction_after JSONB NOT NULL,
-    CHECK (review_due_at > verified_at)
+    review_cycle INT DEFAULT 1 NOT NULL,
+    reviewed_by_user_id UUID DEFAULT NULL,
+    review_action TEXT DEFAULT 'initial_verification' NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CONSTRAINT public_holiday_override_reviewer_fk FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (review_due_at > verified_at),
+    CONSTRAINT public_holiday_override_review_cycle_positive CHECK (review_cycle > 0),
+    CONSTRAINT public_holiday_override_review_action_bounded CHECK ((char_length(review_action) >= 1) AND (char_length(review_action) <= 160))
 );
 CREATE UNIQUE INDEX public_holiday_overrides_active_year ON public_holiday_overrides (jurisdiction, target_year) WHERE retired_at IS NULL;
 
@@ -774,7 +787,7 @@ CREATE FUNCTION protect_public_holiday_override() RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP <> 'INSERT' THEN
         IF NOT OLD.is_regional AND EXISTS (
-            SELECT 1 FROM public_holiday_overrides
+            SELECT 1 FROM public.public_holiday_overrides
             WHERE retired_at IS NULL AND jurisdiction = OLD.jurisdiction
               AND target_year = EXTRACT(YEAR FROM OLD.holiday_date)::INT
         ) THEN
@@ -783,7 +796,7 @@ BEGIN
     END IF;
     IF TG_OP <> 'DELETE' THEN
         IF NOT NEW.is_regional AND EXISTS (
-            SELECT 1 FROM public_holiday_overrides
+            SELECT 1 FROM public.public_holiday_overrides
             WHERE retired_at IS NULL AND jurisdiction = NEW.jurisdiction
               AND target_year = EXTRACT(YEAR FROM NEW.holiday_date)::INT
         ) THEN
@@ -851,6 +864,135 @@ CREATE TABLE app_jobs (
     result JSONB DEFAULT '{}'::JSONB NOT NULL,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE SET NULL
+);
+
+-- Durable single-fire operational incident authority. Producers retain only
+-- bounded symptom codes and safe metadata; raw provider errors never belong here.
+CREATE TABLE operational_incidents (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    category TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    stable_identity TEXT NOT NULL,
+    affected_source TEXT NOT NULL,
+    venue_id UUID DEFAULT NULL,
+    first_observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    opened_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    state TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    impact_key TEXT NOT NULL,
+    impact_rank INT NOT NULL,
+    symptom_codes JSONB DEFAULT '[]'::JSONB NOT NULL,
+    safe_metadata JSONB DEFAULT '{}'::JSONB NOT NULL,
+    occurrence_count INT DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (category, scope_key, stable_identity),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    CHECK ((state = 'open') OR (state = 'resolved')),
+    CHECK ((severity = 'info') OR (severity = 'warning') OR (severity = 'critical')),
+    CHECK ((impact_rank >= 0) AND (impact_rank <= 100)),
+    CHECK (occurrence_count > 0),
+    CHECK ((char_length(category) >= 1) AND (char_length(category) <= 80)),
+    CHECK ((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 160)),
+    CHECK ((char_length(stable_identity) >= 1) AND (char_length(stable_identity) <= 240)),
+    CHECK ((char_length(affected_source) >= 1) AND (char_length(affected_source) <= 120)),
+    CHECK ((char_length(impact_key) >= 1) AND (char_length(impact_key) <= 160)),
+    CHECK (jsonb_typeof(symptom_codes) = 'array'),
+    CHECK (octet_length(symptom_codes::TEXT) <= 2048),
+    CHECK (jsonb_typeof(safe_metadata) = 'object'),
+    CHECK (octet_length(safe_metadata::TEXT) <= 4096)
+);
+CREATE TABLE operational_incident_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    operational_incident_id UUID NOT NULL,
+    event_sequence INT NOT NULL,
+    transition TEXT NOT NULL,
+    event_key TEXT NOT NULL,
+    observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    severity TEXT NOT NULL,
+    impact_key TEXT NOT NULL,
+    symptom_codes JSONB DEFAULT '[]'::JSONB NOT NULL,
+    safe_metadata JSONB DEFAULT '{}'::JSONB NOT NULL,
+    notification_required BOOLEAN NOT NULL,
+    eligible_recipient_count INT DEFAULT 0 NOT NULL,
+    recipients_reconciled_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (operational_incident_id, event_sequence),
+    UNIQUE (event_key),
+    FOREIGN KEY (operational_incident_id) REFERENCES operational_incidents (id) ON DELETE RESTRICT,
+    CHECK (event_sequence > 0),
+    CHECK ((transition = 'opened') OR (transition = 'impact_escalated') OR (transition = 'recovered') OR (transition = 'recurred')),
+    CHECK ((severity = 'info') OR (severity = 'warning') OR (severity = 'critical')),
+    CHECK (eligible_recipient_count >= 0),
+    CHECK ((char_length(event_key) >= 1) AND (char_length(event_key) <= 320)),
+    CHECK ((char_length(impact_key) >= 1) AND (char_length(impact_key) <= 160)),
+    CHECK (jsonb_typeof(symptom_codes) = 'array'),
+    CHECK (octet_length(symptom_codes::TEXT) <= 2048),
+    CHECK (jsonb_typeof(safe_metadata) = 'object'),
+    CHECK (octet_length(safe_metadata::TEXT) <= 4096)
+);
+CREATE TABLE operational_incident_event_recipients (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    operational_incident_event_id UUID NOT NULL,
+    recipient_user_id UUID NOT NULL,
+    recipient_address TEXT NOT NULL,
+    recipient_address_digest TEXT NOT NULL,
+    email_delivery_job_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (operational_incident_event_id, recipient_user_id, recipient_address_digest),
+    FOREIGN KEY (operational_incident_event_id) REFERENCES operational_incident_events (id) ON DELETE RESTRICT,
+    FOREIGN KEY (recipient_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    CHECK ((char_length(recipient_address) >= 3) AND (char_length(recipient_address) <= 320)),
+    CHECK (char_length(recipient_address_digest) = 64)
+);
+CREATE TABLE email_delivery_provider_states (
+    email_delivery_job_id UUID PRIMARY KEY NOT NULL,
+    message_id TEXT NOT NULL,
+    provider_email_id TEXT DEFAULT NULL,
+    smtp_accepted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    provider_status TEXT DEFAULT 'unknown' NOT NULL,
+    provider_status_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (message_id),
+    UNIQUE (provider_email_id),
+    FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    CHECK ((provider_status = 'unknown') OR (provider_status = 'delivered') OR (provider_status = 'bounced') OR (provider_status = 'complained') OR (provider_status = 'failed') OR (provider_status = 'suppressed')),
+    CHECK ((char_length(message_id) >= 3) AND (char_length(message_id) <= 320)),
+    CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
+);
+CREATE TABLE email_delivery_webhook_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    svix_id TEXT NOT NULL,
+    signature_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    event_type TEXT NOT NULL,
+    provider_email_id TEXT NOT NULL,
+    message_id TEXT DEFAULT NULL,
+    event_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    processing_outcome TEXT NOT NULL,
+    UNIQUE (svix_id),
+    CHECK ((event_type = 'email.sent') OR (event_type = 'email.delivered') OR (event_type = 'email.bounced') OR (event_type = 'email.complained') OR (event_type = 'email.failed') OR (event_type = 'email.suppressed')),
+    CHECK ((processing_outcome = 'correlated') OR (processing_outcome = 'unknown_message') OR (processing_outcome = 'ignored_older_status')),
+    CHECK ((char_length(svix_id) >= 1) AND (char_length(svix_id) <= 160)),
+    CHECK ((char_length(provider_email_id) >= 1) AND (char_length(provider_email_id) <= 160)),
+    CHECK (message_id IS NULL OR char_length(message_id) <= 320)
+);
+CREATE TABLE email_delivery_resend_requests (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    original_email_delivery_job_id UUID NOT NULL,
+    replacement_email_delivery_job_id UUID DEFAULT NULL,
+    requested_by_user_id UUID NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (replacement_email_delivery_job_id),
+    FOREIGN KEY (original_email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (replacement_email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(reason) >= 1) AND (char_length(reason) <= 240))
 );
 
 -- schema-nav: roster-planning
@@ -1717,12 +1859,15 @@ CREATE TABLE timesheet_entries (
     delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    roster_group_classification roster_timesheet_group_classification_enum DEFAULT 'no_roster_group' NOT NULL,
+    roster_group_id UUID DEFAULT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (ends_at > starts_at),
@@ -1731,7 +1876,8 @@ CREATE TABLE timesheet_entries (
     CHECK (timezone = 'Australia/Melbourne'),
     CHECK (staff_comment IS NULL OR char_length(staff_comment) <= 1000),
     CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000),
-    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))
+    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL)),
+    CONSTRAINT timesheet_entries_roster_group_classification_check CHECK ((roster_group_classification = 'in_roster_group' AND roster_group_id IS NOT NULL) OR (roster_group_classification = 'no_roster_group' AND roster_group_id IS NULL))
 );
 CREATE TABLE timesheet_pay_calculations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -2005,6 +2151,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     selected_payroll_calendar_id TEXT DEFAULT NULL,
     selected_payroll_calendar_name TEXT,
     selected_period_key TEXT DEFAULT NULL,
+    selected_entries_json JSONB DEFAULT NULL,
     pay_period_start DATE DEFAULT NULL,
     pay_period_end DATE DEFAULT NULL,
     payment_date DATE,
@@ -2188,6 +2335,7 @@ CREATE UNIQUE INDEX idx_app_jobs_email_delivery_dedupe ON app_jobs (dedupe_key) 
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_roster_group ON timesheet_entries (venue_id, roster_group_id, operational_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
@@ -2805,6 +2953,16 @@ BEGIN
         RAISE EXCEPTION 'timesheet entry shift_type_pay_version_id must match entry shift type and venue';
     END IF;
 
+    IF NEW.roster_group_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM roster_groups rg
+            WHERE rg.id = NEW.roster_group_id
+                AND rg.venue_id = NEW.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'timesheet entry roster group must match entry venue';
+    END IF;
+
     IF NEW.source_roster_slot_id IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -2813,9 +2971,11 @@ BEGIN
             WHERE rs.id = NEW.source_roster_slot_id
                 AND rd.venue_id = NEW.venue_id
                 AND rd.operational_date = NEW.operational_date
+                AND rd.roster_group_id = NEW.roster_group_id
+                AND NEW.roster_group_classification = 'in_roster_group'
         )
     THEN
-        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue and Operational date';
+        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue, Operational date and roster group';
     END IF;
 
     RETURN NEW;
@@ -2826,6 +2986,12 @@ CREATE OR REPLACE FUNCTION enforce_roster_derived_timesheet_identity_immutable()
 RETURNS TRIGGER
 AS $$
 BEGIN
+    IF NEW.roster_group_classification IS DISTINCT FROM OLD.roster_group_classification
+        OR NEW.roster_group_id IS DISTINCT FROM OLD.roster_group_id
+    THEN
+        RAISE EXCEPTION 'timesheet roster group classification is immutable';
+    END IF;
+
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
@@ -3016,3 +3182,255 @@ AS $$
         ELSE venue_effective_award_rate_from(p_week_starts_on, p_operative_to + 1) - 1
     END;
 $$ LANGUAGE SQL;
+
+-- schema-nav: host-watchdog
+-- Host-local watchdog least-privilege database boundary and application projection.
+-- Additive only: existing jobs, incidents and deliveries are preserved.
+
+CREATE TABLE host_watchdog_dispatches (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    operational_incident_event_id UUID NOT NULL,
+    recipient_address_digest TEXT NOT NULL,
+    dispatch_status TEXT NOT NULL,
+    provider_email_id TEXT DEFAULT NULL,
+    attempted_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (operational_incident_event_id, recipient_address_digest),
+    FOREIGN KEY (operational_incident_event_id) REFERENCES operational_incident_events (id) ON DELETE RESTRICT,
+    CHECK (char_length(recipient_address_digest) = 64),
+    CHECK ((dispatch_status = 'sent') OR (dispatch_status = 'failed')),
+    CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
+);
+
+CREATE OR REPLACE FUNCTION bepis_watchdog_poll()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    snapshot JSONB;
+BEGIN
+    IF session_user <> 'bepis_watchdog' THEN
+        RAISE EXCEPTION 'watchdog database role required';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.app_jobs
+        WHERE job_kind = 'worker_heartbeat'
+          AND status IN ('job_status_not_started', 'job_status_retry', 'job_status_running')
+          AND created_at >= clock_timestamp() - INTERVAL '1 minute'
+    ) THEN
+        INSERT INTO public.app_jobs (job_kind, payload, dedupe_key, run_at)
+        VALUES ('worker_heartbeat', '{"source":"host_watchdog"}'::JSONB, 'host-watchdog-heartbeat:' || floor(extract(epoch FROM clock_timestamp()) / 60)::TEXT, clock_timestamp())
+        ON CONFLICT DO NOTHING;
+    END IF;
+
+    SELECT jsonb_build_object(
+        'observedAt', clock_timestamp(),
+        'eligibleRecipients', COALESCE((
+            SELECT jsonb_agg(jsonb_build_object('userId', id, 'address', email) ORDER BY id)
+            FROM public.users
+            WHERE platform_role = 'super_admin' AND deactivated_at IS NULL
+        ), '[]'::JSONB),
+        'latestWorkerHeartbeatAt', (
+            SELECT max(updated_at) FROM public.app_jobs
+            WHERE job_kind = 'worker_heartbeat' AND status = 'job_status_succeeded'
+        ),
+        'overdueRunnableJobCount', (
+            SELECT count(*) FROM public.app_jobs
+            WHERE status IN ('job_status_not_started', 'job_status_retry')
+              AND run_at <= clock_timestamp() - INTERVAL '5 minutes'
+        ),
+        'recentEmailFailureCount', (
+            SELECT count(*)
+            FROM public.app_jobs jobs
+            LEFT JOIN public.email_delivery_provider_states provider
+              ON provider.email_delivery_job_id = jobs.id
+            WHERE jobs.job_kind = 'email_delivery'
+              AND jobs.updated_at >= clock_timestamp() - INTERVAL '24 hours'
+              AND (
+                jobs.status IN ('job_status_failed', 'job_status_timed_out')
+                OR provider.provider_status IN ('bounced', 'complained', 'failed', 'suppressed')
+              )
+        )
+    ) INTO snapshot;
+    RETURN snapshot;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION bepis_watchdog_record_event(p_event_key TEXT, p_category TEXT, p_stable_identity TEXT, p_transition TEXT, p_observed_at TIMESTAMP WITH TIME ZONE, p_severity TEXT, p_impact_key TEXT, p_impact_rank INT, p_symptom_codes JSONB, p_safe_metadata JSONB, p_notification_required BOOLEAN, p_eligible_recipient_count INT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    incident_id UUID;
+    next_sequence INT;
+    effective_transition TEXT := p_transition;
+BEGIN
+    IF session_user <> 'bepis_watchdog' THEN
+        RAISE EXCEPTION 'watchdog database role required';
+    END IF;
+    IF p_event_key IS NULL OR char_length(p_event_key) NOT BETWEEN 1 AND 320
+       OR p_category IS NULL OR char_length(p_category) NOT BETWEEN 1 AND 80
+       OR p_stable_identity IS NULL OR char_length(p_stable_identity) NOT BETWEEN 1 AND 240
+       OR p_transition NOT IN ('opened', 'impact_escalated', 'recovered', 'recurred')
+       OR p_severity NOT IN ('info', 'warning', 'critical')
+       OR p_impact_rank NOT BETWEEN 0 AND 100
+       OR jsonb_typeof(p_symptom_codes) <> 'array' OR octet_length(p_symptom_codes::TEXT) > 2048
+       OR jsonb_typeof(p_safe_metadata) <> 'object' OR octet_length(p_safe_metadata::TEXT) > 4096
+       OR p_eligible_recipient_count < 0 THEN
+        RAISE EXCEPTION 'invalid bounded watchdog event';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.operational_incident_events WHERE event_key = p_event_key) THEN
+        RETURN;
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtextextended('host-watchdog:' || p_category || ':' || p_stable_identity, 0));
+    SELECT id INTO incident_id
+    FROM public.operational_incidents
+    WHERE category = p_category AND scope_key = 'host:rozzy' AND stable_identity = p_stable_identity
+    FOR UPDATE;
+
+    IF incident_id IS NULL THEN
+        IF p_transition = 'recovered' THEN
+            RETURN;
+        END IF;
+        effective_transition := 'opened';
+        INSERT INTO public.operational_incidents (
+            category, scope_key, stable_identity, affected_source, first_observed_at,
+            last_observed_at, opened_at, state, severity, impact_key, impact_rank,
+            symptom_codes, safe_metadata
+        ) VALUES (
+            p_category, 'host:rozzy', p_stable_identity, 'host_watchdog', p_observed_at,
+            p_observed_at, p_observed_at, 'open', p_severity, p_impact_key, p_impact_rank,
+            p_symptom_codes, p_safe_metadata
+        ) RETURNING id INTO incident_id;
+    ELSIF p_transition = 'recovered' THEN
+        UPDATE public.operational_incidents
+        SET state = 'resolved', resolved_at = p_observed_at, last_observed_at = p_observed_at,
+            symptom_codes = p_symptom_codes, safe_metadata = p_safe_metadata, updated_at = clock_timestamp()
+        WHERE id = incident_id AND state = 'open';
+    ELSIF p_transition = 'recurred' THEN
+        UPDATE public.operational_incidents
+        SET state = 'open', resolved_at = NULL, opened_at = p_observed_at,
+            last_observed_at = p_observed_at, severity = p_severity, impact_key = p_impact_key,
+            impact_rank = p_impact_rank, symptom_codes = p_symptom_codes,
+            safe_metadata = p_safe_metadata, occurrence_count = occurrence_count + 1,
+            updated_at = clock_timestamp()
+        WHERE id = incident_id;
+    ELSE
+        UPDATE public.operational_incidents
+        SET last_observed_at = p_observed_at, severity = p_severity, impact_key = p_impact_key,
+            impact_rank = greatest(impact_rank, p_impact_rank), symptom_codes = p_symptom_codes,
+            safe_metadata = p_safe_metadata, updated_at = clock_timestamp()
+        WHERE id = incident_id;
+    END IF;
+
+    SELECT COALESCE(max(event_sequence), 0) + 1 INTO next_sequence
+    FROM public.operational_incident_events WHERE operational_incident_id = incident_id;
+
+    INSERT INTO public.operational_incident_events (
+        operational_incident_id, event_sequence, transition, event_key, observed_at,
+        severity, impact_key, symptom_codes, safe_metadata, notification_required,
+        eligible_recipient_count, recipients_reconciled_at
+    ) VALUES (
+        incident_id, next_sequence, effective_transition, p_event_key, p_observed_at,
+        p_severity, p_impact_key, p_symptom_codes, p_safe_metadata, p_notification_required,
+        p_eligible_recipient_count, p_observed_at
+    ) ON CONFLICT (event_key) DO NOTHING;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION bepis_watchdog_record_dispatch(p_event_key TEXT, p_recipient_address_digest TEXT, p_dispatch_status TEXT, p_provider_email_id TEXT, p_attempted_at TIMESTAMP WITH TIME ZONE)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+    IF session_user <> 'bepis_watchdog' THEN
+        RAISE EXCEPTION 'watchdog database role required';
+    END IF;
+    IF char_length(p_recipient_address_digest) <> 64
+       OR p_dispatch_status NOT IN ('sent', 'failed')
+       OR (p_provider_email_id IS NOT NULL AND char_length(p_provider_email_id) > 160) THEN
+        RAISE EXCEPTION 'invalid bounded watchdog dispatch';
+    END IF;
+    INSERT INTO public.host_watchdog_dispatches (
+        operational_incident_event_id, recipient_address_digest, dispatch_status,
+        provider_email_id, attempted_at
+    )
+    SELECT id, p_recipient_address_digest, p_dispatch_status, p_provider_email_id, p_attempted_at
+    FROM public.operational_incident_events WHERE event_key = p_event_key
+    ON CONFLICT (operational_incident_event_id, recipient_address_digest) DO UPDATE
+    SET dispatch_status = EXCLUDED.dispatch_status,
+        provider_email_id = COALESCE(EXCLUDED.provider_email_id, host_watchdog_dispatches.provider_email_id),
+        attempted_at = EXCLUDED.attempted_at,
+        updated_at = clock_timestamp();
+END;
+$$;
+
+-- schema-nav: host-backup-status
+-- Bounded host backup/restore-verification status projected by the watchdog.
+-- No backup contents, repository credentials, or snapshot identifiers are stored.
+CREATE TABLE host_watchdog_statuses (
+    host_name TEXT PRIMARY KEY NOT NULL,
+    observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_backup_snapshot_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    last_restore_verified_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    backup_result TEXT NOT NULL,
+    verification_result TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK (host_name = 'rozzy'),
+    CHECK ((char_length(backup_result) >= 1) AND (char_length(backup_result) <= 80)),
+    CHECK ((char_length(verification_result) >= 1) AND (char_length(verification_result) <= 80))
+);
+
+CREATE OR REPLACE FUNCTION bepis_watchdog_record_status(p_status JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    observed TIMESTAMP WITH TIME ZONE;
+    backup_snapshot TIMESTAMP WITH TIME ZONE;
+    restore_verified TIMESTAMP WITH TIME ZONE;
+    backup_state TEXT;
+    verification_state TEXT;
+BEGIN
+    IF session_user <> 'bepis_watchdog' THEN
+        RAISE EXCEPTION 'watchdog database role required';
+    END IF;
+    IF jsonb_typeof(p_status) <> 'object' OR octet_length(p_status::TEXT) > 2048 THEN
+        RAISE EXCEPTION 'invalid bounded watchdog status';
+    END IF;
+    observed := (p_status ->> 'observedAt')::TIMESTAMP WITH TIME ZONE;
+    backup_snapshot := NULLIF(p_status ->> 'lastBackupSnapshotAt', '')::TIMESTAMP WITH TIME ZONE;
+    restore_verified := NULLIF(p_status ->> 'lastRestoreVerifiedAt', '')::TIMESTAMP WITH TIME ZONE;
+    backup_state := p_status ->> 'backupResult';
+    verification_state := p_status ->> 'verificationResult';
+    IF observed IS NULL OR backup_state IS NULL OR char_length(backup_state) NOT BETWEEN 1 AND 80
+       OR verification_state IS NULL OR char_length(verification_state) NOT BETWEEN 1 AND 80 THEN
+        RAISE EXCEPTION 'invalid bounded watchdog status';
+    END IF;
+    INSERT INTO public.host_watchdog_statuses (
+        host_name, observed_at, last_backup_snapshot_at, last_restore_verified_at,
+        backup_result, verification_result
+    ) VALUES (
+        'rozzy', observed, backup_snapshot, restore_verified, backup_state, verification_state
+    )
+    ON CONFLICT (host_name) DO UPDATE SET
+        observed_at = EXCLUDED.observed_at,
+        last_backup_snapshot_at = EXCLUDED.last_backup_snapshot_at,
+        last_restore_verified_at = EXCLUDED.last_restore_verified_at,
+        backup_result = EXCLUDED.backup_result,
+        verification_result = EXCLUDED.verification_result,
+        updated_at = clock_timestamp();
+END;
+$$;

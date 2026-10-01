@@ -18,6 +18,14 @@ body.modal-open {
     padding-right: 0 !important;
 }
 
+/* Lock the actual document scroller, not only body. Owner-counted by the shared
+   overlay runtime; Bootstrap cleanup cannot unlock a remaining dialog/shelf. */
+html.app-page-scroll-locked,
+html.app-page-scroll-locked body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
 html[data-bepis-interaction-active="true"],
 html[data-bepis-interaction-active="true"] * {
     user-select: none;
@@ -219,18 +227,6 @@ a:not(.btn):hover {
         top: 0;
         z-index: var(--app-shelf-header-z-index);
         padding-top: env(safe-area-inset-top);
-    }
-
-    body.app-shelf-scroll-locked {
-        position: fixed;
-        top: var(--app-shelf-scroll-offset);
-        inset-inline: 0;
-        overflow-y: hidden;
-    }
-
-    .app-shelf-scroll-locked .app-header {
-        position: fixed;
-        inset-inline: 0;
     }
 
     html,

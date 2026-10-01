@@ -198,7 +198,8 @@ renderLeaveRequestRow deleteMode leaveRequest = [hsx|
 
 renderPendingLeaveRequestDelete :: (?context :: ControllerContext) => LeaveDeleteMode -> LeaveRequest -> Html
 renderPendingLeaveRequestDelete deleteMode leaveRequest
-    | leaveRequest.status /= LeaveRequestStatusEnumPending = mempty
+    | leaveRequest.status /= LeaveRequestStatusEnumPending =
+        [hsx|<button type="button" class="btn btn-sm btn-outline-danger" disabled aria-label="Delete unavailable period unavailable">Delete</button>|]
     | otherwise = case deleteMode of
         SelfServiceLeaveDelete ->
             renderFrontendSurfaceActionForm

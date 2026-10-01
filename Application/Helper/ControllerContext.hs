@@ -3,12 +3,14 @@
 
 module Application.Helper.ControllerContext where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Data.Coerce (coerce)
-import Generated.Types
 import qualified Data.Vault.Lazy as Vault
-import IHP.RequestVault.Helper (insertNewIORefVaultMiddleware, lookupRequestVault)
+import Generated.Types
 import IHP.ControllerPrelude
+import IHP.RequestVault.Helper (insertNewIORefVaultMiddleware,
+                                lookupRequestVault)
 import Network.Wai (Middleware)
 import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
@@ -22,23 +24,32 @@ import Application.Helper.Telemetry (withTelemetrySpan)
 -- Auth identity remains in IHP's immutable vault entries and is validated before
 -- this state is populated; venue/support mutations cannot replace auth identity.
 data RequestVenueState = RequestVenueState
-    { venue :: !(Maybe Venue)
-    , membership :: !(Maybe VenueMembership)
-    , role :: !(Maybe VenueRoleEnum)
-    , selection :: !CurrentVenueSelection
-    , supportVenues :: !SupportVenueOptions
-    , supportUsers :: !SupportImpersonationOptions
-    , impersonation :: !(Maybe ImpersonationRequestContext)
-    , effectiveStaff :: !EffectiveStaffContext
-    , returnFallback :: !ImpersonationReturnFallbackContext
+    { venue             :: !(Maybe Venue)
+    , membership        :: !(Maybe VenueMembership)
+    , role              :: !(Maybe VenueRoleEnum)
+    , selection         :: !CurrentVenueSelection
+    , supportVenues     :: !SupportVenueOptions
+    , supportUsers      :: !SupportImpersonationOptions
+    , impersonation     :: !(Maybe ImpersonationRequestContext)
+    , effectiveStaff    :: !EffectiveStaffContext
+    , returnFallback    :: !ImpersonationReturnFallbackContext
     , billingNavigation :: !BillingNavigationContext
-    , privateFeedback :: !Int
+    , managementMode    :: !ManagementModeContext
+    , privateFeedback   :: !Int
     }
 
 -- Navigation facts, not a Stripe client dependency: generators also consume
 -- this context module and must not acquire provider IO through these fields.
+data ManagementModeContext = ManagementModeContext
+    { managementModeEffective         :: !Bool
+    , managementModePreferenceEnabled :: !Bool
+    , managementModeToggleVisible     :: !Bool
+    , managementModeToggleEnabled     :: !Bool
+    }
+    deriving (Eq, Show)
+
 data BillingNavigationContext = BillingNavigationContext
-    { ownerBillingNavigationVisible :: !Bool
+    { ownerBillingNavigationVisible  :: !Bool
     , ownerBillingSubscriptionIsLive :: !Bool
     }
     deriving (Eq, Show)
@@ -59,6 +70,7 @@ venueRequestStateMiddleware = navigationContextInitializationMiddleware . insert
     , effectiveStaff = EffectiveStaffContext Nothing
     , returnFallback = ImpersonationReturnFallbackContext False
     , billingNavigation = BillingNavigationContext False False
+    , managementMode = ManagementModeContext False True False False
     , privateFeedback = 0
     }
 
@@ -195,6 +207,22 @@ currentVenueMembershipOrNothing = requestVenueState.membership
 currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
 currentVenueRoleOrNothing = requestVenueState.role
 {-# NOINLINE currentVenueRoleOrNothing #-}
+
+currentManagementModeContext :: (?context :: ControllerContext) => ManagementModeContext
+currentManagementModeContext = requestVenueState.managementMode
+{-# NOINLINE currentManagementModeContext #-}
+
+hasManagementMode :: (?context :: ControllerContext) => Bool
+hasManagementMode = currentManagementModeContext.managementModeEffective
+
+managerModeToggleVisible :: (?context :: ControllerContext) => Bool
+managerModeToggleVisible = currentManagementModeContext.managementModeToggleVisible
+
+managerModeToggleEnabled :: (?context :: ControllerContext) => Bool
+managerModeToggleEnabled = currentManagementModeContext.managementModeToggleEnabled
+
+managerModePreferenceEnabled :: (?context :: ControllerContext) => Bool
+managerModePreferenceEnabled = currentManagementModeContext.managementModePreferenceEnabled
 
 currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
 currentSupportVenueOptionsOrNothing =

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ghc-build-run owns preparation and publication; runtime uses a private snapshot.
+build_dir="$1"
+ghc_opts="$2"
+snapshot="$3"
+mkdir -p "$build_dir" "$(dirname "$snapshot")"
+# shellcheck disable=SC2086 # Compiler options are an intentional argument vector.
+ghc $ghc_opts Main.hs -o "$build_dir/RunProfileServer" \
+    -odir "$build_dir/obj" -hidir "$build_dir/hi"
+cp --reflink=auto "$build_dir/RunProfileServer" "$snapshot"

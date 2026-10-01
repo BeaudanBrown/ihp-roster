@@ -4,7 +4,8 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.ControllerContext (currentUserIsSuperAdmin)
+import Application.Helper.ControllerContext (currentUserIsSuperAdmin,
+                                             hasManagementMode)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -24,6 +25,8 @@ import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Types (RosterGridViewMode (..),
                               RosterViewCapabilities (..),
                               RosterWindowState (..))
+import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser,
+                                      rosterPayAudienceLabel)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
@@ -44,7 +47,7 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
-        dropzoneAttrs = if currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
+        dropzoneAttrs = if hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
             then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDeleteShiftDropzoneRef "delete"
             else []
      in toolbarHtml
@@ -54,11 +57,12 @@ renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs
 
 renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
 renderRosterWeekWageSummary Nothing = mempty
-renderRosterWeekWageSummary (Just prediction)
-    | not currentUserIsAdmin = mempty
-    | otherwise = [hsx|
-        <div class="roster-wage-summary" aria-label="Week wages estimate">
-            <span class="roster-wage-summary-label">Wages:</span>
+renderRosterWeekWageSummary (Just prediction) =
+    case rosterPayAudienceForCurrentUser of
+        Nothing -> mempty
+        Just (audience, _) -> [hsx|
+        <div class="roster-wage-summary" aria-label="Week wage estimate">
+            <span class="roster-wage-summary-label">{rosterPayAudienceLabel audience}:</span>
             <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
             {renderRosterWageFailures prediction}
             {renderRosterWageSourceWarnings prediction}

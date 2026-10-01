@@ -2,6 +2,7 @@
 
 module Web.View.Admin.Exports
     ( renderExportsSection
+    , renderExportsSectionMount
     , renderExportsSectionFragment
     , renderExportsSectionFragmentWithSwap
     ) where
@@ -9,8 +10,8 @@ module Web.View.Admin.Exports
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
                                                              appShellActionAttrs,
+                                                             appShellActionByMarker,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -22,11 +23,18 @@ import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
+import Web.Exports.Selection (renderFilteredExportButton)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
+
+-- The page owns the mount; live responses replace only its inner target.
+renderExportsSectionMount :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionMount selection savedConfigurations =
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart)
+        (renderExportsSectionFragment selection savedConfigurations)
 
 renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
@@ -34,7 +42,7 @@ renderExportsSectionFragment =
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
-    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
+    [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderExportsSection selection savedConfigurations}
@@ -117,6 +125,7 @@ renderSavedConfigurationCard selection configuration = [hsx|
             </div>
             <div class="d-flex flex-wrap gap-2">
                 {downloadForm}
+                {renderFilteredExportButton selection.weekStart selection.weekEnd PayrollWorkbookXlsx (Just (unpackId configurationRecord.id))}
                 {renderEditExportButton selection configurationRecord}
                 {renderDeleteExportButton selection configurationRecord}
             </div>

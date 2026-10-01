@@ -26,23 +26,42 @@ parallel Markdown task tracker.
 
 ## Epic Worktree Delegation
 
-Delegation and work selection are explicit user decisions. In a checkout with
-`.bepis-epic-worktree.json`, first run:
+Delegation and work selection are explicit user decisions. When provisioning a
+new epic worktree, derive a unique one- or two-word lowercase kebab-case name
+from the epic goal and pass it as `--name` (for example,
+`--name public-holidays`); do not use a generic numeric-only worktree name. In
+a checkout with `.bepis-epic-worktree.json`, first run:
 
 ```bash
 bash ./bin/in-env epic-worktree orient
 ```
 
-Present the ready/active/blocked frontier and wait. Never select, start, move, or
-close a sub-issue automatically. Implement and commit the chosen issue, present
-verification, then wait for approval before closure. Synchronization,
-integration, epic closure, and cleanup are separate approval boundaries.
+A user may delegate one issue, an ordered set of issues, or an entire epic;
+respect that scope and all approval boundaries imposed by the agent harness.
+Do not silently broaden scope to repair unrelated failures. Pause for material
+product ambiguity, conflicting contracts, destructive or customer-data-risking
+work, consequential architectural choices, unavailable credentials, or blocking
+infrastructure failures.
+
+Present the ready/active/blocked frontier, select the most appropriate ready
+issue, and begin it without waiting for routine confirmation. Continue through
+implementation, verification, commit, issue closure, refreshed orientation, and
+the next most appropriate ready issue by default. Stop for user input when the
+user has asked to retain control of selection or progression, when interrupted
+work must be resolved, when the parent epic is closed, or when an important or
+unexpected technical/product decision needs user judgment. Do not treat labels
+or assignments as locks, but respect native blockers and avoid duplicating active
+work. Prefer unassigned ready work; before starting an assigned issue, inspect its
+activity and proceed only when another actor is not actively implementing it.
+Synchronization, integration, epic closure, and cleanup remain separate approval
+boundaries.
 
 Run commands through the current worktree's `bin/in-env`. Before runtime E2E in
 a sibling checkout, confirm `dev-workspace-info --json` reports its expected
-path and slot. For an unpushed completed epic, prefer
-`epic-worktree-manage sync --strategy rebase --apply`, verify it, then
-`integrate --mode ff-only --approve`; do not combine integration, issue closure,
+path and slot. After explicit synchronization approval for an unpushed completed
+epic, prefer `epic-worktree-manage sync --strategy rebase --apply`, verify it,
+then obtain separate integration approval before
+`integrate --mode ff-only --approve`; do not combine integration, epic closure,
 or cleanup.
 
 ## Product And Framework
@@ -97,17 +116,46 @@ and rejects candidates against `Config/nix/weeder-baseline.tsv`. Keep runtime
 roots category-narrow and reason-bearing; never blanket-root handwritten
 application modules or retain stale baseline entries.
 
-Use the repo wrapper unless you are already inside the devenv shell. Run
-`bin/in-env` commands serially: concurrent wrapper entries can race on generated
-`.devenv` shell files and produce false setup failures. Use cheap/focused checks
-before expensive full gates, and validate worktree identity before starting any
-runtime-dependent E2E check. Stop and report infrastructure failures separately
-from code failures instead of broadening an integration task into runtime repair.
+Use the repo wrapper unless you are already inside the devenv shell. Do not
+start multiple outer `bin/in-env` entries concurrently: their direnv/devenv
+materialization can race on generated `.devenv` files. A single `bin/in-env`
+entry may run independent checks concurrently only when they are read-only and
+use isolated outputs. Current safe candidates include `lint`,
+`typed-contract-authority-check`, and `./bin/doc-drift-check`. Keep `typecheck`,
+Hspec, frontend composite checks, E2E, generators, formatters, database checks,
+and `verify-*` composites serial unless their owning script provides internal
+sharding or explicitly isolated build/runtime directories. Prefer that built-in
+parallelism (`hspec-test` and `e2e` already shard) over competing top-level
+commands. When uncertain, run serially. Use cheap/focused checks before expensive
+full gates, and validate worktree identity before starting any runtime-dependent
+E2E check. Stop and report infrastructure failures separately from code failures
+instead of broadening an integration task into runtime repair.
+
+Keep each intermediate commit mechanically sound. Inspect language-server
+diagnostics, then use the cheapest affected authority:
+
+- Independent tooling: affected Cabal suite/CLI fixture; `tooling-foundation-test`
+  for launcher, package-source, or dependency changes. No application typecheck.
+- Application Haskell: `typecheck`, then focused Hspec for changed behavior.
+- Frontend: relevant TypeScript/unit checks; focused E2E for browser behavior.
+- Schema/migrations: `regen-types`, typecheck, and real migration/schema checks;
+  preserve customer data in the same commit.
+- Nix/packaging: affected evaluation and package/source-boundary checks.
+
+`verify-fast` is additive application feedback: cheap policies, typecheck and
+pure Hspec. It starts no browser/database runtime and omits whole-application
+warning, lint and reachability sweeps. Use a focused owner command
+while iterating; do not run the entire gate after every small edit.
+
+Defer broad Hspec, frontend, E2E, lint, formatting, coverage, weeder,
+documentation-drift, and full verification gates until the epic implementation
+phase is complete. Then run affected focused checks, the appropriate
+repository-wide gates, and final Standards and Spec review. Available gates:
 
 ```bash
 bash ./bin/in-env verify-fast
 bash ./bin/in-env verify-full
-bash ./bin/in-env typecheck
+bash ./bin/in-env verify-tooling
 bash ./bin/in-env hspec-test
 bash ./bin/in-env hspec-coverage
 bash ./bin/in-env frontend-check
@@ -118,8 +166,11 @@ bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env ./bin/doc-drift-check
 ```
 
-After schema changes, run `regen-types`, typecheck, migration/schema checks, and
-local parser/startup verification. After controller changes, run focused Hspec;
-after UI/integration changes, run focused E2E or screenshots as appropriate.
+`verify-tooling` owns synthetic checker/lifecycle fixtures; `verify-full` owns
+repository/application authority. Complete `hspec-test` remains protected merge
+and CI evidence; pure/focused tests are never a substitute.
+
+Before runtime E2E, validate worktree identity. Do not defer safety-critical
+migration correctness merely to reduce verification time.
 
 When reporting, be extremely concise; sacrifice grammar for concision.

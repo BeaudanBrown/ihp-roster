@@ -14,6 +14,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
 import Application.Helper.ControllerContext (initCurrentVenueContext,
                                              venueRequestStateMiddleware)
 import Application.Helper.LiveUpdate.RequestState (liveUpdateRequestStateMiddleware)
+import Application.Helper.ManagementMode (initManagementModeContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -62,6 +63,7 @@ import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec (Expectation, shouldBe, shouldSatisfy)
+import qualified Test.ResetMetrics as ResetMetrics
 import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
@@ -350,7 +352,7 @@ withPrivilegedStrongAuthentication enabled =
         (Just (if enabled then "true" else "false"))
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
-resetDatabase = FixtureReset.resetDatabase
+resetDatabase = ResetMetrics.measureReset FixtureReset.resetDatabase
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
@@ -393,6 +395,7 @@ withCurrentControllerContext action = do
     let ?request = request
     initCurrentVenueContext
     initImpersonationContext
+    initManagementModeContext
     action
 
 -- Preserve the fixture session vault while applying the real app auth boundary.

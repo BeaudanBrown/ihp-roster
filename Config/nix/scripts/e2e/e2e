@@ -1,23 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if ! command -v playwright >/dev/null 2>&1; then
+    echo "e2e: pinned Playwright executable is unavailable" >&2
+    exit 69
+fi
+
+# Discovery is Playwright-owned and must not build tools, lease ports, touch
+# PostgreSQL, or clean up somebody else's retained runtime.
+for arg in "$@"; do
+    case "$arg" in --help|-h|--list) exec playwright test "$@" ;; esac
+done
+
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(realpath "$(git rev-parse --show-toplevel)")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    if [ -n "${E2E_RUNTIME_ROOT:-}" ]; then
+        export BEPIS_RUNNER_PARENT="$E2E_RUNTIME_ROOT"
+    fi
+    case "${E2E_RUNTIME_AUTO_CLEANUP:-1}" in
+        0) ;;
+        1) e2e-runtime cleanup --apply >/dev/null 2>&1 || true ;;
+        *) echo "e2e: E2E_RUNTIME_AUTO_CLEANUP must be 0 or 1" >&2; exit 64 ;;
+    esac
+    export BEPIS_RUNNERS_BINARY="$("$launcher" runners --print-binary)"
+    export E2E_RUN_ID="${E2E_RUN_ID:-$("$BEPIS_RUNNERS_BINARY" id)}"
+    runner_args=(run --family e2e --workspace "$workspace" --run-id "$E2E_RUN_ID" \
+        --artifact-dir "$(realpath -m "$workspace/.devenv/e2e/$E2E_RUN_ID/failure")")
+    [ "${E2E_KEEP_RUNTIME:-0}" != 1 ] || runner_args+=(--retain-success)
+    exec "$BEPIS_RUNNERS_BINARY" "${runner_args[@]}" -- env BEPIS_RUNNER_LEASED=1 "$0" "$@"
+fi
+
 # shellcheck source=../lib/ghc.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+# shellcheck source=../lib/verification.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/verification.sh"
 # shellcheck source=../lib/common.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
-if ! command -v playwright >/dev/null 2>&1; then
-    echo "e2e: pinned Playwright executable is unavailable" >&2
-    exit 69
-fi
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
+bepis_runtime_prepare
 # Bound both per-shard processes to the managed cluster's connection accounting.
 # Keep IHP's normal pool size; smaller pools remain available for diagnostics.
 export HASQL_POOL_SIZE="${HASQL_POOL_SIZE:-20}"
-case "$HASQL_POOL_SIZE" in
-    [1-9]|1[0-9]|20) ;;
-    *) echo "e2e: HASQL_POOL_SIZE must be between 1 and 20" >&2; exit 64 ;;
-esac
 E2E_POSTGRES_MODE="${E2E_POSTGRES_MODE:-managed}"
 export E2E_POSTGRES_MODE
 if [ "$E2E_POSTGRES_MODE" = external ]; then
@@ -35,13 +63,8 @@ if ! [[ "$E2E_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]]; then
 fi
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
-# Keep Xero error-path fixtures deterministic in isolated shells without
-# loading developer or operator secrets. Fixture tokens are intentionally not
-# encrypted with this local-only key.
-export XERO_CLIENT_ID="${XERO_CLIENT_ID:-e2e-client}"
-export XERO_CLIENT_SECRET="${XERO_CLIENT_SECRET:-e2e-secret}"
-export XERO_REDIRECT_URI="${XERO_REDIRECT_URI:-http://127.0.0.1/xero/callback}"
-export XERO_TOKEN_ENCRYPTION_KEY="${XERO_TOKEN_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}"
+# Test-only app/worker entrypoints install the closed local Xero client and
+# configuration; neither inherited credentials nor provider URLs are consumed.
 E2E_SHARDS_MAX="${E2E_SHARDS_MAX:-8}"
 case "$E2E_SHARDS_MAX" in
     ""|*[!0-9]*)
@@ -103,58 +126,39 @@ if [ "$E2E_SHARDS" -lt 1 ] || [ "$E2E_SHARDS" -gt 8 ]; then
     echo "E2E_SHARDS must be between 1 and 8 so the locked runtime port block remains disjoint" >&2
     exit 1
 fi
-
-repo_id="$(printf '%s' "$BEPIS_WORKSPACE_REPO_ROOT" | sha256sum | cut -c1-12)"
-STATE_ROOT="${E2E_RUNTIME_ROOT:-/tmp/bepis-e2e-runtime-$(id -u)-$repo_id}"
-ARTIFACT_ROOT="$PWD/.devenv/e2e"
-STATE_DIR="$STATE_ROOT/runs/$E2E_RUN_ID"
-MERGED_BLOB_DIR="$STATE_DIR/blob-report"
-MERGED_HTML_DIR="$STATE_DIR/playwright-report"
-marker="$STATE_ROOT/.bepis-e2e-runtime"
-canonical_state_root="$(realpath -m "$STATE_ROOT")"
-[ "$canonical_state_root" = "$STATE_ROOT" ] || { echo "e2e: runtime root must be canonical: $STATE_ROOT" >&2; exit 73; }
-path_component="$STATE_ROOT"
-while [ "$path_component" != / ]; do
-    [ ! -L "$path_component" ] || { echo "e2e: refusing symlinked runtime path component: $path_component" >&2; exit 73; }
-    path_component="$(dirname "$path_component")"
-done
-mkdir -p "$STATE_ROOT"
-if [ ! -f "$marker" ]; then
-    if find "$STATE_ROOT" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-        echo "e2e: refusing non-empty unowned runtime root: $STATE_ROOT" >&2
-        exit 73
-    fi
-    printf 'bepis-e2e-runtime-v1\nuid=%s\nproject=%s\n' "$(id -u)" "$repo_id" >"$marker"
-fi
-[ "$(stat -c %u "$STATE_ROOT")" = "$(id -u)" ] \
-    && [ "$(sed -n '1p' "$marker")" = bepis-e2e-runtime-v1 ] \
-    && [ "$(sed -n '2p' "$marker")" = "uid=$(id -u)" ] \
-    && [ "$(sed -n '3p' "$marker")" = "project=$repo_id" ] \
-    || { echo "e2e: runtime ownership mismatch: $STATE_ROOT" >&2; exit 73; }
-case "$(stat -f -c %T "$STATE_ROOT")" in
-    virtiofs|9p|nfs|nfs4|fuse*|smb*|cifs)
-        [ "${E2E_RUNTIME_ALLOW_NON_NATIVE:-0}" = 1 ] || { echo "e2e: refusing non-native runtime root: $STATE_ROOT" >&2; exit 78; }
+E2E_SHARD_TIMEOUT_SECONDS="${E2E_SHARD_TIMEOUT_SECONDS:-600}"
+case "$E2E_SHARD_TIMEOUT_SECONDS" in
+    ""|*[!0-9]*)
+        echo "E2E_SHARD_TIMEOUT_SECONDS must be a positive integer, got: $E2E_SHARD_TIMEOUT_SECONDS" >&2
+        exit 1
         ;;
 esac
-chmod 700 "$STATE_ROOT"
-case "${E2E_RUNTIME_AUTO_CLEANUP:-1}" in 0|1) ;; *) echo "e2e: E2E_RUNTIME_AUTO_CLEANUP must be 0 or 1" >&2; exit 64 ;; esac
-mkdir -p "$STATE_ROOT/runs" "$STATE_ROOT/port-locks" "$STATE_ROOT/run-locks"
-if [ -e "$STATE_DIR" ] || [ -e "$ARTIFACT_ROOT/$E2E_RUN_ID" ]; then
-    echo "e2e: refusing to reuse existing run id: $E2E_RUN_ID" >&2
+if [ "$E2E_SHARD_TIMEOUT_SECONDS" -lt 1 ]; then
+    echo "E2E_SHARD_TIMEOUT_SECONDS must be positive" >&2
+    exit 1
+fi
+runner_binary="${BEPIS_RUNNERS_BINARY:-$("${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}" runners --print-binary)}"
+"$runner_binary" e2e-plan --run-id "$E2E_RUN_ID" --shards "$E2E_SHARDS" \
+    --max-shards "$E2E_SHARDS_MAX" --pool-size "$HASQL_POOL_SIZE" --database "$BASE_E2E_DATABASE_NAME" >/dev/null
+
+STATE_DIR="${BEPIS_RUNNER_STATE_DIR:?e2e requires the shared runner lifecycle}"
+STATE_ROOT="$(dirname "$(dirname "$STATE_DIR")")"
+ARTIFACT_ROOT="$PWD/.devenv/e2e"
+MERGED_BLOB_DIR="$STATE_DIR/blob-report"
+MERGED_HTML_DIR="$STATE_DIR/playwright-report"
+if [ -e "$ARTIFACT_ROOT/$E2E_RUN_ID" ]; then
+    echo "e2e: refusing to reuse existing artifact run id: $E2E_RUN_ID" >&2
     exit 73
 fi
-exec 9>>"$STATE_ROOT/run-locks/$E2E_RUN_ID.lock"
-if ! flock -n -x 9; then
-    echo "e2e: run id is already active: $E2E_RUN_ID" >&2
-    exit 75
-fi
-mkdir -p "$STATE_DIR" "$MERGED_BLOB_DIR"
+mkdir -p "$MERGED_BLOB_DIR"
 
 shard_pids=()
 PARENT_CLEANED=0
 RUN_SUCCEEDED=0
 FAILURE_PUBLISHED=0
 MAILHOG_STARTED=0
+MAILHOG_START_FAILED=0
+MAILHOG_OBSERVER_PID=""
 LIFECYCLE_LOCKED=0
 postgres_root=""
 publish_failure_diagnostics() {
@@ -164,6 +168,7 @@ publish_failure_diagnostics() {
     local shard_dir shard_name
     mkdir -p "$failure_dir"
     cp "$STATE_DIR"/*.log "$failure_dir/" 2>/dev/null || true
+    cp "$STATE_DIR"/browser-groups.json "$STATE_DIR"/browser-shard-*.txt "$failure_dir/" 2>/dev/null || true
     for shard_dir in "$STATE_DIR"/shard-*; do
         [ -d "$shard_dir" ] || continue
         shard_name="${shard_dir##*/}"
@@ -180,14 +185,23 @@ publish_failure_diagnostics() {
 cleanup_parent() {
     [ "$PARENT_CLEANED" = 0 ] || return 0
     PARENT_CLEANED=1
-    local pid
-    for pid in "${shard_pids[@]:-}"; do
-        if kill -0 "$pid" 2>/dev/null; then kill -TERM "$pid" 2>/dev/null || true; fi
+    trap '' INT TERM
+    local pid offset
+    for offset in "${!shard_pids[@]}"; do
+        bepis_runtime_stop "$STATE_DIR/shard-$((offset + 1))/runner.pid" e2e-shard 30000 >/dev/null
     done
-    for pid in "${shard_pids[@]:-}"; do wait "$pid" 2>/dev/null || true; done
-    if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
-        kill "$MAILHOG_PID" 2>/dev/null || true
-        wait "$MAILHOG_PID" 2>/dev/null || true
+    for pid in "${shard_pids[@]}"; do wait "$pid" 2>/dev/null || true; done
+    if [ -n "$MAILHOG_OBSERVER_PID" ]; then
+        # The observer remains our waitable child, but signal only through the
+        # native identity owner. Diagnostics cannot replace the E2E outcome.
+        bepis_runtime_stop "$STATE_DIR/mailhog-observer.pid" e2e-mailhog-observer 2000 >/dev/null 2>&1 || true
+        wait "$MAILHOG_OBSERVER_PID" 2>/dev/null || true
+    fi
+    if [ "$MAILHOG_STARTED" = 1 ]; then
+        bepis_runtime_stop "$STATE_DIR/mailhog.pid" e2e-mailhog 2000 >/dev/null
+        if [ "$MAILHOG_START_FAILED" = 1 ]; then
+            verification_phase e2e-mailhog-startup 0 fail --if-unfinished
+        fi
     fi
     if [ "$LIFECYCLE_LOCKED" = 1 ]; then
         exec 7>&-
@@ -203,11 +217,30 @@ cleanup_parent() {
     if [ "$RUN_SUCCEEDED" != 1 ]; then
         publish_failure_diagnostics
     fi
-    exec 9>&-
-    rm -f "$STATE_ROOT/run-locks/$E2E_RUN_ID.lock"
 }
 trap cleanup_parent EXIT
 trap 'exit 130' INT TERM
+
+# Discovery/execution remain Playwright-owned. The native runner only assigns
+# whole file/project groups; focused/custom invocations retain native sharding.
+case "${E2E_GROUPING:-legacy}" in
+    duration|legacy) ;;
+    *) echo "E2E_GROUPING must be duration or legacy" >&2; exit 64 ;;
+esac
+if [ "$#" -eq 0 ] && [ "$E2E_SHARDS" -gt 1 ] && [ "${E2E_GROUPING:-legacy}" = duration ]; then
+    verification_phase e2e-group-plan 0 start
+    playwright test --list --reporter=json >"$STATE_DIR/browser-inventory.json"
+    "$runner_binary" e2e-groups --shards "$E2E_SHARDS" \
+        --inventory "$STATE_DIR/browser-inventory.json" \
+        --durations "$PWD/Config/nix/e2e-duration-baseline.json" >"$STATE_DIR/browser-groups.tmp"
+    mv "$STATE_DIR/browser-groups.tmp" "$STATE_DIR/browser-groups.json"
+    for shard_index in $(seq 1 "$E2E_SHARDS"); do
+        jq -er --argjson index "$shard_index" \
+            '.shards[] | select(.index == $index) | .selectors[]' \
+            "$STATE_DIR/browser-groups.json" >"$STATE_DIR/browser-shard-$shard_index.txt"
+    done
+    verification_phase e2e-group-plan 0 finish
+fi
 
 if [ "$E2E_POSTGRES_MODE" = managed ]; then
     # A cold disposable profile has no root yet. Ask the manager to establish
@@ -218,63 +251,57 @@ else
     lifecycle_lock="$STATE_ROOT/external-runs.lock"
 fi
 exec 7>>"$lifecycle_lock"
+verification_phase e2e-postgres-lock 0 start
 flock -s 7
+verification_phase e2e-postgres-lock 0 finish
 LIFECYCLE_LOCKED=1
-if [ "${E2E_RUNTIME_AUTO_CLEANUP:-1}" = 1 ]; then
-    e2e-runtime cleanup --apply >/dev/null 2>&1 || true
-fi
 # Holding the shared lifecycle lock before ensure prevents a concurrently
 # finishing last run from stopping the cluster after this run observed it.
-TEST_DB_SOCKET="$(e2e-postgres ensure 7>&- 9>&-)"
+TEST_DB_SOCKET="$(e2e-postgres ensure 7>&-)"
 export TEST_DB_SOCKET
 
-PORT_SLOT=""
-for candidate in $(seq 0 99); do
-    exec {candidate_fd}>>"$STATE_ROOT/port-locks/$candidate.lock"
-    if flock -n -x "$candidate_fd"; then
-        PORT_SLOT="$candidate"
-        PORT_LOCK_FD="$candidate_fd"
-        break
-    fi
-    eval "exec ${candidate_fd}>&-"
-done
-[ -n "$PORT_SLOT" ] || { echo "e2e: no runtime port slot available" >&2; exit 75; }
+PORT_SLOT="${BEPIS_RUNNER_PORT_SLOT:?}"
 printf '%s\n' "$PORT_SLOT" >"$STATE_DIR/port-slot"
 printf '%s\n' "$$" >"$STATE_DIR/owner.pid"
-E2E_PORT_BASE=$((10000 + PORT_SLOT * 300))
+E2E_PORT_BASE="${BEPIS_RUNNER_E2E_PORT_BASE:?}"
 export MAILHOG_SMTP_PORT="$E2E_PORT_BASE"
 export MAILHOG_PORT=$((E2E_PORT_BASE + 1))
 export SMTP_HOST=127.0.0.1
 export SMTP_PORT="$MAILHOG_SMTP_PORT"
 export MAILHOG_BASE_URL="http://127.0.0.1:$MAILHOG_PORT"
 MAILHOG_LOG="$STATE_DIR/mailhog.log"
-${BEPIS_MAILHOG_ROOT:?}/bin/MailHog \
+verification_phase e2e-mailhog-startup 0 start
+MAILHOG_STARTED=1
+bepis_runtime_start "$STATE_DIR/mailhog.pid" "$MAILHOG_LOG" e2e-mailhog \
+    "${BEPIS_MAILHOG_ROOT:?}/bin/MailHog" \
     -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
     -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-    -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-    7>&- 9>&- {PORT_LOCK_FD}>&- >>"$MAILHOG_LOG" 2>&1 &
-MAILHOG_PID="$!"
-MAILHOG_STARTED=1
+    -api-bind-addr "127.0.0.1:$MAILHOG_PORT" >/dev/null || {
+        startup_status=$?
+        MAILHOG_START_FAILED=1
+        exit "$startup_status"
+    }
+if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
+    # Observe both listeners without adding a readiness gate, sending mail or
+    # touching fixtures. The single-process observer is reaped by the owner.
+    MAILHOG_PID="$(cat "$STATE_DIR/mailhog.pid")"
+    python3 -S "${BEPIS_SCRIPTS_ROOT:?}/../../../scripts/profiling/verification-measure.py" watch-mailhog \
+        --http-port "$MAILHOG_PORT" --smtp-port "$MAILHOG_SMTP_PORT" --pid "$MAILHOG_PID" \
+        7>&- 9>&- </dev/null >>"$MAILHOG_LOG" 2>&1 &
+    MAILHOG_OBSERVER_PID="$!"
+    # A short-lived observer may finish before adoption; it has a bounded
+    # lifetime regardless, and adoption failure must not gate the tests.
+    bepis_runtime_adopt "$STATE_DIR/mailhog-observer.pid" e2e-mailhog-observer "$MAILHOG_OBSERVER_PID" >/dev/null 2>&1 || true
+fi
 
 detect_e2e_base_url() {
-    local pgid="$1"
-    local pids ports port
-    pids=$(ihp_roster_process_group_pids "$pgid")
-    if [ -z "$pids" ]; then
-        return 1
+    local pid="$1" port="$2" body
+    kill -0 "$pid" 2>/dev/null || return 1
+    body="$(curl --connect-timeout 1 --max-time 1 -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null || true)"
+    if printf '%s' "$body" | grep -q 'id="email"'; then
+        printf 'http://127.0.0.1:%s\n' "$port"
+        return 0
     fi
-
-    ports=$(ihp_roster_listen_ports_for_pids "$pids")
-
-    for port in $ports; do
-        local body
-        body="$(curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null || true)"
-        if printf '%s' "$body" | grep -q 'id="email"'; then
-            printf 'http://127.0.0.1:%s\n' "$port"
-            return 0
-        fi
-    done
-
     return 1
 }
 
@@ -285,41 +312,13 @@ shard_statuses=()
 # expensive as the full suite; dev mode remains an explicit debugging option.
 E2E_SERVER_MODE="${E2E_SERVER_MODE:-compiled}"
 
-E2E_SERVER_BIN=""
 E2E_BUILD_DIR="$(ihp_roster_verification_build_dir)"
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
-ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
-if [ "$E2E_SERVER_MODE" = "compiled" ]; then
-    E2E_RUN_BUILD_DIR="$STATE_DIR/build"
-    E2E_SERVER_BIN="$E2E_RUN_BUILD_DIR/RunE2EApp"
-    mkdir -p "$E2E_RUN_BUILD_DIR"
-    ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
-        7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/app-build.log"
-elif [ "$E2E_SERVER_MODE" != "dev" ]; then
-    echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
-    exit 1
-fi
-
-# IHP 1.6 serves HTTP and runs jobs in separate executables. Even dev-mode
-# shards need a worker with the same disposable database and local services.
+E2E_SERVER_BIN="$STATE_DIR/build/RunE2EApp"
 E2E_WORKER_BIN="$STATE_DIR/build/RunE2EWorker"
-mkdir -p "$(dirname "$E2E_WORKER_BIN")"
-ghc $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
-    -o "$E2E_WORKER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
-    7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/worker-build.log"
-
-E2E_STRIPE_MOCK_BUILD_DIR="$STATE_DIR/stripe-mock-build"
-E2E_STRIPE_MOCK_BIN="$E2E_STRIPE_MOCK_BUILD_DIR/StripeProcessMock"
-mkdir -p "$E2E_STRIPE_MOCK_BUILD_DIR"
-# Reuse the typecheck/Hspec object graph; only the mock entrypoint is E2E-specific.
-# shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
-ghc $GHC_OPTS \
-    -main-is Test.StripeProcessMockMain \
-    Test/StripeProcessMockMain.hs \
-    -o "$E2E_STRIPE_MOCK_BIN" \
-    -odir "$E2E_BUILD_DIR/obj" \
-    -hidir "$E2E_BUILD_DIR/hi" \
-    7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
+E2E_STRIPE_MOCK_BIN="$STATE_DIR/build/StripeProcessMock"
+bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$E2E_BUILD_DIR" "$GHC_OPTS" e2e-build-lock -- \
+    bash "$BEPIS_SCRIPTS_ROOT/e2e/build-images" "$E2E_BUILD_DIR" "$STATE_DIR" "$E2E_SERVER_MODE" "$GHC_OPTS"
 
 find_e2e_port() {
     local start_port="$1"
@@ -348,43 +347,77 @@ run_e2e_shard() {
     mkdir -p "$shard_dir"
 
     (
+        export BEPIS_VERIFICATION_SCOPE="$shard_index"
         export TEST_DATABASE_NAME="$shard_db_name"
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+        # Playwright publishes transformed JavaScript non-atomically. Parallel
+        # shards must not consume one another's partially written cache entries.
+        # The native run owner retains/disposes this directory with the shard.
+        export PWTEST_CACHE_DIR="$shard_dir/playwright-transform-cache"
         export PLAYWRIGHT_OUTPUT_DIR="$shard_output_dir"
         export PLAYWRIGHT_BLOB_REPORT_DIR="$shard_blob_dir"
+        # --test-list does not contribute to Playwright's default blob filename.
+        # Keep every native shard distinct when its reports are collected.
+        export PLAYWRIGHT_BLOB_OUTPUT_FILE="$shard_blob_dir/report-shard-$shard_index.zip"
         export PLAYWRIGHT_WORKERS=1
         export PLAYWRIGHT_FULLY_PARALLEL=0
+        export E2E_XERO_FIXTURE="$shard_dir/xero-fixture.json"
+        export E2E_XERO_SEED_BIN="$E2E_WORKER_BIN"
+        local worker_start_failed=0 stripe_start_failed=0 app_start_failed=0
 
         cleanup() {
-            if [ -f "$worker_pid_file" ]; then
-                local worker_pid
-                worker_pid=$(cat "$worker_pid_file")
-                kill -TERM -"$worker_pid" 2>/dev/null || kill -TERM "$worker_pid" 2>/dev/null || true
-                wait "$worker_pid" 2>/dev/null || true
-                rm -f "$worker_pid_file"
+            trap '' INT TERM
+            # Observe before intentional termination. Only a known PID with no
+            # live owner/group is death evidence; absent/invalid evidence is not.
+            local worker_observation="" stripe_observation="" app_observation=""
+            if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
+                app_observation="$(bepis_runtime_observe "$shard_pid_file" e2e-server 2>/dev/null || true)"
+                worker_observation="$(bepis_runtime_observe "$worker_pid_file" e2e-worker 2>/dev/null || true)"
+                stripe_observation="$(bepis_runtime_observe "$shard_dir/stripe-mock.pid" e2e-stripe-mock 2>/dev/null || true)"
             fi
-            if [ -n "${stripe_mock_pid:-}" ]; then
-                kill -TERM -"$stripe_mock_pid" 2>/dev/null || kill -TERM "$stripe_mock_pid" 2>/dev/null || true
-                wait "$stripe_mock_pid" 2>/dev/null || true
-            fi
-            if [ -f "$shard_pid_file" ]; then
-                local pid
-                pid=$(cat "$shard_pid_file")
-                kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-                wait "$pid" 2>/dev/null || true
-                rm -f "$shard_pid_file"
-            fi
+            # The owner revalidates PID identity and bounds TERM/KILL escalation.
+            # Do not dispose the database if an owned process could not be stopped.
+            bepis_runtime_stop "$worker_pid_file" e2e-worker 2000 >/dev/null
+            bepis_runtime_stop "$shard_dir/stripe-mock.pid" e2e-stripe-mock 2000 >/dev/null
+            bepis_runtime_stop "$shard_pid_file" e2e-server 2000 >/dev/null
+            # Publish only after the runtime owner has confirmed termination:
+            # no producer can now race this conditional event. Preserve ready.
+            case "$app_start_failed:$app_observation" in
+                1:*|0:pid=[0-9]*' alive=false owned=false reason='*)
+                    verification_phase e2e-app-startup "$shard_index" fail --if-unfinished ;;
+            esac
+            case "$worker_start_failed:$worker_observation" in
+                1:*|0:pid=[0-9]*' alive=false owned=false reason='*)
+                    verification_phase e2e-worker-startup "$shard_index" fail --if-unfinished ;;
+            esac
+            case "$stripe_start_failed:$stripe_observation" in
+                1:*|0:pid=[0-9]*' alive=false owned=false reason='*)
+                    verification_phase e2e-stripe-startup "$shard_index" fail --if-unfinished ;;
+            esac
 
             if [ "${TEST_KEEP_DATABASES:-0}" != "1" ]; then
-                psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+                verification_phase e2e-database-drop "$shard_index" start
+                if PGCONNECT_TIMEOUT=5 PGOPTIONS='-c statement_timeout=10000' \
+                    psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1
 DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
+                then
+                    verification_phase e2e-database-drop "$shard_index" finish
+                else
+                    verification_phase e2e-database-drop "$shard_index" fail
+                fi
             fi
         }
         trap cleanup EXIT
         trap 'exit 130' INT TERM
 
-        test-db-reset
+        verification_phase e2e-database-create "$shard_index" start
+        if ! test-db-reset >"$shard_dir/database-setup.log" 2>&1; then
+            verification_phase e2e-database-create "$shard_index" fail
+            tail -n 80 "$shard_dir/database-setup.log" >&2
+            exit 1
+        fi
+        verification_phase e2e-database-create "$shard_index" finish
 
         local stripe_mock_port
         stripe_mock_port="$(find_e2e_port "$((E2E_PORT_BASE + 20 + (shard_index - 1) * 20))")"
@@ -399,49 +432,80 @@ SQL
         export STRIPE_SECRET_KEY=sk_test_123
         export STRIPE_WEBHOOK_SECRET=whsec_e2e_strict_boundary
         export STRIPE_PRICE_LOOKUP_KEY=bepis_venue_monthly_aud_100
-        setsid "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" \
-            7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_dir/stripe-mock.log" 2>&1 &
-        local stripe_mock_pid="$!"
+        verification_phase e2e-stripe-startup "$shard_index" start
+        bepis_runtime_start "$shard_dir/stripe-mock.pid" "$shard_dir/stripe-mock.log" e2e-stripe-mock \
+            "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" >/dev/null || {
+                local startup_status=$?
+                stripe_start_failed=1
+                exit "$startup_status"
+            }
 
         local shard_port
         shard_port="$(find_e2e_port "$((E2E_PORT_BASE + 180 + (shard_index - 1) * 10))")"
+        verification_phase e2e-app-startup "$shard_index" start
         if [ "$E2E_SERVER_MODE" = "compiled" ]; then
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" IHP_BROWSER=echo \
-                setsid "$E2E_SERVER_BIN" 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_log" 2>&1 &
+                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server "$E2E_SERVER_BIN" >/dev/null || {
+                    local startup_status=$?
+                    app_start_failed=1
+                    exit "$startup_status"
+                }
         else
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" \
-                setsid test-e2e-server 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_log" 2>&1 &
+                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server test-e2e-server >/dev/null || {
+                    local startup_status=$?
+                    app_start_failed=1
+                    exit "$startup_status"
+                }
         fi
-        local server_pid="$!"
-        echo "$server_pid" > "$shard_pid_file"
+        local server_pid
+        server_pid="$(cat "$shard_pid_file")"
 
+        verification_phase e2e-worker-startup "$shard_index" start
         APP_BASE_URL="http://127.0.0.1:$shard_port" \
-            setsid "$E2E_WORKER_BIN" 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$worker_log" 2>&1 &
-        local worker_pid="$!"
-        echo "$worker_pid" > "$worker_pid_file"
+            bepis_runtime_start "$worker_pid_file" "$worker_log" e2e-worker "$E2E_WORKER_BIN" >/dev/null || {
+                local startup_status=$?
+                worker_start_failed=1
+                exit "$startup_status"
+            }
 
-        for _ in $(seq 1 120); do
-            if ! kill -0 "$worker_pid" 2>/dev/null; then
+        local deadline=$((SECONDS + 120))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! bepis_runtime_observe "$worker_pid_file" e2e-worker >/dev/null; then
                 echo "E2E shard $shard_index/$E2E_SHARDS worker failed to start" >&2
                 tail -n 80 "$worker_log" >&2 || true
                 exit 1
             fi
-            if E2E_BASE_URL=$(detect_e2e_base_url "$server_pid"); then
+            if E2E_BASE_URL=$(detect_e2e_base_url "$server_pid" "$shard_port"); then
                 export E2E_BASE_URL
+                verification_phase e2e-app-startup "$shard_index" ready
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
                 local test_status=0
-                playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
-                    7>&- 9>&- {PORT_LOCK_FD}>&- || test_status=$?
-                if ! kill -0 "$worker_pid" 2>/dev/null; then
+                local selection_args=(--shard="$shard_index/$E2E_SHARDS")
+                if [ -f "$STATE_DIR/browser-shard-$shard_index.txt" ]; then
+                    selection_args=(--test-list "$STATE_DIR/browser-shard-$shard_index.txt")
+                fi
+                verification_phase e2e-browser "$shard_index" start
+                # Let timeout own a process group so a wedged browser or
+                # Playwright child cannot survive the shard deadline.
+                timeout --signal=TERM --kill-after=30s "${E2E_SHARD_TIMEOUT_SECONDS}s" \
+                    playwright test "${selection_args[@]}" "$@" \
+                    7>&- || test_status=$?
+                if [ "$test_status" -eq 124 ] || [ "$test_status" -eq 137 ]; then
+                    echo "E2E shard $shard_index/$E2E_SHARDS exceeded ${E2E_SHARD_TIMEOUT_SECONDS}s; terminated Playwright process group" >&2
+                fi
+                if ! bepis_runtime_observe "$worker_pid_file" e2e-worker >/dev/null; then
                     echo "E2E shard $shard_index/$E2E_SHARDS worker exited during tests" >&2
                     tail -n 80 "$worker_log" >&2 || true
                     test_status=1
                 fi
+                verification_phase_result e2e-browser "$shard_index" "$test_status"
                 exit "$test_status"
             fi
 
-            if ! kill -0 "$server_pid" 2>/dev/null; then
+            if ! bepis_runtime_observe "$shard_pid_file" e2e-server >/dev/null; then
+                app_start_failed=1
                 echo "E2E shard $shard_index/$E2E_SHARDS app server failed to start" >&2
                 tail -n 80 "$shard_log" >&2 || true
                 exit 1
@@ -450,14 +514,17 @@ SQL
             sleep 1
         done
 
+        app_start_failed=1
         echo "Timed out waiting for E2E shard $shard_index/$E2E_SHARDS app server" >&2
         tail -n 80 "$shard_log" >&2 || true
         exit 1
     ) &
 
     shard_pids+=("$!")
+    bepis_runtime_adopt "$shard_dir/runner.pid" e2e-shard "${shard_pids[-1]}"
 }
 
+verification_phase e2e-parallel-run 0 start
 for shard_index in $(seq 1 "$E2E_SHARDS"); do
     run_e2e_shard "$shard_index" "$@"
 done
@@ -472,6 +539,7 @@ for shard_offset in "${!shard_pids[@]}"; do
     fi
 done
 
+verification_phase_result e2e-parallel-run 0 "$failed"
 for shard_index in $(seq 1 "$E2E_SHARDS"); do
     if [ -d "$STATE_DIR/shard-$shard_index/blob-report" ]; then
         cp "$STATE_DIR/shard-$shard_index"/blob-report/* "$MERGED_BLOB_DIR"/ 2>/dev/null || true
@@ -485,10 +553,13 @@ if [ -n "$(find "$MERGED_BLOB_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null)"
         playwright merge-reports \
             --reporter html \
             --config playwright.config.ts \
-            "$MERGED_BLOB_DIR" 7>&- 9>&- {PORT_LOCK_FD}>&- >/dev/null
+            "$MERGED_BLOB_DIR" 7>&- >/dev/null
     artifact_dir="$ARTIFACT_ROOT/$E2E_RUN_ID"
     mkdir -p "$artifact_dir"
     cp -a "$MERGED_HTML_DIR" "$artifact_dir/playwright-report"
+    if [ -f "$STATE_DIR/browser-groups.json" ]; then
+        cp "$STATE_DIR"/browser-groups.json "$STATE_DIR"/browser-shard-*.txt "$artifact_dir/"
+    fi
     ln -sfn "$artifact_dir/playwright-report" "$ARTIFACT_ROOT/latest-report"
 fi
 
@@ -508,12 +579,13 @@ fi
 echo "Parallel Playwright run completed across $E2E_SHARDS shards"
 echo "E2E PostgreSQL: mode=$E2E_POSTGRES_MODE socket=$TEST_DB_SOCKET filesystem=$(stat -f -c %T "$TEST_DB_SOCKET")"
 echo "E2E runtime: $STATE_DIR (filesystem=$(stat -f -c %T "$STATE_DIR"), port_slot=$PORT_SLOT)"
-echo "E2E durable report: $ARTIFACT_ROOT/latest-report"
+if [ -d "$ARTIFACT_ROOT/$E2E_RUN_ID/playwright-report" ]; then
+    echo "E2E durable report: $ARTIFACT_ROOT/$E2E_RUN_ID/playwright-report"
+fi
 RUN_SUCCEEDED=1
 cleanup_parent
 if [ "${E2E_KEEP_RUNTIME:-0}" != 1 ]; then
-    rm -rf --one-file-system "$STATE_DIR"
-    echo "E2E volatile runtime: removed after successful report publication"
+    echo "E2E volatile runtime: removed by shared runner after successful run"
 else
     echo "E2E volatile runtime: retained by E2E_KEEP_RUNTIME=1"
 fi

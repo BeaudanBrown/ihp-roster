@@ -38,8 +38,8 @@ branches, issue numbers, and repository identity before using them.
   apply only after the user approves the reviewed plan.
 - In a checkout containing `.bepis-epic-worktree.json`, run that checkout's
   `bash ./bin/in-env epic-worktree orient` first, present its frontier, and obey
-  its wait/approval instructions. Before runtime checks, confirm
-  `dev-workspace-info --json` reports the expected path and slot.
+  its automatic-progression and stop-condition instructions. Before runtime
+  checks, confirm `dev-workspace-info --json` reports the expected path and slot.
 - Do not edit generated output manually, production/customer data, or Nix store
   files. Do not run destructive database commands for an audit.
 - Do not turn every heuristic into CI. Promote only stable, low-noise,
@@ -67,7 +67,8 @@ GitHub issue plan.
    recently closed maintenance issues. Avoid duplicate tracking.
 3. If the user wants isolation from the start, dry-run and publish a provisional
    parent epic, create its Git worktree, register it, orient, present the
-   frontier, and obtain approval to continue the audit there.
+   frontier, and continue there unless orientation disallows selection, the user
+   retained control, or a material decision needs input.
 4. Record baseline health. Run the inventory collector and current architecture
    hotspot/convention/contract queries. Use focused checks before expensive
    gates.
@@ -84,7 +85,11 @@ GitHub issue plan.
    subissues, blockers, shared guardrails, and verification. Dry-run the whole
    graph, show it to the user, then apply only after approval.
 10. Reconcile the maintenance workstream link, run orientation, present the
-    ready frontier, and wait. Never select or begin a subissue automatically.
+    ready frontier, select the most appropriate ready subissue, and begin it by
+    default. Prefer unassigned work and check activity before starting assigned
+    work. Stop when orientation disallows selection (including a closed parent),
+    the user retained control, work is interrupted, or a material decision needs
+    input.
 11. At the end of the cycle, improve this skill from observed process gaps and
     convert proven objective invariants into deterministic checks.
 

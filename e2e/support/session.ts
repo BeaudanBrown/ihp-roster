@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { dialogMountDomAttr, passkeyDismissalDomAttr, passkeySetupPromptDomAttr } from '../../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from '../timeouts';
-import { gotoWhenReady } from './runtime';
+import { gotoWhenReady, waitForLiveRecovery } from './runtime';
 
 type CachedBrowserSession = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;
 
@@ -31,15 +31,17 @@ export async function loginAs(page: Page, email: string, password: string) {
     const cachedCookies = cachedBrowserSessions.get(key);
     if (cachedCookies) {
         await page.context().addCookies(cachedCookies);
-        await page.goto('/RosterWeeks');
-        const restored = await page.locator('#roster-content')
-            .waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action })
-            .then(() => true)
-            .catch(() => false);
-        if (restored) {
+        await gotoWhenReady(page, '/RosterWeeks', '#roster-content, #email');
+        // Navigation has completed the response/document lifecycle. Only an actual
+        // login destination is stale-session evidence; other failures must not
+        // silently become another password mutation.
+        if (new URL(page.url()).pathname !== '/NewSession') {
+            await expect(page).toHaveURL(/\/(RosterWeeks|ShowRosterWindow)(?:[?#]|$)/, { timeout: E2E_TIMEOUT.navigation });
+            await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
             await dismissOptionalPasskeySetupPrompt(page);
             return;
         }
+        await expect(page.locator('#email')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         // Logout invalidates the server-side session represented by the cached
         // cookie. Never let that stale boundary fall through to another user.
@@ -53,8 +55,12 @@ export async function loginAs(page: Page, email: string, password: string) {
 }
 
 export async function dismissOptionalPasskeySetupPrompt(page: Page) {
+    // The one-shot prompt is server-rendered with the authenticated document.
+    // Wait for document scripts and the existing Surface acknowledgement/resync
+    // owner before inspecting optional presence; absence is not a timed event.
+    await page.waitForLoadState('load', { timeout: E2E_TIMEOUT.navigation });
+    await waitForLiveRecovery(page);
     const prompt = page.locator(`[${passkeySetupPromptDomAttr}]`).first();
-    await prompt.waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
     if (await prompt.count() === 0) return;
 
     const dismissal = prompt.locator(`[${passkeyDismissalDomAttr}]`);

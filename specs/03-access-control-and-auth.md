@@ -64,7 +64,8 @@ The product must not rely on global in-app business roles without venue boundari
   active user with an active membership in the selected active venue. The
   session stores only the effective user id and a generated impersonation
   session id; no impersonation persistence table is used.
-- Entry requires a fresh privileged passkey verification. An unexpired existing
+- Entry requires fresh privileged passkey verification unless the authenticated
+  super admin's deployment-policy exception below applies. An unexpired existing
   verification is reused; no support-reason form is required.
 - Every request re-fetches the selected venue, effective user, active venue
   membership, role, and optional active linked staff row. Missing, malformed,
@@ -84,8 +85,8 @@ The product must not rely on global in-app business roles without venue boundari
   active users with active memberships and show preferred/first name plus role,
   never email. A member without the optional active linked Staff row uses
   `Venue user`; duplicate displayed first names append the last-name initial.
-  Selection uses the shared protected-action overlay contract and requires fresh
-  passkey verification for entry. Start, switch, and exit accept only validated
+  Selection uses the shared protected-action overlay contract and the same
+  deployment-aware passkey requirement for entry. Start, switch, and exit accept only validated
   same-origin page paths, then revalidate role-sensitive destinations against the
   resulting effective identity. An unavailable page—including retaining Support
   while viewing as an ordinary user—falls back to that identity's Roster with
@@ -140,9 +141,10 @@ The product must not rely on global in-app business roles without venue boundari
 - Passkeys require browser WebAuthn support and a secure origin in deployed environments; local development may use browser localhost exceptions.
 - The public login entry point should try discoverable passkey sign-in first when the browser supports WebAuthn, then fall back to email/password without blocking the user.
 - After password login, the app may render a one-time passkey setup prompt. Browser-local markers and dismissals are only UX hints; server-side access control must not treat them as proof that a device does or does not hold a passkey.
-- Active Venue Admins, Venue Owners, and platform super admins may send passkey setup, passkey recovery, and password-reset links from an active linked Staff profile in the selected current venue. A super admin may also do so while impersonating that venue's owner, but remains the real requester and audit actor; impersonation of lower roles remains denied. Every send requires fresh verification with the authenticated actor's passkey, regardless of the deployment-wide privileged strong-auth switch; cross-venue, inactive, archived, deactivated, and unlinked targets are denied.
+- Active Venue Admins, Venue Owners, and platform super admins may send passkey setup, passkey recovery, and password-reset links from an active linked Staff profile in the selected current venue. A super admin may also do so while impersonating that venue's owner, but remains the real requester and audit actor; impersonation of lower roles remains denied. Every send requires fresh verification with the authenticated actor's passkey, except for the super-admin deployment-policy exception below; ordinary venue admins/owners still require fresh verification even when the switch is disabled. Cross-venue, inactive, archived, deactivated, and unlinked targets are denied.
 - Active, verified, non-super-admin accounts with an active venue membership may request a password-reset link from the public sign-in flow. Active unverified accounts receive a fresh email-verification link instead. Unknown, ineligible, deactivated, super-admin, and cooldown requests receive the same browser response, and public recovery and verification-resend emails are limited to one per account every five minutes.
 - Password-reset and passkey setup/recovery links share a six-hour validity window and are single-use. Password-reset links are hashed at rest and replace any older active password-reset link for that user. Password-reset completion preserves passkeys, clears password-login lockout state, increments the user session version to revoke all existing sessions, consumes the token atomically, and returns the recipient to sign-in.
+- When `IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH` is explicitly disabled, authenticated platform super admins may use Support operations, staff credential-link sends, and their own passkey management without passkey setup or fresh verification. Support permits registering a staging passkey even when copied credentials already exist. This exception follows the real authenticated actor during impersonation, never an effective venue role. It neither sets a passkey-verification session marker nor bypasses WebAuthn verification for voluntary passkey authentication. Login, authorization, credential ownership, impersonation restrictions, and audit attribution remain unchanged. With the flag enabled or unset, the existing super-admin requirements apply. This exception does not alter non-super-admin action-level checks. The switch is deployment-wide, not intrinsically staging-only; production must enable it to retain these super-admin requirements.
 - Existing encrypted cookie sessions without a session-version marker remain valid only while the persisted user session version is zero. Every new login records the current version, and requests carrying a stale version are logged out before venue or impersonation context initializes.
 
 ## Mandatory profile gate

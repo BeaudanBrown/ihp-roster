@@ -319,15 +319,12 @@ respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelCo
 respondWithBlackoutValidationFailure submittedBlackout errorMessage =
     if isHtmxRequest
         then do
-            readModel <- fetchLeaveRequestsReadModel
-            respondHtmlProfiled $
-                renderUnavailabilityBlackoutsValidationFragment
-                    readModel.leaveReadModelVenueToday
-                    readModel.leaveReadModelBlackouts
-                    readModel.leaveReadModelRequests
-                    readModel.leaveReadModelStaffMembers
-                    (Just submittedBlackout)
-                    <> renderToastOob ToastBottomCenter (errorToast errorMessage)
+            venueConfig <- fetchVenueConfig
+            today <- currentVenueCalendarDay venueConfig
+            let form = if isNew submittedBlackout
+                    then renderCreateBlackoutForm today submittedBlackout
+                    else renderBlackoutUpdateForm submittedBlackout
+            respondHtmlProfiled (form <> renderToastOob ToastBottomCenter (errorToast errorMessage))
         else do
             setErrorMessage errorMessage
             redirectTo LeaveRequestsAction

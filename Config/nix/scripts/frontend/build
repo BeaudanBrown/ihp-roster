@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-entries=(frontend/ts/app.ts frontend/ts/dev-timer-tracking.ts)
+entries=(frontend/ts/app.ts frontend/ts/dev-live-reload.ts)
 for entry in "${entries[@]}"; do
     if [ ! -f "$entry" ]; then
         echo "frontend-build: missing entrypoint $entry" >&2
@@ -14,7 +14,7 @@ done
 
 # Replace the complete generated app bundle authority; do not retain stale
 # outputs from the superseded independent entrypoint build.
-rm -f static/app*.js static/dev-timer-tracking.js
+rm -f static/app*.js static/dev-timer-tracking.js static/dev-live-reload.js
 
 esbuild "${entries[@]}" \
     --bundle \

@@ -1,0 +1,2 @@
+-- Compatibility project for existing repository-root invocations.
+import: ../tooling.project

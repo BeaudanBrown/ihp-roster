@@ -2,6 +2,10 @@
 
 Date: 2026-08-08
 
+Status: Numerical footprint ceilings and historical count baselines are
+superseded by [ADR 0011](0011-structural-production-checks-not-footprint-budgets.md).
+The structural packaging, ownership, and isolation decisions remain in force.
+
 ## Context
 
 The production package previously inherited every registered Haskell package,

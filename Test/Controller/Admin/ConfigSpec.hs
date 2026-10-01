@@ -34,8 +34,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
@@ -397,7 +397,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 exportsResponse `responseStatusShouldBe` status200
                 exportsResponse `responseBodyShouldContain` "id=\"admin-exports-fragment\""
-                exportsResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                -- A refetch replaces the target inside its existing mount; a new
+                -- enclosing mount here nests owners and stops subsequent refreshes.
+                exportsResponse `responseBodyShouldNotContain` "data-bepis-surface-config="
                 exportsResponse `responseBodyShouldContain` "admin-exports"
                 exportsResponse `responseBodyShouldContain` "hx-get=\"/NewPayrollWorkbookConfiguration"
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -463,7 +465,8 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "name=\"isActive\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
                 pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
-                pageResponse `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                pageResponse `responseBodyShouldContain` "app-toggle-button"
+                pageResponse `responseBodyShouldContain` "app-toggle-button-input\" type=\"checkbox\" checked=\"checked\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""

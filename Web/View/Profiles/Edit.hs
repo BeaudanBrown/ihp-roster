@@ -193,7 +193,7 @@ renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeek
             "security" | not currentUserIsImpersonating -> profileSecurityAccordionSection now passkeys
             "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
             _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
-     in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
+     in renderStaffProfileSectionContent section
 
 normalizeProfileSectionForRender :: Text -> Text
 normalizeProfileSectionForRender section

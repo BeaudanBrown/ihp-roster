@@ -10,6 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,6 +23,7 @@ INPUTS = (
     'Config/nix/production-script-inventory.tsv',
     'Config/nix/production-executable-inventory.tsv',
     'Makefile',
+    'Config/nix/weeder-baseline.tsv',
 )
 
 
@@ -39,6 +41,46 @@ def write_json(path, value):
     temporary.replace(path)
 
 
+def git_state():
+    return {
+        'revision': subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip(),
+        'dirty': bool(subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True).stdout),
+    }
+
+
+def tool_identity():
+    tools = {}
+    for name in ('ghc', 'weeder'):
+        executable = shutil.which(name)
+        if executable is None:
+            raise ValueError(f'required tool unavailable: {name}')
+        path = Path(executable).resolve()
+        tools[name] = {'path': str(path), 'sha256': digest(path)}
+    return tools
+
+
+def current_sources():
+    # Validate the complete shell owner's inventory, not a new compiler subject
+    # selector. Additions outside a previously captured inventory are stale too.
+    paths = {'Main.hs', 'WorkerMain.hs'}
+    for root in ('Application', 'Web', 'Test', 'Config', 'build/Generated'):
+        paths.update(str(path) for path in Path(root).rglob('*.hs')
+                     if path.is_file() and not path.is_symlink()
+                     and not str(path).startswith('Test/CompileFail/'))
+    return paths
+
+
+def validate_context(evidence):
+    if git_state() != evidence['gitState']:
+        raise ValueError('revision/dirty provenance changed since compiler sweep started')
+    if tool_identity() != evidence['toolIdentity']:
+        raise ValueError('toolchain changed since compiler sweep started')
+    if digest(__file__) != evidence['analysisHash']:
+        raise ValueError('analysis changed since compiler sweep started')
+    if current_sources() != set(evidence['sources']):
+        raise ValueError('source inventory changed since compiler sweep started')
+
+
 def snapshot(sources, output):
     Path(output).unlink(missing_ok=True)
     paths = Path(sources).read_text().splitlines()
@@ -51,6 +93,8 @@ def snapshot(sources, output):
             raise ValueError(f'missing/duplicate module identity: {path}')
         modules[path] = match[1]
     write_json(output, {
+        'gitState': git_state(), 'toolIdentity': tool_identity(),
+        'analysisHash': digest(__file__),
         'sources': modules,
         'hashes': {path: digest(path) for path in [sources, *paths, *INPUTS, str(Path(sources).parent / 'ghc-options.sha256')]},
         'compilerVersion': subprocess.run(['ghc', '--numeric-version'], capture_output=True, text=True, check=True).stdout.strip(),
@@ -99,6 +143,7 @@ def toml_value(value):
 
 def analyse(args):
     evidence = json.loads(Path(args.snapshot).read_text())
+    validate_context(evidence)
     for path, expected in evidence['hashes'].items():
         if digest(path) != expected:
             raise ValueError(f'input changed since compiler sweep started: {path}')
@@ -194,15 +239,17 @@ def analyse(args):
     for path, expected in {**evidence['hashes'], **hie_hashes, args.full_output: full_output_hash}.items():
         if digest(path) != expected:
             raise ValueError(f'evidence changed while analysing: {path}')
-    revision = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
-    dirty = bool(subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True).stdout)
+    validate_context(evidence)
+    if set(hie.rglob('*.hie')) != expected_hie:
+        raise ValueError('HIE inventory changed while analysing')
     return {
-        'status': 'fresh', 'advisoryOnly': True, 'revision': revision, 'dirty': dirty,
+        'status': 'fresh', 'advisoryOnly': True, **evidence['gitState'],
+        'toolIdentity': evidence['toolIdentity'],
         'compilerVersion': evidence['compilerVersion'],
         'capturedAt': datetime.now(timezone.utc).isoformat(),
         'inputHashes': evidence['hashes'], 'hieHashes': hie_hashes,
         'completeOutputHash': full_output_hash,
-        'analysisHash': digest(__file__), 'roots': groups,
+        'analysisHash': evidence['analysisHash'], 'roots': groups,
         'categoryPolicy': {key: value for key, value in category_policy.items() if key != 'unused-types'},
         'executables': executables,
         'limitations': [

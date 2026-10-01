@@ -4,12 +4,18 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
+# shellcheck source=../lib/authority-scan.sh
+. "${BEPIS_SCRIPTS_ROOT:-$repo_root/Config/nix/scripts}/lib/authority-scan.sh"
+
+defaults="$(authority_scan rg '^\s*default:' frontend/ts --glob '!generated/**' -n)"
 status=0
 while IFS=: read -r file line _; do
-    if ! sed -n "${line},$((line + 4))p" "$file" | rg -q 'assertNever\('; then
+    [ -n "$file" ] || continue
+    block="$(sed -n "${line},$((line + 4))p" "$file")"
+    if [[ "$block" != *'assertNever('* ]]; then
         echo "Broad switch default without assertNever: $file:$line" >&2
         status=1
     fi
-done < <(rg '^\s*default:' frontend/ts --glob '!generated/**' -n || true)
+done <<<"$defaults"
 
 exit "$status"

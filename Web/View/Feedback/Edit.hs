@@ -21,7 +21,9 @@ editDialog mode item = DialogOverlayConfig
     , dialogOverlayBody = editForm mode item
     , dialogOverlayStartButtons = []
     , dialogOverlayButtons = defaultOverlayButtons "feedback-edit-form"
-    , dialogOverlayDialogClass = "" }
+    , dialogOverlayDialogClass = ""
+    , dialogOverlayDismissalGuard = Nothing
+    }
 
 editForm :: OverlayFormMode -> UserFeedbackItem -> Html
 editForm mode item = case mode of

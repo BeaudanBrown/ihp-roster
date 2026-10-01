@@ -7,6 +7,7 @@ Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from
 Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Async/Error.hs	production	runtime	Main	Reachable from Main
+Application/Async/Heartbeat.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Async/Payload.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	WorkerMain	Reachable from WorkerMain
@@ -25,8 +26,12 @@ Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Mai
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Support.hs	production	runtime	Main	Reachable from Main
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
 Application/Error/Foundation.hs	production	runtime	Main	Reachable from Main
@@ -91,6 +96,7 @@ Application/Helper/Export/ReadModel.hs	production	runtime	Main	Reachable from Ma
 Application/Helper/Export/Render.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Service.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Types.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Export/XeroPayItems.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Feedback.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FeedbackType.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/App.hs	production	runtime	Main	Reachable from Main
@@ -104,6 +110,7 @@ Application/Helper/FrontendContract/Contracts.hs	development	build-tooling	-	Gen
 Application/Helper/FrontendContract/Core.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/DSL.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Error.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/FilterSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Htmx.hs	production	runtime	Main	Reachable from Main
@@ -274,6 +281,7 @@ Application/Helper/LiveUpdate/OutboxPruning.hs	production	operational-script-clo
 Application/Helper/LiveUpdate/RequestState.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
+Application/Helper/ManagementMode.hs	production	runtime	Main	Reachable from Main
 Application/Helper/NavigationContextInitialization.hs	production	runtime	Main	Reachable from Main
 Application/Helper/NominalText.hs	production	runtime	Main	Reachable from Main
 Application/Helper/OpaqueToken.hs	production	runtime	Main	Reachable from Main
@@ -298,6 +306,8 @@ Application/Helper/Telemetry.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Telemetry/Semantic.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimeRules.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimesheetPayLedger.hs	production	runtime	Main	Reachable from Main
+Application/Helper/TimesheetReview.hs	production	runtime	Main	Reachable from Main
+Application/Helper/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/UiRegion.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Url.hs	production	runtime	Main	Reachable from Main
 Application/Helper/UserPreferences.hs	production	runtime	Main	Reachable from Main
@@ -309,6 +319,7 @@ Application/Helper/View.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Audience.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Awards.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Chrome.hs	production	runtime	Main	Reachable from Main
+Application/Helper/View/FilterSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Format.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Leave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Oob.hs	production	runtime	Main	Reachable from Main
@@ -321,6 +332,7 @@ Application/Helper/View/StaffDialogs.hs	production	runtime	Main	Reachable from M
 Application/Helper/View/Status.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/TimeOccurrence.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/TimePicker.hs	production	runtime	Main	Reachable from Main
+Application/Helper/View/TimesheetReview.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Timesheets.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Toast.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/ToggleButton.hs	production	runtime	Main	Reachable from Main
@@ -338,15 +350,23 @@ Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident/Email.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident/Reconciliation.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident/Types.hs	production	runtime	Main	Reachable from Main
 Application/Operator/Error.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Client.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/Override.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/OverrideIncident.hs	production	operational-script-closure	Application.Script.PublicHolidayShadowSweep	Reachable from Application.Script.PublicHolidayShadowSweep
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Sync.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Shadow.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Sync.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Mutations.hs	production	runtime	Main	Reachable from Main
@@ -358,6 +378,7 @@ Application/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from 
 Application/Script/BackfillTimesheetPayLedger.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/BillingReconciliationSweep.hs	production	operational-script-closure	Application.Script.BillingReconciliationSweep	Reachable from Application.Script.BillingReconciliationSweep
 Application/Script/BootstrapAccount.hs	production	operational-script-closure	Application.Script.BootstrapAccount	Reachable from Application.Script.BootstrapAccount
+Application/Script/DataVicProbe.hs	development	integration-probe	-	Read-only v2 holiday candidate probe; no refresh cutover or database writes
 Application/Script/FwcMapdRefreshSweep.hs	production	operational-script-closure	Application.Script.FwcMapdRefreshSweep	Reachable from Application.Script.FwcMapdRefreshSweep
 Application/Script/GenerateBepisArchitectureContracts.hs	development	architecture-generator	-	Repository architecture generation only; runnable from the development shell
 Application/Script/GenerateFrontendContracts.hs	development	contract-generator	-	Checked frontend contract generation only; runnable from the development shell
@@ -366,6 +387,7 @@ Application/Script/LiveInvalidationOutboxPrune.hs	production	operational-script-
 Application/Script/Prelude.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/ProfileLiveInvalidation.hs	development	performance-probe	-	Low-rate profiling probe only; runnable from the development shell
 Application/Script/PublicHolidayRefreshSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayRefreshSweep	Reachable from Application.Script.PublicHolidayRefreshSweep
+Application/Script/PublicHolidayShadowSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayShadowSweep	Reachable from Application.Script.PublicHolidayShadowSweep
 Application/Script/RsaReminderSweep.hs	production	operational-script-closure	Application.Script.RsaReminderSweep	Reachable from Application.Script.RsaReminderSweep
 Application/Script/SeedDev.hs	development	development-seed	-	Destructive local development seed only; runnable from the development shell
 Application/Script/SeedPayrollFixture.hs	development	development-fixture	-	Manual fixture entry point with no deployment consumer
@@ -412,6 +434,7 @@ Application/Xero/Admin/ReferenceData.hs	production	runtime	Main	Reachable from M
 Application/Xero/Admin/ReferenceSyncPolicy.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Application/Xero/EmployeeId.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Incident.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Keepalive.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Xero/PayrollSourceKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceCategory.hs	production	runtime	Main	Reachable from Main
@@ -424,6 +447,7 @@ Application/Xero/ReferenceTrust/Presentation.hs	production	runtime	Main	Reachabl
 Application/Xero/ReferenceTrust/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust/Service.hs	production	runtime	Main	Reachable from Main
 Application/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/ApprovalRecovery.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/BucketKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Buckets.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Diagnostic.hs	production	runtime	Main	Reachable from Main
@@ -436,6 +460,7 @@ Application/Xero/Timesheets/ProviderWrite.hs	production	runtime	Main	Reachable f
 Application/Xero/Timesheets/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/ReconciliationReview.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Reservation.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/Selection.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Submission.hs	production	runtime	Main	Reachable from Main
 Application/Xero/WorkflowState.hs	production	runtime	Main	Reachable from Main
 Config/Config.hs	production	runtime	Main	Reachable from Main
@@ -455,6 +480,8 @@ Web/Controller/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from M
 Web/Controller/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/ReferenceSync.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Responses.hs	production	runtime	Main	Reachable from Main
+Web/Controller/Admin/Xero/Selection.hs	production	runtime	Main	Reachable from Main
+Web/Controller/Admin/Xero/SelectionResponse.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Auth.hs	production	runtime	Main	Reachable from Main
@@ -469,6 +496,7 @@ Web/Controller/Passkeys.hs	production	runtime	Main	Reachable from Main
 Web/Controller/PasswordResets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Profiles.hs	production	runtime	Main	Reachable from Main
+Web/Controller/ResendWebhooks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterTemplates.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterWeeks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterWeeks/Validation.hs	production	runtime	Main	Reachable from Main
@@ -483,6 +511,8 @@ Web/Controller/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Users.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Responses.hs	production	runtime	Main	Reachable from Main
+Web/Exports/Review.hs	production	runtime	Main	Reachable from Main
+Web/Exports/Selection.hs	production	runtime	Main	Reachable from Main
 Web/Exports/WorkbookConfigurations.hs	production	runtime	Main	Reachable from Main
 Web/FrontController.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Archive.hs	production	runtime	Main	Reachable from Main
@@ -496,6 +526,7 @@ Web/LeaveRequests/Responses.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/SelfService.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Billing/Notification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/FeedbackNotification.hs	production	runtime	Main	Reachable from Main
+Web/Mail/OperationalIncident.hs	production	runtime	Main	Reachable from Main
 Web/Mail/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Shared.hs	production	runtime	Main	Reachable from Main
 Web/Mail/StaffDocuments/RsaReminder.hs	production	runtime	Main	Reachable from Main
@@ -535,12 +566,13 @@ Web/RosterWeeks/TemplateApplication/Types.hs	production	runtime	Main	Reachable f
 Web/RosterWeeks/TemplateCapture.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Types.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/VenueSettings.hs	production	runtime	Main	Reachable from Main
-Web/RosterWeeks/WageFilter.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Routes.hs	production	runtime	Main	Reachable from Main
 Web/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Staff/ProfileSurfaceRequest.hs	production	runtime	Main	Reachable from Main
 Web/StaffDocuments/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/SurfaceInvalidation.hs	production	runtime	Main	Reachable from Main
+Web/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/EntryWorkflow.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Filters.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/FrontendSurface.hs	production	runtime	Main	Reachable from Main
@@ -548,7 +580,8 @@ Web/Timesheets/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Paths.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Projection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Responses.hs	production	runtime	Main	Reachable from Main
-Web/Timesheets/Suggestion.hs	production	runtime	Main	Reachable from Main
+Web/Timesheets/RosterGroupClassification.hs	production	runtime	Main	Reachable from Main
+Web/Timesheets/RosterPrefill.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Validation.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Types.hs	production	runtime	Main	Reachable from Main
@@ -564,6 +597,7 @@ Web/View/Admin/VenueSettings.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/Xero/ShiftSelection.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/StaffMappingDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main
@@ -611,10 +645,12 @@ Web/View/StaffProfileSections.hs	production	runtime	Main	Reachable from Main
 Web/View/Static/InstallApp.hs	production	runtime	Main	Reachable from Main
 Web/View/Static/Welcome.hs	production	runtime	Main	Reachable from Main
 Web/View/Support/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
+Web/View/Timesheets/Chooser.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/New.hs	production	runtime	Main	Reachable from Main
-Web/View/Timesheets/SuggestedNew.hs	production	runtime	Main	Reachable from Main
+Web/View/Timesheets/RosterPrefillNew.hs	production	runtime	Main	Reachable from Main
 Web/View/Users/New.hs	production	runtime	Main	Reachable from Main
 Web/Worker.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 WorkerMain.hs	production	runtime	WorkerMain	Reachable from WorkerMain

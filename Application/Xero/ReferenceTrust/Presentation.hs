@@ -28,7 +28,7 @@ xeroPayItemImportReferencePresentation = \case
     StartOrJoinXeroReferenceSync -> XeroPayItemImportReferenceWaiting
     WaitForTrustedXeroReferenceSnapshot _ -> XeroPayItemImportReferenceWaiting
     ReconnectXeroForReferenceData -> XeroPayItemImportReferenceBlocked "Reconnect Xero before importing pay items."
-    BlockStaleXeroReferenceData _ -> XeroPayItemImportReferenceBlocked "Xero reference data is out of date and could not be refreshed. Contact support before importing pay items."
+    BlockStaleXeroReferenceData _ -> XeroPayItemImportReferenceBlocked "Xero reference data could not be refreshed. Open Import pay items again to retry. If this keeps happening, contact support."
 
 xeroPreparationReferencePresentation :: XeroReferenceTrustDecision -> XeroPreparationReferencePresentation
 xeroPreparationReferencePresentation = \case
@@ -36,7 +36,7 @@ xeroPreparationReferencePresentation = \case
     StartOrJoinXeroReferenceSync -> XeroPreparationReferenceWaiting "Xero payroll reference data is starting in the background."
     WaitForTrustedXeroReferenceSnapshot _ -> XeroPreparationReferenceWaiting "Xero payroll reference data is syncing in the background."
     ReconnectXeroForReferenceData -> XeroPreparationReferenceBlocked "Reconnect Xero before preparing draft timesheets."
-    BlockStaleXeroReferenceData _ -> XeroPreparationReferenceBlocked "Xero reference data is out of date and could not be refreshed. Contact support before preparing draft timesheets."
+    BlockStaleXeroReferenceData _ -> XeroPreparationReferenceBlocked "Xero reference data could not be refreshed. Choose Upload timesheets again to retry. If this keeps happening, contact support."
 
 xeroReferenceSyncActivityText :: XeroReferenceSyncActivity -> Text
 xeroReferenceSyncActivityText = \case

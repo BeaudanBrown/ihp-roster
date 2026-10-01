@@ -74,17 +74,20 @@ data ProfilesController
 data TimesheetsController
     = TimesheetsAction
     | ShowTimesheetWindowAction { anchorDate :: !Text }
+    | ShowTimesheetFiltersAction { anchorDate :: !Text }
     | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
+    | ShowTimesheetStaffContentFragmentAction { anchorDate :: !Text }
     | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
-    | ToggleTimesheetShowSuggestionsAction
     | ToggleTimesheetWageEstimatesAction
+    | ToggleTimesheetManagerModeAction
     | NewTimesheetEntryAction
+    | ChooseBlankTimesheetEntryAction
     | CreateTimesheetEntryAction
-    | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
-    | CreateTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
+    | NewTimesheetEntryFromRosterShiftAction { rosterSlotId :: !(Id RosterSlot) }
+    | CreateTimesheetEntryFromRosterShiftAction { rosterSlotId :: !(Id RosterSlot) }
     | EditTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | ShowTimesheetEntryDeleteConfirmationAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | UpdateTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
@@ -114,6 +117,13 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | ConfirmTimesheetExportDownloadAction
+    | ConfirmTimesheetExportSelectionAction
+    | OpenTimesheetExportSelectionAction
+    | RefreshTimesheetExportSelectionAction
+    | SelectTimesheetExportGroupAction { selectionDay :: Maybe Text }
+    | ClearTimesheetExportGroupAction { selectionDay :: Maybe Text }
+    | GenerateSelectedTimesheetExportAction
     | NewPayrollWorkbookConfigurationAction { anchorDate :: !Text }
     | EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | CreatePayrollWorkbookConfigurationAction
@@ -149,6 +159,10 @@ data StripeWebhooksController
     = StripeWebhookAction
     deriving (Eq, Show, Data)
 
+data ResendWebhooksController
+    = ResendWebhookAction
+    deriving (Eq, Show, Data)
+
 data E2ETestController
     = MarkE2EPasskeyVerifiedAction
     deriving (Eq, Show, Data)
@@ -173,6 +187,12 @@ data AdminController
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | OpenXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SelectXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
+    | ClearXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
+    | SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SubmitXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -247,6 +267,7 @@ data SupportController
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
+    | CreateSupportEmailResendAction { emailDeliveryJobId :: !(Id AppJob) }
     | StartSupportImpersonationAction
     | ExitSupportImpersonationAction
     | SwitchSupportImpersonationAction
@@ -295,6 +316,7 @@ data RosterWeeksController
     | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Text }
+    | ShowRosterSettingsFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction
@@ -317,6 +339,7 @@ data RosterWeeksController
     | DropRosterStaffAction
     | UpdateRosterWarningPreferenceAction
     | UpdateRosterWageEstimatePreferenceAction
+    | ToggleRosterManagerModeAction
     | UpdateRosterOwnLiveShiftHighlightPreferenceAction
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }

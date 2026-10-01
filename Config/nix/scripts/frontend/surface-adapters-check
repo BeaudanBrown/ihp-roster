@@ -38,9 +38,10 @@ for generated_file in "${expected_files[@]}" "${proof_files[@]}"; do
     stylish-haskell -i "$generated_file"
 done
 
-validation_dir="$tmp_dir/.validation"
 validation_ghc_opts="$GHC_OPTS -i$tmp_dir"
-ihp_roster_prepare_verification_cache "surface-adapter-validation" "$validation_ghc_opts" "v1"
+# Temporary subject paths are not compiler configuration. Each invocation still
+# compiles every freshly generated module/proof; unchanged dependencies can stay.
+ihp_roster_prepare_verification_cache "surface-adapter-validation" "$GHC_OPTS" "v1"
 mkdir -p "$IHP_ROSTER_GHC_CACHE_DIR/obj" "$IHP_ROSTER_GHC_CACHE_DIR/hi"
 echo "frontend-surface-adapters-check: typechecking managed modules and private authority proofs" >&2
 ghc -no-link $validation_ghc_opts "${expected_files[@]}" "${proof_files[@]}" \

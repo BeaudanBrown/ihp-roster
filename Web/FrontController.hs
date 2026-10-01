@@ -4,7 +4,8 @@ import Application.Billing.Checkout (venueSubscriptionIsLive)
 import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
 import Application.Helper.BrowserFailure (isBrowserPageRequest)
-import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
+import Application.Helper.Feedback (PrivateFeedbackCount (..),
+                                    fetchPrivateFeedbackCount)
 import Application.Helper.NavigationContextInitialization (deferNavigationContextInitialization)
 import Application.Helper.Profiling (profileActionSpan)
 import IHP.RouterPrelude
@@ -13,28 +14,29 @@ import Web.View.Layout (defaultLayout)
 
 -- Controller Imports
 import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateSocketPathSegment)
-import Web.Controller.Admin () -- Mounted controller instance.
-import Web.Controller.Auth () -- Mounted controller instance.
-import Web.Controller.Billing () -- Mounted controller instance.
-import Web.Controller.E2ETest () -- Mounted controller instance.
-import Web.Controller.Exports () -- Mounted controller instance.
-import Web.Controller.Feedback () -- Mounted controller instance.
-import Web.Controller.Help () -- Mounted controller instance.
-import Web.Controller.LeaveRequests () -- Mounted controller instance.
-import Web.Controller.LiveUpdates () -- Mounted controller instance.
-import Web.Controller.Passkeys () -- Mounted controller instance.
-import Web.Controller.PasswordResets () -- Mounted controller instance.
-import Web.Controller.Profiles () -- Mounted controller instance.
-import Web.Controller.RosterTemplates () -- Mounted controller instance.
-import Web.Controller.RosterWeeks () -- Mounted controller instance.
-import Web.Controller.Sessions () -- Mounted controller instance.
-import Web.Controller.Staff () -- Mounted controller instance.
-import Web.Controller.StaffDocuments () -- Mounted controller instance.
-import Web.Controller.Static () -- Mounted controller instance.
-import Web.Controller.StripeWebhooks () -- Mounted controller instance.
-import Web.Controller.Support () -- Mounted controller instance.
-import Web.Controller.Timesheets () -- Mounted controller instance.
-import Web.Controller.Users () -- Mounted controller instance.
+import Web.Controller.Admin ()
+import Web.Controller.Auth ()
+import Web.Controller.Billing ()
+import Web.Controller.E2ETest ()
+import Web.Controller.Exports ()
+import Web.Controller.Feedback ()
+import Web.Controller.Help ()
+import Web.Controller.LeaveRequests ()
+import Web.Controller.LiveUpdates ()
+import Web.Controller.Passkeys ()
+import Web.Controller.PasswordResets ()
+import Web.Controller.Profiles ()
+import Web.Controller.ResendWebhooks ()
+import Web.Controller.RosterTemplates ()
+import Web.Controller.RosterWeeks ()
+import Web.Controller.Sessions ()
+import Web.Controller.Staff ()
+import Web.Controller.StaffDocuments ()
+import Web.Controller.Static ()
+import Web.Controller.StripeWebhooks ()
+import Web.Controller.Support ()
+import Web.Controller.Timesheets ()
+import Web.Controller.Users ()
 
 instance FrontController WebApplication where
     controllers =
@@ -52,6 +54,7 @@ instance FrontController WebApplication where
         , parseRoute @StaffDocumentsController
         , parseRoute @BillingController
         , parseRoute @StripeWebhooksController
+        , parseRoute @ResendWebhooksController
         , parseRoute @E2ETestController
         , parseRoute @AdminController
         , parseRoute @FeedbackController
@@ -72,6 +75,7 @@ instance InitControllerContext WebApplication where
         -- only validated identity may populate venue and impersonation authority.
         initCurrentVenueContext
         initImpersonationContext
+        initManagementModeContext
         when (isJust (currentUserOrNothing @User)) $
             deferNavigationContextInitialization ?request $
                 profileActionSpan "context.navigation.init" do

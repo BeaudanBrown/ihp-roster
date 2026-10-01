@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Invoked by ghc-build-run; emission uses the snapshot after releasing the graph.
+build_dir="$1"
+ghc_opts="$2"
+snapshot="$3"
+# shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
+ghc $ghc_opts Application/Script/GenerateBepisArchitectureContracts.hs \
+    -main-is Application.Script.GenerateBepisArchitectureContracts \
+    -odir "$build_dir/obj" -hidir "$build_dir/hi" \
+    -o "$build_dir/generate-bepis-architecture-contracts" >/dev/null
+cp --reflink=auto "$build_dir/generate-bepis-architecture-contracts" "$snapshot"

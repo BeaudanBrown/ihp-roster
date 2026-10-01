@@ -62,7 +62,7 @@ jobs:
 
           changed_files="$(git diff --name-only "$predecessor" "$candidate" --)"
           if [[ "$EVENT_NAME" == workflow_dispatch ]] || grep -Eq \
-               '^(Application/Schema\.sql|Application/Migration/|flake\.(nix|lock)$|Config/nix/flake/scripts\.nix$|Config/nix/scripts/db/(migration-rehearsal|test-postgres)$|Config/nix/modules/ihp-roster\.nix$)' \
+               '^(Application/Schema\.sql$|Application/Migration/|flake\.(nix|lock)$|tooling\.project$|tooling/(core|workspace-state|postgres)/|bin/(in-env|tooling-run)$|Config/nix/flake/|Config/nix/scripts/(db/|lib/(workspace|common)\.sh$)|Config/nix/modules/ihp-roster\.nix$|\.github/workflows/test\.yml$)' \
                <<< "$changed_files"; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else

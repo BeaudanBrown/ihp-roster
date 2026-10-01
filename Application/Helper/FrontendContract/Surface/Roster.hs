@@ -20,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterRow
     , RosterSlotsGrid
     , RosterStaffPanel
+    , RosterSettingsContent
     , RosterSurface
     , RosterDayTimelineSurface
     , RosterWeekShell
@@ -132,13 +133,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ImageExportEncodingFailureMessage
     , ImageExportText
     , ImageExportEndEllipsis
-    , WageFilterConfigRole
-    , RosterWageFilterConfig
-    , RosterWageFilterRequest
-    , WageFilterEnabled
-    , WageFilterRefreshTargetIds
-    , WageFilterRequestTargetIds
-    , PinnedStaffKey
     , WeekOverviewPanelRole
     , WeekOverviewDayRole
     , WeekOverviewTodayRole
@@ -180,8 +174,10 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DuplicateRosterShiftToDay
     , DropRosterStaff
     , NavigateRosterWeek
+    , SwitchRosterGroup
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
+    , ToggleRosterManagerMode
     , ToggleRosterOwnLiveShiftHighlight
     , SortRosterWeek
     , ToggleRosterWeekLiveStatus
@@ -206,7 +202,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterCalendarRevision
     , ShowRosterWarnings
     , IsLive
-    , ShowWageEstimates
+    , RosterPayDisplayMode
+    , ManagerModeEnabled
     , HighlightOwnLiveShifts
     , HideStaffAtIdealShifts
     , HideStaffUnavailable
@@ -220,6 +217,7 @@ import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Generated.Types (RosterLayoutModeEnum)
+import qualified Generated.Types as Model
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 
@@ -269,6 +267,7 @@ data RosterDayRail
 data RosterWageRail
 data RosterSlotsGrid
 data RosterStaffPanel
+data RosterSettingsContent
 data RosterDaySection
 data RosterRow
 data RosterDayTimelineContent
@@ -392,14 +391,6 @@ data ImageExportEncodingFailureMessage
 data ImageExportText
 data ImageExportEndEllipsis
 
-data WageFilterConfigRole
-data RosterWageFilterConfig
-data RosterWageFilterRequest
-data WageFilterEnabled
-data WageFilterRefreshTargetIds
-data WageFilterRequestTargetIds
-data PinnedStaffKey
-
 data WeekOverviewPanelRole
 data WeekOverviewDayRole
 data WeekOverviewTodayRole
@@ -439,8 +430,10 @@ data ShiftGroupHighlightSourceRole
 data ShiftGroupHighlightMemberRole
 
 data NavigateRosterWeek
+data SwitchRosterGroup
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
+data ToggleRosterManagerMode
 data ToggleRosterOwnLiveShiftHighlight
 data SortRosterWeek
 data ToggleRosterWeekLiveStatus
@@ -464,7 +457,8 @@ data OuterHTML
 data ShowRosterWarnings
 data HighlightOwnLiveShifts
 data IsLive
-data ShowWageEstimates
+data RosterPayDisplayMode
+data ManagerModeEnabled
 data HideStaffAtIdealShifts
 data HideStaffUnavailable
 data HideStaffOnApprovedLeave
@@ -513,6 +507,8 @@ type RosterFragmentBundle =
          , 'Eager
          , 'Contains RosterContent
          , 'Contains RosterStaffPanel
+         , 'Contains RosterSettingsContent
+         , 'Contains RosterTemplateLibraryFragment
          , ContainsSurface SelfServiceLeave.SelfServiceLeave
          ]
      , Fragment RosterContent
@@ -552,7 +548,16 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ] ]
+     , Fragment RosterSettingsContent '[]
+        '[ 'MountTarget RosterSettingsContent '[]
+         , 'Eager, 'Live
+         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ]
+         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
         '[]
@@ -600,6 +605,17 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
+     , Action SwitchRosterGroup
+        '[ Field AnchorDate 'WireDay
+         , Field RosterGroupId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTrigger 'HtmxChange
+         , 'HtmxTarget ('HtmxId RosterWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlTrue
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
      , Action ToggleRosterWarnings
         '[ Field ShowRosterWarnings 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
@@ -608,7 +624,14 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleRosterWageEstimates
-        '[ Field ShowWageEstimates 'WireBool ]
+        '[ Field RosterPayDisplayMode ('WireClosed Model.RosterPayDisplayMode) ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action ToggleRosterManagerMode
+        '[ Field ManagerModeEnabled 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -913,17 +936,6 @@ type RosterImageExportBrowserBundle =
          ]
      ]
 
-type RosterWageFilterBrowserBundle =
-    '[ BrowserRole WageFilterConfigRole
-     , BrowserInboundDto RosterWageFilterConfig
-        '[ Field WageFilterEnabled 'WireBool
-         , Field WageFilterRefreshTargetIds ('WireList 'WireText)
-         , Field WageFilterRequestTargetIds ('WireList 'WireText)
-         ]
-     , BrowserOutboundDto RosterWageFilterRequest
-        '[ OptionalField PinnedStaffKey 'WireText ]
-     ]
-
 type RosterWeekOverviewBrowserBundle =
     '[ BrowserRole WeekOverviewPanelRole
      , BrowserRole WeekOverviewDayRole
@@ -983,7 +995,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

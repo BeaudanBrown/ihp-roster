@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Application.Helper.PasskeySetupTokens
     ( PasskeySetupTokenPurpose (..)
     , findActivePasskeySetupToken
@@ -26,13 +28,14 @@ issuePasskeySetupToken ::
 issuePasskeySetupToken purpose targetUser requestedByUserId venueId =
     issuePasskeySetupTokenWith purpose targetUser requestedByUserId venueId (const (pure ()))
 
+-- The audit hook is invoked only after the token transaction owns ModelContext.
 issuePasskeySetupTokenWith ::
     (?modelContext :: ModelContext) =>
     PasskeySetupTokenPurpose ->
     User ->
     Maybe (Id User) ->
     Maybe (Id Venue) ->
-    (PasskeySetupToken -> IO ()) ->
+    ((?modelContext :: ModelContext) => PasskeySetupToken -> IO ()) ->
     IO (PasskeySetupToken, Text)
 issuePasskeySetupTokenWith purpose targetUser requestedByUserId venueId afterIssue = do
     rawToken <- generateOpaqueToken

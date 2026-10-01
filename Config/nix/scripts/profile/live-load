@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE_ORIGINAL_ARGS=("$@")
 
 export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 PROFILE_LIVE_RUN_ID="${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
@@ -83,6 +84,15 @@ EOF
     esac
 done
 
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(realpath "$(git rev-parse --show-toplevel)")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    export PROFILE_LIVE_RUN_ID PROFILE_LIVE_OUTPUT_DIR PROFILE_DATABASE_NAME
+    exec "$launcher" runners run --family profile-live --workspace "$workspace" \
+        --run-id "$PROFILE_LIVE_RUN_ID" --artifact-dir "$(realpath -m "$PROFILE_LIVE_OUTPUT_DIR/failure")" -- \
+        env BEPIS_RUNNER_LEASED=1 "$0" "${PROFILE_ORIGINAL_ARGS[@]}"
+fi
+
 case "$PROFILE_DATABASE_NAME" in
     app_profile|app_profile_*)
         ;;
@@ -96,6 +106,11 @@ esac
 [[ "$PROFILE_LIVE_SUBSCRIBERS" =~ ^[1-9][0-9]*$ ]] || { echo "--subscribers must be positive" >&2; exit 64; }
 [[ "$PROFILE_LIVE_MUTATORS" =~ ^[1-9][0-9]*$ ]] || { echo "--mutators must be positive" >&2; exit 64; }
 [ "$PROFILE_LIVE_MUTATORS" -le "$PROFILE_LIVE_SUBSCRIBERS" ] || { echo "--mutators cannot exceed --subscribers" >&2; exit 64; }
+runner_binary="${BEPIS_RUNNERS_BINARY:-$("${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}" runners --print-binary)}"
+"$runner_binary" profile-plan --kind live --scenario "$PROFILE_LIVE_SCENARIO" \
+    --rate "$PROFILE_LIVE_MUTATORS" --duration "$PROFILE_LIVE_MAX_DURATION" --vus "$PROFILE_LIVE_SUBSCRIBERS" \
+    --max-vus "$PROFILE_LIVE_SUBSCRIBERS" >/dev/null
+
 case "$PROFILE_LIVE_SCENARIO" in
     support)
         [ "$PROFILE_LIVE_MUTATORS" -le 1 ] || { echo "support allows one mutator for causal delivery attribution" >&2; exit 64; }
@@ -167,19 +182,12 @@ if [ -n "$PROFILE_BASE_URL" ]; then
     PROFILE_SERVER_LOG_START_BYTES=$(stat -c %s "$PROFILE_SERVER_LOG")
     PROFILE_SERVER_PID="$PROFILE_SERVER_PGID"
 else
-    (
-        export PROFILE_DATABASE_NAME
-        export PROFILE_DB_SOCKET
-        export IHP_ROSTER_PROFILING=1
-        export LIVE_INVALIDATION_PROFILING="${LIVE_INVALIDATION_PROFILING:-1}"
-        export GHCRTS="${GHCRTS:+$GHCRTS }-T"
-        setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
-        echo "$!" > "$PROFILE_PID_FILE"
-        wait "$!"
-    ) &
-    PROFILE_WRAPPER_PID="$!"
-
-    PROFILE_SERVER_PID=""
+    export PROFILE_DATABASE_NAME PROFILE_DB_SOCKET
+    export IHP_ROSTER_PROFILING=1
+    export LIVE_INVALIDATION_PROFILING="${LIVE_INVALIDATION_PROFILING:-1}"
+    export GHCRTS="${GHCRTS:+$GHCRTS }-T"
+    start_profile_server profile-server profile-test-server
+    PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
     for _ in $(seq 1 180); do
         if [ -f "$PROFILE_PID_FILE" ]; then
             PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
@@ -200,7 +208,6 @@ else
     if [ -z "$PROFILE_BASE_URL" ]; then
         echo "Timed out waiting for live load app server" >&2
         tail -n 120 "$PROFILE_LOG" >&2 || true
-        kill "$PROFILE_WRAPPER_PID" 2>/dev/null || true
         exit 1
     fi
 fi

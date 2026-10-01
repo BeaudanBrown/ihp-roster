@@ -8,24 +8,30 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surfa
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
-                                           upsertCurrentUserTimesheetShowSuggestions,
-                                           upsertCurrentUserTimesheetShowWageEstimates)
+                                           upsertCurrentUserTimesheetWageDisplayMode)
 import Application.VenueTime.Model
+import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
-import Web.Timesheets.Filters (TimesheetViewFilters (..))
+import Web.Timesheets.Filters (TimesheetViewFilters (..),
+                               emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
                              timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
+                             timesheetStaffContentFragmentUrl,
                              timesheetToolbarFragmentUrl, timesheetWindowUrl,
-                             timesheetWindowUrlWithFilters)
+                             timesheetWindowUrlWithFilters,
+                             withTimesheetFilters)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
-import Web.Timesheets.WageEstimates (canViewTimesheetWageEstimates)
+import Web.Timesheets.Validation (requireBlankTimesheetClassification)
+import Web.Timesheets.WageEstimates (canConfigureTimesheetWageEstimates)
 import Web.View.Timesheets.Edit (renderTimesheetDeleteConfirmation)
+import Web.View.Timesheets.Index (TimesheetFiltersView (..),
+                                  renderTimesheetFiltersDialog)
 
 reportTimesheetSurfaceRequestErrors ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -34,13 +40,8 @@ reportTimesheetSurfaceRequestErrors ::
 reportTimesheetSurfaceRequestErrors errors =
     setErrorMessage ("Check the timesheet controls: " <> surfaceRequestFieldErrorsMessage errors)
 
-staffFilterParamNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
-staffFilterParamNeedsCanonicalRedirect requested canonical =
-    hasParam "staffFilterId" && (isNothing requested || requested /= canonical)
-
-timesheetRequestNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
-timesheetRequestNeedsCanonicalRedirect requested canonical =
-    staffFilterParamNeedsCanonicalRedirect requested canonical
+timesheetRequestNeedsCanonicalRedirect :: TimesheetViewFilters -> TimesheetViewFilters -> Bool
+timesheetRequestNeedsCanonicalRedirect = (/=)
 
 requireTimesheetSurfaceState ::
     (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) =>
@@ -61,14 +62,27 @@ timesheetWindowStartForAnchor anchorDate = do
     venueConfig <- fetchVenueConfig
     pure (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate)
 
-timesheetProjectionRequestForWindow :: Day -> Maybe UUID -> TimesheetProjectionRequest
-timesheetProjectionRequestForWindow windowStart staffFilterId =
+canonicalTimesheetFragmentFilters :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => (Maybe UUID -> Text) -> IO TimesheetViewFilters
+canonicalTimesheetFragmentFilters fragmentUrl = do
+    let requested = timesheetFiltersFromRequest
+    anchorDate <- windowStartFromParamOrCurrent
+    filters <- canonicalTimesheetFilters anchorDate requested
+    when (timesheetRequestNeedsCanonicalRedirect requested filters) do
+        earlyReturn $ redirectToPath (withTimesheetFilters filters (fragmentUrl Nothing))
+    pure filters
+
+timesheetProjectionRequestForWindow :: Day -> TimesheetViewFilters -> TimesheetProjectionRequest
+timesheetProjectionRequestForWindow windowStart filters =
     TimesheetProjectionRequest
         { projectionWindowStart = windowStart
         , projectionWindowEnd = addDays 7 windowStart
-        , projectionStaffFilterId = staffFilterId
-        , projectionRosterGroupFilterId = Nothing
+        , projectionFilters = filters
         }
+
+filtersFromFields fields = TimesheetViewFilters
+    (fromMaybe [] (surfaceFieldValue @Surface.StaffFilterIds fields))
+    (fromMaybe [] (surfaceFieldValue @Surface.RosterGroupFilterIds fields))
+    (fromMaybe [] (surfaceFieldValue @Surface.ShiftTypeFilterIds fields))
 
 instance Controller TimesheetsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -82,7 +96,7 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         today <- currentOperationalDayForVenue venueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn today
-        filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+        filters <- canonicalTimesheetFilters windowStart timesheetFiltersFromRequest
         if isHtmxRequest
             then renderTimesheetWindowPage windowStart filters
             else redirectToPath (timesheetWindowUrlWithFilters today filters)
@@ -91,40 +105,48 @@ instance Controller TimesheetsController where
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
         let requestedFilters = timesheetFiltersFromRequest
-        filters <- canonicalTimesheetFilters requestedFilters
-        if timesheetRequestNeedsCanonicalRedirect requestedFilters.filterStaffId filters.filterStaffId
-                || (hasParam "rosterGroupFilterId" && requestedFilters.filterRosterGroupId /= filters.filterRosterGroupId)
+        filters <- canonicalTimesheetFilters anchorDate requestedFilters
+        if timesheetRequestNeedsCanonicalRedirect requestedFilters filters
             then redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)
             else renderTimesheetWindowPage (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate) filters
+
+    action currentAction@ShowTimesheetFiltersAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        windowStart <- timesheetWindowStartForAnchor anchorDate
+        projection <- fetchTimesheetWeekProjection (timesheetProjectionRequestForWindow windowStart timesheetFiltersFromRequest)
+        let view = timesheetIndexView projection
+        if isHtmxRequest
+            then respondHtml (renderTimesheetFiltersDialog view)
+            else render (TimesheetFiltersView view)
 
     action currentAction@ShowtimesheetToolbarLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         windowStart <- timesheetWindowStartForAnchor anchorDate
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ redirectToPath (timesheetToolbarFragmentUrl anchorDate selectedStaffFilterId)
-        let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
+        filters <- canonicalTimesheetFragmentFilters (timesheetToolbarFragmentUrl anchorDate)
+        let requestKey = timesheetProjectionRequestForWindow windowStart filters
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
     action currentAction@ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         windowStart <- timesheetWindowStartForAnchor anchorDate
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ redirectToPath (timesheetSidePanelFragmentUrl anchorDate selectedStaffFilterId)
-        let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
+        filters <- canonicalTimesheetFragmentFilters (timesheetSidePanelFragmentUrl anchorDate)
+        let requestKey = timesheetProjectionRequestForWindow windowStart filters
         respondWithTimesheetFragment requestKey TimesheetProjectionSidePanel
+
+    action currentAction@ShowTimesheetStaffContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        ensureManagerRole
+        ensureManagementMode
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        windowStart <- timesheetWindowStartForAnchor anchorDate
+        filters <- canonicalTimesheetFragmentFilters (timesheetStaffContentFragmentUrl anchorDate)
+        let requestKey = timesheetProjectionRequestForWindow windowStart filters
+        respondWithTimesheetFragment requestKey TimesheetProjectionStaffContent
 
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         windowStart <- timesheetWindowStartForAnchor anchorDate
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ redirectToPath (timesheetDayColumnsFragmentUrl anchorDate selectedStaffFilterId)
-        let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
+        filters <- canonicalTimesheetFragmentFilters (timesheetDayColumnsFragmentUrl anchorDate)
+        let requestKey = timesheetProjectionRequestForWindow windowStart filters
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
     action currentAction@ShowTimesheetDaySectionFragmentAction { anchorDate = anchorDateParam, operationalDate = operationalDateParam } = runBepis currentAction BepisFragmentAction do
@@ -133,11 +155,8 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
         let dayOffset = fromInteger (diffDays operationalDate windowStart)
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ redirectToPath (timesheetDaySectionFragmentUrl anchorDate operationalDate selectedStaffFilterId)
-        let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
+        filters <- canonicalTimesheetFragmentFilters (timesheetDaySectionFragmentUrl anchorDate operationalDate)
+        let requestKey = timesheetProjectionRequestForWindow windowStart filters
         let fragment = TimesheetProjectionDaySection dayOffset
         respondWithTimesheetFragment requestKey fragment
 
@@ -149,28 +168,14 @@ instance Controller TimesheetsController where
             Right fields -> do
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
+                filters <- canonicalTimesheetFilters anchorDate (filtersFromFields fields)
                 upsertCurrentUserTimesheetShowApproved (not (surfaceFieldValue @Surface.HideApproved fields))
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
-                    else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
-
-    action currentAction@ToggleTimesheetShowSuggestionsAction = runBepis currentAction BepisMutationAction do
-        case TimesheetsAction.parseToggleTimesheetShowSuggestionsActionParams of
-            Left errors -> do
-                reportTimesheetSurfaceRequestErrors errors
-                redirectTo TimesheetsAction
-            Right fields -> do
-                let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
-                timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
-                upsertCurrentUserTimesheetShowSuggestions (surfaceFieldValue @Surface.ShowTimesheetSuggestions fields)
-                if isHtmxRequest
-                    then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
-                    else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
+                    else redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)
 
     action currentAction@ToggleTimesheetWageEstimatesAction = runBepis currentAction BepisMutationAction do
-        accessDeniedUnless canViewTimesheetWageEstimates
+        accessDeniedUnless canConfigureTimesheetWageEstimates
         case TimesheetsAction.parseToggleTimesheetWageEstimatesActionParams of
             Left errors -> do
                 reportTimesheetSurfaceRequestErrors errors
@@ -178,48 +183,73 @@ instance Controller TimesheetsController where
             Right fields -> do
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
-                upsertCurrentUserTimesheetShowWageEstimates (surfaceFieldValue @Surface.ShowTimesheetWageEstimates fields)
+                filters <- canonicalTimesheetFilters anchorDate (filtersFromFields fields)
+                accessDeniedUnless canConfigureTimesheetWageEstimates
+                upsertCurrentUserTimesheetWageDisplayMode (surfaceFieldValue @Surface.TimesheetWageDisplayMode fields)
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
                     else redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)
 
+    action currentAction@ToggleTimesheetManagerModeAction = runBepis currentAction BepisPreferenceAction do
+        case TimesheetsAction.parseToggleTimesheetManagerModeActionParams of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectTo TimesheetsAction
+            Right fields -> do
+                let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
+                updated <- upsertCurrentUserManagerMode (surfaceFieldValue @Surface.ManagerModeEnabled fields)
+                accessDeniedUnless updated
+                let canonicalUrl = timesheetWindowUrlWithFilters anchorDate emptyTimesheetViewFilters { filterShiftTypeIds = fromMaybe [] (surfaceFieldValue @Surface.ShiftTypeFilterIds fields) }
+                if isHtmxRequest
+                    then do
+                        setHeader ("HX-Redirect", cs canonicalUrl)
+                        renderPlain ""
+                    else redirectToPath canonicalUrl
+
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
         windowStart <- windowStartFromParamOrCurrent
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
+        filters <- canonicalTimesheetFilters windowStart timesheetFiltersFromRequest
+        let selectedStaffFilterId = listToMaybe filters.filterStaffIds
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ case maybeWorkedOn of
-                Just workedOn -> redirectToPath (newTimesheetEntryUrl workedOn workedOn selectedStaffFilterId)
-                Nothing       -> redirectToTimesheetWindow windowStart selectedStaffFilterId
-        prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn
-            >>= respondWithNewTimesheetForm windowStart selectedStaffFilterId
+        case maybeWorkedOn of
+            Nothing -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left NoTimesheetDay)
+            Just workedOn ->
+                prepareTimesheetChooser selectedStaffFilterId workedOn >>= respondWithTimesheetChooser windowStart selectedStaffFilterId
+
+    action currentAction@ChooseBlankTimesheetEntryAction = runBepis currentAction BepisFormAction do
+        windowStart <- windowStartFromParamOrCurrent
+        workedOn <- maybe (accessDeniedUnless False >> pure windowStart) pure (paramOrNothing @Day "workedOn")
+        requestedStaffId <- maybe (accessDeniedUnless False >> pure UUID.nil) pure (paramOrNothing @UUID "staffFilterId")
+        filters <- canonicalTimesheetFilters windowStart timesheetFiltersFromRequest
+        let selectedStaffFilterId = listToMaybe filters.filterStaffIds
+        classification <- requireBlankTimesheetClassification
+        prepareChosenBlankTimesheetForm requestedStaffId workedOn classification >>= \case
+            Nothing -> accessDeniedUnless False >> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left NoEnabledTimesheetStaff)
+            Just outcome -> respondWithNewTimesheetForm windowStart selectedStaffFilterId outcome
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         context <- requireTimesheetMutationContext
         createOrdinaryTimesheetEntry context >>= respondWithTimesheetCreateOutcome context
 
-    action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        prepareSuggestedTimesheetForm rosterSlotId selectedStaffFilterId (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId)
-            >>= respondWithSuggestedTimesheetForm selectedStaffFilterId
+    action currentAction@NewTimesheetEntryFromRosterShiftAction { rosterSlotId } = runBepis currentAction BepisFormAction do
+        windowStart <- windowStartFromParamOrCurrent
+        filters <- canonicalTimesheetFilters windowStart timesheetFiltersFromRequest
+        let selectedStaffFilterId = listToMaybe filters.filterStaffIds
+        prepareRosterPrefillTimesheetForm rosterSlotId selectedStaffFilterId False
+            >>= respondWithRosterPrefillTimesheetForm selectedStaffFilterId
 
-    action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateTimesheetEntryFromRosterShiftAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromSuggestionState
+        state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromRosterShiftState
         context <- requireTimesheetSurfaceContext state
-        createSuggestedTimesheetEntry context rosterSlotId >>= respondWithTimesheetSuggestionOutcome context
+        createRosterPrefillTimesheetEntry context rosterSlotId >>= respondWithTimesheetRosterPrefillOutcome context
 
     action currentAction@EditTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
         timesheetEntry <- fetchEditableTimesheetEntry timesheetEntryId
         let workedOn = timesheetEntryOperationalDate timesheetEntry
-        let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            earlyReturn $ redirectToPath (editTimesheetEntryUrl timesheetEntryId workedOn selectedStaffFilterId)
+        filters <- canonicalTimesheetFilters workedOn timesheetFiltersFromRequest
+        let selectedStaffFilterId = listToMaybe filters.filterStaffIds
         prepareEditTimesheetForm selectedStaffFilterId timesheetEntry >>= respondWithEditTimesheetForm
 
     action currentAction@UpdateTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
@@ -233,7 +263,7 @@ instance Controller TimesheetsController where
         case parseAppShellActionParams @OpenTimesheetDeleteConfirmationDialog of
             Left errors -> do
                 reportTimesheetSurfaceRequestErrors errors
-                redirectToPath (timesheetWindowUrl (param @Day "anchorDate") timesheetFiltersFromRequest.filterStaffId)
+                redirectToPath (timesheetWindowUrlWithFilters (param @Day "anchorDate") timesheetFiltersFromRequest)
             Right _ -> do
                 timesheetEntry <- fetchEditableTimesheetEntry timesheetEntryId
                 context <- requireTimesheetMutationContext
@@ -241,7 +271,7 @@ instance Controller TimesheetsController where
                     renderTimesheetDeleteConfirmation
                         timesheetEntry
                         (param @Int "rosterCalendarRevision")
-                        context.timesheetFilters.filterStaffId
+                        context.timesheetFilters
 
     action currentAction@DeleteTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -251,7 +281,7 @@ instance Controller TimesheetsController where
         respondWithTimesheetCompletion context result "Timesheet entry removed" True
 
     action currentAction@ApproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
@@ -261,7 +291,7 @@ instance Controller TimesheetsController where
         reviewTimesheetEntry context ApproveTimesheet timesheetEntry >>= respondWithTimesheetReviewOutcome context
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId

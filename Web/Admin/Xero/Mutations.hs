@@ -18,6 +18,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
+import Application.Xero.Incident (reconcileXeroConnectionIncidentInCurrentTransaction)
 import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
 import Application.Xero.ReferenceSyncRequest
 import Control.Monad (void)
@@ -70,21 +71,23 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
                 |> set #xeroConnectionRemoteId retainedRemoteConnectionId
                 |> set #lastError Nothing
                 |> updateRecord
+        void (reconcileXeroConnectionIncidentInCurrentTransaction now updated)
         staleConnections <-
             query @XeroConnection
                 |> filterWhere (#venueId, updated.venueId)
                 |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"])
                 |> filterWhereNot (#id, updated.id)
                 |> fetch
-        forM_ staleConnections \staleConnection ->
-            staleConnection
-                |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
-                |> set #disconnectedAt (Just now)
-                |> set #encryptedAccessToken Nothing
-                |> set #lastError (Just "Superseded by local disconnect")
-                |> updateRecord
-                |> void
+        forM_ staleConnections \staleConnection -> do
+            disconnected <-
+                staleConnection
+                    |> set #connectionStatus "disconnected"
+                    |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
+                    |> set #disconnectedAt (Just now)
+                    |> set #encryptedAccessToken Nothing
+                    |> set #lastError (Just "Superseded by local disconnect")
+                    |> updateRecord
+            void (reconcileXeroConnectionIncidentInCurrentTransaction now disconnected)
         void $
             recordCurrentUserAuditEvent
                 XeroConnectionDisconnectedAudit
@@ -134,13 +137,14 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
                 |> fetch
         forM_ currentConnections \connection ->
             when (Just connection.id /= ((.id) <$> existingSameTenant)) do
-                connection
-                    |> set #connectionStatus "disconnected"
-                    |> set #disconnectedByUserId (Just (unpackId actorUserId))
-                    |> set #disconnectedAt (Just now)
-                    |> set #lastError (Just "Superseded by reconnect")
-                    |> updateRecord
-                    |> void
+                disconnected <-
+                    connection
+                        |> set #connectionStatus "disconnected"
+                        |> set #disconnectedByUserId (Just (unpackId actorUserId))
+                        |> set #disconnectedAt (Just now)
+                        |> set #lastError (Just "Superseded by reconnect")
+                        |> updateRecord
+                void (reconcileXeroConnectionIncidentInCurrentTransaction now disconnected)
         updatedState <- consumeXeroOAuthStateMutation oauthState now
         let fillConnection record =
                 record
@@ -163,6 +167,7 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
             case existingSameTenant of
                 Just existing -> fillConnection existing |> updateRecord
                 Nothing -> fillConnection (newRecord @XeroConnection) |> createRecord
+        void (reconcileXeroConnectionIncidentInCurrentTransaction now connection)
         void $ enqueueXeroReferenceSyncJob (Just actorUserId) connection
         void $
             recordCurrentUserAuditEvent

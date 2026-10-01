@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
@@ -89,7 +90,7 @@ createSavedPayrollWorkbookConfigurationInCurrentTransaction input =
 
 createSavedPayrollWorkbookConfigurationWithPersistence ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    (IO SavedPayrollWorkbookConfiguration -> IO (Either HasqlSessionError SavedPayrollWorkbookConfiguration)) ->
+    (((?modelContext :: ModelContext) => IO SavedPayrollWorkbookConfiguration) -> IO (Either HasqlSessionError SavedPayrollWorkbookConfiguration)) ->
     NewPayrollWorkbookConfiguration ->
     IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
 createSavedPayrollWorkbookConfigurationWithPersistence persist input

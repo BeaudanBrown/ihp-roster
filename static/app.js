@@ -66,10 +66,10 @@
     return isAdminXeroAdminXeroScopeScope(value);
   }
   function isTimesheetsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && typeof value["params"]["operationalDate"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-staff-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && typeof value["params"]["operationalDate"] === "string");
   }
   function isRosterSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-settings-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
   }
   function isRosterDayTimelineSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
@@ -96,7 +96,7 @@
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isStaffSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-pay-warning-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminPageSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
@@ -165,6 +165,13 @@
     if (isDialogSubmitConfig(value)) return value;
     throw new Error("Invalid DialogSubmitConfig");
   }
+  function isDialogDismissalGuardConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"], ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"]) && typeof value["formId"] === "string" && typeof value["guardImmediately"] === "boolean" && typeof value["confirmationTitle"] === "string" && typeof value["keepEditingLabel"] === "string" && typeof value["discardLabel"] === "string";
+  }
+  function parseDialogDismissalGuardConfig(value) {
+    if (isDialogDismissalGuardConfig(value)) return value;
+    throw new Error("Invalid DialogDismissalGuardConfig");
+  }
   function isNavigationLoadingConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["loadingTitle", "loadingMessage"], ["loadingTitle", "loadingMessage"]) && typeof value["loadingTitle"] === "string" && typeof value["loadingMessage"] === "string";
   }
@@ -187,6 +194,8 @@
   var dialogCloseDomAttr = "data-bepis-dialog-close";
   var dialogSubmitDomAttr = "data-bepis-dialog-submit";
   var dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config";
+  var dialogDismissalGuardDomAttr = "data-bepis-dialog-dismissal-guard";
+  var dialogDismissalGuardConfigDomAttr = "data-bepis-dialog-dismissal-guard-config";
   var dialogBlockingDomAttr = "data-bepis-dialog-blocking";
   var dialogKeyboardDomAttr = "data-bepis-dialog-keyboard";
   var dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region";
@@ -275,6 +284,16 @@
   var toggleTransportDomAttr = "data-bepis-toggle-transport";
   var toggleBreakRegionDomAttr = "data-bepis-toggle-break-region";
   var toggleConfigDomAttr = "data-bepis-toggle-config";
+  var checkboxListRootDomAttr = "data-bepis-checkbox-list-root";
+  var checkboxListGroupDomAttr = "data-bepis-checkbox-list-group";
+  var checkboxListItemDomAttr = "data-bepis-checkbox-list-item";
+  var checkboxListGroupToggleDomAttr = "data-bepis-checkbox-list-group-toggle";
+  var checkboxListSelectAllDomAttr = "data-bepis-checkbox-list-select-all";
+  var checkboxListClearAllDomAttr = "data-bepis-checkbox-list-clear-all";
+  var checkboxListCountDomAttr = "data-bepis-checkbox-list-count";
+  var checkboxListTotalDomAttr = "data-bepis-checkbox-list-total";
+  var checkboxListWeightDomAttr = "data-bepis-checkbox-list-weight";
+  var checkboxListSubmitDomAttr = "data-bepis-checkbox-list-submit";
   function isTimePickerConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"], ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && typeof value["rangeStart"] === "string" && typeof value["rangeEnd"] === "string" && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && typeof value["emptyLabel"] === "string";
   }
@@ -453,6 +472,12 @@
   var xeroCandidateFilterCandidateDomAttr = "data-bepis-xero-candidate-filter-candidate";
   var xeroCandidateFilterConfigDomAttr = "data-bepis-xero-candidate-filter-config";
   var xeroCandidateFilterEmptyDomAttr = "data-bepis-xero-candidate-filter-empty";
+  var filterSelectionSectionDomAttr = "data-bepis-filter-selection-section";
+  var filterSelectionItemDomAttr = "data-bepis-filter-selection-item";
+  var filterSelectionClearDomAttr = "data-bepis-filter-selection-clear";
+  var filterSelectionAllDomAttr = "data-bepis-filter-selection-all";
+  var filterSelectionSelectedDomAttr = "data-bepis-filter-selection-selected";
+  var filterSelectionCountDomAttr = "data-bepis-filter-selection-count";
   var liveUpdateSocketPath = "live-updates";
   var surfaceConfigDomAttr = "data-bepis-surface-config";
   function encodeLiveUpdateCommand(value) {
@@ -495,16 +520,6 @@
   function parseRosterImageExportCell(value) {
     if (isRosterImageExportCell(value)) return value;
     throw new Error("Invalid RosterImageExportCell");
-  }
-  function isRosterWageFilterConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"], ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"]) && typeof value["wageFilterEnabled"] === "boolean" && (Array.isArray(value["wageFilterRefreshTargetIds"]) && value["wageFilterRefreshTargetIds"].every((item) => typeof item === "string")) && (Array.isArray(value["wageFilterRequestTargetIds"]) && value["wageFilterRequestTargetIds"].every((item) => typeof item === "string"));
-  }
-  function parseRosterWageFilterConfig(value) {
-    if (isRosterWageFilterConfig(value)) return value;
-    throw new Error("Invalid RosterWageFilterConfig");
-  }
-  function encodeRosterWageFilterRequest(value) {
-    return value;
   }
   function isRosterWeekOverviewPanelConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["weekOverviewCurrentDate"], ["weekOverviewCurrentDate"]) && typeof value["weekOverviewCurrentDate"] === "string";
@@ -616,7 +631,6 @@
   var rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection";
   var rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row";
   var rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell";
-  var rosterWageFilterConfigDomAttr = "data-bepis-roster-wage-filter-config";
   var rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel";
   var rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day";
   var rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today";
@@ -729,7 +743,7 @@
   var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-settings-content", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-pay-warning-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
   }
@@ -738,7 +752,7 @@
   }
   var FrontendSurfaceInteractionRegistry = { "roster": { "sourceRefs": [{ "ref": "shift-drag-source", "session": "drag", "intent": "move-roster-shift-to-slot", "sourceField": "sourceItemKey", "compatibleDropzones": ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"], "modifierVariants": [{ "semantic": "copy", "intent": "duplicate-roster-shift-to-day", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] }, { "ref": "staff-drag-source", "session": "drag", "intent": "drop-roster-staff", "sourceField": "sourceItemKey", "compatibleDropzones": ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"], "modifierVariants": [] }], "dropzoneRefs": [{ "ref": "shift-slot-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "staff-create-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "day-column-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "existing-shift-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "delete-shift-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }], "activationRefs": [{ "ref": "roster-layout-mode-activation", "intent": "set-roster-layout-mode", "valueField": "rosterLayoutMode", "trigger": "click" }], "sessionKinds": [{ "kind": "drag", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] }, "roster-day-timeline": { "sourceRefs": [{ "ref": "drag-source", "session": "drag", "intent": "move-roster-timeline-shift", "sourceField": "sourceItemKey", "compatibleDropzones": ["drag-dropzone"], "modifierVariants": [] }], "dropzoneRefs": [{ "ref": "drag-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }], "activationRefs": [], "sessionKinds": [{ "kind": "drag", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] } };
   function isFrontendSurfaceFragmentProtection(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && value["kind"] === "replace" || isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && value["kind"] === "replace" || isRecord(value) && hasExactKeys(value, ["kind", "savedHeader"], ["kind", "savedHeader"]) && value["kind"] === "dirty-form" && typeof value["savedHeader"] === "string" || isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
   function isTimesheetsMountedFragmentConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "timesheets" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
@@ -2804,6 +2818,7 @@
         case "focused-field":
           return focusedFieldProtection(fragment.protection);
         case "replace":
+        case "dirty-form":
           return null;
         default:
           return assertNever(fragment.protection);
@@ -2843,15 +2858,113 @@
     return value instanceof HTMLInputElement || value instanceof HTMLSelectElement || value instanceof HTMLTextAreaElement;
   }
 
+  // frontend/ts/shared/form-state.ts
+  function createUnsavedChangeTracker(baselineSnapshot, guardImmediately) {
+    return {
+      baselineSnapshot,
+      isGuarded: (currentSnapshot) => guardImmediately || currentSnapshot !== baselineSnapshot
+    };
+  }
+  function normalizedFormSnapshot(form) {
+    const entries = Array.from(new FormData(form).entries()).map(([name, value], index) => ({
+      name,
+      value: typeof value === "string" ? value.replace(/\r\n?/g, "\n") : JSON.stringify({ name: value.name, size: value.size, type: value.type, lastModified: value.lastModified }),
+      index
+    }));
+    entries.sort((left, right) => left.name.localeCompare(right.name) || left.index - right.index);
+    return JSON.stringify(entries.map(({ name, value }) => [name, value]));
+  }
+
+  // frontend/ts/live-updates/forms.ts
+  function createDirtyFormProtection(document2, saved) {
+    const forms = /* @__PURE__ */ new WeakMap();
+    const submissions = /* @__PURE__ */ new WeakMap();
+    function ownedForms(target, owner) {
+      return Array.from(target.querySelectorAll("form")).filter((form) => form.closest(`[${surfaceConfigDomAttr}]`) === owner);
+    }
+    function register(owner, target, policy) {
+      for (const form of ownedForms(target, owner)) {
+        if (!forms.has(form)) forms.set(form, {
+          owner,
+          targetId: target.id,
+          policy,
+          baseline: normalizedFormSnapshot(form),
+          revision: 0,
+          pending: /* @__PURE__ */ new Set(),
+          invalid: false
+        });
+      }
+    }
+    function protectedTarget(target, owner) {
+      const candidates = ownedForms(target, owner);
+      return candidates.length === 0 || candidates.some((form) => {
+        const state = forms.get(form);
+        return !state || state.invalid || state.pending.size > 0 || normalizedFormSnapshot(form) !== state.baseline;
+      });
+    }
+    function changed(target) {
+      const form = target instanceof HTMLFormElement ? target : target.closest("form");
+      const state = form ? forms.get(form) : void 0;
+      if (state) state.revision += 1;
+    }
+    function handleEvent(event) {
+      const xhr = detailTarget(event, "xhr");
+      if (!(xhr instanceof XMLHttpRequest)) return;
+      if (event.type === "htmx:beforeRequest") {
+        const elt = detailTarget(event, "elt");
+        const form2 = elt instanceof HTMLFormElement ? elt : elt instanceof Element ? elt.closest("form") : null;
+        const state2 = form2 ? forms.get(form2) : void 0;
+        if (!form2 || !state2) return;
+        state2.pending.add(xhr);
+        submissions.set(xhr, { form: form2, state: state2, snapshot: normalizedFormSnapshot(form2), revision: state2.revision, saved: false });
+        return;
+      }
+      const submission = submissions.get(xhr);
+      if (!submission) return;
+      const { form, state } = submission;
+      if (!state.owner.isConnected || !form.isConnected) {
+        state.pending.delete(xhr);
+        return;
+      }
+      if (event.type === "htmx:beforeOnLoad") {
+        submission.saved = xhr.status >= 200 && xhr.status < 300 && xhr.getResponseHeader(state.policy.savedHeader) === "true";
+        if (submission.saved) {
+          state.baseline = submission.snapshot;
+          state.invalid = false;
+          saved(state.owner, state.targetId);
+        }
+      }
+      if (event.type === "htmx:beforeSwap" && !submission.saved) {
+        if (state.revision !== submission.revision || normalizedFormSnapshot(form) !== submission.snapshot) {
+          event.preventDefault();
+        }
+      }
+      if (event.type === "htmx:afterRequest") state.pending.delete(xhr);
+    }
+    function afterSwap(event) {
+      const xhr = detailTarget(event, "xhr");
+      const submission = xhr instanceof XMLHttpRequest ? submissions.get(xhr) : void 0;
+      if (!submission || submission.saved) return;
+      const { state } = submission;
+      const target = document2.getElementById(state.targetId);
+      if (!(target instanceof HTMLElement) || !state.owner.isConnected || !state.owner.contains(target)) return;
+      register(state.owner, target, state.policy);
+      for (const form of ownedForms(target, state.owner)) {
+        const next = forms.get(form);
+        if (next) {
+          next.baseline = state.baseline;
+          next.invalid = true;
+        }
+      }
+    }
+    return { register, protectedTarget, changed, handleEvent, afterSwap };
+  }
+
   // frontend/ts/live-updates/request-context.ts
   function decorators() {
     const runtimeGlobal = globalThis;
     runtimeGlobal.__bepisSurfaceFragmentRequestDecorators ?? (runtimeGlobal.__bepisSurfaceFragmentRequestDecorators = /* @__PURE__ */ new Set());
     return runtimeGlobal.__bepisSurfaceFragmentRequestDecorators;
-  }
-  function registerSurfaceFragmentRequestDecorator(decorator) {
-    decorators().add(decorator);
-    return () => decorators().delete(decorator);
   }
   function decorateSurfaceFragmentRequest(url, fragment, target) {
     let decoratedUrl = url;
@@ -2864,11 +2977,21 @@
     const { targetWindow, targetDocument, diagnostics, activeInteractionSessions } = options;
     const { beginPerfSpan, endPerfSpan, emitDebugEvent } = diagnostics;
     const focus = createFocusedFieldProtection(targetWindow, targetDocument);
+    const forms = createDirtyFormProtection(targetDocument, (ownerEl, targetId) => {
+      const fragment = readFrontendSurfaceMountElement(ownerEl)?.fragments.find((candidate) => candidate.targetId === targetId);
+      if (fragment) request({ ...fragment, ownerEl });
+    });
     const ownerStates = /* @__PURE__ */ new Map();
     let generation = 1;
     let stopped = false;
     function activateOwner(ownerEl) {
       if (stopped) return;
+      for (const fragment of readFrontendSurfaceMountElement(ownerEl)?.fragments ?? []) {
+        const target = targetDocument.getElementById(fragment.targetId);
+        if (fragment.protection.kind === "dirty-form" && target instanceof HTMLElement && target.closest(`[${surfaceConfigDomAttr}]`) === ownerEl) {
+          forms.register(ownerEl, target, fragment.protection);
+        }
+      }
       const existing = ownerStates.get(ownerEl);
       if (existing) {
         existing.active = true;
@@ -2988,6 +3111,10 @@
       const target = resolveOwnedTarget(fragment);
       if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
         endPerfSpan(perfSpan, { outcome: "stale_before_fetch" });
+        return;
+      }
+      if (deferForCurrentProtection(state, slot, fragment, target)) {
+        endPerfSpan(perfSpan, { outcome: "deferred_before_fetch" });
         return;
       }
       function fenceForCurrentProtection(stage, status) {
@@ -3165,18 +3292,18 @@
     }
     function deferForCurrentProtection(state, slot, fragment, target) {
       const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-      if (conflict) {
-        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
+      if (conflict && conflict.action !== "apply") {
         state.pendingInteraction.set(fragment.targetId, fragment);
         scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
         if (slot) slot.next = null;
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
         }));
+        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
         return true;
       }
       clearInteractionDeferredFragment(state, fragment.targetId);
-      if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
+      if (isFormProtected(target, fragment) || focus.hasProtectedActiveInput(target, fragment)) {
         state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
         if (slot) slot.next = null;
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
@@ -3186,6 +3313,9 @@
       }
       state.pendingFocused.delete(fragment.targetId);
       return false;
+    }
+    function isFormProtected(target, fragment) {
+      return fragment.protection.kind === "dirty-form" && forms.protectedTarget(target, fragment.ownerEl);
     }
     function request(fragment) {
       if (!fragment.targetId || !fragment.url || stopped) return;
@@ -3228,7 +3358,7 @@
         Array.from(state.pendingFocused.entries()).forEach(([targetId, fragment]) => {
           const target = resolveOwnedTarget(fragment);
           if (target && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
-          if (!target || !focus.hasProtectedActiveInput(target, fragment)) {
+          if (!target || !isFormProtected(target, fragment) && !focus.hasProtectedActiveInput(target, fragment)) {
             state.pendingFocused.delete(targetId);
             emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
             queueFragment(fragment);
@@ -3246,6 +3376,14 @@
       activateOwner,
       disposeOwner,
       markProtectionChanged,
+      formChanged(target) {
+        forms.changed(target);
+        markProtectionChanged(target);
+      },
+      handleFormEvent(event) {
+        if (event.type === "htmx:afterSwap") forms.afterSwap(event);
+        else forms.handleEvent(event);
+      },
       request,
       flushInteractionDeferredFragmentsWithoutActiveSessions,
       flushFocusedFragmentsWithoutActiveInputs,
@@ -3281,7 +3419,10 @@
         activeSurfaceInstances.delete(instance.instanceId);
         diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
       });
-      reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
+      reconciliation.retained.forEach((instance) => {
+        refresher.activateOwner(instance.ownerEl);
+        activeSurfaceInstances.set(instance.instanceId, instance);
+      });
       reconciliation.added.forEach((instance) => {
         refresher.activateOwner(instance.ownerEl);
         activeSurfaceInstances.set(instance.instanceId, instance);
@@ -3291,7 +3432,11 @@
     function syncRuntime() {
       reconcileMounts();
       const desired = collectDesiredSurfaceSubscriptions(document, reportSurfaceConfigError);
-      if (desired.size === 0) activeSurfaceInstances.clear();
+      if (desired.size === 0) {
+        disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+          diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+        });
+      }
       connection?.sync(desired);
     }
     connection = createLiveUpdateConnection({
@@ -3314,7 +3459,8 @@
       refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
       refresher.flushFocusedFragmentsWithoutActiveInputs();
     });
-    document.addEventListener("htmx:afterSwap", () => {
+    document.addEventListener("htmx:afterSwap", (event) => {
+      refresher.handleFormEvent(event);
       refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
       window.setTimeout(syncRuntime, 0);
     });
@@ -3322,10 +3468,31 @@
     document.addEventListener("htmx:responseError", refresher.flushInteractionDeferredFragmentsWithoutActiveSessions);
     document.addEventListener(dialogDismissedEvent, () => window.setTimeout(syncRuntime, 0));
     const scheduleFocusedFlush = () => window.setTimeout(refresher.flushFocusedFragmentsWithoutActiveInputs, 0);
+    for (const name of ["htmx:beforeRequest", "htmx:beforeOnLoad", "htmx:beforeSwap", "htmx:afterRequest"]) {
+      document.addEventListener(name, (event) => {
+        if (name === "htmx:beforeRequest") {
+          const initiator = detailTarget(event, "elt");
+          if (initiator instanceof Element) refresher.markProtectionChanged(initiator);
+        }
+        refresher.handleFormEvent(event);
+        if (name === "htmx:afterRequest") scheduleFocusedFlush();
+      });
+    }
+    for (const name of ["input", "change"]) {
+      document.addEventListener(name, (event) => {
+        if (event.target instanceof Element) refresher.formChanged(event.target);
+      });
+    }
     document.addEventListener("focusout", scheduleFocusedFlush);
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+  }
+  function disposeTrackedSurfaceInstances(activeSurfaceInstances, disposeOwner) {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
   }
   function instanceDebugDetail(instance) {
     return {
@@ -4406,6 +4573,65 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelectorAll === "function";
   }
 
+  // frontend/ts/shared/page-overlay.ts
+  var layers = /* @__PURE__ */ new Map();
+  var previousInert = /* @__PURE__ */ new Map();
+  var scrollPosition = null;
+  var observer = null;
+  function reconcilePageOverlays() {
+    if (document.body === null) return;
+    for (const [owner, layer] of layers) {
+      if (!layer.element.isConnected || !layer.boundary.isConnected) layers.delete(owner);
+    }
+    const active = [...layers.values()].sort((a, b) => b.priority - a.priority)[0];
+    const blocked = /* @__PURE__ */ new Set();
+    if (active !== void 0) {
+      const allowed = [active.element, ...active.companions ?? []].filter((element) => element.isConnected);
+      const visit = (parent) => {
+        for (const child of parent.children) {
+          if (!(child instanceof HTMLElement) || allowed.includes(child)) continue;
+          if (allowed.some((element) => child.contains(element))) visit(child);
+          else blocked.add(child);
+        }
+      };
+      visit(active.boundary);
+    }
+    for (const [element, wasInert] of previousInert) {
+      if (!blocked.has(element)) {
+        element.inert = wasInert;
+        previousInert.delete(element);
+      }
+    }
+    for (const element of blocked) {
+      if (!previousInert.has(element)) previousInert.set(element, element.inert);
+      element.inert = true;
+    }
+    if (active !== void 0 && scrollPosition === null) {
+      scrollPosition = { left: window.scrollX, top: window.scrollY };
+      document.documentElement.classList.add("app-page-scroll-locked");
+      observer = new MutationObserver(reconcilePageOverlays);
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else if (active === void 0 && scrollPosition !== null) {
+      const position = scrollPosition;
+      scrollPosition = null;
+      observer?.disconnect();
+      observer = null;
+      document.documentElement.classList.remove("app-page-scroll-locked");
+      window.scrollTo({ ...position, behavior: "instant" });
+    }
+  }
+  function setPageOverlay(owner, layer) {
+    if (layer === null) layers.delete(owner);
+    else layers.set(owner, layer);
+    reconcilePageOverlays();
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+      layers.clear();
+      reconcilePageOverlays();
+    });
+  }
+
   // frontend/ts/side-panel/runtime.ts
   function defaultDiagnosticReporter3(diagnostic11) {
     console.error?.("Invalid generated Surface side-panel boundary", diagnostic11);
@@ -4596,10 +4822,9 @@
     const mobile = window.matchMedia("(max-width: 1199.98px)");
     const pending = /* @__PURE__ */ new WeakMap();
     const pendingOob = /* @__PURE__ */ new Map();
-    const inertBefore = /* @__PURE__ */ new Map();
+    const overlayOwner = {};
     let active = null;
     let shelfFocus = null;
-    let lockedScroll = null;
     let header = null;
     let headerObserver = null;
     let shelfAnimation = null;
@@ -4637,39 +4862,14 @@
       const definition = shelf.resolved.definition;
       shelf.root.setAttribute(definition.shelfStateAttribute, open ? definition.shelfOpenValue : definition.shelfClosedValue);
     }
-    function restoreInert() {
-      inertBefore.forEach((previous, element) => {
-        element.inert = previous;
-      });
-      inertBefore.clear();
-    }
-    function block(element) {
-      if (!inertBefore.has(element)) inertBefore.set(element, element.inert);
-      element.inert = true;
-    }
     function lockBackground(shelf) {
       const page = shelf.panel.closest(`[${appPageContentDomAttr}]`);
-      let child = shelf.panel;
-      while (page && child !== page && child.parentElement) {
-        for (const sibling of child.parentElement.children) {
-          if (sibling !== child && sibling instanceof HTMLElement) block(sibling);
-        }
-        child = child.parentElement;
-      }
-      if (!lockedScroll) {
-        lockedScroll = { x: window.scrollX, y: window.scrollY };
-        document.body.style.setProperty("--app-shelf-scroll-offset", `${-lockedScroll.y}px`);
-        document.body.classList.add("app-shelf-scroll-locked");
-      }
+      setPageOverlay(overlayOwner, page ? { element: shelf.panel, boundary: page, priority: 0 } : null);
+      document.body.classList.add("app-shelf-scroll-locked");
     }
     function unlockBackground() {
-      restoreInert();
-      if (!lockedScroll) return;
-      const position = lockedScroll;
-      lockedScroll = null;
-      document.body.classList.remove("app-shelf-scroll-locked");
-      document.body.style.removeProperty("--app-shelf-scroll-offset");
-      window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+      setPageOverlay(overlayOwner, null);
+      document.body?.classList.remove("app-shelf-scroll-locked");
     }
     function updateGeometry() {
       const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
@@ -4685,6 +4885,7 @@
       style.setProperty("--app-shelf-bottom", bottomInset);
     }
     function reconcile() {
+      if (document.body === null) return;
       const all = shelves();
       const enabled = mobile.matches && all.length > 0;
       document.body.classList.toggle("app-has-mobile-shelf", enabled);
@@ -4695,7 +4896,6 @@
         headerObserver = header ? new ResizeObserver(updateGeometry) : null;
         if (header) headerObserver?.observe(header);
       }
-      restoreInert();
       active = null;
       for (const shelf of all) {
         if (!mobile.matches) setOpen(shelf, false);
@@ -4878,7 +5078,7 @@
       unlockBackground();
     });
     window.addEventListener("pageshow", reconcile);
-    reconcile();
+    if (document.readyState !== "loading") reconcile();
   }
 
   // frontend/ts/surface-tab-set/runtime.ts
@@ -5048,12 +5248,22 @@
   enableFrontendSurfaceTabSets();
   enableSidePanels();
 
+  // frontend/ts/dialog-overlays/unsaved-guard.ts
+  function validateDismissalGuardConfig(config) {
+    if (config.formId.trim().length === 0) throw new Error("DialogDismissalGuardConfig formId must not be empty");
+    if (config.confirmationTitle.trim().length === 0) throw new Error("DialogDismissalGuardConfig confirmationTitle must not be empty");
+    if (config.keepEditingLabel.trim().length === 0) throw new Error("DialogDismissalGuardConfig keepEditingLabel must not be empty");
+    if (config.discardLabel.trim().length === 0) throw new Error("DialogDismissalGuardConfig discardLabel must not be empty");
+    return config;
+  }
+
   // frontend/ts/app-dialog-overlays.ts
   var dialogMountSelector = `[${dialogMountDomAttr}]`;
   var dialogKeyboardSelector = `[${dialogKeyboardDomAttr}]`;
   var dialogFocusRegionSelector = `[${dialogFocusRegionDomAttr}]`;
   var dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
   var dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+  var dialogDismissalGuardSelector = `[${dialogDismissalGuardDomAttr}]`;
   var navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
   var originalSubmitHtml = /* @__PURE__ */ new WeakMap();
   var dialogLoadingStates = /* @__PURE__ */ new WeakMap();
@@ -5086,6 +5296,9 @@
       throw new Error("DialogSubmitConfig loadingLabel must not be empty");
     }
     return config;
+  }
+  function parseDialogDismissalGuardConfiguration(raw) {
+    return validateDismissalGuardConfig(parseDialogDismissalGuardConfig(JSON.parse(raw)));
   }
   function parseNavigationLoadingConfiguration(raw) {
     const config = parseNavigationLoadingConfig(JSON.parse(raw));
@@ -5174,8 +5387,27 @@
     const mountId = dialogOverlayMountDomId;
     const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
     installPointerDismissFocusCleanup(document);
-    const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
-    let blockingDialogReturnFocus = null;
+    const overlayOwner = {};
+    const bootstrapDialogs = /* @__PURE__ */ new Set();
+    const returnFocus = /* @__PURE__ */ new WeakMap();
+    const dismissalGuards = /* @__PURE__ */ new WeakMap();
+    let activeGuardTracker = null;
+    let activeGuardFormId = null;
+    let beforeUnloadInstalled = false;
+    let previousModal = null;
+    function handleBeforeUnload(event) {
+      const activeDialog = getActiveDialog();
+      const guard = activeDialog === null ? void 0 : dismissalGuards.get(activeDialog);
+      if (guard === void 0 || !guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    function setBeforeUnloadInstalled(enabled) {
+      if (enabled === beforeUnloadInstalled) return;
+      beforeUnloadInstalled = enabled;
+      if (enabled) window.addEventListener("beforeunload", handleBeforeUnload);
+      else window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -5208,32 +5440,85 @@
       ].join(",");
       return Array.from(region.querySelectorAll(selector)).filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
-        if (element.hidden || element.closest("[hidden], [inert]") !== null) return false;
+        if (element.hidden || element.closest("[hidden], [inert]") !== null || element.getClientRects().length === 0) return false;
         return element.tabIndex >= 0;
       });
     }
-    function focusKeyboardDialog(dialog) {
-      const region = keyboardFocusRegion(dialog);
-      if (region === null) return;
-      const controls2 = focusableDialogControls(region);
-      const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
-      const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
-      (firstInvalid ?? autofocus ?? controls2[0] ?? dialog).focus({ preventScroll: true });
+    function initializeDismissalGuard(dialog) {
+      if (!dialog.matches(dialogDismissalGuardSelector)) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+        return;
+      }
+      const rawConfig = dialog.getAttribute(dialogDismissalGuardConfigDomAttr);
+      try {
+        if (rawConfig === null) throw new Error(`Missing ${dialogDismissalGuardConfigDomAttr}`);
+        const config = parseDialogDismissalGuardConfiguration(rawConfig);
+        const form = document.getElementById(config.formId);
+        if (!(form instanceof HTMLFormElement) || !dialog.contains(form)) {
+          throw new Error(`Dialog dismissal guard form '${config.formId}' is not inside the dialog`);
+        }
+        const tracker = activeGuardTracker !== null && activeGuardFormId === config.formId ? activeGuardTracker : createUnsavedChangeTracker(normalizedFormSnapshot(form), config.guardImmediately);
+        activeGuardTracker = tracker;
+        activeGuardFormId = config.formId;
+        dismissalGuards.set(dialog, { config, form, tracker, confirmation: null });
+        setBeforeUnloadInstalled(true);
+      } catch (error) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+        console.error?.("Invalid generated dialog dismissal guard configuration", {
+          code: "invalid-dialog-dismissal-guard-config",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
-    function initializeKeyboardDialogs(root) {
-      if (root instanceof HTMLElement && root.matches(dialogKeyboardSelector)) focusKeyboardDialog(root);
-      root.querySelectorAll(dialogKeyboardSelector).forEach((dialog) => {
-        if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
+    function initializeDismissalGuards(root) {
+      if (root instanceof HTMLElement && root.matches(dialogMountSelector)) {
+        initializeDismissalGuard(root);
+      }
+      root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
+        if (dialog instanceof HTMLElement) {
+          initializeDismissalGuard(dialog);
+        }
       });
     }
-    function hasVisibleBootstrapModal() {
-      return Boolean(document.querySelector(`.modal.show:not(${dialogMountSelector})`));
+    function getTopModal() {
+      for (const dialog of bootstrapDialogs) {
+        if (!dialog.isConnected) bootstrapDialogs.delete(dialog);
+      }
+      const native = [...bootstrapDialogs];
+      const visible = Array.from(document.querySelectorAll(`.modal.show:not(${dialogMountSelector})`)).filter(isHTMLElement);
+      return native[native.length - 1] ?? visible[visible.length - 1] ?? getActiveDialog();
     }
     function syncDialogState() {
-      const hasDialog = getActiveDialog() !== null;
-      const shouldLockBody = hasDialog || hasVisibleBootstrapModal();
-      document.body.classList.toggle("modal-open", shouldLockBody);
-      document.body.style.overflow = shouldLockBody ? "hidden" : "";
+      if (document.body === null) return;
+      const dialog = getTopModal();
+      const returningToExistingDialog = dialog !== null && returnFocus.has(dialog);
+      if (dialog !== null && dialog !== previousModal && !returningToExistingDialog) {
+        const opener = previousModal !== null && !previousModal.isConnected ? returnFocus.get(previousModal) ?? null : isHTMLElement(document.activeElement) ? document.activeElement : null;
+        returnFocus.set(dialog, opener);
+      }
+      const backdropSelector = dialog?.matches(dialogMountSelector) ? dialogBackdropSelector : `.modal-backdrop:not(${dialogBackdropSelector})`;
+      const backdrops = dialog?.matches(dialogMountSelector) ? Array.from(dialog.parentElement?.children ?? []).filter((element) => element.matches(backdropSelector)).filter(isHTMLElement) : Array.from(document.querySelectorAll(backdropSelector)).filter(isHTMLElement).slice(-1);
+      setPageOverlay(overlayOwner, dialog === null ? null : {
+        element: dialog,
+        boundary: document.body,
+        priority: 1,
+        companions: backdrops
+      });
+      document.body.classList.toggle("modal-open", dialog !== null);
+      if (previousModal !== null && previousModal !== dialog && (dialog === null || returningToExistingDialog)) {
+        const opener = returnFocus.get(previousModal);
+        if (opener?.isConnected && !opener.closest("[inert]") && (dialog === null || dialog.contains(opener))) {
+          opener.focus({ preventScroll: true });
+        }
+      }
+      if (previousModal !== null && previousModal !== dialog && (!previousModal.isConnected || !previousModal.matches(dialogMountSelector) && !bootstrapDialogs.has(previousModal) && !previousModal.classList.contains("show"))) {
+        returnFocus.delete(previousModal);
+      }
+      previousModal = dialog;
     }
     function showNavigationLoadingDialog(config) {
       const mountEl = getMount();
@@ -5273,44 +5558,117 @@
       const backdrop = document.createElement("div");
       backdrop.className = "modal-backdrop fade show";
       backdrop.setAttribute(dialogBackdropDomAttr, "true");
-      blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
       const replacedDialog = getMountedDialog(mountEl);
       if (replacedDialog !== null) dismissalLifecycle.dismiss(replacedDialog, mountEl, dialogEl);
       mountEl.replaceChildren(dialogEl, backdrop);
       reconcileDialogDismissal(mountEl);
-      setBlockingBackgroundInert(mountEl, true);
       syncDialogState();
-      dialogEl.focus();
+      dialogEl.focus({ preventScroll: true });
     }
-    function setBlockingBackgroundInert(mountEl, inert) {
-      Array.from(document.body.children).forEach((element) => {
-        if (!(element instanceof HTMLElement) || element === mountEl) return;
-        if (inert) {
-          if (!blockingBackgroundInertStates.has(element)) {
-            blockingBackgroundInertStates.set(element, element.inert);
-          }
-          element.inert = true;
-          return;
-        }
-        const previous = blockingBackgroundInertStates.get(element);
-        if (previous !== void 0) element.inert = previous;
-        blockingBackgroundInertStates.delete(element);
+    function restoreKeyboardDialogFocus(dialog) {
+      if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
+      const region = keyboardFocusRegion(dialog);
+      const controls2 = focusableDialogControls(region ?? dialog);
+      const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
+      const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
+      (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
+    }
+    function keepEditing(dialogEl) {
+      const state = dismissalGuards.get(dialogEl);
+      if (state?.confirmation === null || state === void 0) return;
+      state.confirmation.elements.forEach((element) => element.remove());
+      state.confirmation.contentChildren.forEach(({ element, hidden }) => {
+        element.hidden = hidden;
       });
+      const { previousFocus, originalFocusRegion, previousAriaLabelledBy } = state.confirmation;
+      const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+      if (content instanceof HTMLElement) content.removeAttribute(dialogFocusRegionDomAttr);
+      originalFocusRegion?.setAttribute(dialogFocusRegionDomAttr, "true");
+      if (previousAriaLabelledBy === null) dialogEl.removeAttribute("aria-labelledby");
+      else dialogEl.setAttribute("aria-labelledby", previousAriaLabelledBy);
+      state.confirmation = null;
+      if (previousFocus?.isConnected && dialogEl.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+      else restoreKeyboardDialogFocus(dialogEl);
+    }
+    function showDismissalConfirmation(dialogEl, state) {
+      if (state.confirmation !== null) return;
+      const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+      if (!(content instanceof HTMLElement)) return;
+      const contentChildren = Array.from(content.children).filter(isHTMLElement).map((element) => ({ element, hidden: element.hidden }));
+      const originalFocusRegion = keyboardFocusRegion(dialogEl);
+      originalFocusRegion?.removeAttribute(dialogFocusRegionDomAttr);
+      content.setAttribute(dialogFocusRegionDomAttr, "true");
+      contentChildren.forEach(({ element }) => {
+        element.hidden = true;
+      });
+      const header = document.createElement("div");
+      header.className = "modal-header";
+      const title = document.createElement("h5");
+      title.className = "modal-title";
+      title.id = "dialog-overlay-confirmation-title";
+      title.textContent = state.config.confirmationTitle;
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "btn-close";
+      close.setAttribute("aria-label", "Close");
+      header.append(title, close);
+      const body = document.createElement("div");
+      body.className = "modal-body";
+      const footer = document.createElement("div");
+      footer.className = "modal-footer app-modal-footer";
+      const actions = document.createElement("div");
+      actions.className = "app-modal-footer-end";
+      const keep = document.createElement("button");
+      keep.type = "button";
+      keep.className = "btn btn-outline-secondary";
+      keep.textContent = state.config.keepEditingLabel;
+      const discard = document.createElement("button");
+      discard.type = "button";
+      discard.className = "btn btn-danger";
+      discard.textContent = state.config.discardLabel;
+      actions.append(keep, discard);
+      footer.append(actions);
+      const elements = [header, body, footer];
+      content.append(...elements);
+      const previousAriaLabelledBy = dialogEl.getAttribute("aria-labelledby");
+      dialogEl.setAttribute("aria-labelledby", title.id);
+      state.confirmation = {
+        contentChildren,
+        elements,
+        previousFocus: isHTMLElement(document.activeElement) ? document.activeElement : null,
+        originalFocusRegion,
+        previousAriaLabelledBy
+      };
+      close.addEventListener("click", () => keepEditing(dialogEl));
+      keep.addEventListener("click", () => keepEditing(dialogEl));
+      discard.addEventListener("click", () => clearDialog(dialogEl));
+      keep.focus({ preventScroll: true });
+    }
+    function requestDialogDismissal(dialogEl) {
+      const guard = dismissalGuards.get(dialogEl);
+      if (guard?.confirmation !== null && guard !== void 0) {
+        keepEditing(dialogEl);
+        return;
+      }
+      if (dialogEl.hasAttribute(dialogBlockingDomAttr)) return;
+      if (guard !== void 0 && guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) {
+        showDismissalConfirmation(dialogEl, guard);
+        return;
+      }
+      clearDialog(dialogEl);
     }
     function clearDialog(dialogEl) {
       const mountEl = getMount();
+      dismissalGuards.delete(dialogEl);
+      activeGuardTracker = null;
+      activeGuardFormId = null;
+      setBeforeUnloadInstalled(false);
       const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
       dismissalLifecycle.dismiss(dialogEl, eventOwner);
-      const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
-      const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
-      if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = wasBlocking || inheritedBlockingState ? blockingDialogReturnFocus : null;
-      if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
         reconcileDialogDismissal(mountEl);
         syncDialogState();
-        if (returnFocus?.isConnected) returnFocus.focus();
         return;
       }
       const localOwner = dialogEl.parentElement;
@@ -5321,49 +5679,40 @@
         });
       }
       syncDialogState();
-      if (returnFocus?.isConnected) returnFocus.focus();
-    }
-    function releaseInheritedBlockingStateWhenDialogAbsent(mountEl) {
-      if (getActiveDialog() !== null || blockingBackgroundInertStates.size === 0) return;
-      setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = blockingDialogReturnFocus;
-      blockingDialogReturnFocus = null;
-      if (returnFocus?.isConnected) returnFocus.focus();
     }
     document.addEventListener("click", function(event) {
+      if (getTopModal() !== getActiveDialog()) return;
       const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
       const closeDialog = closeEl?.closest(dialogMountSelector);
       if (closeEl !== null && isHTMLElement(closeDialog)) {
         event.preventDefault();
-        clearDialog(closeDialog);
+        requestDialogDismissal(closeDialog);
         return;
       }
       const backdropEl = closestHTMLElement(event.target, dialogBackdropSelector);
       const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
       if (backdropEl !== null && isHTMLElement(backdropDialog)) {
         event.preventDefault();
-        if (backdropDialog.hasAttribute(dialogBlockingDomAttr)) return;
-        clearDialog(backdropDialog);
+        requestDialogDismissal(backdropDialog);
         return;
       }
       const activeDialog = getActiveDialog();
       if (activeDialog !== null && event.target === activeDialog) {
         event.preventDefault();
-        if (activeDialog.hasAttribute(dialogBlockingDomAttr)) return;
-        clearDialog(activeDialog);
+        requestDialogDismissal(activeDialog);
       }
     });
     document.addEventListener("keydown", function(event) {
       const activeDialog = getActiveDialog();
-      if (activeDialog === null) return;
+      if (activeDialog === null || activeDialog !== getTopModal()) return;
       if (event.key === "Tab" && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
         event.preventDefault();
         activeDialog.focus();
         return;
       }
       const focusRegion = keyboardFocusRegion(activeDialog);
-      if (event.key === "Tab" && focusRegion !== null) {
-        const controls2 = focusableDialogControls(focusRegion);
+      if (event.key === "Tab") {
+        const controls2 = focusableDialogControls(focusRegion ?? activeDialog);
         event.preventDefault();
         if (controls2.length === 0) {
           activeDialog.focus();
@@ -5374,6 +5723,7 @@
         controls2[nextIndex]?.focus();
         return;
       }
+      if (event.key === "Enter" && dismissalGuards.get(activeDialog)?.confirmation !== null && dismissalGuards.get(activeDialog) !== void 0) return;
       if (event.key === "Enter" && focusRegion !== null && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
         const target = event.target;
         if (target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) return;
@@ -5386,7 +5736,7 @@
       }
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
+      requestDialogDismissal(activeDialog);
     });
     document.addEventListener("change", function(event) {
       const target = event.target;
@@ -5423,6 +5773,16 @@
       submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
       showDialogSubmitLoading(activeDialog, config);
     }, true);
+    document.addEventListener("htmx:beforeOnLoad", function(event) {
+      const activeDialog = getActiveDialog();
+      if (activeDialog === null) return;
+      const elt = detailTarget(event, "elt");
+      const xhr = detailTarget(event, "xhr");
+      if (!isHTMLElement(elt) || !activeDialog.contains(elt)) return;
+      if (!(xhr instanceof XMLHttpRequest) || xhr.status < 200 || xhr.status >= 300) return;
+      if (xhr.getResponseHeader("HX-Redirect") === null) return;
+      clearDialog(activeDialog);
+    });
     document.addEventListener("htmx:afterRequest", function(event) {
       const activeDialog = getActiveDialog();
       if (activeDialog === null) return;
@@ -5451,35 +5811,54 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
+      initializeDismissalGuards(target);
+      if (getMountedDialog(target) === null) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+      }
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
-    });
-    window.addEventListener("pageshow", function(event) {
-      if (!event.persisted) return;
-      const activeDialog = getActiveDialog();
-      if (activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
-        clearDialog(activeDialog);
+      initializeDismissalGuards(target);
+      if (getMountedDialog(target) === null) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
       }
     });
+    window.addEventListener("pageshow", function(event) {
+      const activeDialog = getActiveDialog();
+      if (event.persisted && activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+        clearDialog(activeDialog);
+      }
+      syncDialogState();
+    });
+    document.addEventListener("show.bs.modal", (event) => {
+      const dialog = event.target;
+      queueMicrotask(() => {
+        if (event.defaultPrevented || !(dialog instanceof HTMLElement) || !dialog.isConnected) return;
+        bootstrapDialogs.add(dialog);
+        syncDialogState();
+      });
+    });
     document.addEventListener("shown.bs.modal", syncDialogState);
-    document.addEventListener("hidden.bs.modal", syncDialogState);
+    document.addEventListener("hidden.bs.modal", (event) => {
+      if (event.target instanceof HTMLElement) bootstrapDialogs.delete(event.target);
+      syncDialogState();
+    });
     document.addEventListener(pageReadyEvent, (event) => {
       const mountEl = getMount();
       if (mountEl !== null) reconcileDialogDismissal(mountEl);
       syncDialogState();
       const target = detailTarget(event, "target");
-      if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);
+      if (target instanceof HTMLElement || target instanceof Document) initializeDismissalGuards(target);
     });
   })();
 
@@ -5669,6 +6048,8 @@
   var digitBuffers = /* @__PURE__ */ new WeakMap();
   var digitBufferResetMs = 2e3;
   var activeField = null;
+  var pickerBackdrop = null;
+  var backdropsBeforeShow = /* @__PURE__ */ new Set();
   function defaultDiagnosticReporter5(diagnostic11) {
     console.error?.("Invalid generated time picker configuration", diagnostic11);
   }
@@ -5863,9 +6244,8 @@
     modal.modal.style.display = "none";
     modal.modal.setAttribute("aria-hidden", "true");
     modal.modal.removeAttribute("aria-modal");
-    document.body.classList.remove("modal-open");
-    document.body.style.removeProperty("padding-right");
-    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.remove());
+    pickerBackdrop?.remove();
+    pickerBackdrop = null;
     restoreModalOptions(modal);
     activeField = null;
   }
@@ -6023,6 +6403,7 @@
       activeField = field;
       renderFieldOptions(modal, field);
       highlightSelectedOption(modal, field.input.value);
+      backdropsBeforeShow = new Set(document.querySelectorAll(".modal-backdrop"));
       bootstrapModal.show();
     });
     document.addEventListener("click", (event) => {
@@ -6074,8 +6455,15 @@
       synchronizeField(activeField);
       hideTimePickerModal(modal);
     });
+    document.addEventListener("shown.bs.modal", (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = Array.from(document.querySelectorAll(".modal-backdrop")).find((element) => !backdropsBeforeShow.has(element)) ?? null;
+      backdropsBeforeShow.clear();
+    });
     document.addEventListener("hidden.bs.modal", (event) => {
       if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = null;
+      backdropsBeforeShow.clear();
       const modal = modalControls.get(event.target);
       if (modal !== void 0) restoreModalOptions(modal);
       activeField = null;
@@ -7467,104 +7855,11 @@
     });
   }
 
-  // frontend/ts/roster/wage-filter.ts
-  function createRosterWageFilterController(targetDocument) {
-    const pinnedKeysByMount = /* @__PURE__ */ new WeakMap();
-    function pinChanged(change) {
-      if (change.pinRoleAttribute !== rosterStaffHighlightPinDomAttr) return;
-      if (!(change.mount instanceof HTMLElement)) return;
-      const ownerMount = owningRosterMount(change.mount);
-      if (!ownerMount) return;
-      pinnedKeysByMount.set(ownerMount, change.pinnedKey);
-      const config = readWageFilterConfig(ownerMount);
-      if (!config?.wageFilterEnabled) return;
-      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
-      if (!mountConfig || mountConfig.surface !== "roster" || !mountConfig.subscription) return;
-      const targetIds = new Set(config.wageFilterRefreshTargetIds);
-      const fragments = mountConfig.fragments.filter((fragment) => targetIds.has(fragment.targetId)).map((fragment) => fragment.fragmentKey);
-      if (fragments.length === 0) return;
-      targetDocument.dispatchEvent(new CustomEvent(liveFragmentsRefreshEvent, {
-        detail: {
-          scope: mountConfig.subscription.scope,
-          scopeKey: mountConfig.scopeKey,
-          fragments
-        }
-      }));
-    }
-    function decorateRequest(event) {
-      const htmxEvent = event;
-      const source = htmxEvent.detail?.elt;
-      if (!(source instanceof Element)) return;
-      const ownerMount = source.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-      if (!ownerMount) return;
-      const config = readWageFilterConfig(ownerMount);
-      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
-      if (!config?.wageFilterEnabled || !mountConfig || !htmxEvent.detail?.path) return;
-      if (!requestTargetsWageFragment(source, ownerMount, config.wageFilterRequestTargetIds)) return;
-      const requestPath = new URL(htmxEvent.detail.path, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname;
-      const isMountedFragmentRequest = mountConfig.fragments.some(
-        (fragment) => config.wageFilterRequestTargetIds.includes(fragment.targetId) && new URL(fragment.url, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname === requestPath
-      );
-      if (!isMountedFragmentRequest) return;
-      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
-      if (!pinnedStaffKey || !htmxEvent.detail) return;
-      const encodedRequest = encodeRosterWageFilterRequest({ pinnedStaffKey });
-      if (htmxEvent.detail.parameters) {
-        Object.assign(htmxEvent.detail.parameters, encodedRequest);
-      } else {
-        htmxEvent.detail.parameters = { ...encodedRequest };
-      }
-    }
-    function decorateFragmentUrl(url, _fragment, target) {
-      const ownerMount = target.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-      if (!ownerMount) return url;
-      const config = readWageFilterConfig(ownerMount);
-      if (!config?.wageFilterEnabled || !config.wageFilterRequestTargetIds.includes(target.id)) return url;
-      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
-      if (!pinnedStaffKey) return url;
-      const request = encodeRosterWageFilterRequest({ pinnedStaffKey });
-      const parsed = new URL(url, targetDocument.defaultView?.location.origin ?? "http://localhost");
-      Object.entries(request).forEach(([name, value]) => {
-        if (value !== void 0) parsed.searchParams.set(name, value);
-      });
-      return url.startsWith("/") ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.toString();
-    }
-    return { pinChanged, decorateRequest, decorateFragmentUrl };
-  }
-  function enableRosterWageFilter() {
-    const controller = createRosterWageFilterController(document);
-    document.addEventListener("htmx:configRequest", controller.decorateRequest);
-    registerSurfaceFragmentRequestDecorator(controller.decorateFragmentUrl);
-    return controller;
-  }
-  function owningRosterMount(interactionMount) {
-    return interactionMount.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-  }
-  function readWageFilterConfig(mount) {
-    const element = mount.querySelector(`[${rosterWageFilterConfigDomAttr}]`);
-    if (!element) return null;
-    const raw = element.getAttribute(rosterWageFilterConfigDomAttr);
-    if (!raw) return null;
-    try {
-      return parseRosterWageFilterConfig(JSON.parse(raw));
-    } catch {
-      return null;
-    }
-  }
-  function requestTargetsWageFragment(source, mount, targetIds) {
-    for (const targetId of targetIds) {
-      const target = mount.querySelector(`#${targetId}`);
-      if (target && (target === source || target.contains(source))) return true;
-    }
-    return false;
-  }
-
   // frontend/ts/app-roster.ts
   enableRosterWeekOverview();
   enableRosterColumnEditMode();
   enableRosterImageExport();
-  var rosterWageFilter = enableRosterWageFilter();
-  enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
+  enableFrontendSurfaceLinkedHighlight();
 
   // frontend/ts/xero-candidate-filter/configuration.ts
   function parseXeroCandidateFilterConfiguration(raw) {
@@ -7708,7 +8003,6 @@
 
   // frontend/ts/app-toggle-buttons.ts
   var initializedControls = /* @__PURE__ */ new WeakMap();
-  var checkedClass = "is-toggle-checked";
   function targetsEqual(left, right) {
     if (left.tag !== right.tag) return false;
     if (left.tag === "omitted" || right.tag === "omitted") return true;
@@ -7820,16 +8114,15 @@
       }
       breakRegion = regions[0];
     }
-    return { input, root, form, transport, breakRegion, labels, config };
+    return { input, form, transport, breakRegion, labels, config };
   }
   function synchronizeToggle(control) {
-    const { input, root, transport, breakRegion, labels, config } = control;
+    const { input, transport, breakRegion, labels, config } = control;
     const checked = input.checked;
     const transportState = toggleTransportState(toggleTargetForChecked(config, checked));
     transport.value = transportState.value;
     transport.disabled = transportState.disabled;
-    root.classList.toggle(checkedClass, checked);
-    root.setAttribute("aria-pressed", String(checked));
+    control.input.closest(`[${toggleRootDomAttr}]`)?.setAttribute("aria-pressed", String(checked));
     if (input.getAttribute("role") === "switch") {
       input.setAttribute("aria-checked", String(checked));
     }
@@ -7886,6 +8179,130 @@
     }
   }
   enableAppToggleButtons();
+
+  // frontend/ts/app-checkbox-lists.ts
+  function updateCheckboxList(target) {
+    const root = target.closest(`[${checkboxListRootDomAttr}]`);
+    if (!(root instanceof HTMLFormElement)) return;
+    const owns = (element) => element.closest(`[${checkboxListRootDomAttr}]`) === root;
+    const itemElements = Array.from(root.querySelectorAll(`[${checkboxListItemDomAttr}]`)).filter(owns);
+    const items = [];
+    for (const element of itemElements) {
+      if (!(element instanceof HTMLInputElement) || element.type !== "checkbox") return;
+      const rawWeight = element.getAttribute(checkboxListWeightDomAttr);
+      if (rawWeight === null || rawWeight.trim() === "") return;
+      const weight = Number(rawWeight);
+      if (!Number.isFinite(weight) || weight < 0) return;
+      items.push({ input: element, weight });
+    }
+    const groupElements = Array.from(root.querySelectorAll(`[${checkboxListGroupToggleDomAttr}]`)).filter(owns);
+    const groups = [];
+    for (const element of groupElements) {
+      if (!(element instanceof HTMLInputElement) || element.type !== "checkbox") return;
+      const group = element.closest(`[${checkboxListGroupDomAttr}]`);
+      if (group === null || !owns(group)) return;
+      groups.push({ input: element, items: items.filter((item) => item.input.closest(`[${checkboxListGroupDomAttr}]`) === group) });
+    }
+    const counts = Array.from(root.querySelectorAll(`[${checkboxListCountDomAttr}]`)).filter(owns);
+    const totals = Array.from(root.querySelectorAll(`[${checkboxListTotalDomAttr}]`)).filter(owns);
+    if (!counts.every((element) => element instanceof HTMLOutputElement) || !totals.every((element) => element instanceof HTMLOutputElement)) return;
+    const selectAll = target.hasAttribute(checkboxListSelectAllDomAttr);
+    const clearAll = target.hasAttribute(checkboxListClearAllDomAttr);
+    const selectedGroup = groups.find((group) => group.input === target);
+    if (selectAll || clearAll) {
+      for (const item of items) item.input.checked = selectAll;
+    } else if (selectedGroup !== void 0) {
+      for (const item of selectedGroup.items) item.input.checked = selectedGroup.input.checked;
+    } else if (!items.some((item) => item.input === target)) return;
+    for (const group of groups) {
+      group.input.checked = group.items.length > 0 && group.items.every((item) => item.input.checked);
+      group.input.indeterminate = false;
+    }
+    const selected = items.filter((item) => item.input.checked);
+    for (const count of counts) count.value = String(selected.length);
+    const total = Math.round(selected.reduce((sum, item) => sum + item.weight, 0) * 100) / 100;
+    for (const output of totals) output.value = String(total);
+    for (const element of Array.from(root.elements)) {
+      if (element instanceof HTMLButtonElement && element.hasAttribute(checkboxListSubmitDomAttr)) {
+        element.disabled = selected.length === 0;
+      }
+    }
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener("change", (event) => {
+      if (!(event.target instanceof HTMLInputElement)) return;
+      if (event.target.hasAttribute(checkboxListItemDomAttr) || event.target.hasAttribute(checkboxListGroupToggleDomAttr)) {
+        updateCheckboxList(event.target);
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const control = event.target.closest(`[${checkboxListSelectAllDomAttr}], [${checkboxListClearAllDomAttr}]`);
+      if (control !== null) updateCheckboxList(control);
+    });
+  }
+
+  // frontend/ts/app-filter-selection.ts
+  function updateFilterSelection(target) {
+    const section = target.closest(`[${filterSelectionSectionDomAttr}]`);
+    if (!(section instanceof HTMLElement)) return;
+    const owned = (selector) => Array.from(section.querySelectorAll(selector)).filter((element) => element.closest(`[${filterSelectionSectionDomAttr}]`) === section);
+    const items = owned(`[${filterSelectionItemDomAttr}]`);
+    if (!items.every((item) => item instanceof HTMLInputElement && item.type === "checkbox")) return;
+    if (target.hasAttribute(filterSelectionClearDomAttr)) {
+      for (const item of items) item.checked = false;
+    }
+    const count = items.filter((item) => item.checked).length;
+    for (const element of owned(`[${filterSelectionCountDomAttr}]`)) element.textContent = String(count);
+    for (const element of owned(`[${filterSelectionAllDomAttr}]`)) {
+      if (element instanceof HTMLElement) element.hidden = count !== 0;
+    }
+    for (const element of owned(`[${filterSelectionSelectedDomAttr}]`)) {
+      if (element instanceof HTMLElement) element.hidden = count === 0;
+    }
+  }
+  function clipFilterSelectionOptions(section) {
+    const button = section.querySelector("button[aria-controls]");
+    const contentId = button?.getAttribute("aria-controls");
+    if (!(button instanceof HTMLElement) || !contentId) return;
+    const content = section.querySelector(`#${CSS.escape(contentId)}`);
+    if (!(content instanceof HTMLElement)) return;
+    const headingBottom = button.getBoundingClientRect().bottom;
+    const contentBox = content.getBoundingClientRect();
+    const inset = Math.min(contentBox.height, Math.max(0, headingBottom - contentBox.top));
+    content.style.clipPath = inset > 0 ? `inset(${inset}px 0 0)` : "";
+  }
+  if (typeof document !== "undefined") {
+    let clipFrame = null;
+    const scheduleClipping = () => {
+      if (clipFrame !== null) return;
+      clipFrame = requestAnimationFrame(() => {
+        clipFrame = null;
+        document.querySelectorAll(`[${filterSelectionSectionDomAttr}]`).forEach(clipFilterSelectionOptions);
+      });
+    };
+    document.addEventListener("scroll", scheduleClipping, { capture: true, passive: true });
+    window.addEventListener("resize", scheduleClipping, { passive: true });
+    document.addEventListener("shown.bs.collapse", scheduleClipping);
+    document.addEventListener("change", (event) => {
+      if (event.target instanceof HTMLInputElement && event.target.hasAttribute(filterSelectionItemDomAttr)) {
+        updateFilterSelection(event.target);
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const clear = event.target.closest(`[${filterSelectionClearDomAttr}]`);
+      if (clear !== null) updateFilterSelection(clear);
+    });
+    document.addEventListener("hidden.bs.collapse", (event) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      const section = event.target.closest(`[${filterSelectionSectionDomAttr}]`);
+      if (section === null) return;
+      const button = section.querySelector(`[aria-controls="${CSS.escape(event.target.id)}"]`);
+      if (button instanceof HTMLElement) button.scrollIntoView({ block: "nearest" });
+      scheduleClipping();
+    });
+  }
 
   // frontend/ts/ordered-range/configuration.ts
   var crossingPolicyHandlers = {
