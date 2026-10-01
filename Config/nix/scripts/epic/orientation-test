@@ -41,10 +41,10 @@ fi
 endpoint="${!#}"
 case "$endpoint" in
     repos/BeaudanBrown/ihp-roster/issues/265)
-        printf '{"number":265,"title":"Epic: Agent-first native-Nix epic worktree orchestration","state":"%s","html_url":"https://example.invalid/issues/265"}\n' "${EPIC_PARENT_STATE:-open}"
+        printf '{"number":265,"title":"Epic: Staff → café — 日本語 🧪","state":"%s","html_url":"https://example.invalid/issues/265"}\n' "${EPIC_PARENT_STATE:-open}"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/265/sub_issues?*)
-        printf '%s\n' '[{"number":268,"title":"Runtime isolation","state":"closed","html_url":"https://example.invalid/issues/268","assignees":[]},{"number":269,"title":"Fresh-agent orientation","state":"open","html_url":"https://example.invalid/issues/269","assignees":[]},{"number":270,"title":"Integration safeguards","state":"open","html_url":"https://example.invalid/issues/270","assignees":[]},{"number":271,"title":"Concurrent acceptance","state":"open","html_url":"https://example.invalid/issues/271","assignees":[{"login":"agent"}]}]'
+        printf '%s\n' '[{"number":268,"title":"Runtime isolation","state":"closed","html_url":"https://example.invalid/issues/268","assignees":[]},{"number":269,"title":"Fresh-agent orientation → café","state":"open","html_url":"https://example.invalid/issues/269","assignees":[]},{"number":270,"title":"Integration safeguards","state":"open","html_url":"https://example.invalid/issues/270","assignees":[]},{"number":271,"title":"Concurrent acceptance","state":"open","html_url":"https://example.invalid/issues/271","assignees":[{"login":"agent"}]}]'
         ;;
     repos/BeaudanBrown/ihp-roster/issues/269/dependencies/blocked_by?*)
         printf '%s\n' '[]'
@@ -65,6 +65,8 @@ chmod +x "$mock_bin/gh"
 
 orientation_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
 [ "$(jq -r '.epic.number' <<<"$orientation_json")" = 265 ] || fail "epic identity was not detected"
+[ "$(jq -r '.epic.title' <<<"$orientation_json")" = 'Epic: Staff → café — 日本語 🧪' ] || fail "Unicode parent title was corrupted"
+[ "$(jq -r '.issues.ready[0].title' <<<"$orientation_json")" = 'Fresh-agent orientation → café' ] || fail "Unicode paginated issue title was corrupted"
 [ "$(jq -r '.workspace.slot' <<<"$orientation_json")" = 1 ] || fail "workspace slot was not reported"
 [ "$(jq -r '.issues.ready[0].number' <<<"$orientation_json")" = 269 ] || fail "ready issue was not presented"
 [ "$(jq -r '.issues.ready[] | select(.number == 271) | .assignees[0]' <<<"$orientation_json")" = agent ] || fail "assignment incorrectly removed a ready issue"

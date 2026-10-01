@@ -10,12 +10,12 @@ import Data.Aeson (FromJSON (parseJSON), ToJSON, Value (Array), eitherDecodeStri
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Key (Key)
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LazyByteString
 import Data.Char (isDigit)
 import Data.List (find, nub, sort, sortOn)
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import GHC.Generics (Generic)
 import qualified Data.Vector as Vector
 import System.Directory (canonicalizePath, getCurrentDirectory)
@@ -226,7 +226,7 @@ command failureStatus executable arguments = do
     unavailable _ = failure 69 ("required command is unavailable: " <> executable)
 
 decodeOutput :: FromJSON value => String -> String -> IO value
-decodeOutput label output = either (const (failure 65 label)) pure (eitherDecodeStrict' (ByteString.pack output))
+decodeOutput label output = either (const (failure 65 label)) pure (eitherDecodeStrict' (TextEncoding.encodeUtf8 (Text.pack output)))
 
 splitNull :: String -> [String]
 splitNull value = filter (not . null) (go value)
