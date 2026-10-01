@@ -10,6 +10,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupS
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
+                                                   encodeDurableResource)
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
                                               issuePasskeySetupToken)
 import Application.Helper.PasswordResetTokens (issuePasswordResetToken)
@@ -30,8 +32,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -385,7 +387,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
-                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "touches active roster weeks for every previous and newly selected staff group" $ withContext do
@@ -975,8 +976,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-profile\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-shift-preferences\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-staff-leave-request\""
-                response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"staff-profile-details-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"staff-profile-preferences-shell-collapse\" class=\"accordion-collapse collapse\""
                 soleRosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isActive, True)
@@ -1124,6 +1125,14 @@ tests = aroundAll withDatabaseTestContext do
                 map (.weekdayIndex) preferences `shouldBe` [2]
                 map (.preferredStartHour) preferences `shouldBe` [8]
                 map (.preferredEndHour) preferences `shouldBe` [14]
+                let Right preferenceResource = encodeDurableResource (staffPreferencesResource (unpackId staff.id))
+                    Right profileResource = encodeDurableResource (staffProfileResource (unpackId staff.id))
+                query @LiveInvalidationEventResource
+                    |> filterWhere (#resourceKey, preferenceResource.durableResourceKey)
+                    |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEventResource
+                    |> filterWhere (#resourceKey, profileResource.durableResourceKey)
+                    |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects malformed roster group ids and shift preference keys without throwing" $ withContext do
             withCleanDb do
