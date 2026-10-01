@@ -51,7 +51,7 @@ renderRosterGroupCreateForm showInactive =
                 <label class="form-label" for="new-roster-group-name">Name</label>
                 <input id="new-roster-group-name" class="form-control" type="text" name={surfaceFieldNameFrom @Surface.Name fields} placeholder="Front of House" />
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-md-2 admin-toggle-column">
                 <label class="form-label" for="new-roster-group-active">Status</label>
                 {renderAdminActiveToggle "new-roster-group-active" (surfaceToggleScalarField @Surface.IsActive fields True False) True}
             </div>
@@ -109,7 +109,7 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     <label class="form-label">Name</label>
                     <input class="form-control" type="text" name={surfaceFieldNameFrom @Surface.Name fields} value={rosterGroup.name} />
                 </div>
-                <div class="col-12 col-md-2">
+                <div class="col-12 col-md-2 admin-toggle-column">
                     <label class="form-label" for={"roster-group-active-" <> tshow rosterGroup.id}>Status</label>
                     {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) (surfaceToggleScalarField @Surface.IsActive fields True False) rosterGroup.isActive}
                 </div>

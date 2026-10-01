@@ -128,7 +128,14 @@ test.describe('Roster notification workflow', () => {
             INSERT INTO staff_roster_groups (staff_id, roster_group_id)
             SELECT staff_id, '${rosterGroupId}'
             FROM staff_roster_groups
-            WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND deleted_at IS NULL;
+            WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND deleted_at IS NULL
+              -- Own the canonical recipients, not invitees from earlier specs.
+              AND staff_id IN (
+                  'a0000000-0000-0000-0000-000000000101',
+                  'a1000000-0000-0000-0000-000000000031',
+                  'a1000000-0000-0000-0000-000000000033',
+                  'a1000000-0000-0000-0000-000000000035'
+              );
 
             WITH new_user AS (
                 INSERT INTO users (email, password_hash, is_profile_completed, email_verified_at)

@@ -27,6 +27,7 @@ cleanup() {
         -u TEST_POSTGRES_ROOT -u TEST_POSTGRES_PRESERVE_ON_STOP \
         -u TEST_POSTGRES_FSYNC -u TEST_POSTGRES_SYNCHRONOUS_COMMIT \
         -u TEST_POSTGRES_FULL_PAGE_WRITES -u TEST_POSTGRES_ALLOW_NON_NATIVE \
+        BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
         TEST_POSTGRES_MODE=managed \
         TEST_POSTGRES_PROFILE=migration-rehearsal \
         TEST_POSTGRES_DURABILITY=disposable \
@@ -87,6 +88,7 @@ run_rehearsal() {
             -u TEST_POSTGRES_DURABILITY -u TEST_POSTGRES_FSYNC \
             -u TEST_POSTGRES_SYNCHRONOUS_COMMIT -u TEST_POSTGRES_FULL_PAGE_WRITES \
             -u TEST_POSTGRES_ALLOW_NON_NATIVE \
+            BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
             bash "$harness" --from-ref "$predecessor_commit"
     )
 }

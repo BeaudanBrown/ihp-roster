@@ -70,7 +70,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
             <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect fields "new-shift-type-colour" defaultCreateColourKey Nothing}
             </div>
-            <div class="col-6 col-lg-1">
+            <div class="col-6 col-lg-1 admin-toggle-column">
                 <label class="form-label" for="new-shift-type-active">Status</label>
                 {renderAdminActiveToggle "new-shift-type-active" (surfaceToggleScalarField @Surface.IsActive fields True False) True}
             </div>
@@ -124,7 +124,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect fields ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
             </div>
-            <div class="col-12 col-lg-2">
+            <div class="col-12 col-lg-2 admin-toggle-column">
                 <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
                 {renderAdminActiveToggleImmediate ("shift-type-active-" <> tshow shiftType.id) (surfaceToggleScalarField @Surface.IsActive fields True False) shiftType.isActive}
             </div>

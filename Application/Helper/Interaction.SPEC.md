@@ -49,10 +49,48 @@ scroll-locked, while navigation and overlaid workflow dialogs remain usable.
 Closing preserves mounted forms and tabs; same-feature HTMX replacement preserves
 open state, while changing feature or returning from desktop starts closed.
 Activating a linked-highlight pin closes the shelf to reveal the main content.
+Settings and business invalidations replace typed content fragments inside the
+shelf, not its launcher, tabs, or settings scroll container. Actor and passive
+updates use those same boundaries; do not compensate for oversized fragments
+with feature-specific scroll-restoration code. Navigation to another scope is a
+separate shell-lifecycle operation, not an ordinary settings refresh.
 Haskell owns values, routes, workflow/error copy, and server validation; adapters
 keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing
 one another's feature meaning.
+
+DOM-dependent initialization waits for page readiness; a head-loaded script must
+not access an absent body. Shelves, workflow dialogs, and utility modals share
+page-scroll and background-isolation ownership. The document root remains locked
+until the last overlay releases it, and only the top overlay's interaction region
+is available. Closing a picker restores its underlying dialog; closing that dialog
+restores any open shelf without unlocking the page. Restore prior inert state,
+inline styles, focus, and page scroll position rather than clearing another
+owner's state. Dialog bodies scroll natively with contained overscroll; do not
+suppress touch gestures globally or disable pinch zoom.
+
+HTMX-mounted workflow dialogs declare one native `autofocus` target. Keyboard
+forms select the first eligible invalid control in visual order, otherwise their
+starting control; other workflow dialogs focus their shell. Hidden, disabled,
+and read-only presentation fields cannot consume the target. HTML/HTMX applies
+initial focus, not a second application page-ready/after-swap selector. Keep
+HTMX's ordinary settlement delay: interaction before settlement can still be
+superseded by autofocus. Focus restoration, Tab containment, and explicit loading
+state focus remain separate existing runtime responsibilities. A keyboard dialog
+may declare `DialogEnterSubmit` on its default draft-submit button (for example,
+Add); otherwise Enter uses the final `DialogSubmit` button. The draft target is
+independent of final-save loading/locking, preserving native validation and its
+successful-control value. Haskell chooses the target; TypeScript only activates
+the native button (including HTMX's named-submitter tracking). Focused native
+buttons and links keep their own Enter activation, never the form default.
+
+Binary settings that apply immediately use switches; selections saved with a
+form use checkboxes. Both share neutral, whole-control click/touch containers,
+with checked colour confined to the indicator. Labels remain stable and
+single-line; narrow layouts reduce columns rather than wrap labels or shrink
+indicators. Native checked state and keyboard focus remain accessible. Navigation
+switches retain Surface-owned GET/query semantics, while form controls retain
+their declared immediate/deferred submission and value-or-omission mappings.
 
 Concrete mount keys participate in IDs, targets, layer/form IDs, and runtime
 lookup. All discovery stays within the nearest owning mount and must not cross a
@@ -120,7 +158,7 @@ bash ./bin/in-env frontend-surface-compile-fail-check
 bash ./bin/in-env frontend-surface-guardrails
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendSurface" --match "RosterInteractionWorkflow"
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 ```
 
 

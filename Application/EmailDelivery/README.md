@@ -15,7 +15,8 @@ The web process and `RunJobs` worker must receive the same shared environment:
 
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`;
 - `MAIL_FROM`, with optional `MAIL_REPLY_TO` and `MAIL_SUPPORT_EMAIL`;
-- `APP_BASE_URL`; and
+- `APP_BASE_URL`;
+- `RESEND_WEBHOOK_SECRET`, for raw-body Svix verification at `/webhooks/resend`; and
 - `IHP_SESSION_SECRET_FILE`, required to decrypt short-lived account-security
   delivery material.
 
@@ -45,9 +46,11 @@ ORDER BY status, attempts_count;
 Terminal results expose only `deliveryStatus`, `mailKind`, `domainReferenceId`,
 and an optional bounded skip reason. `job_status_retry` is retryable work;
 `job_status_failed` and `job_status_timed_out` require bounded investigation of
-service health and sanitized `last_error`. There is intentionally no general
-manual replay command. Permanent dedupe prevents recreating a completed semantic
-event.
+service health and sanitized `last_error`. The super-admin Support page distinguishes
+queue completion, SMTP acceptance and provider-reported state. Provider `delivered`
+means recipient-mail-server acceptance, not inbox placement; historical SMTP
+successes remain provider state `unknown`. There is intentionally no general manual
+replay command. Permanent dedupe prevents recreating a completed semantic event.
 
 ## Rollout
 
@@ -78,3 +81,11 @@ jobs. A rollback therefore stops the worker, restores the prior package, and
 keeps all terminal retirement history. If recovery requires replay or data
 restoration, use an issue-specific operator runbook and reviewed database backup;
 never reset production data or bulk-change terminal email jobs.
+
+Resend webhook requests are verified over the raw body and deduplicated by durable
+`svix-id`; only bounded event metadata is retained. Correlation uses exact RFC
+`Message-ID`/Resend `email_id`, never recipient/time. Explicit resend is limited to
+reviewed, non-secret operational incident mail, requires an active platform
+super-admin and fresh passkey, records original/replacement/requester/reason, and
+cannot replay invitation or account-security mail. See `RESEND.md` for source review,
+provider setup and the controlled-send approval boundary.

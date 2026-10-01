@@ -97,7 +97,14 @@ issue and, when cross-system design remains unresolved, a new workstream.
   snapshot opens the mapping workflow rather than making preparation wait for the
   delayed background retry. Subscribed live waiting dialogs show canonical
   phase/page facts and resume from local reference rows only after typed
-  sync-state invalidation.
+  sync-state invalidation. Failed attempts remain terminal in read-only status
+  observations, but an explicit import/preparation opening may request a new
+  coalescing refresh without founder support. Fresh attempts retain failed-job
+  history, wait at least 30 seconds after the previous failure, and honor any
+  retained provider retry time even after the automatic retry budget expires.
+  Reconnection-required connections cannot retry through this path. Native IHP
+  cancellation/failure and stale-job recovery remain unchanged; recovery retries
+  reference synchronization only, never an uncertain payroll submission.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
   unresolved staff mappings as checked. When no mapping row exists yet, or an
@@ -172,6 +179,21 @@ issue and, when cross-system design remains unresolved, a new workstream.
   source identity and rate remain unchanged in the resulting key.
   `Application.Xero.PayrollSourceKey` owns that exact source/rate suffix.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
+- Venue-scoped Xero operational incidents use three exact terminal triggers:
+  persisted `reauthorization_required`; the reference-sync retry policy's terminal
+  or exhausted branch; and a persisted per-operation timesheet submission in
+  `failed` or reconciliation `blocked` after its bounded write path. Queued,
+  pending, retry-wait, ordinary connection errors, and other transient failures
+  are silent. Connection incidents resolve only from the authoritative active or
+  disconnected connection row; complete reference publication resolves reference
+  exhaustion. Each submission id remains a distinct actionable incident and
+  resolves only when that same operation becomes submitted, skipped, or superseded
+  by an explicit fresh preparation—connection recovery never resolves it and no
+  path auto-resubmits payroll. Recurrence emits a new event; unchanged observations
+  emit no reminders. Metadata is limited to local operation/connection ids,
+  attempt count and action code, never staff, payroll/customer content, tokens or
+  raw provider errors. Recipients use the shared active platform-super-admin
+  snapshot, not venue membership.
 - Readiness, persisted preview, preparation-owned submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's
   calculation or source failure blocks the complete operation; imported overrides
@@ -204,9 +226,39 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 
 - Each preparation run explicitly selects one synced calendar and period. Only
   mapped employees assigned by Xero to that calendar are eligible. The period
-  selector shows every eligible past and future period and selects the newest
-  non-posted option by default. Selecting a period checks its current Xero pay
-  run without downloading remote timesheet history. After concise owner
+  selector is populated from a fresh, fully paginated Xero draft-pay-run query.
+  Only runs on available synced calendars are offered, newest period first, with
+  one option per calendar/date range even when multiple draft runs match. No
+  approved local shifts are required for a period to appear. Historical cached
+  pay runs are not a fallback when the live query fails or returns no drafts.
+  Continue is disabled without a selectable period. Reconnect-required runs
+  offer native reconnection instead of progressing to staff or period selection.
+  Actual pay-run dates are authoritative, including nonstandard periods; they
+  are not inferred from calendar frequency. Opening preparation, selecting a
+  period and confirming submission refresh the draft list. Submission requires
+  a matching draft run to remain available; posting/deletion blocks progression.
+  This is a Bepis workflow gate, not authority to edit a processed timesheet or
+  a way to target an individual same-period run. Selecting
+  a period initializes an explicit approved-entry selection; changing periods
+  resets it. Immediately after period selection, any unapproved Timesheets in that
+  period trigger a warning confirmation with a concise affected-entry list; the
+  owner must explicitly continue knowing those entries will be excluded. Any
+  required account setup follows, then the shift checklist opens directly with no
+  separate Choose shifts launcher. The checklist remains the final submission
+  confirmation: its Confirm and submit action validates and saves the selection,
+  then submits without another confirmation dialog. Older Continue
+  actions remain save-only; retired submission endpoints reopen preparation and
+  cannot write to Xero. Approval repairs or changed selections require fresh
+  checklist confirmation rather than authorizing changed facts implicitly.
+  No eligible shifts opens an empty checklist, not the submission-blocked dialog;
+  Confirm and submit remains disabled and empty submissions remain invalid.
+  Confirmation shows a blocking loading modal until the request completes;
+  failed requests restore the checklist so the user can retry.
+  Selection drives readiness, preparation, preview and reservation,
+  and legacy preparations without a selection require review. Changed source
+  identities must be reviewed again rather than silently omitted or retried.
+  Selecting a period checks current Xero pay runs without downloading remote
+  timesheet history. After concise owner
   confirmation, submission performs one fresh reconciliation read and
   immediately creates or updates safe drafts from that state; unsafe provider
   states block before writes. Confirmation does not carry an earlier remote
@@ -217,6 +269,11 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   The initial read omits the optional `page` query parameter because live Xero
   returns 400 for an explicitly requested empty page 1; later full-result pages
   use page 2 onward.
+- Confirmation authorizes complete replacement of selected employees' editable
+  drafts: unselected content for those employees is removed. Employees without
+  selected entries remain untouched. Processed timesheets remain non-editable
+  even when another draft pay run exists; the optional Xero pay-items workbook
+  supports manual entry without suggesting deletion or automatic adjustment.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.
@@ -235,14 +292,18 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   reapproval creates independently routed components. Submission source links
   retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
-- Entry-specific approval blockers expose one owner/super-admin `Refresh approval`
-  recovery in a real selected venue. The confirmed action carries the expected
-  active calculation and approval timestamp, waits at most five seconds for the
-  Timesheet row lock, rejects stale controls and active provider writes, and
-  transactionally recalculates against current pay facts and Xero mappings. A
-  successful refresh retains the prior sealed ledger, updates approval actor/time,
-  and records `TimesheetApprovedAudit` with prior/new calculation IDs and source
-  `xero_preparation_refresh`; incomplete replacements roll back completely. A
+- Explicit owner/super-admin preparation progression automatically attempts one
+  repair per selected entry with an approval-related blocker. Passive view and
+  live-fragment reads never trigger approval repair. No per-entry `Refresh approval`
+  cards are rendered; unresolved causes remain visible once per distinct message.
+  Recovery locks the preparation and validates its saved selection, carries the
+  expected active calculation and approval timestamp, waits at most five seconds
+  for locks, rejects stale identities and active provider writes, and recalculates
+  against current pay facts and Xero mappings. A successful refresh retains the
+  prior ledger, updates approval actor/time and the saved selection identity in
+  the same transaction, and records `TimesheetApprovedAudit` with prior/new
+  calculation IDs and source `xero_preparation_refresh`; incomplete replacements
+  roll back completely. Healthy and unselected approvals are not refreshed. A
   concurrent duplicate control that waits and then observes that first complete,
   audited refresh returns the same healthy approval as an idempotent no-op; every
   other expected-identity mismatch is stale.
@@ -295,7 +356,8 @@ their focused/golden tests.
   request sync once, while every later wait-fragment read remains side-effect-free.
   Progress, retry, failure, and trusted completion replace the mounted dialog
   fragment only after sync-state invalidation. Trusted preparation completion
-  performs one separate preparation mutation; trusted import completion renders
+  performs one separate preparation mutation, synchronized across replacements
+  of the waiting fragment; trusted import completion renders
   candidates directly from local reference rows.
 
 ## Provider Contracts

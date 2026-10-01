@@ -778,7 +778,26 @@ tests = aroundAll withDatabaseTestContext do
 
                 result `shouldSatisfy` isLeft
 
-        it "allows roster-derived staff corrections while keeping date and source immutable" $ withContext do
+        it "rejects direct SQL timesheets classified to another venue's roster group" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Timesheet Group A"
+                venueB <- createVenueWithConfig "Tenant Timesheet Group B"
+                staffA <- createStaffRecord venueA Nothing "Tenant" "Worker"
+                shiftTypeA <- ensureVenueDefaultShiftType venueA
+                foreignGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
+                let startsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 9 0 0)
+                let endsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 17 0 0)
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date, roster_group_classification, roster_group_id) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06', 'in_roster_group', ?)"
+                            (unpackId venueA.id, unpackId staffA.id, unpackId shiftTypeA.id, startsAt, endsAt, unpackId foreignGroup.id)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
+        it "allows roster-derived staff corrections while keeping date, source, and roster-group classification immutable" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Provenance Guard Venue"
                 sourceStaff <- createStaffRecord venue Nothing "Source" "Staff"
@@ -798,6 +817,8 @@ tests = aroundAll withDatabaseTestContext do
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
+                        |> set #rosterGroupClassification InRosterGroup
+                        |> set #rosterGroupId (Just rosterDay.rosterGroupId)
                         |> createRecord
 
                 sqlExecDiscardResult
@@ -828,6 +849,22 @@ tests = aroundAll withDatabaseTestContext do
                 retainedEntry.staffId `shouldBe` unpackId otherStaff.id
                 retainedEntry.operationalDate `shouldBe` rosterDay.operationalDate
                 retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+
+                changedClassificationResult <-
+                    try
+                        ( sqlExecDiscardResult
+                            "UPDATE timesheet_entries SET roster_group_classification = 'no_roster_group', roster_group_id = NULL WHERE id = ?"
+                            (PG.Only (unpackId linkedEntry.id))
+                        ) :: IO (Either SomeException ())
+                changedClassificationResult `shouldSatisfy` isLeft
+
+                changedGroupResult <-
+                    try
+                        ( sqlExecDiscardResult
+                            "UPDATE timesheet_entries SET roster_group_id = NULL WHERE id = ?"
+                            (PG.Only (unpackId linkedEntry.id))
+                        ) :: IO (Either SomeException ())
+                changedGroupResult `shouldSatisfy` isLeft
 
                 secondRosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 1
                 adHocEntry <- createTimesheetEntryRecord venue sourceStaff (addDays 1 defaultWeekEpoch)

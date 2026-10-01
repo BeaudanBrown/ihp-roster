@@ -3,25 +3,19 @@ set -euo pipefail
 
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
-
-# shellcheck source=Config/nix/scripts/frontend/generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
-
-state_dir="$(frontend_generated_state_dir)"
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+state_dir="$(dev-agent-state-dir)/generated-code"
 mkdir -p "$state_dir"
-frontend_generation_lock
 
-frontend-surface-adapters
-frontend-contracts
-frontend-build
-
-frontend_write_manifest \
-    "$state_dir/frontend-contracts.manifest" \
-    "$(frontend_contract_input_hash)" \
-    "$(frontend_contract_output_hash)"
-frontend_write_manifest \
-    "$state_dir/frontend-js.manifest" \
-    "$(frontend_js_input_hash)" \
-    "$(frontend_js_output_hash)"
+"$tooling_launcher" artifacts generate --mode sync --root "$repo_root" \
+    --lock "$state_dir/generation.lock" --manifest "$state_dir/frontend-contracts.manifest" \
+    --input-command "$scripts_root/frontend/contracts-input-inventory" \
+    --output-command "$scripts_root/frontend/contracts-output-inventory" -- \
+    "$scripts_root/frontend/generate-contract-artifacts" >/dev/null
+"$tooling_launcher" artifacts generate --mode sync --root "$repo_root" \
+    --lock "$state_dir/generation.lock" --manifest "$state_dir/frontend-js.manifest" \
+    --input-command "$scripts_root/frontend/js-input-inventory" \
+    --output-command "$scripts_root/frontend/js-output-inventory" -- frontend-build >/dev/null
 
 echo "frontend-generated-sync: generated frontend artifacts are current"

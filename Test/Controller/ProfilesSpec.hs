@@ -6,13 +6,12 @@ import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
 import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
-                                                   encodeDurableResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..), encodeDurableResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import Config
@@ -23,15 +22,16 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (sqlQueryScalar)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
+import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.Profiles.Mutations (profileUpdateTouchedResources)
 import Web.Routes
 import Web.Types
@@ -162,7 +162,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
-                response `responseBodyShouldContain` "btn-outline-success"
+                response `responseBodyShouldContain` "type=\"checkbox\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-1\""
+                response `responseBodyShouldContain` "type=\"checkbox\" checked=\"checked\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-2\""
                 response `responseBodyShouldContain` "app-toggle-button"
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "class=\"visually-hidden app-toggle-button-input\" type=\"checkbox\""
@@ -220,9 +221,9 @@ tests = aroundAll withDatabaseTestContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"profile-details-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-leave-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-details-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-leave-shell-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldNotContain` "id=\"profile-rsa-collapse\""
                 response `responseBodyShouldNotContain` "accordion-collapse collapse show"
 
@@ -230,7 +231,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams EditProfileAction [("section", "security")]
 
                 securityResponse `responseStatusShouldBe` status200
-                securityResponse `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse show\""
+                securityResponse `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse show\""
 
         it "temporarily hides profile RSA section" $ withContext do
             withCleanDb do
@@ -264,6 +265,36 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "name=\"emergencyContactPhone\""
                 response `responseBodyShouldContain` "name=\"idealShiftsPerWeek\""
                 response `responseBodyShouldContain` "name=\"shiftPreferenceKeys\""
+
+        it "shows only current and upcoming requests in Profile and live history, with no Archive" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Active Leave Venue"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                forM_ [(Worker, "worker"), (Manager, "manager")] \(role, roleName) -> do
+                    user <- createUserRecord ("profile-active-leave-" <> roleName <> "@example.com") "staff" True
+                    _ <- createVenueMembershipRecord venue user role
+                    staff <- createStaffRecord venue (Just user) "Profile" "Leave"
+                    let createRequest startDate endDate status note =
+                            createLeaveRequestRecord venue staff startDate endDate status
+                                >>= updateRecord . set #notes (Just note)
+                    _ <- createRequest (addDays (-1) today) today LeaveRequestStatusEnumApproved "Ended profile request"
+                    _ <- createRequest (addDays (-1) today) (addDays 1 today) LeaveRequestStatusEnumApproved "Current profile request"
+                    _ <- createRequest (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumDenied "Upcoming profile request"
+
+                    responses <- withUserAndCurrentVenue user venue.id do
+                        sequence
+                            [ callActionWithParams EditProfileAction [("section", "leave")]
+                            , callActionWithParams ShowprofileContentLiveFragmentAction [("section", "leave")]
+                            , callActionWithParams ShowSelfServiceLeaveFragmentAction [("fragment", "history")]
+                            ]
+
+                    forM_ responses \response -> do
+                        response `responseStatusShouldBe` status200
+                        response `responseBodyShouldContain` "Current profile request"
+                        response `responseBodyShouldContain` "Upcoming profile request"
+                        response `responseBodyShouldNotContain` "Ended profile request"
+                        response `responseBodyShouldNotContain` ">Archive<"
 
         it "hides the dedicated leave header link for workers while keeping profile leave content available" $ withContext do
             withCleanDb do
@@ -342,6 +373,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
                         [ ("section", "preferences")
+                        , ("firstName", "Stale name must not overwrite profile")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "12")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "20")
@@ -353,6 +385,30 @@ tests = aroundAll withDatabaseTestContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+                updatedStaff <- fetch staff.id
+                updatedStaff.firstName `shouldBe` "Taylor"
+                resource <- either (fail . cs) pure (encodeDurableResource (staffPreferencesResource (unpackId staff.id)))
+                query @LiveResourceVersion |> filterWhere (#resourceKey, Id resource.durableResourceKey) |> fetchExists >>= (`shouldBe` True)
+                profileResource <- either (fail . cs) pure (encodeDurableResource (staffProfileResource (unpackId staff.id)))
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, resource.durableResourceKey) |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, profileResource.durableResourceKey) |> fetchCount >>= (`shouldBe` 0)
+
+                profileResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("section", "profile")
+                        , ("firstName", "Updated")
+                        , ("lastName", "Smith")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Emergency Contact")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+                profileResponse `responseStatusShouldBe` status302
+                afterProfileSave <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                map (.id) afterProfileSave `shouldMatchList` map (.id) preferences
+                finalStaff <- fetch staff.id
+                finalStaff.firstName `shouldBe` "Updated"
 
         it "keeps server validation authoritative for crossed and out-of-range preference endpoints" $ withContext do
             withCleanDb do
@@ -392,7 +448,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
-                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "ignores staff status fields submitted by workers" $ withContext do

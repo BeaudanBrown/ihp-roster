@@ -9,6 +9,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , adminInvitesLiveScope
     , adminPageContentLiveFragment
     , adminPageLiveScope
+    , adminRecipientGroupsLiveFragment
+    , adminRecipientGroupsLiveScope
     , adminRosterGroupsLiveFragment
     , adminRosterGroupsLiveScope
     , adminShiftTypesLiveFragment
@@ -29,6 +31,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , matchAdminInvitesLiveScope
     , matchAdminPageContentLiveFragment
     , matchAdminPageLiveScope
+    , matchAdminRecipientGroupsLiveFragment
+    , matchAdminRecipientGroupsLiveScope
     , matchAdminRosterGroupsLiveFragment
     , matchAdminRosterGroupsLiveScope
     , matchAdminShiftTypesLiveFragment
@@ -148,6 +152,36 @@ matchAdminPageLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.AdminPageAdapterFamily)
         @Types1.AdminPageScope
+
+adminRecipientGroupsLiveFragment :: SurfaceFragmentKey
+adminRecipientGroupsLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroupsFragment
+        noSurfaceFields
+
+matchAdminRecipientGroupsLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchAdminRecipientGroupsLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroupsFragment
+
+adminRecipientGroupsLiveScope ::
+    UUID.UUID ->
+    SurfaceScope
+adminRecipientGroupsLiveScope venueId =
+    frontendSurfaceScope
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroupsScope
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchAdminRecipientGroupsLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
+matchAdminRecipientGroupsLiveScope =
+    matchFrontendSurfaceScope
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroupsScope
 
 adminRosterGroupsLiveFragment :: SurfaceFragmentKey
 adminRosterGroupsLiveFragment =

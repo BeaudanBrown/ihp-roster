@@ -1,5 +1,35 @@
 /* Shared app-panel accordion contract and nested panel flattening. */
 
+/* Opt-in sticky headers use the containing scrollport, not a nested scroller. */
+.accordion-item.app-panel.app-accordion-sticky {
+    overflow: visible;
+    /* Paint the stationary heading and clipped body, never their moving parent. */
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.app-accordion-sticky > .accordion-header > .accordion-button {
+    border: 1px solid var(--app-border);
+}
+
+/* Override the shared transparent collapsed-button separator. */
+.app-accordion-sticky > .accordion-header > .accordion-button.collapsed {
+    border-bottom-color: var(--app-border);
+}
+
+.app-accordion-sticky > .accordion-collapse {
+    border: 1px solid var(--app-border);
+    border-top: 0;
+}
+
+.app-accordion-sticky > .accordion-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+
 .accordion-item.app-panel {
     position: relative;
     overflow: hidden;
@@ -11,8 +41,8 @@
     transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
 }
 
-.accordion-item.app-panel:has(.accordion-button.collapsed):hover,
-.accordion-item.app-panel:has(.accordion-button.collapsed):focus-within {
+.accordion-item.app-panel:not(.app-accordion-sticky):has(.accordion-button.collapsed):hover,
+.accordion-item.app-panel:not(.app-accordion-sticky):has(.accordion-button.collapsed):focus-within {
     z-index: 2;
     border-color: var(--app-border-strong);
     box-shadow:
@@ -21,7 +51,7 @@
     transform: translateY(-1px);
 }
 
-.accordion-item.app-panel:has(.accordion-button:not(.collapsed)) {
+.accordion-item.app-panel:not(.app-accordion-sticky):has(.accordion-button:not(.collapsed)) {
     border-color: var(--app-accent-border-soft);
     box-shadow:
         0 0.85rem 1.9rem var(--app-shadow-md-raw),

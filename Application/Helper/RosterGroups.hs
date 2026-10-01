@@ -3,9 +3,8 @@
 
 module Application.Helper.RosterGroups where
 
-import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
-                                      currentVenueId, fetchCurrentUserStaff,
-                                      hasRole)
+import Application.Helper.Controller (currentVenueId, effectiveStaffOrNothing,
+                                      hasManagementMode)
 import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           sortDayNamesForVenueWeek)
@@ -124,15 +123,14 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
 -- are limited to explicit active assignments; this read intentionally does not
 -- call 'ensureStaffDefaultRosterGroupAssignment'.
 fetchViewableRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [RosterGroup]
-fetchViewableRosterGroups = do
-    maybeCurrentStaff <- fetchCurrentUserStaff
-    fetchViewableRosterGroupsForCurrentStaff maybeCurrentStaff
+fetchViewableRosterGroups =
+    fetchViewableRosterGroupsForCurrentStaff effectiveStaffOrNothing
 
 -- | Variant for request snapshots that have already resolved current Staff.
 fetchViewableRosterGroupsForCurrentStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO [RosterGroup]
 fetchViewableRosterGroupsForCurrentStaff maybeCurrentStaff = do
     activeGroups <- filter (.isActive) <$> fetchCurrentVenueRosterGroups
-    if hasRole Manager || currentUserIsUnimpersonatedSuperAdmin
+    if hasManagementMode
         then pure activeGroups
         else case maybeCurrentStaff of
             Nothing -> pure []

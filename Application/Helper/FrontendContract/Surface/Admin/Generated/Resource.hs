@@ -5,11 +5,13 @@
 module Application.Helper.FrontendContract.Surface.Admin.Generated.Resource
     ( adminExportsResource
     , adminInvitesResource
+    , adminRecipientGroupsResource
     , adminRosterGroupsResource
     , adminShiftTypesResource
     , adminVenueSettingsResource
     , matchAdminExportsResource
     , matchAdminInvitesResource
+    , matchAdminRecipientGroupsResource
     , matchAdminRosterGroupsResource
     , matchAdminShiftTypesResource
     , matchAdminVenueSettingsResource
@@ -63,6 +65,23 @@ matchAdminInvitesResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
         @Types1.AdminInvites
+
+adminRecipientGroupsResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+adminRecipientGroupsResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroups
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchAdminRecipientGroupsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchAdminRecipientGroupsResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.AdminRecipientGroupsAdapterFamily)
+        @Types1.AdminRecipientGroups
 
 adminRosterGroupsResource ::
     UUID.UUID ->

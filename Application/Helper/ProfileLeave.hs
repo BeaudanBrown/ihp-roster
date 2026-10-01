@@ -3,11 +3,12 @@ module Application.Helper.ProfileLeave
     , defaultLeaveRequestForOperationalDay
     , fetchCurrentUserLeaveRequests
     , fetchStaffLeaveRequests
+    , fetchStaffLeaveRequestsOn
     ) where
 
 import Application.Helper.Controller (currentOperationalDayForVenue,
-                                      currentVenueId, fetchCurrentUserStaff,
-                                      fetchVenueConfig)
+                                      currentVenueCalendarDay, currentVenueId,
+                                      fetchCurrentUserStaff, fetchVenueConfig)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -20,11 +21,18 @@ fetchCurrentUserLeaveRequests = do
         Just staff -> fetchStaffLeaveRequests staff
 
 fetchStaffLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [LeaveRequest]
-fetchStaffLeaveRequests staff =
+fetchStaffLeaveRequests staff = do
+    venueConfig <- fetchVenueConfig
+    today <- currentVenueCalendarDay venueConfig
+    fetchStaffLeaveRequestsOn today staff
+
+fetchStaffLeaveRequestsOn :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> Staff -> IO [LeaveRequest]
+fetchStaffLeaveRequestsOn today staff =
     query @LeaveRequest
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#staffId, unpackId staff.id)
         |> filterWhere (#deletedAt, Nothing)
+        |> filterWhereGreaterThan (#endDate, today)
         |> orderByDesc #startDate
         |> fetch
 

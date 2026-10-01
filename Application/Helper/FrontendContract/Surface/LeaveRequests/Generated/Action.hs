@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
     , CreateUnavailabilityBlackoutActionOperation
     , DeleteUnavailabilityBlackoutActionOperation
     , DenyLeaveRequestActionOperation
+    , ResolveLeavePolicyActionOperation
     , UpdateUnavailabilityBlackoutActionOperation
     , approveLeaveRequestAction
     , approveLeaveRequestActionFields
@@ -26,7 +27,11 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
     , denyLeaveRequestActionFields
     , parseArchiveLeaveRequestsPageActionParams
     , parseCreateUnavailabilityBlackoutActionParams
+    , parseResolveLeavePolicyActionParams
     , parseUpdateUnavailabilityBlackoutActionParams
+    , resolveLeavePolicyAction
+    , resolveLeavePolicyActionFields
+    , resolveLeavePolicyActionParamsPresent
     , updateUnavailabilityBlackoutAction
     , updateUnavailabilityBlackoutActionFields
     ) where
@@ -139,7 +144,7 @@ createUnavailabilityBlackoutActionFields startDate endDate reason =
 
 createUnavailabilityBlackoutActionEvidence :: ActionEvidence CreateUnavailabilityBlackoutActionOperation
 createUnavailabilityBlackoutActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateUnavailabilityBlackout" "create-unavailability-blackout" [SurfaceIR.FieldIR "StartDate" "startDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EndDate" "endDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Reason" "reason" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#unavailability-blackouts" ["unavailability-blackouts"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateUnavailabilityBlackout" "create-unavailability-blackout" [SurfaceIR.FieldIR "StartDate" "startDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EndDate" "endDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Reason" "reason" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "this" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 createUnavailabilityBlackoutAction :: ActionFields CreateUnavailabilityBlackoutActionOperation -> FrontendSurfaceAction
 createUnavailabilityBlackoutAction =
@@ -190,6 +195,48 @@ denyLeaveRequestAction :: ActionFields DenyLeaveRequestActionOperation -> Fronte
 denyLeaveRequestAction =
     frontendSurfaceActionFromEvidence denyLeaveRequestActionEvidence
 
+data ResolveLeavePolicyActionOperation
+
+type instance ActionSurface ResolveLeavePolicyActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+type instance ActionMarker ResolveLeavePolicyActionOperation = Types1.ResolveLeavePolicy
+type instance ActionFieldSpecs ResolveLeavePolicyActionOperation =
+    '[ 'Field Types1.PolicyToken 'WireText
+     , 'Field Types1.ReturnToEdit 'WireBool
+     ]
+
+resolveLeavePolicyActionFields ::
+    Text ->
+    Bool ->
+    ActionFields ResolveLeavePolicyActionOperation
+resolveLeavePolicyActionFields policyToken returnToEdit =
+    actionFields
+        (surfaceField @Types1.PolicyToken policyToken)
+        ( surfaceField @Types1.ReturnToEdit returnToEdit
+            &: noSurfaceFields
+        )
+
+resolveLeavePolicyActionEvidence :: ActionEvidence ResolveLeavePolicyActionOperation
+resolveLeavePolicyActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ResolveLeavePolicy" "resolve-leave-policy" [SurfaceIR.FieldIR "PolicyToken" "policyToken" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ReturnToEdit" "returnToEdit" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "this" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+resolveLeavePolicyAction :: ActionFields ResolveLeavePolicyActionOperation -> FrontendSurfaceAction
+resolveLeavePolicyAction =
+    frontendSurfaceActionFromEvidence resolveLeavePolicyActionEvidence
+
+resolveLeavePolicyActionParamsPresent ::
+    (?request :: Request) =>
+    Bool
+resolveLeavePolicyActionParamsPresent =
+    actionParamsPresent
+        @ResolveLeavePolicyActionOperation
+
+parseResolveLeavePolicyActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ResolveLeavePolicyActionOperation)
+parseResolveLeavePolicyActionParams =
+    parseActionParams
+        @ResolveLeavePolicyActionOperation
+
 data UpdateUnavailabilityBlackoutActionOperation
 
 type instance ActionSurface UpdateUnavailabilityBlackoutActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
@@ -215,7 +262,7 @@ updateUnavailabilityBlackoutActionFields startDate endDate reason =
 
 updateUnavailabilityBlackoutActionEvidence :: ActionEvidence UpdateUnavailabilityBlackoutActionOperation
 updateUnavailabilityBlackoutActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateUnavailabilityBlackout" "update-unavailability-blackout" [SurfaceIR.FieldIR "StartDate" "startDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EndDate" "endDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Reason" "reason" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#unavailability-blackouts" ["unavailability-blackouts"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateUnavailabilityBlackout" "update-unavailability-blackout" [SurfaceIR.FieldIR "StartDate" "startDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EndDate" "endDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Reason" "reason" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "this" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 updateUnavailabilityBlackoutAction :: ActionFields UpdateUnavailabilityBlackoutActionOperation -> FrontendSurfaceAction
 updateUnavailabilityBlackoutAction =

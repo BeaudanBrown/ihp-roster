@@ -2,8 +2,10 @@
 
 module Application.Helper.FrontendContract.Overlay.Runtime
     ( OverlayDom (..)
+    , DialogDismissalGuardConfigValue (..)
     , canonicalOverlayDom
     , dialogBackdropAttrs
+    , dialogDismissalGuardAttrs
     , dialogCloseAttrs
     , dialogConfirmationAttrs
     , dialogFocusRegionAttrs
@@ -11,6 +13,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogMountAttrs
     , dialogPointerDismissBlurAttrs
     , dialogSubmitAttrs
+    , dialogEnterSubmitAttrs
     , navigationLoadingAttrs
     , toastCloseAttrs
     , toastMountAttrs
@@ -37,6 +40,8 @@ data OverlayDom = OverlayDom
     , overlayDialogCloseAttribute        :: !Text
     , overlayDialogSubmitAttribute       :: !Text
     , overlayDialogSubmitConfigAttribute :: !Text
+    , overlayDialogDismissalGuardAttribute :: !Text
+    , overlayDialogDismissalGuardConfigAttribute :: !Text
     , overlayDialogBlockingAttribute     :: !Text
     , overlayDialogKeyboardAttribute     :: !Text
     , overlayDialogFocusRegionAttribute  :: !Text
@@ -60,6 +65,8 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogCloseAttribute = domAttrValue @Contract.DialogClose
     , overlayDialogSubmitAttribute = domAttrValue @Contract.DialogSubmit
     , overlayDialogSubmitConfigAttribute = domAttrValue @Contract.DialogSubmitConfig
+    , overlayDialogDismissalGuardAttribute = domAttrValue @Contract.DialogDismissalGuard
+    , overlayDialogDismissalGuardConfigAttribute = domAttrValue @Contract.DialogDismissalGuardConfig
     , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
     , overlayDialogKeyboardAttribute = domAttrValue @Contract.DialogKeyboard
     , overlayDialogFocusRegionAttribute = domAttrValue @Contract.DialogFocusRegion
@@ -93,10 +100,30 @@ dialogFocusRegionAttrs = roleAttrs canonicalOverlayDom.overlayDialogFocusRegionA
 dialogPointerDismissBlurAttrs :: [(Text, Text)]
 dialogPointerDismissBlurAttrs = roleAttrs canonicalOverlayDom.overlayDialogPointerDismissBlurAttribute
 
+-- | An explicit default Enter target, independent of the final-save loading
+-- role. Draft buttons may carry successful-control values and must not be
+-- disabled by final submission mechanics before browser serialization.
+dialogEnterSubmitAttrs :: [(Text, Text)]
+dialogEnterSubmitAttrs = roleAttrs (domAttrValue @Contract.DialogEnterSubmit)
+
 dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =
     roleAttrs canonicalOverlayDom.overlayDialogSubmitAttribute
         <> [(canonicalOverlayDom.overlayDialogSubmitConfigAttribute, dialogSubmitConfigJson loadingLabel)]
+
+data DialogDismissalGuardConfigValue = DialogDismissalGuardConfigValue
+    { dismissalGuardFormId            :: !Text
+    , dismissalGuardImmediately       :: !Bool
+    , dismissalGuardConfirmationTitle :: !Text
+    , dismissalGuardKeepEditingLabel  :: !Text
+    , dismissalGuardDiscardLabel      :: !Text
+    }
+    deriving (Eq, Show)
+
+dialogDismissalGuardAttrs :: DialogDismissalGuardConfigValue -> [(Text, Text)]
+dialogDismissalGuardAttrs config =
+    roleAttrs canonicalOverlayDom.overlayDialogDismissalGuardAttribute
+        <> [(canonicalOverlayDom.overlayDialogDismissalGuardConfigAttribute, dialogDismissalGuardConfigJson config)]
 
 navigationLoadingAttrs :: Text -> Text -> [(Text, Text)]
 navigationLoadingAttrs loadingTitle loadingMessage =
@@ -116,6 +143,21 @@ dialogSubmitConfigJson loadingLabel
     | Text.null (Text.strip loadingLabel) = startupInvariantFailure "Dialog submit loading label must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.DialogSubmitConfig
         (requiredField @Contract.LoadingLabel loadingLabel &: noFields)
+
+dialogDismissalGuardConfigJson :: DialogDismissalGuardConfigValue -> Text
+dialogDismissalGuardConfigJson DialogDismissalGuardConfigValue { .. }
+    | Text.null (Text.strip dismissalGuardFormId) = startupInvariantFailure "Dialog dismissal guard form id must not be empty"
+    | Text.null (Text.strip dismissalGuardConfirmationTitle) = startupInvariantFailure "Dialog dismissal guard confirmation title must not be empty"
+    | Text.null (Text.strip dismissalGuardKeepEditingLabel) = startupInvariantFailure "Dialog dismissal guard keep-editing label must not be empty"
+    | Text.null (Text.strip dismissalGuardDiscardLabel) = startupInvariantFailure "Dialog dismissal guard discard label must not be empty"
+    | otherwise = encodeContractValue $ recordValue @Contract.DialogDismissalGuardConfig
+        ( requiredField @Contract.FormId dismissalGuardFormId
+            &: requiredField @Contract.GuardImmediately dismissalGuardImmediately
+            &: requiredField @Contract.ConfirmationTitle dismissalGuardConfirmationTitle
+            &: requiredField @Contract.KeepEditingLabel dismissalGuardKeepEditingLabel
+            &: requiredField @Contract.DiscardLabel dismissalGuardDiscardLabel
+            &: noFields
+        )
 
 navigationLoadingConfigJson :: Text -> Text -> Text
 navigationLoadingConfigJson loadingTitle loadingMessage

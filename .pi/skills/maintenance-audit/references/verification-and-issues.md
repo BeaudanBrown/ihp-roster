@@ -45,11 +45,11 @@ Use the nearest `AGENTS.md` and current repository commands. Typical mapping:
 | Pure Haskell/domain module | focused Hspec/property tests | typecheck + pure/full Hspec as appropriate |
 | Controller/query/auth | focused DB-backed/controller Hspec | typecheck + relevant integration/E2E |
 | View/HSX/navigation | focused view/controller tests | relevant Playwright behavior/screenshots when visual semantics matter |
-| Frontend contract/TypeScript | generator freshness + frontend unit/type checks | architecture contract checks + relevant E2E |
+| Frontend contract/TypeScript | generator freshness + frontend unit/type checks | frontend request closure check + relevant E2E |
 | CSS/static asset organization | ownership/stale-selector/style checks | layout audit + relevant E2E/screenshots |
 | Schema/generated types | parser/generator/typecheck; preserving migration required for actual schema change | local DB/startup flow and focused schema tests |
 | Script/tooling | syntax/unit/fixture test, dry-run behavior | owning verification aggregate |
-| Documentation/agent navigation | link/drift check and path validation | `doc-drift-check`/architecture docs gate |
+| Documentation/agent navigation | `documentation-repository-check` | review source paths and subsystem guidance |
 
 Run repository wrappers serially. Use `run_worker` for noisy checks. On
 memory-constrained hosts, follow root guidance before compile-heavy gates.
@@ -72,7 +72,7 @@ Use the strongest practical independent evidence:
 - query/result assertions rather than SQL-source fragments, unless query shape
   itself is a measured performance invariant;
 - generated artifact freshness plus independent contract tests;
-- architecture facts/AST/reflection rather than source grep for structural
+- AST/reflection or a focused parser rather than broad source grep for structural
   rules.
 
 Never derive expected behavior using the production function/interpreter under

@@ -22,10 +22,13 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , PreviewRosterTemplateApplicationActionOperation
     , PreviewRosterTemplateCaptureActionOperation
     , RemoveRosterRowActionOperation
+    , SetRosterFitWholeWeekActionOperation
     , ShowRosterNotificationConfirmationActionOperation
     , SortRosterWeekActionOperation
+    , SwitchRosterGroupActionOperation
     , ToggleRosterAssignmentFiltersActionOperation
     , ToggleRosterDayClosedActionOperation
+    , ToggleRosterManagerModeActionOperation
     , ToggleRosterOwnLiveShiftHighlightActionOperation
     , ToggleRosterStaffScopeActionOperation
     , ToggleRosterWageEstimatesActionOperation
@@ -63,8 +66,10 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseOpenCopyRosterWeekConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , parsePreviewRosterTemplateCaptureActionParams
+    , parseSetRosterFitWholeWeekActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
+    , parseToggleRosterManagerModeActionParams
     , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
@@ -76,14 +81,20 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , previewRosterTemplateCaptureActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
+    , setRosterFitWholeWeekAction
+    , setRosterFitWholeWeekActionFields
     , showRosterNotificationConfirmationAction
     , showRosterNotificationConfirmationActionFields
     , sortRosterWeekAction
     , sortRosterWeekActionFields
+    , switchRosterGroupAction
+    , switchRosterGroupActionFields
     , toggleRosterAssignmentFiltersAction
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
+    , toggleRosterManagerModeAction
+    , toggleRosterManagerModeActionFields
     , toggleRosterOwnLiveShiftHighlightAction
     , toggleRosterOwnLiveShiftHighlightActionFields
     , toggleRosterStaffScopeAction
@@ -123,6 +134,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
+import qualified Generated.Types as Types3
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -606,6 +618,37 @@ removeRosterRowAction :: ActionFields RemoveRosterRowActionOperation -> Frontend
 removeRosterRowAction =
     frontendSurfaceActionFromEvidence removeRosterRowActionEvidence
 
+data SetRosterFitWholeWeekActionOperation
+
+type instance ActionSurface SetRosterFitWholeWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker SetRosterFitWholeWeekActionOperation = Types1.SetRosterFitWholeWeek
+type instance ActionFieldSpecs SetRosterFitWholeWeekActionOperation =
+    '[ 'Field Types1.FitWholeWeek 'WireBool
+     ]
+
+setRosterFitWholeWeekActionFields ::
+    Bool ->
+    ActionFields SetRosterFitWholeWeekActionOperation
+setRosterFitWholeWeekActionFields fitWholeWeek =
+    actionFields
+        (surfaceField @Types1.FitWholeWeek fitWholeWeek)
+        noSurfaceFields
+
+setRosterFitWholeWeekActionEvidence :: ActionEvidence SetRosterFitWholeWeekActionOperation
+setRosterFitWholeWeekActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SetRosterFitWholeWeek" "set-roster-fit-whole-week" [SurfaceIR.FieldIR "FitWholeWeek" "fitWholeWeek" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+
+setRosterFitWholeWeekAction :: ActionFields SetRosterFitWholeWeekActionOperation -> FrontendSurfaceAction
+setRosterFitWholeWeekAction =
+    frontendSurfaceActionFromEvidence setRosterFitWholeWeekActionEvidence
+
+parseSetRosterFitWholeWeekActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SetRosterFitWholeWeekActionOperation)
+parseSetRosterFitWholeWeekActionParams =
+    parseActionParams
+        @SetRosterFitWholeWeekActionOperation
+
 data ShowRosterNotificationConfirmationActionOperation
 
 type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -671,6 +714,34 @@ sortRosterWeekAction :: ActionFields SortRosterWeekActionOperation -> FrontendSu
 sortRosterWeekAction =
     frontendSurfaceActionFromEvidence sortRosterWeekActionEvidence
 
+data SwitchRosterGroupActionOperation
+
+type instance ActionSurface SwitchRosterGroupActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker SwitchRosterGroupActionOperation = Types1.SwitchRosterGroup
+type instance ActionFieldSpecs SwitchRosterGroupActionOperation =
+    '[ 'Field Types1.AnchorDate 'WireDay
+     , 'Field Types1.RosterGroupId 'WireUUID
+     ]
+
+switchRosterGroupActionFields ::
+    Day ->
+    UUID.UUID ->
+    ActionFields SwitchRosterGroupActionOperation
+switchRosterGroupActionFields anchorDate rosterGroupId =
+    actionFields
+        (surfaceField @Types1.AnchorDate anchorDate)
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
+            &: noSurfaceFields
+        )
+
+switchRosterGroupActionEvidence :: ActionEvidence SwitchRosterGroupActionOperation
+switchRosterGroupActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SwitchRosterGroup" "switch-roster-group" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterGroupId" "rosterGroupId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTriggerIR (SurfaceIR.HtmxTypedSyntaxIR "change" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+
+switchRosterGroupAction :: ActionFields SwitchRosterGroupActionOperation -> FrontendSurfaceAction
+switchRosterGroupAction =
+    frontendSurfaceActionFromEvidence switchRosterGroupActionEvidence
+
 data ToggleRosterAssignmentFiltersActionOperation
 
 type instance ActionSurface ToggleRosterAssignmentFiltersActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -735,6 +806,37 @@ toggleRosterDayClosedActionEvidence =
 toggleRosterDayClosedAction :: ActionFields ToggleRosterDayClosedActionOperation -> FrontendSurfaceAction
 toggleRosterDayClosedAction =
     frontendSurfaceActionFromEvidence toggleRosterDayClosedActionEvidence
+
+data ToggleRosterManagerModeActionOperation
+
+type instance ActionSurface ToggleRosterManagerModeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterManagerModeActionOperation = Types1.ToggleRosterManagerMode
+type instance ActionFieldSpecs ToggleRosterManagerModeActionOperation =
+    '[ 'Field Types1.ManagerModeEnabled 'WireBool
+     ]
+
+toggleRosterManagerModeActionFields ::
+    Bool ->
+    ActionFields ToggleRosterManagerModeActionOperation
+toggleRosterManagerModeActionFields managerModeEnabled =
+    actionFields
+        (surfaceField @Types1.ManagerModeEnabled managerModeEnabled)
+        noSurfaceFields
+
+toggleRosterManagerModeActionEvidence :: ActionEvidence ToggleRosterManagerModeActionOperation
+toggleRosterManagerModeActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterManagerMode" "toggle-roster-manager-mode" [SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+
+toggleRosterManagerModeAction :: ActionFields ToggleRosterManagerModeActionOperation -> FrontendSurfaceAction
+toggleRosterManagerModeAction =
+    frontendSurfaceActionFromEvidence toggleRosterManagerModeActionEvidence
+
+parseToggleRosterManagerModeActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ToggleRosterManagerModeActionOperation)
+parseToggleRosterManagerModeActionParams =
+    parseActionParams
+        @ToggleRosterManagerModeActionOperation
 
 data ToggleRosterOwnLiveShiftHighlightActionOperation
 
@@ -810,20 +912,20 @@ data ToggleRosterWageEstimatesActionOperation
 type instance ActionSurface ToggleRosterWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterWageEstimatesActionOperation = Types1.ToggleRosterWageEstimates
 type instance ActionFieldSpecs ToggleRosterWageEstimatesActionOperation =
-    '[ 'Field Types1.ShowWageEstimates 'WireBool
+    '[ 'Field Types1.RosterPayDisplayMode ('WireClosed Types3.RosterPayDisplayMode)
      ]
 
 toggleRosterWageEstimatesActionFields ::
-    Bool ->
+    Types3.RosterPayDisplayMode ->
     ActionFields ToggleRosterWageEstimatesActionOperation
-toggleRosterWageEstimatesActionFields showWageEstimates =
+toggleRosterWageEstimatesActionFields rosterPayDisplayMode =
     actionFields
-        (surfaceField @Types1.ShowWageEstimates showWageEstimates)
+        (surfaceField @Types1.RosterPayDisplayMode rosterPayDisplayMode)
         noSurfaceFields
 
 toggleRosterWageEstimatesActionEvidence :: ActionEvidence ToggleRosterWageEstimatesActionOperation
 toggleRosterWageEstimatesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "ShowWageEstimates" "showWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "RosterPayDisplayMode" "rosterPayDisplayMode" (SurfaceIR.WireClosedIR "RosterPayDisplayMode" "Generated.Types" "RosterPayDisplayMode") SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWageEstimatesAction :: ActionFields ToggleRosterWageEstimatesActionOperation -> FrontendSurfaceAction
 toggleRosterWageEstimatesAction =

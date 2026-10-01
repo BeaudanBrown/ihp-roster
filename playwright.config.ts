@@ -7,7 +7,6 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000';
 const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'test-results';
 const htmlReportDir = process.env.PLAYWRIGHT_HTML_REPORT_DIR ?? 'playwright-report';
 const blobReportDir = process.env.PLAYWRIGHT_BLOB_REPORT_DIR;
-const includeScreenshotSpecs = process.env.E2E_INCLUDE_SCREENSHOTS === '1';
 const configuredWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? '1', 10);
 const workers = Number.isFinite(configuredWorkers) && configuredWorkers > 0 ? configuredWorkers : 1;
 const configuredRetries = Number.parseInt(process.env.PLAYWRIGHT_RETRIES ?? '1', 10);
@@ -26,7 +25,9 @@ const mobileTestFiles = [
     /.*feedback-acceptance\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
-    ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
+    /.*timesheet-filters\.spec\.ts/,
+    /.*payroll-reports\.spec\.ts/,
+    /.*recipient-groups\.spec\.ts/,
 ];
 
 const reporter = blobReportDir
@@ -47,7 +48,6 @@ export default defineConfig({
     reporter,
 
     globalSetup: './e2e/global-setup.ts',
-    globalTeardown: './e2e/global-teardown.ts',
 
     use: {
         baseURL,
@@ -61,7 +61,6 @@ export default defineConfig({
             testIgnore: [
                 /.*mobile-experience\.spec\.ts/,
                 /.*roster-mobile\.spec\.ts/,
-                /.*roster-mobile-screenshots\.spec\.ts/,
             ],
             use: { browserName: 'chromium' as const },
         },

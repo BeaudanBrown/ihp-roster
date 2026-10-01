@@ -6,9 +6,6 @@ default:
 # Thin human-facing wrappers over the existing devenv/flake scripts.
 # Keep this file as an alias layer only; do not duplicate real logic here.
 
-start:
-    dev-app
-
 dev:
     dev-foreground
 
@@ -21,30 +18,11 @@ stop:
 status:
     dev-status
 
-android-start:
-    nix run .#bepis-pwa-android -- start
-
-android-open:
-    nix run .#bepis-pwa-android -- open
-
-android-status:
-    nix run .#bepis-pwa-android -- status
-
-android-stop:
-    nix run .#bepis-pwa-android -- stop
-
 tunnel-grill:
-    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
-    ssh -N -T \
-        -L "${PORT}:localhost:${PORT}" \
-        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
-        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
-        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
-        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
-        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
-        grill
+    just _workspace-tunnel grill
 
-tunnel-agent:
+[private]
+_workspace-tunnel target:
     eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
         -L "${PORT}:localhost:${PORT}" \
@@ -53,7 +31,7 @@ tunnel-agent:
         -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
         -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
         -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
-        agent
+        {{target}}
 
 db:
     dev-db-reset
@@ -96,33 +74,6 @@ otel-compare target before_end after_end *args:
 
 profile-compare before after output="":
     if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi
-
-architecture:
-    architecture-facts
-    architecture-schema
-    architecture-web-map
-    architecture-module-graph
-
-architecture-render:
-    architecture-render
-
-architecture-check:
-    architecture-check-fresh
-
-architecture-runtime-overlay *args:
-    architecture-runtime-overlay {{args}}
-
-architecture-query *args:
-    architecture-query {{args}}
-
-architecture-trace *args:
-    architecture-trace-diagram {{args}}
-
-demo-reset *args:
-    if [ -z "{{args}}" ]; then bash ./bin/demo-reset; else bash ./bin/demo-reset {{args}}; fi
-
-demo-reset-local *args:
-    if [ -z "{{args}}" ]; then bash ./bin/demo-reset-local; else bash ./bin/demo-reset-local {{args}}; fi
 
 typecheck *args:
     typecheck {{args}}

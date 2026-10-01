@@ -1,0 +1,107 @@
+{
+  "_meta": {
+    "total_records": 14,
+    "page": 1,
+    "limit": 100
+  },
+  "dates": [
+    {
+      "uuid": "",
+      "name": "New Year's Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-01-01",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Australia Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-01-26",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Labour Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-03-08",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Good Friday",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-03-26",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Saturday before Easter Sunday",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-03-27",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Easter Sunday",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-03-28",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Easter Monday",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-03-28",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "ANZAC Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-04-25",
+      "description": "ANZAC Day is commemorated on the day it falls. There is no replacement holiday when ANZAC Day falls on a weekend."
+    },
+    {
+      "uuid": "",
+      "name": "King's Birthday",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-06-14",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Melbourne Cup",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-11-02",
+      "description": "Melbourne Cup Day is a public holiday across all of Victoria unless alternate local holiday has been arranged by a non-metro council."
+    },
+    {
+      "uuid": "",
+      "name": "Christmas Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-12-25",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Boxing Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-12-26",
+      "description": ""
+    },
+    {
+      "uuid": "",
+      "name": "Christmas Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-12-27",
+      "description": "As Christmas Day falls on a Saturday, an additional public holiday is given on the following Monday."
+    },
+    {
+      "uuid": "",
+      "name": "Boxing Day",
+      "type": "PUBLIC_HOLIDAY",
+      "date": "2027-12-28",
+      "description": "As Boxing Day falls on a Sunday, an additional public holiday is given on the following Tuesday."
+    }
+  ]
+}

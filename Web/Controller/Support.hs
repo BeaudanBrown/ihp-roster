@@ -3,6 +3,8 @@ module Web.Controller.Support where
 import Application.Async.Queue (EnqueueAppJobResult (..),
                                 fetchActiveAppJobByDedupeKey,
                                 fetchLatestAppJobByKind)
+import Application.EmailDelivery.Resend (requestOperationalEmailResend)
+import Application.EmailDelivery.Support (fetchNotificationHealth)
 import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
@@ -16,11 +18,9 @@ import Application.Helper.VenueInvitation (accountInvitationConflictMessage,
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
-import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
-                                            fetchPublicHolidayCoverage)
-import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
-                                       publicHolidayRefreshJobDedupeKey,
-                                       publicHolidayRefreshJobKind)
+import Application.PublicHolidays.ActiveJob (activePublicHolidayJobKind)
+import Application.PublicHolidays.Coverage (fetchPublicHolidayCoverage)
+import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
@@ -55,7 +55,8 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        publicHolidaySection <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -70,7 +71,8 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        publicHolidaySection <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = Text.strip (paramOrDefault @Text "" "submissionId")
         let maybeSubmissionUuid
@@ -106,15 +108,16 @@ instance Controller SupportController where
         respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
     action currentAction@ShowPublicHolidaysSectionAction = runBepis currentAction BepisPageAction do
-        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+        publicHolidaySection <- fetchPublicHolidaySectionData
+        respondHtml (renderPublicHolidaysSection publicHolidaySection)
 
     action currentAction@CreateSupportVenueOnboardingInvitationAction = runBepis currentAction BepisMutationAction do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        publicHolidaySection <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         now <- getCurrentTime
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -216,16 +219,21 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh is already queued or running."
         respondToAwardRatesRefresh
 
-    action currentAction@CreatePublicHolidayRefreshJobAction = runBepis currentAction BepisMutationAction do
-        enqueueResult <- liveMutationValue <$> withDurableLiveMutation "support.public_holidays.enqueue" do
-            result <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
-            pure (liveMutationResult result [supportPublicHolidaysResource])
-        case enqueueResult of
-            EnqueuedAppJob _ ->
-                setSuccessMessage "Public holiday refresh queued."
-            ExistingActiveAppJob _ ->
-                setSuccessMessage "Public holiday refresh is already queued or running."
-        respondToPublicHolidayRefresh
+    action currentAction@CreateSupportEmailResendAction { emailDeliveryJobId } = runBepis currentAction BepisMutationAction do
+        ensureFreshPasskeyReady
+        let reason = Text.strip (paramOrDefault @Text "" "reason")
+        original <-
+            query @AppJob
+                |> filterWhere (#id, emailDeliveryJobId)
+                |> filterWhere (#jobKind, "email_delivery" :: Text)
+                |> fetchOneOrNothing
+        result <- case original of
+            Nothing -> pure Nothing
+            Just appJob -> requestOperationalEmailResend currentUser appJob reason
+        case result of
+            Just _ -> setSuccessMessage "Operational notification resend queued with audit provenance."
+            Nothing -> setErrorMessage "This notification is not eligible for an explicit resend."
+        redirectTo SupportAction
 
     action currentAction@StartSupportImpersonationAction = runBepis currentAction BepisMutationAction do
         ensureCurrentVenue
@@ -338,21 +346,25 @@ fetchFwcMapdAwardRatesSectionData = do
     activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
     pure (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob)
 
-fetchPublicHolidaySectionData ::
-    (?modelContext :: ModelContext) =>
-    IO ([PublicHolidayCoverageYear], Maybe AppJob, Maybe AppJob)
+fetchPublicHolidaySectionData :: (?modelContext :: ModelContext) => IO PublicHolidaySection
 fetchPublicHolidaySectionData = do
     publicHolidayCoverage <- fetchPublicHolidayCoverage
-    latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
-    activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
-    pure (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
+    latestPublicHolidayImportJob <- fetchLatestAppJobByKind activePublicHolidayJobKind
+    latestAcceptedPublicHolidayImport <-
+        query @PublicHolidayImportBatch
+            |> filterWhere (#jurisdiction, PublicHolidayPolicy.publicHolidayJurisdiction)
+            |> filterWhere (#source, "datavic_v2" :: Text)
+            |> orderByDesc #acceptedAt
+            |> fetchOneOrNothing
+    pure PublicHolidaySection { .. }
 
 supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool
 supportCanAddPasskey passkeys
     | currentUserIsImpersonating = pure False
     | otherwise = do
+        maySkip <- currentUserMaySkipPasskeyVerification
         recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
-        pure (null passkeys || recoveryVerified)
+        pure (maySkip || null passkeys || recoveryVerified)
 
 respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToAwardRatesRefresh =
@@ -360,14 +372,6 @@ respondToAwardRatesRefresh =
         then do
             (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
             respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
-        else redirectTo SupportAction
-
-respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
-respondToPublicHolidayRefresh =
-    if isHtmxRequest
-        then do
-            (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-            respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
         else redirectTo SupportAction
 
 isSafeSupportVenueReturnPath :: Text -> Bool

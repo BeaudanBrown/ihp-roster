@@ -10,14 +10,15 @@ module Application.Xero.Connection
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectionResource)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 import Application.Helper.SurfaceResource (liveMutationResult,
                                            liveMutationValue)
 import Application.Helper.Xero
+import Application.Xero.Incident (reconcileXeroConnectionIncidentInCurrentTransaction)
 import Control.Monad (void)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
@@ -112,6 +113,7 @@ persistXeroRefreshedTokens now xeroConfig connection tokenResponse = do
             |> set #connectionStatus "active"
             |> set #lastError Nothing
             |> updateRecord
+        void (reconcileXeroConnectionIncidentInCurrentTransaction now updated)
         pure (liveMutationResult updated [xeroConnectionResource updated.venueId])
 
 markXeroConnectionReauthorizationRequired ::
@@ -119,13 +121,15 @@ markXeroConnectionReauthorizationRequired ::
     XeroConnection ->
     Text ->
     IO ()
-markXeroConnectionReauthorizationRequired connection message =
+markXeroConnectionReauthorizationRequired connection message = do
+    now <- getCurrentTime
     void $ withDurableLiveMutationWithoutContext "xero.connection.reauthorization_required" do
         updated <- connection
             |> set #connectionStatus "reauthorization_required"
             |> set #encryptedAccessToken Nothing
             |> set #lastError (Just message)
             |> updateRecord
+        void (reconcileXeroConnectionIncidentInCurrentTransaction now updated)
         pure (liveMutationResult updated [xeroConnectionResource updated.venueId])
 
 markXeroConnectionError ::

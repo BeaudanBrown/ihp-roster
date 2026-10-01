@@ -9,7 +9,8 @@ import IHP.ControllerPrelude
 
 
 data EmailDeliveryInsert = EmailDeliveryInsert
-    { payload           :: !Aeson.Value
+    { payloadSchemaVersion :: !Int
+    , payload           :: !Aeson.Value
     , requestedByUserId :: !(Maybe UUID)
     , venueId           :: !(Maybe UUID)
     , relatedTable      :: !Text
@@ -26,8 +27,9 @@ insertPermanentlyDeduplicatedEmailJob ::
     IO [AppJob]
 insertPermanentlyDeduplicatedEmailJob request =
     unsafeSqlQuery
-        "INSERT INTO app_jobs (job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, run_at) VALUES ('email_delivery', ?, 1, ?, ?, ?, ?, ?, NOW()) ON CONFLICT (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL DO NOTHING RETURNING id, created_at, updated_at, status, last_error, attempts_count, locked_at, locked_by, run_at, job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, progress, result"
+        "INSERT INTO app_jobs (job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, run_at) VALUES ('email_delivery', ?, ?, ?, ?, ?, ?, ?, NOW()) ON CONFLICT (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL DO NOTHING RETURNING id, created_at, updated_at, status, last_error, attempts_count, locked_at, locked_by, run_at, job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, progress, result"
         ( request.payload
+        , request.payloadSchemaVersion
         , request.requestedByUserId
         , request.venueId
         , Just request.relatedTable

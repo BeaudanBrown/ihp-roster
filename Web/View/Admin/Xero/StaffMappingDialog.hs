@@ -58,6 +58,7 @@ renderXeroStaffMappingsWaitingOverlay =
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = [closeButton]
         , dialogOverlayDialogClass = ""
+        , dialogOverlayDismissalGuard = Nothing
         }
 
 renderXeroStaffMappingsDialog :: XeroStaffMappingsView -> Html
@@ -68,6 +69,7 @@ renderXeroStaffMappingsDialog view =
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = [closeButton]
         , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+        , dialogOverlayDismissalGuard = Nothing
         }
 
 closeButton :: OverlayButton

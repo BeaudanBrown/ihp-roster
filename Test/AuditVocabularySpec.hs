@@ -19,6 +19,7 @@ auditEventWireContract =
     [ (TimesheetApprovedAudit, "timesheet_approved")
     , (TimesheetUnapprovedAudit, "timesheet_unapproved")
     , (TimesheetApprovalResetAudit, "timesheet_approval_reset")
+    , (LeavePolicyOverrideAudit, "leave_policy_override")
     , (LeaveApprovedAudit, "leave_approved")
     , (LeaveDeniedAudit, "leave_denied")
     , (LeaveDeletedAudit, "leave_deleted")

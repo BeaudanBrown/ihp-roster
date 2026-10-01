@@ -4,14 +4,16 @@
 module Application.Helper.FrontendContract.Surface.Timesheets
     ( OperationalDate
     , HideApproved
-    , ShowTimesheetSuggestions
-    , ShowTimesheetWageEstimates
-    , StaffFilterId
-    , RosterGroupFilterId
+    , TimesheetWageDisplayMode
+    , ManagerModeEnabled
+    , StaffFilterIds
+    , RosterGroupFilterIds
+    , ShiftTypeFilterIds
     , TimesheetDay
     , TimesheetDayColumns
     , TimesheetDaySection
     , TimesheetSidePanelContent
+    , TimesheetStaffContent
     , TimesheetWeekBoundaryConfig
     , TimesheetStaffCardsHighlight
     , TimesheetStaffHighlightSourceRole
@@ -48,11 +50,11 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetToolbar
     , NavigateTimesheetWeek
     , ToggleTimesheetHideApproved
-    , ToggleTimesheetShowSuggestions
     , ToggleTimesheetWageEstimates
+    , ToggleTimesheetManagerMode
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
-    , CreateTimesheetEntryFromSuggestion
+    , CreateTimesheetEntryFromRosterShift
     , UnapproveTimesheetEntry
     , TimesheetWeek
     , TimesheetsMountState
@@ -65,6 +67,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import Generated.Types (WageDisplayModeEnum)
 
 data Timesheets
 
@@ -77,16 +80,18 @@ data RosterCalendarRevision
 
 data TimesheetsMountState
 data HideApproved
-data ShowTimesheetSuggestions
-data ShowTimesheetWageEstimates
-data StaffFilterId
-data RosterGroupFilterId
+data TimesheetWageDisplayMode
+data ManagerModeEnabled
+data StaffFilterIds
+data RosterGroupFilterIds
+data ShiftTypeFilterIds
 
 data TimesheetToolbar
 data TimesheetWeekToolbar
 data TimesheetDayColumns
 data TimesheetDaySection
 data TimesheetSidePanelContent
+data TimesheetStaffContent
 data OperationalDate
 
 data TimesheetDay
@@ -95,10 +100,10 @@ data TimesheetWeekBoundaryConfig
 data NavigateTimesheetWeek
 data UpdateTimesheetFilters
 data ToggleTimesheetHideApproved
-data ToggleTimesheetShowSuggestions
 data ToggleTimesheetWageEstimates
+data ToggleTimesheetManagerMode
 data ApproveTimesheetEntry
-data CreateTimesheetEntryFromSuggestion
+data CreateTimesheetEntryFromRosterShift
 data UnapproveTimesheetEntry
 data TimesheetWeekShell
 
@@ -152,18 +157,22 @@ type TimesheetScopeBundle =
          ]
         '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
      , MountState TimesheetsMountState
-        '[ Field StaffFilterId ('WireOptional 'WireUUID)
-         , Field RosterGroupFilterId ('WireOptional 'WireUUID)
+        '[ Field StaffFilterIds ('WireList 'WireUUID)
+         , Field RosterGroupFilterIds ('WireList 'WireUUID)
+         , Field ShiftTypeFilterIds ('WireList 'WireUUID)
          ]
+     ]
+
+type TimesheetFilterFields =
+    '[ OptionalField StaffFilterIds ('WireList 'WireUUID)
+     , OptionalField RosterGroupFilterIds ('WireList 'WireUUID)
+     , OptionalField ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 type TimesheetActionBundle =
     '[ DomToken TimesheetWeekShell
      , Action NavigateTimesheetWeek
-        '[ Field AnchorDate 'WireDay
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
@@ -171,72 +180,48 @@ type TimesheetActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
      , Action UpdateTimesheetFilters
-        '[ Field AnchorDate 'WireDay
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
-         , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId TimesheetWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleTimesheetHideApproved
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field HideApproved 'WireBool
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
-        '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap 'HtmxNoSwap
-         , 'HtmxPushUrl 'HtmxPushUrlFalse
-         ]
-     , Action ToggleTimesheetShowSuggestions
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field ShowTimesheetSuggestions 'WireBool
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': Field HideApproved 'WireBool ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action ToggleTimesheetWageEstimates
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': Field TimesheetWageDisplayMode ('WireClosed WageDisplayModeEnum) ': TimesheetFilterFields)
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
+     , Action ToggleTimesheetManagerMode
         '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field ShowTimesheetWageEstimates 'WireBool
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
+         , Field ManagerModeEnabled 'WireBool
+         , OptionalField ShiftTypeFilterIds ('WireList 'WireUUID)
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , Action CreateTimesheetEntryFromSuggestion
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+     , Action CreateTimesheetEntryFromRosterShift
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action ApproveTimesheetEntry
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action UnapproveTimesheetEntry
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -262,9 +247,18 @@ type TimesheetFragmentBundle =
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
+     -- Settings content only: the shelf frame, tabs and scroll owner are persistent.
      , Fragment TimesheetSidePanelContent
         '[]
         '[ 'MountTarget TimesheetSidePanelContent '[]
+         , 'Eager
+         , 'Live
+         , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
+     , Fragment TimesheetStaffContent
+        '[]
+        '[ 'MountTarget TimesheetStaffContent '[]
          , 'Eager
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]

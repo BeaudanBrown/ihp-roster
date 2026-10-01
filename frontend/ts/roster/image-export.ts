@@ -425,7 +425,8 @@ async function buildRosterExportBlob(
 
     const surface = document.createElement("div");
     surface.className = `roster-export-surface ${exportSurfaceClass(config.imageExportStyle)}`;
-    const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
+    // Measure layout, not the disposable Fit camera transform.
+    const measuredWidth = source.offsetWidth;
     const exportWidth = Math.max(
         config.imageExportMinimumWidth,
         Math.min(config.imageExportMaximumWidth, measuredWidth),

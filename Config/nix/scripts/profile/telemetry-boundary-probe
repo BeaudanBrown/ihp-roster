@@ -19,6 +19,8 @@ trap cleanup EXIT INT TERM
 mkdir -p "$output_dir"
 rm -f "$trace_file"
 OTEL_FILE_EXPORTER_PATH="$trace_file" \
+BEPIS_RUNNER_OTLP_GRPC_PORT=24317 \
+BEPIS_RUNNER_OTLP_HTTP_PORT=24318 \
     otelcol-contrib --config ./Config/otel/profile-file-collector.yaml >"$collector_log" 2>&1 &
 collector_pid=$!
 for _ in $(seq 1 100); do

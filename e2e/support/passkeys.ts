@@ -89,7 +89,9 @@ export async function openProfileSecuritySection(page: Page) {
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
         await securityToggle.click();
     }
-    await expect(page.locator('#profile-security-collapse')).toBeVisible();
+    const panelId = await securityToggle.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    await expect(page.locator(`[id="${panelId}"]`)).toBeVisible();
 }
 
 async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {
@@ -132,7 +134,8 @@ export async function loginAsPrivilegedUserWithSeededPasskeySession(
     password = 'test-password-123',
 ) {
     await loginAsWithFreshBrowserSession(page, email, password);
-    await page.waitForLoadState('networkidle', { timeout: E2E_TIMEOUT.action }).catch(() => {});
+    // Fresh login already proves the authenticated document and live mounts;
+    // the explicit test-only response below owns strong-session verification.
     await markCurrentSessionPasskeyVerified(page);
 }
 

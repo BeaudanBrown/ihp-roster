@@ -1077,6 +1077,12 @@ in
       };
     };
 
+    payrollReports.enable = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Enqueue opt-in venue payroll email schedules every minute.";
+    };
+
     rsa.reminders = {
       enable = mkOption {
         type = types.bool;
@@ -1100,19 +1106,19 @@ in
     publicHolidays.refresh = {
       enable = mkOption {
         type = types.bool;
-        default = true;
-        description = "Whether to enqueue public holiday refresh jobs on a systemd timer.";
+        default = false;
+        description = "Authenticated active DataVic import timer; enable only after approved cutover with DATAVIC_ACTIVE_IMPORT=true in additionalEnvVars.";
       };
 
       onCalendar = mkOption {
         type = types.str;
-        default = "*-*-01 03:00:00";
-        description = "systemd OnCalendar expression for the public holiday refresh sweep.";
+        default = "daily";
+        description = "systemd OnCalendar expression for the authenticated public holiday import sweep.";
       };
 
       randomizedDelaySec = mkOption {
         type = types.str;
-        default = "2h";
+        default = "30m";
         description = "Randomized delay applied to the public holiday refresh timer.";
       };
     };
@@ -1569,6 +1575,29 @@ in
           Persistent = true;
           RandomizedDelaySec = cfg.liveInvalidations.outboxPruning.randomizedDelaySec;
           Unit = "live-invalidation-outbox-prune.service";
+        };
+      };
+      systemd.services.payroll-report-sweep = mkIf cfg.payrollReports.enable {
+        description = "Enqueue configured venue payroll reports for Bepis";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = runtimeEnvironmentFiles;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/PayrollReportSweep";
+        } // serviceUserConfig;
+        environment = {
+          DATABASE_URL = if cfg.databaseUrl != null then cfg.databaseUrl else "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        } // cfg.additionalEnvVars;
+      };
+      systemd.timers.payroll-report-sweep = mkIf cfg.payrollReports.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*-*-* *:*:00";
+          Persistent = true;
+          AccuracySec = "1s";
         };
       };
       systemd.services.rsa-reminder-sweep = mkIf cfg.rsa.reminders.enable {

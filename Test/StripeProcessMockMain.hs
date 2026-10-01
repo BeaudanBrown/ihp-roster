@@ -15,6 +15,7 @@ import qualified Network.HTTP.Types.URI as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Test.StripeMock (validateStripeRequestHeaders)
+import Test.VerificationPhase (verificationReady)
 import Text.Read (readMaybe)
 
 data MockState = MockState
@@ -49,7 +50,8 @@ main = do
     port <- maybe (fail "Stripe process mock requires a numeric port") pure (readMaybe (cs portText :: String))
     stateRef <- IORef.newIORef initialState
     Warp.runSettings
-        (Warp.setHost "127.0.0.1" (Warp.setPort port Warp.defaultSettings))
+        (Warp.setBeforeMainLoop (verificationReady "e2e-stripe-startup")
+            (Warp.setHost "127.0.0.1" (Warp.setPort port Warp.defaultSettings)))
         (stripeProcessMockApp stateRef)
 
 stripeProcessMockApp :: IORef.IORef MockState -> Wai.Application

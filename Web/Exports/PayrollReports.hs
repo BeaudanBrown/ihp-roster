@@ -1,0 +1,145 @@
+module Web.Exports.PayrollReports
+    ( openPayrollReports, savePayrollReports, openPayrollReportEmail, previewPayrollReport, sendPayrollReport ) where
+
+import Application.Helper.Export.PayrollWorkbookConfiguration
+import Application.Helper.Url (appendQueryParams)
+import qualified Application.Helper.FrontendContract.AppShell as Shell
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
+import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
+import qualified Data.Set as Set
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
+import Web.Admin.FrontendSurface (adminExportsFragment)
+import Application.PayrollReports.Manual
+import Application.PayrollReports.Selection
+import Application.PayrollReports.Settings
+import qualified Application.PayrollReports.Settings as Settings
+import Application.RecipientGroups (listRecipientGroups)
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter), renderDialogOverlayClearOob, renderToastOob, successToast)
+import qualified Data.UUID.V4 as UUID
+import Text.Read (readMaybe)
+import Web.Controller.Prelude
+import Web.View.Admin.PayrollReportsDialog
+import Web.View.Admin.PayrollReportEmailDialog
+
+openPayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+openPayrollReports = case parseAppShellActionParams @Shell.OpenPayrollReports of
+    Left errors -> respondReports Nothing Nothing (Just (surfaceRequestFieldErrorsMessage errors))
+    Right fields -> respondReports Nothing (surfaceFieldValue @Shell.ReportWeekField fields) Nothing
+
+respondReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe ReportDraft -> Maybe Day -> Maybe Text -> IO ResponseReceived
+respondReports submitted anchorWeek message = do
+    settings <- fetchPayrollReportSettings
+    templates <- listSavedPayrollWorkbookConfigurations
+    groups <- listRecipientGroups
+    let current = either (const Nothing) (\value -> value) settings
+    let draft = fromMaybe (reportDraft current) submitted
+    let retained = if draft.enabled then draft else draft
+            { templateId = current >>= (.configurationId), groupId = current >>= (.recipientGroupId) }
+    respondHtml (renderPayrollReportsDialog retained
+        (either (const []) (\value -> value) templates) (either (const []) (\value -> value) groups) anchorWeek message)
+
+savePayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+savePayrollReports = do
+    ensureVenueWritable
+    case parseAppShellActionParams @Shell.SavePayrollReports of
+        Left errors -> respondReports Nothing Nothing (Just (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let draft = ReportDraft
+                    { templateId = surfaceFieldValue @Shell.ReportTemplateField fields
+                    , groupId = surfaceFieldValue @Shell.ReportGroupField fields
+                    , enabled = fromMaybe False (surfaceFieldValue @Shell.ReportEnabledField fields)
+                    , revision = surfaceFieldValue @Shell.ReportRevisionField fields
+                    }
+            let anchorWeek = surfaceFieldValue @Shell.ReportWeekField fields
+            let resources = Set.singleton (adminExportsResource (unpackId currentVenueId))
+            outcome <- withDurableLiveMutationOutcome (either (const Nothing) (const (Just ("payroll_report.settings", resources))))
+                (savePayrollReportSettingsInCurrentTransaction PayrollReportSettingsInput
+                    { configurationId = draft.templateId, recipientGroupId = draft.groupId
+                    , Settings.enabled = draft.enabled, expectedRevision = draft.revision })
+            case outcome of
+                Left failure -> respondReports (Just draft) anchorWeek (Just (settingsError failure))
+                Right _ | isHtmxRequest -> do
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefresh (adminExportsLiveScope (unpackId currentVenueId)) resources [adminExportsFragment]
+                    respondHtml (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Scheduled reports saved"))
+                Right _ -> setSuccessMessage "Scheduled reports saved" >> redirectToPath (appendQueryParams (pathTo AdminAction) ([("showExports", "true")] <> maybe [] (\week -> [("anchorDate", tshow week)]) anchorWeek) <> "#exports")
+
+settingsError :: PayrollReportSettingsError -> Text
+settingsError = \case
+    PayrollReportAccessDenied -> "Payroll report access denied."
+    PayrollReportInvalidSettings message -> message
+    PayrollReportStaleSettings -> "Settings changed while this form was open. Close and reopen this dialog to review current settings, then try again."
+    PayrollReportTemplateUnavailable -> "Choose an available export template before enabling scheduled reports."
+    PayrollReportRecipientGroupUnavailable -> "Choose an available recipient group before enabling scheduled reports."
+
+openPayrollReportEmail :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Id PayrollWorkbookConfiguration -> Text -> IO ResponseReceived
+openPayrollReportEmail templateId anchorDate = do
+    ensureVenueWritable
+    case readMaybe (cs anchorDate) of
+        Nothing -> respondHtml (renderEmailNotice "Choose a completed roster week from Exports.")
+        Just week -> case parseAppShellActionParams @Shell.OpenPayrollReportEmail of
+            Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
+            Right fields -> respondEmailChoices (unpackId templateId) week (surfaceFieldValue @Shell.ReportGroupField fields) Nothing
+
+respondEmailChoices :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UUID -> Day -> Maybe UUID -> Maybe Text -> IO ResponseReceived
+respondEmailChoices templateId week preferred message = do
+    template <- fetchSavedPayrollWorkbookConfigurationForVenue currentVenueId (Id templateId)
+    config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
+    now <- getCurrentTime
+    case template of
+        Left _ -> respondHtml (renderEmailNotice "The selected export template is unavailable.")
+        Right _ | not (isCompletedPayrollReportWeek config now week) -> respondHtml (renderEmailNotice "Choose a completed roster week from Exports.")
+        Right template -> do
+            groups <- listRecipientGroups
+            settings <- fetchPayrollReportSettings
+            let available = either (const []) (\values -> values) groups
+            let savedGroup = either (const Nothing) (>>= (.recipientGroupId)) settings
+            let chosen = preferred <|> savedGroup
+            let activeChoice = chosen >>= \identifier -> if any (\group -> unpackId group.id == identifier) available then Just identifier else Nothing
+            respondHtml (renderEmailGroupChooser template week available activeChoice message)
+
+previewPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+previewPayrollReport = do
+    ensureVenueWritable
+    case parseAppShellActionParams @Shell.PreviewPayrollReport of
+        Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let week = surfaceFieldValue @Shell.ReportWeekField fields
+            let templateId = surfaceFieldValue @Shell.ReportTemplateField fields
+            case surfaceFieldValue @Shell.ReportGroupField fields of
+                Nothing -> respondEmailChoices templateId week Nothing (Just "Choose an available recipient group.")
+                Just groupId -> respondEmailReview templateId groupId week Nothing
+
+respondEmailReview :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UUID -> UUID -> Day -> Maybe Text -> IO ResponseReceived
+respondEmailReview templateId groupId week message = do
+    preview <- previewManualPayrollReport templateId groupId week
+    case preview of
+        Left failure -> respondEmailChoices templateId week (Just groupId) (Just failure)
+        Right preview -> do
+            confirmation <- UUID.nextRandom
+            respondHtml (renderEmailConfirmation preview confirmation message)
+
+sendPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+sendPayrollReport = do
+    ensureVenueWritable
+    case parseAppShellActionParams @Shell.SendPayrollReport of
+        Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let week = surfaceFieldValue @Shell.ReportWeekField fields
+            let selection = ManualReportSelection
+                    { configurationId = surfaceFieldValue @Shell.ReportTemplateField fields
+                    , configurationRevision = surfaceFieldValue @Shell.ReportConfigurationRevisionField fields
+                    , recipientGroupId = surfaceFieldValue @Shell.ReportGroupField fields
+                    , recipientGroupRevision = surfaceFieldValue @Shell.ReportGroupRevisionField fields
+                    , rosterWeekStartsOn = surfaceFieldValue @Shell.ReportRosterStartField fields
+                    , timezone = surfaceFieldValue @Shell.ReportTimezoneField fields
+                    , repeatSendConfirmed = fromMaybe False (surfaceFieldValue @Shell.ReportRepeatField fields) }
+            outcome <- requestSelectedManualPayrollReport (surfaceFieldValue @Shell.ReportConfirmationField fields) selection week
+            case outcome of
+                Left failure -> respondEmailReview selection.configurationId selection.recipientGroupId week
+                    (Just failure)
+                Right _ -> respondHtml (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Report queued for delivery"))

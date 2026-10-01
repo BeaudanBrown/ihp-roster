@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Invoked only by ghc-build-run, with preparation and publication under its lock.
+E2E_BUILD_DIR="$1"
+STATE_DIR="$2"
+E2E_SERVER_MODE="$3"
+GHC_OPTS="$4"
+# shellcheck source=../lib/verification.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/verification.sh"
+mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
+# GHC remains the freshness authority; private copies are never writable links
+# to a stable image. Runtime owners start only after this whole command succeeds.
+if [ "$E2E_SERVER_MODE" = compiled ]; then
+    verification_phase e2e-app-compile 0 start
+    # shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
+    verification_ghc e2e-app-link 0 $GHC_OPTS -main-is Test.E2EAppMain Test/E2EAppMain.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+        7>&- 2>&1 | tee "$STATE_DIR/app-build.log"
+    verification_phase e2e-app-compile 0 finish
+    verification_phase e2e-app-copy 0 start
+    cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EApp" "$STATE_DIR/build/RunE2EApp"
+    verification_phase e2e-app-copy 0 finish
+elif [ "$E2E_SERVER_MODE" != dev ]; then
+    echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
+    exit 1
+fi
+# Keep real workers with the closed local Stripe/Xero boundaries in both modes.
+verification_phase e2e-worker-compile 0 start
+# shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
+verification_ghc e2e-worker-link 0 $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
+    -o "$E2E_BUILD_DIR/bin/RunE2EWorker" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+    7>&- 2>&1 | tee "$STATE_DIR/worker-build.log"
+verification_phase e2e-worker-compile 0 finish
+verification_phase e2e-stripe-compile 0 start
+# shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
+verification_ghc e2e-stripe-link 0 $GHC_OPTS -main-is Test.StripeProcessMockMain Test/StripeProcessMockMain.hs \
+    -o "$E2E_BUILD_DIR/bin/StripeProcessMock" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+    7>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
+verification_phase e2e-stripe-compile 0 finish
+verification_phase e2e-worker-copy 0 start
+cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EWorker" "$STATE_DIR/build/RunE2EWorker"
+verification_phase e2e-worker-copy 0 finish
+verification_phase e2e-stripe-copy 0 start
+cp --reflink=auto "$E2E_BUILD_DIR/bin/StripeProcessMock" "$STATE_DIR/build/StripeProcessMock"
+verification_phase e2e-stripe-copy 0 finish

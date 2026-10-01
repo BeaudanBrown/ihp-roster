@@ -4,9 +4,11 @@
 
 Email verification, password-reset, and passkey setup/recovery producers persist
 the token and enqueue one permanent-deduplicated `email_delivery` envelope in the
-same transaction. Envelopes contain the token row ID, snapshotted recipient
-address, and recipient account ID. They never contain a raw token or generated
-URL.
+same transaction. Administrator-request audit callbacks stay
+context-polymorphic until that transaction invokes them, so token, audit, and
+envelope cannot commit independently. Envelopes contain the token row ID,
+snapshotted recipient address, and recipient account ID. They never contain a
+raw token or generated URL.
 
 `Application.AccountSecurityEmail.Email` owns delivery-time projection and
 eligibility. `Application.EmailDelivery` alone owns SMTP, disabled delivery,

@@ -96,6 +96,7 @@
                         hs-opentelemetry-instrumentation-wai
                         hs-opentelemetry-propagator-w3c
                         hs-opentelemetry-sdk
+                        http-client-tls
                         http-conduit
                         ip
                         postgresql-simple
@@ -153,7 +154,6 @@
                     done <<'TOOLS'
 Application/Script/GenerateFrontendContracts|generate-frontend-contracts
 Application/Script/GenerateFrontendSurfaceAdapters|generate-frontend-surface-adapters
-Application/Script/GenerateBepisArchitectureContracts|generate-bepis-architecture-contracts
 TOOLS
                     runHook postBuild
                 '';

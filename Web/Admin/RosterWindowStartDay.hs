@@ -9,6 +9,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsR
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekBoundaryConfigResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekBoundaryConfigResource)
 import Application.Helper.SurfaceResource
+import Application.PayrollReports.Settings (disablePayrollReportsForCalendarChange)
 import Application.RosterPublication.Mutations (normalizePublishedRosterWindows,
                                                 withRosterCalendarLockInCurrentTransaction)
 import Generated.Types
@@ -43,6 +44,7 @@ applyRosterWindowStartDay ::
 applyRosterWindowStartDay currentConfig proposedStartDay
     | currentConfig.rosterWeekStartsOn == proposedStartDay = pure currentConfig
     | otherwise = do
+        disablePayrollReportsForCalendarChange currentConfig.venueId
         normalizePublishedRosterWindows (Id currentConfig.venueId) proposedStartDay
         currentConfig
             |> set #rosterWeekStartsOn proposedStartDay

@@ -1,0 +1,43 @@
+cabal-version: 3.0
+name: bepis-runners
+version: 0.1.0.0
+build-type: Simple
+license: Apache-2.0
+
+common warnings
+    default-language: GHC2021
+    ghc-options: -Wall -Wcompat -Werror=missing-fields -Werror=missing-methods
+
+library
+    import: warnings
+    hs-source-dirs: src
+    exposed-modules: Bepis.Tooling.Runners
+    build-depends:
+        aeson,
+        base >=4.18 && <5,
+        bepis-tooling-core,
+        bytestring,
+        cryptohash,
+        directory,
+        filepath,
+        network,
+        process,
+        time,
+        unix
+
+executable bepis-runners
+    import: warnings
+    hs-source-dirs: app
+    main-is: Main.hs
+    build-depends: base, bepis-runners
+
+test-suite bepis-runners-test
+    import: warnings
+    type: exitcode-stdio-1.0
+    hs-source-dirs: test
+    main-is: Main.hs
+    build-depends:
+        base,
+        bepis-runners,
+        directory,
+        temporary

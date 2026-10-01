@@ -1,19 +1,16 @@
 import { test, expect, Page } from '@playwright/test';
 import {
-    liveFragmentsRefreshEvent,
     rosterStaffHighlightDefaultDomAttr,
     rosterStaffHighlightMemberDomAttr,
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
     rosterStaffHighlightSourceDomAttr,
     rosterStaffPanelSortRowDomAttr,
-    rosterWageFilterConfigDomAttr,
     toggleInputDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { ensureRosterLayout, openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
-import { gotoWhenReady } from './support/runtime';
 import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
 import { runSql } from './support/database';
 
@@ -189,7 +186,7 @@ test.describe('Roster staff shift highlight', () => {
             .not.toBe('none');
     });
 
-    test('filters authoritative wages by the pinned staff within one roster mount', async ({ page }) => {
+    test('keeps wage totals invariant while Staff highlight pins change', async ({ page }) => {
         test.setTimeout(E2E_TIMEOUT.slowTest);
         const adminStaffKey = 'staff:a1000000-0000-0000-0000-000000000033';
         const alphaStaffKey = 'staff:a1000000-0000-0000-0000-000000000031';
@@ -287,92 +284,28 @@ test.describe('Roster staff shift highlight', () => {
             await loginAsPrivilegedUserWithSeededPasskeySession(page);
             await openRoster(page, { email: 'e2e-admin@example.com', useCurrentSession: true });
             await ensureRosterLayout(page, 'day_rows');
-            const wageFilterConfig = page.locator(`[${rosterWageFilterConfigDomAttr}]`);
-            await expect(wageFilterConfig).toHaveCount(1);
-            const rawWageFilterConfig = JSON.parse((await wageFilterConfig.getAttribute(rosterWageFilterConfigDomAttr)) ?? '{}');
-            expect(rawWageFilterConfig.wageFilterEnabled).toBe(true);
             const weekTotal = page.locator('.roster-wage-summary-total');
             await expect(weekTotal).toBeVisible();
             const venueTotal = await weekTotal.textContent();
             const venueDayTotals = await page.locator('.roster-day-wage-total').allTextContents();
 
-            const filterResponses: string[] = [];
-            page.on('response', (response) => {
-                if (response.status() === 200) filterResponses.push(response.url());
-            });
-            await page.evaluate((eventName) => {
-                const state = window as Window & { __wageFilterRefreshCount?: number };
-                state.__wageFilterRefreshCount = 0;
-                document.addEventListener(eventName, () => { state.__wageFilterRefreshCount = (state.__wageFilterRefreshCount ?? 0) + 1; });
-            }, liveFragmentsRefreshEvent);
+            const alphaPin = page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first();
+            await alphaPin.click();
+            await expect(alphaPin).toHaveAttribute('aria-pressed', 'true');
+            await expect(weekTotal).toHaveText(venueTotal ?? '');
+            expect(await page.locator('.roster-day-wage-total').allTextContents()).toEqual(venueDayTotals);
 
-            const pinAndWait = async (staffKey: string) => {
-                const pin = page.locator(`[${rosterStaffHighlightPinDomAttr}="${staffKey}"]`).first();
-                await expect(pin).toBeVisible();
-                const previousRefreshCount = await page.evaluate(() => (window as Window & { __wageFilterRefreshCount?: number }).__wageFilterRefreshCount ?? 0);
-                await pin.click();
-                await expect(pin).toHaveAttribute('aria-pressed', 'true');
-                await expect.poll(
-                    () => page.evaluate(() => (window as Window & { __wageFilterRefreshCount?: number }).__wageFilterRefreshCount ?? 0),
-                    { timeout: E2E_TIMEOUT.action },
-                ).toBe(previousRefreshCount + 1);
-                await expect.poll(
-                    () => filterResponses.some((responseUrl) => {
-                        const url = new URL(responseUrl);
-                        return url.pathname.startsWith('/ShowRosterWeek')
-                            && url.pathname.endsWith('Fragment')
-                            && url.searchParams.get('pinnedStaffKey') === staffKey;
-                    }),
-                    { timeout: E2E_TIMEOUT.navigation },
-                ).toBe(true);
-                return pin;
-            };
-
-            const alphaPin = await pinAndWait(alphaStaffKey);
-            await expect.poll(() => weekTotal.textContent(), { timeout: E2E_TIMEOUT.liveUpdate }).not.toBe(venueTotal);
-            const alphaTotal = await weekTotal.textContent();
-            await expect.poll(
-                () => page.locator('.roster-day-wage-total').allTextContents(),
-                { timeout: E2E_TIMEOUT.liveUpdate },
-            ).not.toEqual(venueDayTotals);
-
-            const passiveResponseStart = filterResponses.length;
-            const actorPage = await page.context().newPage();
-            try {
-                await gotoWhenReady(actorPage, '/RosterWeeks', '#roster-content');
-                await openRoster(actorPage, { email: 'e2e-admin@example.com', useCurrentSession: true });
-                await ensureRosterLayout(actorPage, 'day_rows');
-                await actorPage.getByRole('button', { name: 'Edit roster columns' }).click();
-                const addRowButton = actorPage.getByRole('button', { name: 'Add shift row' }).first();
-                const addRowUrl = await addRowButton.evaluate((button) => {
-                    const form = button.closest('form');
-                    return form?.getAttribute('hx-post') ?? form?.getAttribute('action') ?? '';
-                });
-                expect(addRowUrl).not.toBe('');
-                const [addRowResponse] = await Promise.all([
-                    actorPage.waitForResponse((response) => new URL(response.url()).pathname === new URL(addRowUrl, actorPage.url()).pathname, { timeout: E2E_TIMEOUT.navigation }),
-                    addRowButton.click(),
-                ]);
-                expect(addRowResponse.status()).toBe(200);
-                await expect.poll(
-                    () => filterResponses.slice(passiveResponseStart).some((responseUrl) => new URL(responseUrl).searchParams.get('pinnedStaffKey') === alphaStaffKey),
-                    { timeout: E2E_TIMEOUT.liveUpdate },
-                ).toBe(true);
-                await expect(alphaPin).toHaveAttribute('aria-pressed', 'true');
-                await expect(weekTotal).toHaveText(alphaTotal ?? '');
-            } finally {
-                await actorPage.close();
-            }
-
-            const adminPin = await pinAndWait(adminStaffKey);
-            await expect.poll(() => weekTotal.textContent(), { timeout: E2E_TIMEOUT.liveUpdate }).not.toBe(alphaTotal);
+            const adminPin = page.locator(`[${rosterStaffHighlightPinDomAttr}="${adminStaffKey}"]`).first();
+            await adminPin.click();
+            await expect(adminPin).toHaveAttribute('aria-pressed', 'true');
             await expect(alphaPin).toHaveAttribute('aria-pressed', 'false');
+            await expect(weekTotal).toHaveText(venueTotal ?? '');
+            expect(await page.locator('.roster-day-wage-total').allTextContents()).toEqual(venueDayTotals);
 
             await adminPin.click();
             await expect(adminPin).toHaveAttribute('aria-pressed', 'false');
             await expect(weekTotal).toHaveText(venueTotal ?? '');
 
-            await pinAndWait(alphaStaffKey);
             const initialAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
             const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
             expect(rawSurfaceConfig).not.toBeNull();
@@ -382,16 +315,14 @@ test.describe('Roster staff shift highlight', () => {
                 page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') !== initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Next week' }).click(),
             ]);
-            expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
-            await expect(page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first()).toHaveAttribute('aria-pressed', 'false');
             await Promise.all([
                 page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') === initialWindowStart, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Previous week' }).click(),
             ]);
-            expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
             await expect(weekTotal).toHaveText(venueTotal ?? '');
 
-            await pinAndWait(alphaStaffKey);
+            await alphaPin.click();
+            await expect(alphaPin).toHaveAttribute('aria-pressed', 'true');
             await page.reload();
             await expect(page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first()).toHaveAttribute('aria-pressed', 'false');
             await expect(weekTotal).toHaveText(venueTotal ?? '');
@@ -399,8 +330,6 @@ test.describe('Roster staff shift highlight', () => {
             runSql(`DELETE FROM user_preferences WHERE user_id = 'a0000000-0000-0000-0000-000000000003';`);
             await page.reload();
             await expect(page.locator('.roster-wage-summary')).toHaveCount(0);
-            const disabledWageConfig = page.locator(`[${rosterWageFilterConfigDomAttr}]`);
-            expect(JSON.parse((await disabledWageConfig.getAttribute(rosterWageFilterConfigDomAttr)) ?? '{}').wageFilterEnabled).toBe(false);
             const disabledPin = page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first();
             await disabledPin.click();
             await expect(disabledPin).toHaveAttribute('aria-pressed', 'true');

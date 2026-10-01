@@ -10,14 +10,13 @@ exact Git predecessor, uses the candidate-pinned IHP migration runner, verifies
 recorded revisions and fresh-schema convergence, and executes revision-owned
 fixtures under `Application/Migration/Rehearsal/`.
 
-`billing-migration-check` is a focused wrapper over that shared harness. Its
-predecessor is the parent of the commit that introduced revision `1784761930`.
-The isolated candidate schema composes that predecessor schema with the reviewed
-migration SQL so PostgreSQL column ordinals match the upgrade result; only the
-upgrade side records and executes the revision through IHP `migrate`. Its fixture
-proves billing Customer, Subscription, Event, and Venue rows survive that runner
-path and that temporary backfill defaults are removed. PostgreSQL lifecycle and
-cleanup remain delegated to `test-postgres` and `migration-rehearsal`.
+Run rehearsals from the actual deployed predecessor for pending migrations.
+`billing-contract-check` verifies the Stripe API contract, not a historical
+billing upgrade. The revision-owned fixture for `1784761930` remains available
+when an explicitly selected predecessor predates it; routine verification does
+not require rebuilding that already-deployed billing starting point.
+PostgreSQL lifecycle and cleanup remain delegated to `test-postgres` and
+`migration-rehearsal`.
 
 No other check described below is deployment or migration-runner evidence.
 

@@ -1,11 +1,8 @@
 module Test.MutationBoundarySpec where
 
-import Application.Architecture.Contracts (architectureContractsJson)
 import Application.Bepis.Fact
 import Application.Bepis.Response
 import Control.Monad (filterM)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -67,20 +64,6 @@ tests = do
             scopeFactLabels outerFacts `shouldBe` ["outer-before", "outer-after"]
             factSetFacts outerFacts `shouldSatisfy` all (\case BepisResponseFactValue _ -> False; _ -> True)
 
-        it "generates typed runtime and reflected Surface architecture contracts from Haskell" do
-            case Aeson.decode architectureContractsJson of
-                Just (Aeson.Object object) -> do
-                    object KeyMap.!? "version" `shouldBe` Just (Aeson.Number 2)
-                    object KeyMap.!? "runner" `shouldSatisfy` isJust
-                    object KeyMap.!? "factKinds" `shouldSatisfy` hasNonEmptyArray
-                    object KeyMap.!? "operationKinds" `shouldSatisfy` hasNonEmptyArray
-                    case object KeyMap.!? "frontendSurfaceContracts" of
-                        Just (Aeson.Object surfaceContracts) -> do
-                            surfaceContracts KeyMap.!? "evaluator" `shouldBe` Just (Aeson.String "typeclass-reflection")
-                            surfaceContracts KeyMap.!? "surfaces" `shouldSatisfy` hasNonEmptyArray
-                        _ -> expectationFailure "architecture contracts should expose reflected FrontendSurface facts"
-                _ -> expectationFailure "Bepis architecture contracts should decode as an object"
-
     describe "source ownership and retired vocabulary" $ beforeAll loadSourceCache do
         forM_ sourceGuards \guard ->
             it (cs guard.guardLabel) \sources -> do
@@ -113,11 +96,6 @@ responseFactKinds facts =
         responseKind = \case
             BepisResponseFactValue fact -> Just fact.responseFactKind
             _                           -> Nothing
-
-hasNonEmptyArray :: Maybe Aeson.Value -> Bool
-hasNonEmptyArray = \case
-    Just (Aeson.Array values) -> not (null values)
-    _                         -> False
 
 data NestedFixtureException = NestedFixtureException
     deriving (Show)
@@ -169,9 +147,7 @@ sourceGuardViolations sources guard =
 sourceGuards :: [SourceGuard]
 sourceGuards =
     [ guard "legacy descriptive Bepis mutation APIs stay retired"
-        [ "Application/Bepis/Action.hs", "Application/Bepis/Architecture.hs"
-        , "scripts/architecture/facts.mjs", "scripts/architecture/gate.mjs", "scripts/architecture/query.mjs"
-        ]
+        ["Application/Bepis/Action.hs"]
         [ "BepisMutationSpec", "auditedAs", "scopedToCurrentVenue", "scopedToRosterWeek"
         , "fromLiveMutationResult", "respondsWithFragments", "respondsWithRedirect", "respondsWithJson"
         , "BEPIS_MUTATION_DRIFT", "runBepisMutationPipeline", "bepisMutationAction"
@@ -220,7 +196,7 @@ sourceGuards =
         [ "Web/Admin/Mutations.hs", "Web/Admin/RosterWindowStartDay.hs", "Web/Admin/Xero/Mutations.hs"
         , "Web/Billing/Mutations.hs", "Web/Controller/StripeWebhooks.hs", "Web/Controller/Support.hs"
         , "Web/Exports/Mutations.hs", "Application/Billing/Reconciliation.hs", "Application/EmailDelivery.hs"
-        , "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs", "Application/PublicHolidays/Job.hs"
+        , "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs", "Application/PublicHolidays/ActiveImport.hs", "Application/PublicHolidays/ActiveJob.hs"
         , "Application/Xero/Keepalive.hs", "Application/Xero/ReferenceSyncJob.hs"
         ] sequentialPublicationTokens
     , guard "admin controller keeps config writes behind mutations" ["Web/Controller/Admin.hs"]
@@ -238,7 +214,7 @@ sourceGuards =
         , "refreshAdminShiftTypes", "refreshAdminXero", "performTypedLiveSurfaceMutation", "liveSurfaceMutation"
         ]
     , guard "background invalidation uses touched resources"
-        ["Application/PublicHolidays/Job.hs", "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs"]
+        ["Application/PublicHolidays/ActiveImport.hs", "Application/PublicHolidays/ActiveJob.hs", "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs"]
         ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
     , guard "billing controller keeps writes behind mutations" ["Web/Controller/Billing.hs"]
         ["newRecord @VenueBillingCustomer", "newRecord @VenueBillingControl", "updateRecord", "broadcastBillingInvalidation"]

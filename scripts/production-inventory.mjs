@@ -142,7 +142,6 @@ const closureByRoot = new Map(roots.map((rootModule) => [rootModule, closureForR
 const frontendContractToolRoots = [
   "Application.Script.GenerateFrontendContracts",
   "Application.Script.GenerateFrontendSurfaceAdapters",
-  "Application.Script.GenerateBepisArchitectureContracts",
 ];
 for (const rootModule of frontendContractToolRoots) if (!modules.has(rootModule)) fail(`missing frontend-contract tool root module ${rootModule}`);
 const frontendContractToolReachableFrom = new Map();

@@ -2,6 +2,7 @@
 
 module Application.Helper.XeroAdminTypes where
 
+import Application.Helper.TimesheetReview (UnapprovedTimesheetView)
 import Application.Xero.ReferenceTrust
 import Control.Monad (guard)
 import qualified Data.List as List
@@ -207,8 +208,9 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationPendingDecisionCount        :: Int
     , preparationManualStaffDecisionCount    :: Int
     , preparationStaffStepApproved           :: Bool
-    , preparationPostedPayRunBlocked         :: Bool
     , preparationCanSubmit                   :: Bool
+    , preparationSelectedEntries             :: [TimesheetEntry]
+    , preparationUnapprovedTimesheets         :: [UnapprovedTimesheetView]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }

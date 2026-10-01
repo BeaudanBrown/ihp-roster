@@ -5,6 +5,8 @@ roots = [
     "^Test\\.HspecMain\\.main$",
     # E2E builds this mock server through -main-is outside the app graph.
     "^Test\\.StripeProcessMockMain\\.main$",
+    # Canonical E2E uses this test-only app entrypoint via -main-is or GHCi.
+    "^Test\\.E2EAppMain\\.main$",
     # Canonical E2E starts the isolated job worker via -main-is per shard.
     "^Test\\.E2EWorkerMain\\.main$",
     "^Paths_.*",

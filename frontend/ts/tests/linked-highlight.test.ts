@@ -102,7 +102,7 @@ test("Roster own live-shift default yields to hover and pin then restores determ
     assertEqual(otherShift.classList.contains("is-linked-highlight-member"), false);
 });
 
-test("Timesheets staff pin highlights persisted and suggestion cards across side-panel reconciliation", () => {
+test("Timesheets staff pin highlights persisted and prefill cards across side-panel reconciliation", () => {
     const controller = createLinkedHighlightController();
     const mount = timesheetsMount();
     const source = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightSourceDomAttr]: "staff:opaque" }));

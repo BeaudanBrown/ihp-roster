@@ -57,7 +57,7 @@ Official response URL:
 - Reviewed raw response SHA-256:
   `ba8d7eff6c48f3c419e9aa04f87bd3a0cb759a55521ead0d01e0811f29343cd2`
 - The committed response retains the 13 records published for calendar year
-  2026 and only the fields decoded by `Application.PublicHolidays.Sync`.
+  2026 and only the fields decoded by the retired anonymous importer.
 - The record-level `source` URLs remain the official Business Victoria yearly
   pages supplied by DataVic.
 - The statewide 28 December 2026 **additional public holiday** is deliberately

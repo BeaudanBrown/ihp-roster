@@ -56,6 +56,9 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , ArchiveLeaveRequestsPage
     , ArchivePage
     , ApproveLeaveRequest
+    , ResolveLeavePolicy
+    , PolicyToken
+    , ReturnToEdit
     , DenyLeaveRequest
     , CreateUnavailabilityBlackout
     , UpdateUnavailabilityBlackout
@@ -99,6 +102,9 @@ data Leave
 data LeaveTargetSuffix
 data ArchiveLeaveRequestsPage
 data ApproveLeaveRequest
+data ResolveLeavePolicy
+data PolicyToken
+data ReturnToEdit
 data DenyLeaveRequest
 data CreateUnavailabilityBlackout
 data UpdateUnavailabilityBlackout
@@ -172,13 +178,14 @@ type LeaveRequestsSurface =
              , 'Eager
              , 'Live
              , 'DependsOn UnavailabilityBlackoutsResource '[ 'FromScope VenueId ]
+             , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
+         -- Staff table only; blackouts are a sibling inside the persistent settings pane.
          , Fragment LeaveSidePanelContent
             '[]
             '[ 'MountTarget LeaveSidePanelContent '[]
              , 'Eager
              , 'Live
-             , 'Contains UnavailabilityBlackouts
              , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
          , Fragment LeaveAvailabilityWarnings
@@ -209,6 +216,13 @@ type LeaveRequestsSurface =
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlTrue
              ]
+         , Action ResolveLeavePolicy
+            '[ Field PolicyToken 'WireText, Field ReturnToEdit 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget 'HtmxThis
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
          , Action ApproveLeaveRequest
             '[]
             '[ 'HtmxMethod 'HtmxPost
@@ -226,14 +240,14 @@ type LeaveRequestsSurface =
          , Action CreateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action UpdateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]

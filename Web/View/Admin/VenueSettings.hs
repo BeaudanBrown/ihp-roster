@@ -67,7 +67,7 @@ renderRosterWindowStartDayForm venueConfig =
         [hsx|
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Roster window start day</div>
-            <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged.</p>
+            <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged. Automatic payroll reports are disabled and unstarted automatic sends cancelled. Review Scheduled reports and explicitly re-enable them; historical resends keep their original reporting dates.</p>
         </div>
         <div class="admin-setting-row-control admin-setting-row-control-wide d-flex gap-2 justify-content-end">
             <label class="visually-hidden" for="venue-roster-week-start">Roster window start day</label>
@@ -195,10 +195,11 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
         unavailableStaffWarningThresholdSettingRoute
         [hsx|
         <div class="admin-setting-row-copy">
-            <label class="fw-semibold" for="venue-unavailable-staff-warning-threshold">Unavailable-staff warning threshold</label>
-            <p class="small app-muted mb-0">Warn managers when this many active staff are unavailable on the same date. Leave blank to keep warnings Disabled.</p>
+            <div class="fw-semibold">Daily unavailability</div>
+            <p class="small app-muted mb-0">Warn managers when the count reaches Warn at. Above Maximum per day, adding another person requires manager confirmation. Leave either blank to disable it. Existing requests stay unchanged.</p>
         </div>
         <div class="admin-setting-row-control">
+            <label class="form-label small mb-1" for="venue-unavailable-staff-warning-threshold">Warn at</label>
             <input id="venue-unavailable-staff-warning-threshold"
                    class="form-control form-control-sm"
                    type="number"
@@ -207,10 +208,19 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
                    name={surfaceFieldNameFrom @Surface.UnavailableStaffWarningThreshold fields}
                    value={maybe "" tshow venueConfig.unavailableStaffWarningThreshold}
                    placeholder="Disabled" />
+            <label class="form-label small mt-2 mb-1" for="venue-unavailable-staff-daily-maximum">Maximum per day</label>
+            <input id="venue-unavailable-staff-daily-maximum"
+                   class="form-control form-control-sm"
+                   type="number"
+                   min="1"
+                   max="100"
+                   name={surfaceFieldNameFrom @Surface.UnavailableStaffDailyMaximum fields}
+                   value={maybe "" tshow venueConfig.unavailableStaffDailyMaximum}
+                   placeholder="Disabled" />
         </div>
     |]
   where
-    fields = AdminAction.updateUnavailableStaffWarningThresholdActionFields venueConfig.unavailableStaffWarningThreshold
+    fields = AdminAction.updateUnavailableStaffWarningThresholdActionFields venueConfig.unavailableStaffWarningThreshold venueConfig.unavailableStaffDailyMaximum
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
@@ -232,12 +242,11 @@ renderRosterEndTimesForm venueConfig =
 renderMinutePrecisionSettingToggle :: ActionFields AdminAction.UpdateMinutePrecisionShiftTimesEnabledActionOperation -> Text -> Bool -> Html
 renderMinutePrecisionSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             inputId
             (surfaceToggleScalarField @Surface.MinutePrecisionShiftTimesEnabled fields True False)
             isEnabled
-            [hsx|<span class="small">Enabled</span>|]
-            [hsx|<span class="small">15 minutes</span>|]
+            [hsx|<span class="small">Minute precision</span>|]
         )
             { appToggleButtonClass = "btn-sm"
             , appToggleRoleSwitch = True
@@ -247,12 +256,11 @@ renderMinutePrecisionSettingToggle fields inputId isEnabled =
 renderVenueSettingToggle :: ActionFields AdminAction.UpdateRosterEndTimesEnabledActionOperation -> Text -> Bool -> Html
 renderVenueSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             inputId
             (surfaceToggleScalarField @Surface.RosterEndTimesEnabled fields True False)
             isEnabled
-            [hsx|<span class="small">Enabled</span>|]
-            [hsx|<span class="small">Disabled</span>|]
+            [hsx|<span class="small">Show shift end times</span>|]
         )
             { appToggleButtonClass = "btn-sm"
             , appToggleRoleSwitch = True

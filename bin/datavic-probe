@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Invoke through bin/in-env. No database connection or mutation is performed.
+source Config/nix/scripts/lib/ghc.sh
+# Use a private, isolated build directory; never share application build outputs.
+output_dir="$(mktemp -d "${TMPDIR:-/tmp}/bepis-datavic-probe.XXXXXX")"
+trap 'rm -rf "$output_dir"' EXIT
+# Canonical application extensions/package flags; deliberate shell word splitting.
+# shellcheck disable=SC2046
+ghc $(ihp_roster_ghc_opts) -main-is Application.Script.DataVicProbe \
+    Application/Script/DataVicProbe.hs -o "$output_dir/probe" \
+    -odir "$output_dir" -hidir "$output_dir" -v0
+"$output_dir/probe" "$@"

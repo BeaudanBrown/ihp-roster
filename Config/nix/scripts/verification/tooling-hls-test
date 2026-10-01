@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+modules=(
+    tooling/artifacts/src/Bepis/Tooling/Artifacts.hs
+    tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs
+    tooling/epic-lifecycle/src/Bepis/Tooling/Epic.hs
+    tooling/postgres/src/Bepis/Tooling/Postgres/Config.hs
+    tooling/runners/src/Bepis/Tooling/Runners.hs
+    tooling/runtime/src/Bepis/Tooling/Runtime.hs
+    tooling/workspace-state/src/Bepis/Tooling/Workspace/Command.hs
+)
+cd "$repo_root"
+haskell-language-server-wrapper typecheck "${modules[@]}"
+(
+    cd tooling
+    haskell-language-server-wrapper typecheck \
+        "$repo_root/tooling/postgres/src/Bepis/Tooling/Postgres/Rehearsal.hs"
+)
+echo "tooling-hls-test: all package components resolve from repository and tooling working directories"

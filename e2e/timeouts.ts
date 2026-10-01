@@ -13,4 +13,6 @@ export const E2E_TIMEOUT = {
     liveUpdate: 15000,
     test: 30000,
     slowTest: 60000,
+    payrollWorkflowTest: 90000,
+    feedbackJourneyTest: 120000,
 } as const;

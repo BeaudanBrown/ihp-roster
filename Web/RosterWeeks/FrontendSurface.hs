@@ -35,6 +35,7 @@ module Web.RosterWeeks.FrontendSurface
     , rosterDayTimelineIntentForms
     , rosterDayTimelineSurfaceImpl
     , rosterIntentForms
+    , rosterPersonalImpl
     , rosterSurfaceImpl
     , rosterSurfaceFragmentKeys
     ) where
@@ -56,7 +57,7 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
+import Web.RosterWeeks.Paths (rosterFitPreferenceFragmentUrl, rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterTimelineMoveShiftUrl,
@@ -69,6 +70,7 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterWeekRowFragmentUrl,
                               rosterWeekSlotsGridFragmentUrl,
                               rosterWeekStaffPanelFragmentUrl,
+                              rosterSettingsFragmentUrl,
                               rosterWeekWageRailFragmentUrl)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..),
                               RosterRenderIndexes (..))
@@ -114,6 +116,16 @@ rosterMountedFragmentPlanFromRenderData hasTemplateLibrary rosterDays renderInde
             (rowIndex, _) <- fromMaybe [] (Map.lookup (unpackId rosterDay.id) renderIndexes.rosterDayRowsByDayId)
             pure (rosterDay.id, rowIndex)
         }
+
+rosterPersonalImpl :: UUID.UUID -> UUID.UUID -> Day -> Id RosterGroup -> SurfaceImpl Surface.RosterPersonalSurface
+rosterPersonalImpl venueId userId anchor groupId =
+    mkSurfaceImplFromValues @Surface.RosterPersonalSurface @Surface.RosterPersonal
+        "primary"
+        (surfaceField @Surface.VenueId venueId &: surfaceField @Surface.UserId userId &: noSurfaceFields)
+        noSurfaceFields
+        [ frontendSurfaceMountedFragmentFor @Surface.RosterPersonalSurface @Surface.FitPreferenceControl
+            noSurfaceFields noSurfaceFields (rosterFitPreferenceFragmentUrl anchor groupId) FrontendSurfaceReplace
+        ]
 
 rosterSurfaceImpl :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImpl Surface.RosterSurface
 rosterSurfaceImpl scope plan =
@@ -217,6 +229,7 @@ rosterTimelineModeMountedFragments scope plan =
     [ rosterGridToolbarMountedFragment scope
     , rosterGridFrameMountedFragment scope
     , rosterStaffPanelMountedFragment scope
+    , rosterSettingsMountedFragment scope
     ] <> [rosterTemplateLibraryMountedFragment scope | plan.rosterMountedHasTemplateLibrary]
 
 rosterWeekGridMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
@@ -229,6 +242,7 @@ rosterWeekGridMountedFragments scope plan =
     , rosterWageRailMountedFragment scope
     , rosterSlotsGridMountedFragment scope
     , rosterStaffPanelMountedFragment scope
+    , rosterSettingsMountedFragment scope
     ]
         <> [rosterTemplateLibraryMountedFragment scope | plan.rosterMountedHasTemplateLibrary]
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
@@ -254,6 +268,7 @@ rosterMountedFragmentForProjection scope = \case
     RosterProjectionWageRail -> rosterWageRailMountedFragment scope
     RosterProjectionSlotsGrid -> rosterSlotsGridMountedFragment scope
     RosterProjectionStaffPanel -> rosterStaffPanelMountedFragment scope
+    RosterProjectionSettings -> rosterSettingsMountedFragment scope
     RosterProjectionDaySection rosterDayId -> rosterDaySectionMountedFragment scope (Id rosterDayId)
     RosterProjectionRow rosterDayId rowIndex -> rosterRowMountedFragment scope (Id rosterDayId) rowIndex
 
@@ -417,6 +432,14 @@ rosterStaffPanelMountedFragment scope =
         noSurfaceFields
         noSurfaceFields
         (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)
+        FrontendSurfaceReplace
+
+rosterSettingsMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
+rosterSettingsMountedFragment scope =
+    frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterSettingsContent
+        noSurfaceFields
+        noSurfaceFields
+        (rosterSettingsFragmentUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId (timelineDateForScope scope))
         FrontendSurfaceReplace
 
 rosterTemplateLibraryMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment

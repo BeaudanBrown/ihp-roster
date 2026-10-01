@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+ihp_roster_configure_compiler_tmpdir
+rm -rf build/Generated
+mkdir -p build/Generated
+build-generated-code

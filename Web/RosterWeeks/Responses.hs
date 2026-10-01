@@ -14,6 +14,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterDialogOverlay
     , respondWithRosterFragments
     , respondWithRosterFragmentsUpdate
+    , respondWithFitWholeWeekUpdate
     , respondWithRosterOwnHighlightPreferenceUpdate
     , respondWithRosterResourceInvalidation
     , respondWithRosterToast
@@ -24,6 +25,8 @@ module Web.RosterWeeks.Responses
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
+import Application.Helper.FrontendContract.Surface.Roster.Live (rosterPersonalLiveScope)
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl (..), FrontendSurfaceMountConfig (..))
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -45,7 +48,7 @@ import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
                                         authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterCandidateMountedFragments,
+                                        rosterPersonalImpl, rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
@@ -53,7 +56,6 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
 import Web.RosterWeeks.Mutations (type RosterSlotMutationResult)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
-                                   rosterGridInnerAndStaffPanelFragments,
                                    rosterMutationMountedProjections)
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
@@ -66,7 +68,6 @@ import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
 respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Int -> Bool -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ResponseReceived
 respondToRosterSlotMutation scope rosterDay rowIndex materializedWindow mutationResult successMessage = do
@@ -142,14 +143,22 @@ respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContex
 respondWithRosterFragmentsUpdate scope fragments toast =
     respondWithRosterFragments scope fragments (renderToastOob ToastBottomCenter toast)
 
+respondWithFitWholeWeekUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult () -> IO ResponseReceived
+respondWithFitWholeWeekUpdate windowScope result = do
+    let scope = rosterFrontendScopeValue windowScope
+    let userId = unpackId effectiveCurrentUser.id
+    let mount = rosterPersonalImpl scope.rosterWeekVenueId userId scope.rosterWeekWindowStart scope.rosterWeekGroupId
+    setHeader ("HX-Reswap", "none")
+    setActorLiveResourcesRefresh (rosterPersonalLiveScope scope.rosterWeekVenueId userId) result.liveMutationTouchedResources mount.surfaceImplMountConfig.mountFragments
+    respondHtmlProfiled mempty
+
 respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> ToastOverlayConfig -> IO ResponseReceived
-respondWithRosterOwnHighlightPreferenceUpdate scope toast = do
-    rosterData <- fetchVisibleRosterReadModel scope
-    let selfServicePanel = rosterData >>= (.staffSelfServicePanel)
+respondWithRosterOwnHighlightPreferenceUpdate scope toast =
+    -- The default highlight role belongs to the main content root, not its grid children.
     respondWithRosterFragments
         scope
-        rosterGridInnerAndStaffPanelFragments
-        (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
+        [RosterProjectionContent, RosterProjectionSettings]
+        (renderToastOob ToastBottomCenter toast)
 
 respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterFragments scope fragments extraHtml =

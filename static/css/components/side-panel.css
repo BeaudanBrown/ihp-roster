@@ -165,6 +165,17 @@
     min-height: 0;
 }
 
+/* Replaceable contents live inside the persistent pane, never own its scroll. */
+.app-side-panel-pane-content {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+}
+
+.app-side-panel-settings-pane > * {
+    flex-shrink: 0;
+}
+
 .app-side-panel-table {
     border-collapse: separate;
     border-spacing: 0;
@@ -259,8 +270,16 @@
     vertical-align: middle;
 }
 
-.app-side-panel-entry:hover,
+@media (hover: hover) and (pointer: fine) {
+    .app-side-panel-entry:hover {
+        background: var(--app-accent-softer);
+        box-shadow: inset 3px 0 0 var(--app-accent);
+        outline: none;
+    }
+}
+
 .app-side-panel-entry:focus-visible,
+.app-side-panel-entry:has(:focus-visible),
 .app-side-panel-entry.is-linked-highlight-source {
     background: var(--app-accent-softer);
     box-shadow: inset 3px 0 0 var(--app-accent);
@@ -394,6 +413,11 @@
 
     .app-side-panel-card .app-panel-body {
         flex: 1 1 auto;
+    }
+
+    .app-side-panel-pane-content {
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .app-side-panel-table-list,

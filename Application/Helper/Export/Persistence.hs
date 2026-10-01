@@ -1,32 +1,12 @@
 module Application.Helper.Export.Persistence where
 
 import Application.Helper.Controller
-import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Types
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
 import Generated.Types
 import IHP.ControllerPrelude
-
-persistReadyExportJob ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Text ->
-    Day ->
-    Day ->
-    Aeson.Value ->
-    Text ->
-    Text ->
-    Text ->
-    Text ->
-    Maybe Text ->
-    UTCTime ->
-    Int ->
-    [Pair] ->
-    IO ExportJob
-persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails = do
-    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails
 
 persistReadyExportJobForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -47,6 +27,35 @@ persistReadyExportJobForEntries ::
 persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails = do
     exportJob <- createPendingExportJob exportType rangeStart rangeEnd finalScope expiresAt
     completeExportJob entries exportJob finalScope fileName contentType fileEncoding fileContents exportVersionManifest entryCount auditDetails
+
+-- Background owners supply explicit venue/actor provenance, never a synthetic
+-- ControllerContext. Attachment retention remains the normal export lifecycle.
+persistBackgroundPayrollExport :: (?modelContext :: ModelContext) =>
+    UUID -> UUID -> Day -> Day -> Aeson.Value -> Text -> Text -> Maybe Text -> [TimesheetEntry] -> IO ExportJob
+persistBackgroundPayrollExport venueId actorId rangeStart rangeEnd scope fileName contents manifest entries = do
+    expiresAt <- newExportExpiry
+    job <- newRecord @ExportJob
+        |> set #venueId venueId
+        |> set #requestedByUserId actorId
+        |> set #exportType (exportJobTypeToText PayrollWorkbookXlsx)
+        |> set #status (exportJobStatusToText ExportReady)
+        |> set #schemaVersion exportSchemaVersion
+        |> set #rangeStart (Just rangeStart)
+        |> set #rangeEnd (Just rangeEnd)
+        |> set #scope scope
+        |> set #deliveryMethod "payroll_email"
+        |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= ("system" :: Text)])
+        |> set #fileName (Just fileName)
+        |> set #contentType (Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        |> set #fileEncoding "base64"
+        |> set #fileContents (Just contents)
+        |> set #payConfigVersionManifest manifest
+        |> set #expiresAt expiresAt
+        |> createRecord
+    recordExportJobEntries job entries
+    void $ recordAuditEvent venueId actorId ExportGeneratedAudit "export_jobs" (unpackId job.id)
+        (Aeson.object ["exportType" Aeson..= job.exportType, "rangeStart" Aeson..= rangeStart, "rangeEnd" Aeson..= rangeEnd, "entryCount" Aeson..= length entries, "deliveryMethod" Aeson..= job.deliveryMethod]) SystemAuditSource
+    pure job
 
 newExportExpiry :: IO UTCTime
 newExportExpiry = addUTCTime exportExpirySeconds <$> getCurrentTime

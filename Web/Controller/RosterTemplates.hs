@@ -5,7 +5,7 @@ module Web.Controller.RosterTemplates where
 import Application.Bepis.Controller
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
@@ -120,7 +120,8 @@ instance Controller RosterTemplatesController where
         case (submittedCaptureName, submittedCaptureMode) of
             (Nothing, Nothing) -> renderTemplateCaptureInput rosterGroupId scope ""
             _ -> case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
-                Left errors -> renderTemplateCaptureInput rosterGroupId scope (captureTransportErrorMessage errors)
+                Left errors -> renderTemplateCaptureTransportErrors rosterGroupId scope
+                    (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode launcherFields) errors
                 Right fields -> case rosterTemplateCaptureRequestFromValues
                     scope
                     (surfaceFieldValue @RosterSurface.TemplateName fields)
@@ -149,7 +150,7 @@ instance Controller RosterTemplatesController where
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         scope <- rosterTemplateWindowScope rosterGroup
         case RosterAction.parseCreateRosterTemplateCaptureActionParams of
-            Left errors -> rerenderParsedTemplateCapture actor rosterGroupId scope (captureTransportErrorMessage errors)
+            Left errors -> rerenderParsedTemplateCapture actor rosterGroupId scope errors
             Right fields -> case rosterTemplateCaptureRequestFromValues
                 scope
                 (surfaceFieldValue @RosterSurface.TemplateName fields)
@@ -281,11 +282,12 @@ rerenderParsedTemplateCapture ::
     RosterTemplateActor ->
     Id RosterGroup ->
     RosterWindowScope ->
-    Text ->
+    [SurfaceRequestFieldError] ->
     IO ResponseReceived
-rerenderParsedTemplateCapture actor rosterGroupId scope message =
+rerenderParsedTemplateCapture actor rosterGroupId scope errors =
     case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
-        Left _ -> renderTemplateCaptureInput rosterGroupId scope message
+        Left _ -> renderTemplateCaptureTransportErrors rosterGroupId scope
+            (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode createFields) errors
         Right fields -> case rosterTemplateCaptureRequestFromValues
             scope
             (surfaceFieldValue @RosterSurface.TemplateName fields)
@@ -294,6 +296,9 @@ rerenderParsedTemplateCapture actor rosterGroupId scope message =
             (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
                 Left _ -> renderTemplateCaptureInput rosterGroupId scope message
                 Right captureRequest -> rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest message
+  where
+    createFields = RosterAction.createRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing "" 0 False
+    message = captureTransportErrorMessage errors
 
 rerenderTemplateCapture ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
@@ -326,8 +331,22 @@ renderTemplateCaptureInput ::
     RosterWindowScope ->
     Text ->
     IO ResponseReceived
-renderTemplateCaptureInput rosterGroupId scope message =
-    respondHtml (renderRosterTemplateCaptureInput rosterGroupId scope.rosterWindowStart submittedName submittedMode message)
+renderTemplateCaptureInput rosterGroupId scope = renderTemplateCaptureInputErrors rosterGroupId scope False
+
+renderTemplateCaptureTransportErrors ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    Id RosterGroup -> RosterWindowScope -> Text -> [SurfaceRequestFieldError] -> IO ResponseReceived
+renderTemplateCaptureTransportErrors rosterGroupId scope assignmentFieldName errors =
+    renderTemplateCaptureInputErrors rosterGroupId scope (any isAssignmentError errors)
+        (captureTransportErrorMessage (filter (not . isAssignmentError) errors))
+  where
+    isAssignmentError fieldError = fieldError.surfaceRequestFieldErrorName == assignmentFieldName
+
+renderTemplateCaptureInputErrors ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    Id RosterGroup -> RosterWindowScope -> Bool -> Text -> IO ResponseReceived
+renderTemplateCaptureInputErrors rosterGroupId scope assignmentInvalid message =
+    respondHtml (renderRosterTemplateCaptureInput rosterGroupId scope.rosterWindowStart submittedName submittedMode assignmentInvalid message)
   where
     transportFields = RosterAction.previewRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing
     submittedName = fromMaybe "" (paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName transportFields)))
@@ -401,7 +420,7 @@ authorizedTemplateActor ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO RosterTemplateActor
 authorizedTemplateActor = do
-    ensureManagerRole
+    ensureManagerModeAccess
     ensureVenueWritable
     currentRosterTemplateActor
 

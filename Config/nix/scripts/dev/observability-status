@@ -3,6 +3,9 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
+bepis_runtime_prepare
 
 STATE_DIR="$(dev-agent-state-dir)"
 TEMPO_PORT="${IHP_ROSTER_DEV_TEMPO_PORT:-3200}"
@@ -10,15 +13,10 @@ COLLECTOR_HEALTH_PORT="${IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT:-13133}"
 GRAFANA_PORT="${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}"
 
 check_pid() {
-    local pid_file="$1"
-    if [ -f "$pid_file" ]; then
-        local pid
-        pid=$(cat "$pid_file")
-        if kill -0 "$pid" 2>/dev/null; then
-            printf '%s' "$pid"
-            return 0
-        fi
-        rm -f "$pid_file"
+    local pid_file="$1" label="$2" status
+    if status="$(bepis_runtime_observe "$pid_file" "$label" 2>/dev/null)"; then
+        awk '{for (i=1; i<=NF; i++) if ($i ~ /^pid=/) {sub(/^pid=/, "", $i); printf "%s", $i}}' <<<"$status"
+        return 0
     fi
     printf 'none'
     return 1
@@ -29,9 +27,9 @@ check_url() {
     curl --connect-timeout 1 --max-time 2 -fsS "$url" >/dev/null 2>&1
 }
 
-TEMPO_PID=$(check_pid "$STATE_DIR/tempo.pid" || true)
-COLLECTOR_PID=$(check_pid "$STATE_DIR/otel-collector.pid" || true)
-GRAFANA_PID=$(check_pid "$STATE_DIR/grafana.pid" || true)
+TEMPO_PID=$(check_pid "$STATE_DIR/tempo.pid" tempo || true)
+COLLECTOR_PID=$(check_pid "$STATE_DIR/otel-collector.pid" otel-collector || true)
+GRAFANA_PID=$(check_pid "$STATE_DIR/grafana.pid" grafana || true)
 
 TEMPO_OK=false
 COLLECTOR_OK=false

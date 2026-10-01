@@ -17,7 +17,7 @@ if [ "$TARGET" = "Main.hs" ]; then
     TARGETS+=(WorkerMain.hs)
 fi
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/module-name-check"
-ihp_roster_prepare_ghc_build_dir "$TYPECHECK_DIR" "$GHC_OPTS"
-exec ghc -no-link $GHC_OPTS "${TARGETS[@]}" \
+exec bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$TYPECHECK_DIR" "$GHC_OPTS" typecheck-build-lock -- \
+    ghc -no-link $GHC_OPTS "${TARGETS[@]}" \
     -odir "$TYPECHECK_DIR/obj" \
     -hidir "$TYPECHECK_DIR/hi"

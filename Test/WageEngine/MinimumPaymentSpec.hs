@@ -1,7 +1,8 @@
 module Test.WageEngine.MinimumPaymentSpec where
 
-import Application.PublicHolidays.Sync (importDataVicPublicHolidayRecordsForYears)
+import Application.PublicHolidays.ActiveImport (importPublicHolidayCalendars)
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
@@ -23,8 +24,8 @@ databaseTests = aroundAll withDatabaseTestContext do
     describe "WageEngine minimum-payment DataVic lookup" do
         it "HIGA-SOURCE-DATAVIC-STATEWIDE drives the public-holiday minimum from the dated fixture cache" $ withContext do
             withCleanDb do
-                records <- loadDataVicHolidayFixture
-                _ <- importDataVicPublicHolidayRecordsForYears [2026] records
+                records <- loadDataVicHolidayFixture 2026
+                _ <- importPublicHolidayCalendars (UTCTime (fromGregorian 2026 1 1) 0) [2026] [(2026, records)]
                 holidays <- query @PublicHoliday
                     |> filterWhere (#jurisdiction, "VIC" :: Text)
                     |> filterWhere (#isRegional, False)
@@ -387,10 +388,10 @@ workedSegments :: WageCalculation -> [PaidTimeSegment]
 workedSegments = filter ((== Worked) . (.paidTimeKind)) . (.paidTimeSegments)
 
 paidSeconds :: WageCalculation -> Rational
-paidSeconds = sum . map paidTimeDurationSeconds . (.paidTimeSegments)
+paidSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . (.paidTimeSegments)
 
 workedSeconds :: WageCalculation -> Rational
-workedSeconds = sum . map paidTimeDurationSeconds . workedSegments
+workedSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . workedSegments
 
 hourlyDetails :: WageCalculation -> [(SourceCondition, Rational, Scientific)]
 hourlyDetails =

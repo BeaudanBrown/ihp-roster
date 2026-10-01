@@ -7,7 +7,6 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             defaultFrontendSurfaceActionRoute,
-                                                            renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton)
 import Web.View.Prelude
 
@@ -68,15 +67,13 @@ renderAdminActiveToggleImmediate inputId binding isActive =
 renderAdminActiveToggleWithPolicy :: Text -> ToggleFieldBinding -> Bool -> ToggleSubmissionPolicy -> Html
 renderAdminActiveToggleWithPolicy inputId binding isActive submitPolicy =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             inputId
             binding
             isActive
             [hsx|<span class="small">Enabled</span>|]
-            [hsx|<span class="small">Disabled</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100"
-            , appToggleRoleSwitch = True
             , appToggleSubmitPolicy = submitPolicy
             }
 
@@ -99,7 +96,7 @@ renderAdminInactiveSummary rows showInactive toggleAction toggleRoute = [hsx|
             {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
         </p>
         <div>
-            {renderFrontendSurfaceActionLink toggleAction routeWithToggleAttrs toggleLabel}
+            {renderAppToggleNavigationButton toggleAction toggleRoute showInactive toggleLabel}
         </div>
     </div>
 |]
@@ -107,18 +104,6 @@ renderAdminInactiveSummary rows showInactive toggleAction toggleRoute = [hsx|
         activeCount = countActiveRows rows
         inactiveCount = length rows - activeCount
         toggleLabel = [hsx|<span class="small">Show disabled</span>|]
-        routeWithToggleAttrs = toggleRoute
-            { actionRouteExtraAttrs =
-                [ ("class", classes
-                    [ ("btn app-toggle-button btn-sm", True)
-                    , ("btn-success", showInactive)
-                    , ("btn-outline-success", not showInactive)
-                    ])
-                , ("role", "switch")
-                , ("aria-checked", if showInactive then "true" else "false")
-                ]
-                    <> toggleRoute.actionRouteExtraAttrs
-            }
 
 renderAdminReorderControl :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
 renderAdminReorderControl isDisabled action actionUrl label =

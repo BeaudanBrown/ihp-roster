@@ -1,7 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel)"
+if [ -z "${PRODUCTION_SOURCE_BOUNDARY_FIXTURE_ROOT:-}" ]; then
+    source_root="$(git rev-parse --show-toplevel)"
+    fixture_parent="$(mktemp -d)"
+    fixture_root="$fixture_parent/source"
+    mkdir -p "$fixture_root"
+    cleanup_fixture() {
+        rm -rf "$fixture_parent"
+    }
+    trap cleanup_fixture EXIT
+    while IFS= read -r -d '' path; do
+        if [ -e "$source_root/$path" ] || [ -L "$source_root/$path" ]; then
+            printf '%s\0' "$path"
+        fi
+    done < <(git -C "$source_root" ls-files -z --cached --others --exclude-standard) \
+        | tar -C "$source_root" --null --files-from=- -cf - \
+        | tar -C "$fixture_root" -xf -
+    git -C "$fixture_root" init -q
+    git -C "$fixture_root" config user.name 'Bepis source boundary fixture'
+    git -C "$fixture_root" config user.email 'source-boundary@invalid.example'
+    git -C "$fixture_root" add -A
+    git -C "$fixture_root" commit -qm 'isolated source-boundary fixture'
+    PRODUCTION_SOURCE_BOUNDARY_FIXTURE_ROOT="$fixture_root" "$0"
+    exit $?
+fi
+
+repo_root="$PRODUCTION_SOURCE_BOUNDARY_FIXTURE_ROOT"
 cd "$repo_root"
 
 probe_paths=(
@@ -33,8 +58,18 @@ done
 trap restore_sources EXIT
 
 production_derivations() {
-    local app_drv requisites app_lib_drvs source_paths
-    app_drv="$(nix eval --raw .#optimized-prod-server.drvPath --accept-flake-config)"
+    local graph app_drv requisites app_lib_drvs source_paths
+    graph="$(nix eval --impure --json --accept-flake-config --expr '
+        let
+            flake = builtins.getFlake ("git+file://" + toString ./.);
+            packages = flake.packages.${builtins.currentSystem};
+        in {
+            app = packages.optimized-prod-server.drvPath;
+            static = packages.static.drvPath;
+            schema = packages.schema.drvPath;
+            deployment = import ./Config/nix/tests/production-deployment-derivation.nix;
+        }')"
+    app_drv="$(jq -r .app <<<"$graph")"
     requisites="$(nix-store --query --requisites "$app_drv")"
     app_lib_drvs="$(printf '%s\n' "$requisites" | grep -- '-app-lib-0\.1\.0\.drv$' || true)"
     source_paths="$(printf '%s\n' "$requisites" | grep -- '-ihp-roster-source$' || true)"
@@ -43,13 +78,8 @@ production_derivations() {
         echo "production-source-boundary: expected one app-lib and filtered source below $app_drv" >&2
         exit 1
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$app_drv" \
-        "$app_lib_drvs" \
-        "$source_paths" \
-        "$(nix eval --raw .#static.drvPath --accept-flake-config)" \
-        "$(nix eval --raw .#schema.drvPath --accept-flake-config)" \
-        "$(nix eval --impure --raw --file Config/nix/tests/production-deployment-derivation.nix)"
+    jq -r --arg library "$app_lib_drvs" --arg source "$source_paths" \
+        '[.app, $library, $source, .static, .schema, .deployment] | @tsv' <<<"$graph"
 }
 
 snapshot_probe() {
@@ -102,7 +132,7 @@ assert_effects() {
 
 baseline="$(production_derivations)"
 IFS=$'\t' read -r _ _ production_source _ _ _ <<< "$baseline"
-for excluded_root in Test docs e2e frontend scripts bin vendor; do
+for excluded_root in Test docs e2e frontend scripts bin tooling vendor; do
     if [ -e "$production_source/$excluded_root" ]; then
         echo "production-source-boundary: excluded root leaked into production source: $excluded_root" >&2
         exit 1

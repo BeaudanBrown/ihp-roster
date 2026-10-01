@@ -123,7 +123,7 @@ reviewNotice review =
         XeroSubmissionInProgress ->
             Just (ReconciliationBlocker, "A Bepis Xero timesheet submission is still in progress. Wait for it to finish, then review again.")
         BlockXeroNonDraft timesheetId status ->
-            Just (ReconciliationBlocker, "Xero timesheet " <> timesheetId <> " is " <> status <> " and cannot be changed by Bepis. Review it in Xero before trying again.")
+            Just (ReconciliationBlocker, "Xero timesheet " <> timesheetId <> " is " <> status <> " and cannot be changed by Bepis. A separate draft pay run does not make a processed timesheet editable. Use a custom workbook containing the Xero pay-items sheet for manual entry in Xero.")
         BlockDistinctXeroTimesheets timesheetIds ->
             Just (ReconciliationBlocker, "Xero has multiple distinct timesheets for this employee and period (" <> Text.intercalate ", " timesheetIds <> "). Resolve them in Xero, then review again.")
         BlockUnknownXeroStatus timesheetId status ->

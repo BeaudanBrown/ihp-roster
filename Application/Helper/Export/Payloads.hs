@@ -16,21 +16,22 @@ import IHP.ControllerPrelude
 
 buildFixedStaffPayCsvPayload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
     Map.Map UUID WageCalculation ->
     Map.Map UUID Day ->
     Day ->
     Day ->
     Day ->
     IO (Either Text StaffPayCsvPayload)
-buildFixedStaffPayCsvPayload calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd weekStart = do
+buildFixedStaffPayCsvPayload selectedEntries calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd weekStart = do
     let reportWeekSlice =
             ReportWeekSlice
                 { weekSelection = reportWeekSelection weekStart
                 , sliceStart = max rangeStart weekStart
                 , sliceEnd = min rangeEnd (addDays 6 weekStart)
                 }
-    windowEntries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
-    let entries = filter belongsToSealedWindow windowEntries
+    let windowEntries = filter (\entry -> entry.operationalDate >= reportWeekSlice.sliceStart && entry.operationalDate <= reportWeekSlice.sliceEnd) selectedEntries
+        entries = filter belongsToSealedWindow windowEntries
         belongsToSealedWindow entry =
             Map.findWithDefault weekStart (unpackId entry.id) sealedWindowStartsByEntryId == weekStart
     staffById <- fetchReportStaffMap entries

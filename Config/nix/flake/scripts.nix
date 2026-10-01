@@ -32,6 +32,8 @@ let
             echo "devenv project command: no project checkout found; using packaged snapshot for $relative_path" >&2
         fi
 
+        # Preserve compiler discovery while nested runtime/test commands change PATH.
+        export BEPIS_TOOLING_BUILD_PATH="''${BEPIS_TOOLING_BUILD_PATH:-$PATH}"
         export BEPIS_SCRIPTS_ROOT="$scripts_root"
         export BEPIS_MAILHOG_ROOT=${pkgs.mailhog}
         export BEPIS_RIPGREP_ROOT=${pkgs.ripgrep}
@@ -52,7 +54,7 @@ in
     processes = {
         # Replace IHP's static devenv processes so `devenv up` receives the
         # same workspace-specific ports as dev-start and dev-foreground.
-        web = pkgs.lib.mkForce (script ../scripts/dev/app);
+        web = pkgs.lib.mkForce (script ../scripts/dev/web);
         worker = pkgs.lib.mkForce (script ../scripts/dev/worker);
         hoogle = pkgs.lib.mkForce {
             exec = ''
@@ -69,12 +71,12 @@ in
         pi = script ../scripts/dev/pi;
         workspace-pi-test = script ../scripts/dev/pi-test;
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
-        dev-app = script ../scripts/dev/app;
         dev-worker = script ../scripts/dev/worker;
         dev-workspace-info = script ../scripts/dev/workspace-info;
         dev-workspace-test = script ../scripts/dev/workspace-test;
         in-env-test = script ../scripts/dev/in-env-test;
         dev-runtime-isolation-test = script ../scripts/dev/runtime-isolation-test;
+        runtime-lifecycle-test = script ../scripts/dev/runtime-lifecycle-test;
         devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
@@ -88,7 +90,6 @@ in
         frontend-check = script ../scripts/frontend/check;
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
-        frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
         frontend-generated-state-test = script ../scripts/frontend/generated-state-test;
         frontend-generated-sync = script ../scripts/frontend/generated-sync;
@@ -101,7 +102,6 @@ in
         frontend-surface-adapters-check = script ../scripts/frontend/surface-adapters-check;
         frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
-        git-install-hooks = script ../scripts/git/install-hooks;
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
         epic-worktree = script ../scripts/epic/worktree;
         epic-worktree-test = script ../scripts/epic/worktree-test;
@@ -112,21 +112,8 @@ in
         epic-worktree-workflow-acceptance-test = script ../scripts/epic/workflow-acceptance-test;
         epic-worktree-provision = script ../scripts/epic/provision;
         epic-worktree-provision-test = script ../scripts/epic/provision-test;
-        architecture-contracts = script ../scripts/architecture/contracts;
-        architecture-facts = script ../scripts/architecture/facts;
-        architecture-wiring-registry-test = script ../scripts/architecture/wiring-registry-test;
-        email-transport-check = script ../scripts/architecture/email-transport-check;
-        fixture-reset-manifest-test = script ../scripts/architecture/fixture-reset-manifest-test;
-        architecture-schema = script ../scripts/architecture/schema;
-        architecture-web-map = script ../scripts/architecture/web-map;
-        architecture-module-graph = script ../scripts/architecture/module-graph;
-        architecture-surface-request-closure = script ../scripts/architecture/surface-request-closure;
-        typed-contract-authority-audit = script ../scripts/architecture/typed-contract-authority-audit;
-        architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
-        architecture-query = script ../scripts/architecture/query;
-        architecture-trace-diagram = script ../scripts/architecture/trace-diagram;
-        architecture-render = script ../scripts/architecture/render;
-        architecture-check-fresh = script ../scripts/architecture/check-fresh;
+        email-transport-check = script ../scripts/verification/email-transport-check;
+        fixture-reset-manifest-test = script ../scripts/verification/fixture-reset-manifest-test;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
         enum-authority-check = script ../scripts/haskell/enum-authority-check;
@@ -147,7 +134,6 @@ in
         compiler-tmp-test = script ../scripts/haskell/compiler-tmp-test;
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
-        billing-migration-check = script ../scripts/db/billing-migration-check;
         migration-enum-commit-boundary-check = script ../scripts/db/migration-enum-commit-boundary-check;
         migration-enum-commit-boundary-real-runner-test = script ../scripts/db/migration-enum-commit-boundary-real-runner-test;
         migration-rehearsal = script ../scripts/db/migration-rehearsal;
@@ -158,9 +144,10 @@ in
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
+        tooling-foundation-test = script ../scripts/verification/tooling-foundation-test;
+        runner-lifecycle-test = script ../scripts/verification/runner-lifecycle-test;
         verify-tooling = script ../scripts/verification/verify-tooling;
         date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
-        verify-all = script ../scripts/verification/verify-all;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
@@ -176,14 +163,15 @@ in
         http-repository-check = script ../scripts/verification/http-repository-check;
         production-manifest-check = script ../scripts/verification/production-manifest-check;
         production-inventory-check = script ../scripts/verification/production-inventory;
-        production-inspection-check = script ../scripts/verification/production-inspection-check;
         production-source-repository-check = script ../scripts/verification/production-source-repository-check;
         production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
+        glue-compatibility-test = script ../scripts/verification/glue-compatibility-test;
+        tooling-hls-test = script ../scripts/verification/tooling-hls-test;
         frontend-runtime-check = script ../scripts/verification/frontend-runtime-check;
-        architecture-repository-check = script ../scripts/verification/architecture-repository-check;
+        repository-wiring-check = script ../scripts/verification/repository-wiring-check;
+        frontend-request-closure-check = script ../scripts/verification/frontend-request-closure-check;
         documentation-repository-check = script ../scripts/verification/documentation-repository-check;
-        production-build-budget-check = script ../scripts/verification/production-build-budget;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
@@ -191,21 +179,19 @@ in
         ghci-config-test = script ../scripts/haskell/ghci-config-test;
         dev-db-reset = script ../scripts/db/reset-dev;
         dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
+        postgres-lifecycle-test = script ../scripts/db/postgres-lifecycle-test;
         seed-dev = script ../scripts/db/seed-dev;
         seed-profile = script ../scripts/db/seed-profile;
         profile-test-server = script ../scripts/profile/test-server;
         profile-app = script ../scripts/profile/app;
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
-        otel-runtime-benchmark = script ../scripts/profile/otel-runtime-benchmark;
         telemetry-boundary-probe = script ../scripts/profile/telemetry-boundary-probe;
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;
-        production-build-budget-test = script ../scripts/profile/production-build-budget-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
-        profile-live-invalidation = script ../scripts/profile/live-invalidation;
         profile-live-load = script ../scripts/profile/live-load;
         sync-fwc-mapd = script ../scripts/xero/sync-fwc-mapd;
         xero-pay-item-probe = script ../scripts/xero/pay-item-probe;
@@ -219,13 +205,10 @@ in
         e2e-support-import-check = script ../scripts/e2e/support-import-check;
         e2e-typecheck = script ../scripts/e2e/typecheck;
         e2e-typecheck-test = script ../scripts/e2e/typecheck-test;
-        screenshot = script ../scripts/e2e/screenshot;
         pwcli = script ../scripts/e2e/pwcli;
         pwcli-auth-save = script ../scripts/e2e/pwcli-auth-save;
         pwcli-auth-open = script ../scripts/e2e/pwcli-auth-open;
         screenshot-page = script ../scripts/e2e/screenshot-page;
-        screenshot-roster-mobile = script ../scripts/e2e/screenshot-roster-mobile;
-        e2e-roster-mobile-screenshots = script ../scripts/e2e/roster-mobile-screenshots;
         e2e-report = script ../scripts/e2e/report;
         dev-start = script ../scripts/dev/start;
         stripe-listen = script ../scripts/dev/stripe-listen;

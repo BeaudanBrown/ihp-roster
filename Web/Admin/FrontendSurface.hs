@@ -9,6 +9,8 @@ module Web.Admin.FrontendSurface
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
     , adminExportsSurfaceImplForWindow
+    , adminRecipientGroupsSurfaceImpl
+    , adminRecipientGroupsFragment
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
@@ -18,6 +20,7 @@ module Web.Admin.FrontendSurface
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminExportsFragmentForWindow
+    , adminExportsFragment
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
@@ -84,6 +87,11 @@ adminExportsSurfaceImplForWindow scope anchorDate =
         (adminVenueScopeFields scope)
         noSurfaceFields
         [adminExportsFragmentForWindow anchorDate]
+
+adminRecipientGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRecipientGroupsSurface
+adminRecipientGroupsSurfaceImpl scope =
+    mkSurfaceImplFromValues @Surface.AdminRecipientGroupsSurface @Surface.AdminRecipientGroupsScope
+        "primary" (adminVenueScopeFields scope) noSurfaceFields [adminRecipientGroupsFragment]
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
 adminShiftTypesSurfaceImpl scope =
@@ -173,12 +181,24 @@ adminInvitesFragment maybeRosterGroupId =
 
 
 adminExportsFragmentForWindow :: Day -> FrontendSurfaceMountedFragment
-adminExportsFragmentForWindow anchorDate =
+adminExportsFragmentForWindow anchorDate = adminExportsFragmentWithQuery [("anchorDate", tshow anchorDate)]
+
+-- Actor refresh emits the semantic key only; the browser retains its mounted week URL.
+adminExportsFragment :: FrontendSurfaceMountedFragment
+adminExportsFragment = adminExportsFragmentWithQuery []
+
+adminExportsFragmentWithQuery :: [(Text, Text)] -> FrontendSurfaceMountedFragment
+adminExportsFragmentWithQuery query =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
         noSurfaceFields
         noSurfaceFields
-        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("anchorDate", tshow anchorDate)])
+        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) query)
         FrontendSurfaceReplace
+
+adminRecipientGroupsFragment :: FrontendSurfaceMountedFragment
+adminRecipientGroupsFragment =
+    frontendSurfaceMountedFragmentFor @Surface.AdminRecipientGroupsSurface @Surface.AdminRecipientGroupsFragment
+        noSurfaceFields noSurfaceFields (pathTo ShowadminRecipientGroupsFragmentAction) FrontendSurfaceReplace
 
 adminShiftTypesFragment :: FrontendSurfaceMountedFragment
 adminShiftTypesFragment =

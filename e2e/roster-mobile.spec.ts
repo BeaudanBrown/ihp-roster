@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
+    rosterSidePanelShelfToggleDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
@@ -11,6 +12,7 @@ import {
     firstRosterDayRemoveButton,
     openRoster,
     openRosterSettings,
+    seedFitDayRows, setFitWholeWeek,
 } from './support/roster';
 import { expectContainerToManageHorizontalOverflow, expectNoHorizontalViewportOverflow } from './support/responsive';
 import { runSql } from './support/database';
@@ -52,10 +54,57 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
 
 test.describe('Roster mobile baseline', () => {
     test.beforeEach(async ({ page }) => {
+        seedFitDayRows();
         await openRoster(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
         await expect(page.locator('.roster-grid')).toBeVisible();
+    });
+
+    test('fit gestures inspect without launching a shift and ordinary taps still open it', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        const view = page.locator('.roster-fit-viewport');
+        const frame = view.locator('.roster-grid-frame');
+        const transform = () => frame.evaluate(el => getComputedStyle(el).transform);
+        try {
+            await setFitWholeWeek(page, true);
+            const start = await transform();
+            await view.focus();
+            await page.keyboard.press('=');
+            await expect.poll(transform).not.toBe(start);
+            await page.keyboard.press('Home');
+            const launcher = view.locator('[data-roster-shift-launcher="true"]').first();
+            await launcher.hover();
+            const box = await launcher.boundingBox();
+            if (!box) throw new Error('Missing fitted shift launcher');
+            const x = box.x + box.width / 2, y = box.y + box.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.wheel(0, -320);
+            await expect.poll(transform).not.toBe(start);
+            await page.mouse.down();
+            await page.mouse.move(x - 40, y - 30, { steps: 6 });
+            await page.mouse.up();
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            await view.focus();
+            await page.keyboard.press('Home');
+            // Chromium touch events exercise native pointer capture and synthesized click.
+            const session = await page.context().newCDPSession(page);
+            try {
+                await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 0 }, { x: x + 15, y, id: 1 }] });
+                await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x - 12, y, id: 0 }, { x: x + 32, y, id: 1 }] });
+                await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                await expect.poll(transform).not.toBe(start);
+                await expect(page.getByRole('dialog')).toHaveCount(0);
+            } finally {
+                await session.detach();
+            }
+            await view.press('Home');
+            await launcher.click();
+            await expect(page.getByRole('dialog')).toBeVisible();
+            await page.keyboard.press('Escape');
+        } finally {
+            await setFitWholeWeek(page, false);
+        }
     });
 
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
@@ -72,6 +121,8 @@ test.describe('Roster mobile baseline', () => {
             ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
         `);
         await openRoster(page, { weekOffset: 51, useCurrentSession: true });
+        const closeRosterTools = page.getByRole('button', { name: 'Close Roster tools' });
+        if (await closeRosterTools.isVisible()) await closeRosterTools.click();
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
         const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
@@ -96,6 +147,11 @@ test.describe('Roster mobile baseline', () => {
             expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
         } finally {
             await page.keyboard.press('Escape');
+            const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+            if (await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'true') {
+                await shelfToggle.click();
+                await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
+            }
             if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
@@ -185,13 +241,22 @@ test.describe('Roster mobile baseline', () => {
                 sidePosition: getComputedStyle(side).position,
                 panelOverflowY: getComputedStyle(panel).overflowY,
                 listOverflowY: getComputedStyle(list).overflowY,
+                paneOverflowY: getComputedStyle(document.querySelector('#roster-staff-panel-staff-pane')!).overflowY,
             };
         });
 
         expect(metrics).not.toBeNull();
-        expect(metrics?.sidePosition).toBe('static');
-        expect(metrics?.panelOverflowY).not.toBe('hidden');
+        expect(metrics?.sidePosition).toBe('fixed');
+        expect(metrics?.panelOverflowY).toBe('hidden');
         expect(metrics?.listOverflowY).not.toBe('auto');
+        expect(metrics?.paneOverflowY).toBe('auto');
+        const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
+        await shelfToggle.click();
+        await expect(page.locator('#roster-staff-panel-staff-pane')).toBeVisible();
+        await expectNoHorizontalViewportOverflow(page);
+        await page.keyboard.press('Escape');
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
     });
 
     test('keeps the day-row day rail width stable when end times are enabled on phone widths', async ({ page }) => {
@@ -610,32 +675,36 @@ test.describe('Roster mobile baseline', () => {
 
         const sampleCount = Math.min(await launchers.count(), 3);
         for (let index = 0; index < sampleCount; index += 1) {
-            const launcher = launchers.nth(index);
-            await launcher.scrollIntoViewIfNeeded();
+            // Live fragments can replace a launcher during scroll stability checks.
+            // Re-resolve this read-only geometry assertion, never a business action.
+            await expect(async () => {
+                const launcher = launchers.nth(index);
+                await launcher.scrollIntoViewIfNeeded();
 
-            const reachable = await launcher.evaluate((element) => {
-                if (!(element instanceof HTMLElement)) {
-                    throw new Error('Expected roster launcher to be an HTMLElement');
-                }
+                const reachable = await launcher.evaluate((element) => {
+                    if (!(element instanceof HTMLElement)) {
+                        throw new Error('Expected roster launcher to be an HTMLElement');
+                    }
 
-                const scroller = element.closest('.roster-slots-scroller');
-                if (!(scroller instanceof HTMLElement)) {
-                    throw new Error('Expected roster launcher to live in the slot scroller');
-                }
+                    const scroller = element.closest('.roster-slots-scroller');
+                    if (!(scroller instanceof HTMLElement)) {
+                        throw new Error('Expected roster launcher to live in the slot scroller');
+                    }
 
-                element.scrollIntoView({ block: 'nearest', inline: 'center' });
-                const rect = element.getBoundingClientRect();
-                const scrollerRect = scroller.getBoundingClientRect();
-                const visibleLeft = Math.max(rect.left, scrollerRect.left, 0);
-                const visibleRight = Math.min(rect.right, scrollerRect.right, window.innerWidth);
+                    element.scrollIntoView({ block: 'nearest', inline: 'center' });
+                    const rect = element.getBoundingClientRect();
+                    const scrollerRect = scroller.getBoundingClientRect();
+                    const visibleLeft = Math.max(rect.left, scrollerRect.left, 0);
+                    const visibleRight = Math.min(rect.right, scrollerRect.right, window.innerWidth);
 
-                return {
-                    visibleWidth: Math.round(Math.max(0, visibleRight - visibleLeft)),
-                };
-            });
+                    return {
+                        visibleWidth: Math.round(Math.max(0, visibleRight - visibleLeft)),
+                    };
+                });
 
-            expect(reachable.visibleWidth).toBeGreaterThan(20);
-            await expectNoHorizontalViewportOverflow(page);
+                expect(reachable.visibleWidth).toBeGreaterThan(20);
+                await expectNoHorizontalViewportOverflow(page);
+            }).toPass({ timeout: E2E_TIMEOUT.assertion });
         }
     });
 });

@@ -14,16 +14,35 @@ if ((${#app_sources[@]} == 0)); then
     exit 1
 fi
 
-# HLint owns primitive and partial collection prevention. No source-site
-# baseline is accepted: every finding fails immediately.
-hlint -j -XQuasiQuotes --only='Avoid restricted function' "${app_sources[@]}"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+# --only filters reported hints, not evaluation, and also hides parse errors.
+# Avoid the shipped rewrite rules this gate discards; retain project restrictions
+# and inspect their structured findings together with any parse failure.
+# Explicit --hint requires explicit .hlint.yaml (implicit discovery is disabled).
+printf '%s\n' '- group: {name: default, enabled: false}' >"$tmp_dir/restricted-scan.yaml"
+if hlint -j -XQuasiQuotes --hint=.hlint.yaml --hint="$tmp_dir/restricted-scan.yaml" \
+    --json "${app_sources[@]}" >"$tmp_dir/hlint.json"; then
+    :
+else
+    status=$?
+    [ "$status" -eq 1 ] || exit "$status"
+fi
 
-python3 - "${app_sources[@]}" <<'PY'
+python3 - "$tmp_dir/hlint.json" "${app_sources[@]}" <<'PY'
 from pathlib import Path
+import json
 import re
 import sys
 
-sources = [Path(value) for value in sys.argv[1:]]
+hints = json.loads(Path(sys.argv[1]).read_text())
+if not isinstance(hints, list):
+    raise ValueError('unsupported HLint diagnostics')
+blocking_hints = [hint for hint in hints if hint['hint'] == 'Avoid restricted function' or hint['hint'].startswith('Parse error')]
+if blocking_hints:
+    print(json.dumps(blocking_hints, indent=2))
+    raise SystemExit(1)
+sources = [Path(value) for value in sys.argv[2:]]
 failures = []
 # These are category owners, not source-site exceptions. Each owner has focused
 # executable evidence and no other module may construct/rethrow directly.
@@ -85,8 +104,6 @@ if failures:
 PY
 
 fixture='Test/CompileFail/ApplicationErrorEitherTextBoundary.hs'
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 set +e
 # shellcheck disable=SC2086 # GHC option string is an intentional argument vector.

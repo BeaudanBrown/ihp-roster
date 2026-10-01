@@ -6,7 +6,7 @@ module Application.Fixture.Reset
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Database.PostgreSQL.Simple.Types as PGTypes
-import IHP.ModelSupport (sqlExecDiscardResult)
+import IHP.ModelSupport (unsafeSqlExecDiscardResult)
 import IHP.Prelude
 
 -- | Closed manifest of application-owned tables from Application/Schema.sql.
@@ -45,12 +45,21 @@ applicationTableNames =
     , "award_level_base_rates"
     , "award_level_penalty_rates"
     , "award_time_penalty_allowances"
+    , "public_holiday_import_batches"
     , "public_holidays"
     , "public_holiday_overrides"
     , "live_invalidation_event_resources"
     , "live_resource_versions"
     , "live_invalidation_events"
     , "app_jobs"
+    , "operational_incidents"
+    , "operational_incident_events"
+    , "operational_incident_event_recipients"
+    , "host_watchdog_dispatches"
+    , "host_watchdog_statuses"
+    , "email_delivery_provider_states"
+    , "email_delivery_webhook_events"
+    , "email_delivery_resend_requests"
     , "roster_templates"
     , "roster_template_completions"
     , "roster_template_days"
@@ -62,11 +71,15 @@ applicationTableNames =
     , "roster_notification_runs"
     , "staff_shift_preferences"
     , "leave_requests"
+    , "leave_policy_confirmations"
     , "leave_request_events"
     , "unavailability_blackouts"
     , "audit_events"
     , "feedback_votes"
     , "user_feedback_items"
+    , "payroll_report_runs"
+    , "payroll_report_settings"
+    , "recipient_groups"
     , "payroll_workbook_configurations"
     , "payroll_workbook_configuration_families"
     , "export_jobs"
@@ -107,7 +120,7 @@ applicationTableNames =
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase =
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         (PGTypes.Query (TextEncoding.encodeUtf8 resetStatement))
         ()
   where

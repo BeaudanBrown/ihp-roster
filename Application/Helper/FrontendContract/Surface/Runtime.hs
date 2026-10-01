@@ -13,7 +13,8 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Runtime
-    ( FrontendSurfaceFocusedFieldProtectionConfig (..)
+    ( frontendSurfaceFormSavedHeader
+    , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceLazyFragmentConfig (..)
     , FrontendSurfaceLazyFragmentDefaults (..)
     , FrontendSurfaceActionRoute (..)
@@ -37,6 +38,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionFormWithHiddenFields
     , renderFrontendSurfaceActionLink
+    , renderFrontendSurfaceActionNavigationButton
     , renderFrontendSurfaceActionSubmitButton
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
@@ -210,7 +212,12 @@ data FrontendSurfaceFocusedFieldProtectionConfig = FrontendSurfaceFocusedFieldPr
 data FrontendSurfaceProtection
     = FrontendSurfaceReplace
     | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
+    | FrontendSurfaceDirtyForm
     deriving (Eq, Show)
+
+-- Explicit acknowledgement: an HTTP 200 may instead contain validation errors.
+frontendSurfaceFormSavedHeader :: Text
+frontendSurfaceFormSavedHeader = "X-Bepis-Form-Saved"
 
 frontendSurfaceMountedFragmentFor ::
     forall spec marker.
@@ -496,6 +503,15 @@ renderFrontendSurfaceActionLink action route body =
         requestUrl = frontendSurfaceActionLinkUrl action route.actionRouteUrl
         standardUrl = frontendSurfaceActionLinkUrl action (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
 
+-- | A keyboard-native button issuing the same request as an action link. Query
+-- fields remain serialized by the Surface rather than by the presentation helper.
+renderFrontendSurfaceActionNavigationButton :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Markup.Html -> Markup.Html
+renderFrontendSurfaceActionNavigationButton action route body =
+    [hsx|<button type="button" {...attributes}>{body}</button>|]
+    where
+        attributes = frontendSurfaceActionHtmxAttrPairsForUrl action route requestUrl <> route.actionRouteExtraAttrs
+        requestUrl = frontendSurfaceActionLinkUrl action route.actionRouteUrl
+
 frontendSurfaceActionControlUrl :: FrontendSurfaceAction -> Text -> Text
 frontendSurfaceActionControlUrl action =
     flip replaceQueryParams (fmap (, "") (frontendSurfaceActionFieldNames action))
@@ -638,6 +654,11 @@ mountedFragmentToJson fragment =
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case
+    FrontendSurfaceDirtyForm ->
+        Aeson.object
+            [ "kind" Aeson..= ("dirty-form" :: Text)
+            , "savedHeader" Aeson..= frontendSurfaceFormSavedHeader
+            ]
     FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
     FrontendSurfaceFocusedFieldConfig config ->
         Aeson.object

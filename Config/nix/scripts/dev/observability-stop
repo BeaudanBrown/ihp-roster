@@ -3,6 +3,8 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILES=(
@@ -15,32 +17,7 @@ stop_tracked_process() {
     local pid_file="$1"
     local label="$2"
 
-    if [ ! -f "$pid_file" ]; then
-        return 0
-    fi
-
-    local tracked_pid
-    tracked_pid=$(cat "$pid_file")
-    if ! kill -0 "$tracked_pid" 2>/dev/null; then
-        rm -f "$pid_file"
-        echo "$label not running (stale pid removed)"
-        return 0
-    fi
-
-    kill -TERM -"$tracked_pid" 2>/dev/null || kill -TERM "$tracked_pid" 2>/dev/null || true
-
-    for _ in $(seq 1 20); do
-        if ! kill -0 "$tracked_pid" 2>/dev/null; then
-            rm -f "$pid_file"
-            echo "$label stopped"
-            return 0
-        fi
-        sleep 1
-    done
-
-    kill -KILL -"$tracked_pid" 2>/dev/null || kill -KILL "$tracked_pid" 2>/dev/null || true
-    rm -f "$pid_file"
-    echo "$label killed"
+    bepis_runtime_stop "$pid_file" "$label" 20000
 }
 
 for entry in "${PID_FILES[@]}"; do

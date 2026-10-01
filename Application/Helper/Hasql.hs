@@ -1,5 +1,6 @@
 module Application.Helper.Hasql
     ( isUniqueViolation
+    , isSerializationFailure
     ) where
 
 import qualified Hasql.Errors as Hasql
@@ -7,19 +8,25 @@ import IHP.ModelSupport.Types (HasqlSessionError (..))
 import IHP.Prelude
 
 isUniqueViolation :: HasqlSessionError -> Bool
-isUniqueViolation (HasqlSessionError sessionError) =
+isUniqueViolation = hasSqlState "23505"
+
+isSerializationFailure :: HasqlSessionError -> Bool
+isSerializationFailure = hasSqlState "40001"
+
+hasSqlState :: Text -> HasqlSessionError -> Bool
+hasSqlState expected (HasqlSessionError sessionError) =
     case sessionError of
-        Hasql.StatementSessionError _ _ _ _ _ statementError -> statementErrorIsUniqueViolation statementError
-        Hasql.ScriptSessionError _ serverError -> serverErrorIsUniqueViolation serverError
+        Hasql.StatementSessionError _ _ _ _ _ statementError -> matchesStatement statementError
+        Hasql.ScriptSessionError _ serverError -> matchesServer serverError
         Hasql.ConnectionSessionError _ -> False
         Hasql.MissingTypesSessionError _ -> False
         Hasql.DriverSessionError _ -> False
   where
-    statementErrorIsUniqueViolation (Hasql.ServerStatementError serverError) = serverErrorIsUniqueViolation serverError
-    statementErrorIsUniqueViolation (Hasql.UnexpectedRowCountStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnCountStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnTypeStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.RowStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedResultStatementError _) = False
+    matchesStatement (Hasql.ServerStatementError serverError) = matchesServer serverError
+    matchesStatement (Hasql.UnexpectedRowCountStatementError _ _ _) = False
+    matchesStatement (Hasql.UnexpectedColumnCountStatementError _ _) = False
+    matchesStatement (Hasql.UnexpectedColumnTypeStatementError _ _ _) = False
+    matchesStatement (Hasql.RowStatementError _ _) = False
+    matchesStatement (Hasql.UnexpectedResultStatementError _) = False
 
-    serverErrorIsUniqueViolation (Hasql.ServerError code _ _ _ _) = code == "23505"
+    matchesServer (Hasql.ServerError code _ _ _ _) = code == expected

@@ -5,30 +5,44 @@ module Web.Exports.Mutations
     , exportJobTouchedResources
     , recordExportDownloadMutation
     , requestFixedExportMutation
+    , requestSelectedExportMutation
     , requestFixedExportWithPayrollWorkbookDefinitionMutation
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
+import Application.Helper.Export.Failure
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimesheetSelection (TimesheetSelection)
+import Application.PayrollReports.Settings (withPayrollReportVenueLock)
 import qualified Control.Exception as Exception
 import qualified Data.Set as Set
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
 
-requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestFixedExportMutation exportType rangeStart rangeEnd =
     requestExportMutation (requestFixedExport exportType rangeStart rangeEnd)
 
-requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
-requestFixedExportWithPayrollWorkbookDefinitionMutation definition rangeStart rangeEnd =
-    requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd)
+requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
+requestFixedExportWithPayrollWorkbookDefinitionMutation exportName definition rangeStart rangeEnd =
+    requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition exportName definition rangeStart rangeEnd)
+
+requestSelectedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSelection -> ExportJobType -> Maybe (Id PayrollWorkbookConfiguration) -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
+requestSelectedExportMutation selection exportType configurationId rangeStart rangeEnd =
+    case (exportType, configurationId) of
+        (PayrollWorkbookXlsx, Just configurationId) ->
+            fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
+                Left _ -> pure (Left (ExportMessage "That Payroll Workbook configuration is unavailable. Close the dialog and choose an existing export."))
+                Right configuration -> requestExportMutation (requestPayrollWorkbookXlsxExportWithSelection selection configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd)
+        (_, Just _) -> pure (Left (ExportMessage "This configuration can only generate Payroll Workbooks."))
+        (_, Nothing) -> requestExportMutation (requestFixedExportWithSelection selection exportType rangeStart rangeEnd)
 
 -- Keep the database context abstract until the durable transaction supplies it;
 -- a pre-built IO action would perform export writes on the outer connection.
-requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either Text ExportJob)) -> IO (Either Text (LiveMutationResult ExportJob))
+requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either ExportFailure ExportJob)) -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestExportMutation requestExport = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor requestExport
@@ -79,10 +93,11 @@ updatePayrollWorkbookConfigurationMutation configurationId input = do
         Left _ -> Nothing
         Right _ -> Just ("payroll_workbook_configuration.update", Set.singleton (adminExportsResource (unpackId currentVenueId)))
 
-deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult ()))
-deletePayrollWorkbookConfigurationMutation configurationId = do
+deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> Id PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult ()))
+deletePayrollWorkbookConfigurationMutation confirmDisableReports configurationId = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor do
+            withPayrollReportVenueLock (unpackId currentVenueId)
             -- QueryBuilder has no row-lock combinator. Serialize concurrent
             -- delete confirmations so a request that becomes stale resolves to
             -- NotFound instead of attempting a second delete.
@@ -91,7 +106,7 @@ deletePayrollWorkbookConfigurationMutation configurationId = do
                 (unpackId configurationId, unpackId currentVenueId)
             if null lockedRows
                 then pure (Left PayrollWorkbookConfigurationNotFound)
-                else deleteSavedPayrollWorkbookConfiguration configurationId
+                else deleteSavedPayrollWorkbookConfigurationInCurrentTransaction confirmDisableReports configurationId
     pure (fmap (\() -> liveMutationResult () [adminExportsResource (unpackId currentVenueId)]) outcome)
   where
     publicationFor = \case

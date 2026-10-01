@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Web.Billing.Mutations
     ( billingTouchedResources
     , startOrResumeBillingCheckoutMutation
@@ -38,7 +40,8 @@ startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue actualUser 
             , billingCheckoutPayer = effectiveUserRecord effectiveUser
             }
     let resources = billingTouchedResources currentVenueId
-    let runCheckoutTransaction label shouldPublish action =
+    let runCheckoutTransaction :: forall result. Text -> (result -> Bool) -> ((?modelContext :: ModelContext) => IO result) -> IO result
+        runCheckoutTransaction label shouldPublish action =
             withDurableLiveMutationOutcome
                 (\outcome -> if shouldPublish outcome then Just (label, Set.fromList resources) else Nothing)
                 action

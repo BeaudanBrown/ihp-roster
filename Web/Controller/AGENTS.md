@@ -27,7 +27,7 @@ select options are not server validation. Build URLs with `appendQueryParams`.
 
 Wrap each atomic local change and its required side effects in its owning
 transaction; preserve explicit provider phases described below. Emit audit,
-live-update, response, and other architecture facts from the helpers performing
+live-update, response, and other runtime facts from the helpers performing
 the real effects; do not add descriptive metadata beside helper calls or hide
 business effects in broad typeclass instances.
 
@@ -87,7 +87,7 @@ assertions after migration. Review depth by reduced caller knowledge, never by
 line counts, export counts or a ban on controller IO/framework imports.
 
 For Timesheets, Leave or Billing adoption, extend only demonstrated dependency
-roles in `scripts/architecture/workflow-boundaries.mjs` with an accountable
+roles in `scripts/verification/workflow-boundaries.mjs` with an accountable
 feature owner and positive/negative fixtures. Its import checks are a narrow
 regression guard, not proof of transaction behavior or transitive effect purity.
 Do not add empty modules, pass-through wrappers or an effects registry to satisfy

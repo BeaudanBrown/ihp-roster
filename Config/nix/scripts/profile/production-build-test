@@ -236,22 +236,4 @@ if [ "$(wc -c <"$large_log_dir/build.log")" -gt 4194304 ]; then
     exit 1
 fi
 
-staging_baseline="$repo_root/Config/nix/baselines/production-build/staging-ea144503-grill.json"
-jq -e '
-    .schema_version == 1 and
-    .status == "succeeded_output_differs" and
-    .revision.commit == "ea144503c99a5ce8128bf6dd26859740cda210be" and
-    .app_library.module_count == 501 and
-    .memory.builder_process_peak_rss_bytes > 0 and
-    .app_library.largest_interfaces[0].bytes > 0
-' "$staging_baseline" >/dev/null
-node "$repo_root/scripts/production-build-profile.mjs" \
-    --compare "$staging_baseline" "$staging_baseline" \
-    --output "$comparison"
-jq -e '
-    .comparable_configuration == true and
-    .metrics.builder_process_peak_rss_bytes.delta == 0 and
-    .artifact_totals[".hi"].bytes.delta == 0
-' "$comparison" >/dev/null
-
 printf '%s\n' 'production-build-profile-test: ok'

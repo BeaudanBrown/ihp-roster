@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'path\t%s\n' tsconfig.json Config/nix/scripts/frontend/build Config/nix/scripts/frontend/js-input-inventory
+find frontend/ts -type f -name '*.ts' -print | LC_ALL=C sort \
+    | while IFS= read -r path; do printf 'path\t%s\n' "$path"; done
+esbuild_binary="$(command -v esbuild 2>/dev/null || printf missing)"
+printf 'value\tesbuild-binary\t%s\n' "$esbuild_binary"
+printf 'value\tesbuild-version\t%s\n' "$(esbuild --version 2>/dev/null || printf missing)"

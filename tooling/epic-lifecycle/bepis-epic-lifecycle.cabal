@@ -1,0 +1,38 @@
+cabal-version: 3.0
+name: bepis-epic-lifecycle
+version: 0.1.0.0
+build-type: Simple
+license: Apache-2.0
+
+common warnings
+    default-language: GHC2021
+    ghc-options: -Wall -Wcompat -Werror=missing-fields -Werror=missing-methods
+
+library
+    import: warnings
+    hs-source-dirs: src
+    exposed-modules:
+        Bepis.Tooling.Epic
+        Bepis.Tooling.Epic.Orientation
+        Bepis.Tooling.Epic.Manage
+    build-depends:
+        aeson,
+        base >=4.18 && <5,
+        bepis-runtime,
+        bepis-workspace-state,
+        bytestring,
+        directory,
+        filepath,
+        process,
+        temporary,
+        text,
+        unix,
+        vector
+
+executable bepis-epic-lifecycle
+    import: warnings
+    hs-source-dirs: app
+    main-is: Main.hs
+    build-depends:
+        base,
+        bepis-epic-lifecycle

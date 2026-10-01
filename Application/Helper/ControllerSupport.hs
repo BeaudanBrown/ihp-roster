@@ -11,9 +11,19 @@ data UserRole
     | AdminRole
     deriving (Eq, Show)
 
+-- The stored end date is exclusive, so the request is already past on that day.
 leaveRequestIsArchivedOn :: Day -> LeaveRequest -> Bool
 leaveRequestIsArchivedOn today leaveRequest =
-    leaveRequest.endDate < today
+    leaveRequest.endDate <= today
+
+currentVenueCalendarDay :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
+currentVenueCalendarDay venueConfig = getCurrentTime >>= venueCalendarDayAt venueConfig
+
+venueCalendarDayAt :: (?modelContext :: ModelContext) => VenueConfig -> UTCTime -> IO Day
+venueCalendarDayAt venueConfig now =
+    unsafeSqlQueryScalar
+        "SELECT (?::timestamptz AT TIME ZONE ?)::date"
+        (now, venueConfig.timezone)
 
 allUserRoleValues :: [Text]
 allUserRoleValues = ["staff", "manager", "admin"]

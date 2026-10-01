@@ -1,6 +1,7 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
+import Application.Helper.Export.Failure (ExportFailure (..))
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -9,8 +10,6 @@ import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOob)
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -23,9 +22,14 @@ import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               recordExportDownloadMutation,
                               requestFixedExportMutation,
                               requestFixedExportWithPayrollWorkbookDefinitionMutation)
+import Web.Exports.PayrollReports
 import Web.Exports.Responses
+import Web.Exports.Review (renderExportReviewForm, withExportReview)
+import Web.Exports.Selection (changeExportSelectionGroup,
+                              confirmExportSelection, generateSelectedExport,
+                              openExportSelection, refreshExportSelection)
 import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
-                                          editSavedWorkbookFromRequest)
+                                           editSavedWorkbookFromRequest)
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 exportDownloadUrl :: ExportJob -> Text
@@ -38,14 +42,7 @@ respondWithExportGenerationError ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
     IO ResponseReceived
-respondWithExportGenerationError message =
-    if isHtmxRequest
-        then do
-            setHeader ("HX-Reswap", "none")
-            respondHtml (renderToastOob ToastBottomCenter (errorToast message))
-        else do
-            setErrorMessage message
-            redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
+respondWithExportGenerationError = respondWithExportFailure . ExportMessage
 
 respondWithGeneratedExportDownload ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
@@ -59,6 +56,23 @@ respondWithGeneratedExportDownload exportJob =
             respondHtml mempty
         else redirectToPath (exportDownloadUrl exportJob)
 
+generateFixedExportDownload ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
+    ExportJobType -> Day -> Day -> Maybe (Id PayrollWorkbookConfiguration) -> IO ResponseReceived
+generateFixedExportDownload exportType rangeStart rangeEnd maybeConfigurationId =
+    case (exportType, maybeConfigurationId) of
+        (PayrollWorkbookXlsx, Just configurationId) ->
+            fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
+                Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
+                Right configuration ->
+                    requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= complete
+        (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
+        (_, Nothing) -> requestFixedExportMutation exportType rangeStart rangeEnd >>= complete
+  where
+    complete = \case
+        Left failure -> respondWithExportFailure failure
+        Right result -> respondWithGeneratedExportDownload result.liveMutationValue
+
 data PayrollWorkbookConfigurationDraftOperation
     = AddDraftSheet
     | RemoveDraftSheet
@@ -66,7 +80,7 @@ data PayrollWorkbookConfigurationDraftOperation
     | MoveDraftSheetDown
 
 respondWithPayrollWorkbookConfigurationDraftControl ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     PayrollWorkbookConfigurationDraftOperation ->
     Day ->
     Text ->
@@ -91,10 +105,7 @@ respondWithPayrollWorkbookConfigurationDraftControl operation anchorDate name fa
             , payrollWorkbookConfigurationDraftRevision = revision
             , payrollWorkbookConfigurationDraftError = Nothing
             }
-    respondWithDraft draft =
-        if isHtmxRequest
-            then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft)
-            else redirectToPath (adminExportsPath anchorDate)
+    respondWithDraft = respondWithWorkbookEditor anchorDate
     respondWithDraftError draft message =
         respondWithDraft draft { payrollWorkbookConfigurationDraftError = Just message }
 
@@ -140,8 +151,42 @@ instance Controller ExportsController where
         ensureProfileCompleted
         ensureAdminRole
 
+    action currentAction@EmailPayrollReportAction { payrollWorkbookConfigurationId, anchorDate } = runBepis currentAction BepisFormAction (openPayrollReportEmail payrollWorkbookConfigurationId anchorDate)
+    action currentAction@PayrollReportsAction = runBepis currentAction BepisFormAction openPayrollReports
+    action currentAction@SavePayrollReportsAction = runBepis currentAction BepisMutationAction savePayrollReports
+    action currentAction@PreviewPayrollReportAction = runBepis currentAction BepisFormAction previewPayrollReport
+    action currentAction@SendPayrollReportAction = runBepis currentAction BepisMutationAction sendPayrollReport
+
     action currentAction@ExportJobsAction = runBepis currentAction BepisExportAction do
         redirectToPath (pathTo AdminAction <> "#exports")
+
+    action currentAction@OpenTimesheetExportSelectionAction = runBepis currentAction BepisFormAction openExportSelection
+
+    action currentAction@ConfirmTimesheetExportSelectionAction = runBepis currentAction BepisFormAction confirmExportSelection
+
+    action currentAction@ConfirmTimesheetExportDownloadAction = runBepis currentAction BepisExportAction do
+        ensureVenueWritable
+        case parseAppShellActionParams @AppShell.ConfirmTimesheetExportDownload of
+            Left errors -> respondWithExportGenerationError (surfaceRequestFieldErrorsMessage errors)
+            Right fields -> generateFixedExportDownload
+                (surfaceFieldValue @AppShell.SelectionExportTypeField fields)
+                (surfaceFieldValue @AppShell.SelectionRangeStartField fields)
+                (surfaceFieldValue @AppShell.SelectionRangeEndField fields)
+                (Id <$> surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+
+    action currentAction@RefreshTimesheetExportSelectionAction = runBepis currentAction BepisFormAction refreshExportSelection
+
+    action currentAction@SelectTimesheetExportGroupAction { selectionDay } = runBepis currentAction BepisFormAction do
+        day <- mapM parseIsoDayRouteParam selectionDay
+        changeExportSelectionGroup day True
+
+    action currentAction@ClearTimesheetExportGroupAction { selectionDay } = runBepis currentAction BepisFormAction do
+        day <- mapM parseIsoDayRouteParam selectionDay
+        changeExportSelectionGroup day False
+
+    action currentAction@GenerateSelectedTimesheetExportAction = runBepis currentAction BepisExportAction do
+        ensureVenueWritable
+        generateSelectedExport respondWithGeneratedExportDownload
 
     action currentAction@CreateExportJobAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable
@@ -153,23 +198,8 @@ instance Controller ExportsController where
                 let rangeStart = surfaceFieldValue @Surface.RangeStart fields
                 let rangeEnd = surfaceFieldValue @Surface.RangeEnd fields
                 let maybeConfigurationId = Id <$> surfaceFieldValue @Surface.PayrollWorkbookConfigurationId fields
-                case (exportType, maybeConfigurationId) of
-                    (PayrollWorkbookXlsx, Just configurationId) ->
-                        fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
-                            Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
-                            Right configuration ->
-                                requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= \case
-                                    Left message -> respondWithExportGenerationError message
-                                    Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    (PayrollWorkbookXlsx, Nothing) ->
-                        requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
-                            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
-                    (_, Nothing) ->
-                        requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
-                            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
+                withExportReview rangeStart rangeEnd (renderExportReviewForm False rangeStart rangeEnd exportType (unpackId <$> maybeConfigurationId))
+                    (generateFixedExportDownload exportType rangeStart rangeEnd maybeConfigurationId)
 
     action currentAction@NewPayrollWorkbookConfigurationAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
@@ -258,8 +288,10 @@ instance Controller ExportsController where
             Left errors -> do
                 setErrorMessage (surfaceRequestFieldErrorsMessage errors)
                 redirectToPath (adminExportsPath anchorDate)
-            Right _ ->
-                deletePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
+            Right fields ->
+                deletePayrollWorkbookConfigurationMutation
+                    (fromMaybe False (surfaceFieldValue @AppShell.ConfirmDisablePayrollReportsField fields))
+                    payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

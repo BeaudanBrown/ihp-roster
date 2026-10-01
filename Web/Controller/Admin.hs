@@ -24,14 +24,18 @@ import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDefaults (staffAwardRateIsAvailable)
+import qualified Application.RecipientGroups as RecipientGroups
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
+import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
+import Application.PayrollReports.Selection (isCompletedPayrollReportWeek)
+import Application.PayrollReports.Settings (fetchEnabledPayrollReportSettings)
 import Web.Controller.Prelude
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
 import Web.SurfaceInvalidation (withDurableLiveMutation)
@@ -239,6 +243,9 @@ instance Controller AdminController where
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
             savedPayrollWorkbookConfigurations <- profileActionSpan "admin.page.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
+            recipientGroups <- either (const []) (\values -> values) <$> RecipientGroups.listRecipientGroups
+            let recipientGroupsSectionOpen = paramOrDefault False "showRecipientGroups"
+            nextAutomaticReport <- fetchEnabledPayrollReportSettings
             currentTime <- getCurrentTime
             let today = utctDay currentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
@@ -345,6 +352,30 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (continueXeroTimesheetPreparationStaffStepAction xeroTimesheetPreparationRunId)
 
+    action currentAction@OpenXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero (XeroSelection.openXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
+    action currentAction@RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero (XeroSelection.refreshXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
+    action currentAction@SelectXeroShiftGroupAction { xeroTimesheetPreparationRunId, selectionDay } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero do
+            day <- mapM parseIsoDayRouteParam selectionDay
+            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day True
+
+    action currentAction@ClearXeroShiftGroupAction { xeroTimesheetPreparationRunId, selectionDay } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero do
+            day <- mapM parseIsoDayRouteParam selectionDay
+            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day False
+
+    action currentAction@SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (XeroSelection.saveXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
+    action currentAction@SubmitXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (XeroSelection.submitXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
     action currentAction@SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (selectXeroTimesheetPreparationPeriodAction xeroTimesheetPreparationRunId)
@@ -420,20 +451,20 @@ instance Controller AdminController where
 
     action currentAction@UpdateUnavailableStaffWarningThresholdAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        venueConfig <- fetchVenueConfig
         case AdminAction.parseUpdateUnavailableStaffWarningThresholdActionParams of
             Left errors -> reportSurfaceRequestErrors errors
             Right fields -> do
                 let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
-                if maybe True (\value -> value >= 1 && value <= 100) threshold
-                    then do
-                        _ <- setUnavailableStaffWarningThresholdMutation venueConfig threshold
-                        setSuccessMessage $
-                            maybe
-                                "Unavailable-staff warnings disabled."
-                                (\value -> "Managers will be warned at " <> tshow value <> " unavailable staff.")
-                                threshold
-                    else setErrorMessage "Enter a threshold from 1 to 100, or leave it blank to disable warnings."
+                let dailyMaximum = surfaceFieldValue @Surface.UnavailableStaffDailyMaximum fields
+                let inRange = maybe True (\value -> value >= 1 && value <= 100)
+                if not (inRange threshold && inRange dailyMaximum)
+                    then setErrorMessage "Enter a whole number from 1 to 100 for each setting, or leave it blank."
+                    else case (threshold, dailyMaximum) of
+                        (Just warning, Just limit) | warning > limit ->
+                            setErrorMessage "Warn at cannot be higher than Maximum per day."
+                        _ -> do
+                            _ <- setUnavailableStaffWarningThresholdMutation threshold dailyMaximum
+                            setSuccessMessage "Unavailability settings saved."
         respondToVenueSettingsMutation
 
     action currentAction@UpdateRosterTimePickerWindowAction = runBepis currentAction BepisMutationAction do
@@ -516,7 +547,10 @@ instance Controller AdminController where
             exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
             savedConfigurations <- profileActionSpan "admin.exports_fragment.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection savedConfigurations))
+            config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
+            now <- getCurrentTime
+            nextAutomaticReport <- fetchEnabledPayrollReportSettings
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment nextAutomaticReport (isCompletedPayrollReportWeek config now exportWeekSelection.weekStart) exportWeekSelection savedConfigurations))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

@@ -57,29 +57,30 @@ savedPayrollWorkbookConfigurationDraft configuration =
   where
     configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
 
-renderPayrollWorkbookConfigurationDialog :: Day -> PayrollWorkbookConfigurationDraft -> Html
-renderPayrollWorkbookConfigurationDialog anchorDate draft =
+renderPayrollWorkbookConfigurationDialog :: [PayrollWorkbookSheetFamily] -> Day -> PayrollWorkbookConfigurationDraft -> Html
+renderPayrollWorkbookConfigurationDialog availableFamilies anchorDate draft =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = if isJust draft.payrollWorkbookConfigurationDraftId then "Edit export" else "Add export"
-        , dialogOverlayBody = renderEditorForm anchorDate draft
+        , dialogOverlayBody = renderEditorForm availableFamilies anchorDate draft
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = defaultOverlayButtons editorFormId
         , dialogOverlayDialogClass = "modal-lg"
+        , dialogOverlayDismissalGuard = Nothing
         }
 
-renderEditorForm :: Day -> PayrollWorkbookConfigurationDraft -> Html
-renderEditorForm anchorDate draft =
+renderEditorForm :: [PayrollWorkbookSheetFamily] -> Day -> PayrollWorkbookConfigurationDraft -> Html
+renderEditorForm availableFamilies anchorDate draft =
     case draft.payrollWorkbookConfigurationDraftId of
         Nothing ->
             renderAppShellActionForm
                 (appShellActionByMarker @AppShell.CreatePayrollWorkbookConfigurationOverlay)
                 (editorRoute (pathTo CreatePayrollWorkbookConfigurationAction))
-                (renderEditorFields anchorDate draft draftFields)
+                (renderEditorFields availableFamilies anchorDate draft draftFields)
         Just configurationId ->
             renderAppShellActionForm
                 (appShellActionByMarker @AppShell.UpdatePayrollWorkbookConfigurationOverlay)
                 (editorRoute (pathTo (UpdatePayrollWorkbookConfigurationAction configurationId)))
-                (renderEditorFields anchorDate draft draftFields)
+                (renderEditorFields availableFamilies anchorDate draft draftFields)
   where
     draftFields =
         appShellActionFields @AppShell.AddPayrollWorkbookConfigurationSheetOverlay
@@ -100,7 +101,7 @@ renderEditorForm anchorDate draft =
             , appShellActionRouteExtraAttrs = [("id", editorFormId)]
             }
 
-renderEditorFields saveFieldsAnchor draft saveFields = [hsx|
+renderEditorFields availableFamilies saveFieldsAnchor draft saveFields = [hsx|
     {maybe mempty renderError draft.payrollWorkbookConfigurationDraftError}
     <input type="hidden"
            name={surfaceFieldNameFrom @AppShell.ExportAnchorDateField saveFields}
@@ -122,7 +123,7 @@ renderEditorFields saveFieldsAnchor draft saveFields = [hsx|
                placeholder="Payroll Workbook" />
     </div>
     {renderIncludedSheets (surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationSheetField saveFields) draft}
-    {renderExcludedSheets (surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationSheetField saveFields) draft}
+    {renderExcludedSheets availableFamilies (surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationSheetField saveFields) draft}
 |]
   where
     renderError message = [hsx|<div class="alert alert-danger" role="alert">{message}</div>|]
@@ -184,15 +185,15 @@ renderIncludedSheets sheetFieldName draft = [hsx|
         </div>
     |]
 
-renderExcludedSheets :: Text -> PayrollWorkbookConfigurationDraft -> Html
-renderExcludedSheets sheetFieldName draft = [hsx|
+renderExcludedSheets :: [PayrollWorkbookSheetFamily] -> Text -> PayrollWorkbookConfigurationDraft -> Html
+renderExcludedSheets availableFamilies sheetFieldName draft = [hsx|
     <section aria-labelledby="payroll-workbook-excluded-sheets-heading">
         <h3 id="payroll-workbook-excluded-sheets-heading" class="h6 mb-2">Excluded sheets</h3>
         <div class="d-grid gap-2">{renderExcludedRows}</div>
     </section>
 |]
   where
-    excludedFamilies = availablePayrollWorkbookSheetFamilies List.\\ draft.payrollWorkbookConfigurationDraftFamilies
+    excludedFamilies = availableFamilies List.\\ draft.payrollWorkbookConfigurationDraftFamilies
     renderExcludedRows
         | null excludedFamilies = [hsx|<p class="small app-muted mb-0">No sheets excluded.</p>|]
         | otherwise = forEach excludedFamilies renderExcludedSheet
@@ -240,7 +241,10 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
     renderConfirmationDialog
         (defaultConfirmationDialogConfig
             "Delete export"
-            [hsx|<p class="mb-0">Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>|]
+            [hsx|
+                <p>Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>
+                <p class="mb-0">If this template is selected for payroll emails, deleting it disables automatic reports and cancels unstarted sends. Recipients and timing are retained; select a replacement template before sending again.</p>
+            |]
             formId
             deleteForm)
             { confirmationDialogApproveLabel = "Delete"
@@ -250,14 +254,20 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
   where
     configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
     formId = "delete-payroll-workbook-configuration-confirmation-form"
-    actionUrl = pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))
+    -- IHP skips DELETE bodies: confirmation authority must travel in the
+    -- generated non-private query fields, not a hidden body field alone.
+    actionUrl = appendQueryParams (pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))) (surfaceFieldsText deleteFields)
     deleteForm =
         renderAppShellActionForm
             (appShellActionByMarker @AppShell.DeletePayrollWorkbookConfigurationOverlay)
             ((defaultAppShellActionRoute actionUrl)
                 { appShellActionRouteExtraAttrs = [("id", formId)]
                 })
-            [hsx|<input type="hidden" name="_method" value="DELETE"/>|]
+            [hsx|
+                <input type="hidden" name="_method" value="DELETE"/>
+            |]
+    deleteFields = appShellActionFields @AppShell.DeletePayrollWorkbookConfigurationOverlay
+        (surfaceOptionalField @AppShell.ConfirmDisablePayrollReportsField (Just True)) noSurfaceFields
 
 editorFormId :: Text
 editorFormId = "payroll-workbook-configuration-editor-form"

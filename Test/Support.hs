@@ -14,6 +14,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
 import Application.Helper.ControllerContext (initCurrentVenueContext,
                                              venueRequestStateMiddleware)
 import Application.Helper.LiveUpdate.RequestState (liveUpdateRequestStateMiddleware)
+import Application.Helper.ManagementMode (initManagementModeContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -22,6 +23,7 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
                               melbourneTimeZoneName)
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import Config
 import Control.Applicative ((<|>))
 import Control.Exception (bracket)
@@ -62,6 +64,7 @@ import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec (Expectation, shouldBe, shouldSatisfy)
+import qualified Test.ResetMetrics as ResetMetrics
 import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
@@ -277,7 +280,7 @@ instance TestBreakRecord TimesheetEntry where
         let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakMinutes = floor . (/ 60) . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
+    testBreakMinutes = fromInteger . (`div` 60) . Seconds.toSeconds . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
     setTestBreakMinutes minutes entry =
         case entry.breakStartsAt of
             Nothing -> entry
@@ -308,7 +311,7 @@ setTestRosterSlotBoundaries rosterDate startTime endTime slot =
      in applyRosterSlotBoundaries boundaries slot
 
 testDurationMinutes :: RosterSlot -> Maybe Int
-testDurationMinutes = fmap (floor . (/ 60)) . rosterSlotElapsedSeconds
+testDurationMinutes = fmap (fromInteger . (`div` 60) . Seconds.toSeconds) . rosterSlotElapsedSeconds
 
 setTestDurationMinutes :: Maybe Int -> RosterSlot -> RosterSlot
 setTestDurationMinutes Nothing slot = slot |> set #endsAt Nothing
@@ -350,7 +353,7 @@ withPrivilegedStrongAuthentication enabled =
         (Just (if enabled then "true" else "false"))
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
-resetDatabase = FixtureReset.resetDatabase
+resetDatabase = ResetMetrics.measureReset FixtureReset.resetDatabase
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
@@ -393,6 +396,7 @@ withCurrentControllerContext action = do
     let ?request = request
     initCurrentVenueContext
     initImpersonationContext
+    initManagementModeContext
     action
 
 -- Preserve the fixture session vault while applying the real app auth boundary.

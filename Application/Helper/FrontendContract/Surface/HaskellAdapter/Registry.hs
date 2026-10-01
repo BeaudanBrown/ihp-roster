@@ -22,6 +22,8 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Admin
 import Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
 import Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
+import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (SurfaceAdapterKind (..))
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequests
@@ -32,8 +34,6 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave.HaskellAdapter
-import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
-import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Support as Support
 import Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
@@ -43,6 +43,7 @@ import IHP.Prelude (Text)
 type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
      , RosterAdapterFamily
+     , RosterPersonalAdapterFamily
      , RosterDayTimelineAdapterFamily
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
@@ -57,6 +58,7 @@ type RegisteredSurfaceAdapterFamilies =
      , AdminVenueSettingsAdapterFamily
      , AdminInvitesAdapterFamily
      , AdminExportsAdapterFamily
+     , AdminRecipientGroupsAdapterFamily
      , AdminShiftTypesAdapterFamily
      , AdminRosterGroupsAdapterFamily
      , AdminXeroAdapterFamily
@@ -77,6 +79,7 @@ registeredSurfaceActorOnlyFragments =
 type RegisteredSurfaceScopeAdapterHomes =
     '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
+     , SurfaceScopeAdapterHome RosterPersonalAdapterFamily Roster.RosterPersonal
      , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
@@ -91,6 +94,7 @@ type RegisteredSurfaceScopeAdapterHomes =
      , SurfaceScopeAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueConfigScope
      , SurfaceScopeAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesScope
      , SurfaceScopeAdapterHome AdminExportsAdapterFamily Admin.AdminExportsScope
+     , SurfaceScopeAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroupsScope
      , SurfaceScopeAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesScope
      , SurfaceScopeAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsScope
      , SurfaceScopeAdapterHome AdminXeroAdapterFamily Admin.AdminXeroScope
@@ -100,6 +104,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetStaffContent
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridToolbar
@@ -109,9 +114,11 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSettingsContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
+     , SurfaceFragmentAdapterHome RosterPersonalAdapterFamily Roster.FitPreferenceControl
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSidePanelContent
@@ -133,6 +140,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileSecuritySection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileLeaveSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPayWarningSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffVisibleUnavailabilityBlackouts
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffLeaveSection
@@ -141,6 +149,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettingsFragment
      , SurfaceFragmentAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesFragment
      , SurfaceFragmentAdapterHome AdminExportsAdapterFamily Admin.AdminExportsFragment
+     , SurfaceFragmentAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroupsFragment
      , SurfaceFragmentAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesFragment
      , SurfaceFragmentAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsFragment
      , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroShellFragment
@@ -165,6 +174,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
+     , SurfaceResourceAdapterHome RosterPersonalAdapterFamily Roster.FitWeekPreference
      , SurfaceResourceAdapterHome RosterDayTimelineAdapterFamily Roster.TimePickerConfig
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
@@ -180,6 +190,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettings
      , SurfaceResourceAdapterHome AdminInvitesAdapterFamily Admin.AdminInvites
      , SurfaceResourceAdapterHome AdminExportsAdapterFamily Admin.AdminExports
+     , SurfaceResourceAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroups
      , SurfaceResourceAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypes
      , SurfaceResourceAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroups
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
@@ -194,19 +205,22 @@ type RegisteredSurfaceResourceAdapterHomes =
 
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
-    [ surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
-        (requestAdapterOperationsWithoutParser "The endpoint consumes the routed week offset and canonical optional staff filter rather than a complete Surface request envelope")
+    [ surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
         (requestAdapterOperationsWithoutParser "The shared navigation endpoint cannot distinguish this filter form from week navigation at the request boundary")
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
-    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetWageEstimates allRequestAdapterOperations
-    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetManagerMode allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromRosterShift allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresentWithoutParser
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SwitchRosterGroup
+        (requestAdapterOperationsWithoutParser "Group selection uses the existing authorized roster navigation endpoint and canonical route/query context")
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterManagerMode allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SetRosterFitWholeWeek allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
@@ -243,6 +257,7 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route id and canonical query context")
     , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ResolveLeavePolicy requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
@@ -271,8 +286,6 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.RestoreFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
-    , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
-        (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceOperationLocalActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations

@@ -8,6 +8,7 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      automaticMealBreakStartOffsetMinutes,
                                      automaticMealBreakThresholdMinutes)
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Bifunctor as Bifunctor
 import Generated.Types
 import IHP.Prelude
@@ -19,7 +20,7 @@ data RosterSlotBoundaryError
     deriving (Eq, Show)
 
 -- | Project the exact authoritative boundary snapshot materialized by a
--- Timesheet suggestion, including its automatic unpaid meal break.
+-- Timesheet roster prefill, including its automatic unpaid meal break.
 projectRosterSlotTimesheetBoundaries :: RosterSlot -> Either RosterSlotBoundaryError AuthoritativeBoundaries
 projectRosterSlotTimesheetBoundaries slot = do
     startsAt <- maybe (Left RosterSlotBoundariesIncomplete) Right slot.startsAt
@@ -28,11 +29,11 @@ projectRosterSlotTimesheetBoundaries slot = do
         authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing
     unless (authoritativeRosterIntervalIsOperationallyValid grossBoundaries) $
         Left RosterSlotDurationUnsupported
-    if authoritativeElapsedSeconds grossBoundaries < fromIntegral (automaticMealBreakThresholdMinutes * 60)
+    if authoritativeElapsedSeconds grossBoundaries < Seconds.fromMinutes (fromIntegral automaticMealBreakThresholdMinutes)
         then Right grossBoundaries
         else
-            let breakStart = addUTCTime (fromIntegral (automaticMealBreakStartOffsetMinutes * 60)) startsAt
-                breakEnd = addUTCTime (fromIntegral (automaticMealBreakMinutes * 60)) breakStart
+            let breakStart = Seconds.addTo (Seconds.fromMinutes (fromIntegral automaticMealBreakStartOffsetMinutes)) startsAt
+                breakEnd = Seconds.addTo (Seconds.fromMinutes (fromIntegral automaticMealBreakMinutes)) breakStart
              in Bifunctor.first RosterSlotBoundariesInvalid $
                     authoritativeBoundariesFromInstants
                         slot.timezone

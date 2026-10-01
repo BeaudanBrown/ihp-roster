@@ -8,7 +8,6 @@ module Application.Helper.FrontendContract.Surface.Support
     , SupportPublicHolidaysResource
     , SupportSurface
     , SupportPlatform
-    , CreatePublicHolidayRefreshJob
     , CreateFwcMapdRefreshJob
     ) where
 
@@ -20,7 +19,6 @@ data SupportPlatform
 
 data SupportAwardRates
 data SupportPublicHolidays
-data CreatePublicHolidayRefreshJob
 data CreateFwcMapdRefreshJob
 data OuterHTML
 
@@ -32,12 +30,6 @@ type SupportSurface =
         '[ Scope SupportPlatform '[] '[ 'Authorize 'SupportSuperAdmin '[] ]
          , Fragment SupportAwardRates '[] '[ 'MountTarget SupportAwardRates '[], 'Eager, 'Live, 'DependsOn SupportAwardRatesResource '[] ]
          , Fragment SupportPublicHolidays '[] '[ 'MountTarget SupportPublicHolidays '[], 'Eager, 'Live, 'DependsOn SupportPublicHolidaysResource '[] ]
-         , Action CreatePublicHolidayRefreshJob
-            '[]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId SupportPublicHolidays)
-             , 'HtmxSwap 'HtmxOuterHTML
-             ]
          , Action CreateFwcMapdRefreshJob
             '[]
             '[ 'HtmxMethod 'HtmxPost

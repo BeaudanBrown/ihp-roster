@@ -354,16 +354,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 81
+        length actionDeclarations `shouldBe` 88
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 76
+        length generatedActionOperations `shouldBe` 83
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 76
+            `shouldBe` 83
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 76
+            `shouldBe` 83
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 49
+            `shouldBe` 52
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -386,8 +386,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             , not (surfaceAdapterOperationIsGenerated operations.surfaceAdapterRequestParserOperation)
             ]
             `shouldBe` List.sort
-                [ ("timesheets", "navigate-timesheet-week")
-                , ("roster", "navigate-roster-week")
+                [ ("roster", "navigate-roster-week")
                 , ("timesheets", "update-timesheet-filters")
                 , ("roster", "sort-roster-week")
                 , ("roster", "create-roster-week-slot-definition")
@@ -401,7 +400,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("leave-requests", "approve-leave-request")
                 , ("leave-requests", "deny-leave-request")
                 , ("leave-requests", "delete-unavailability-blackout")
-                , ("support", "create-public-holiday-refresh-job")
                 , ("support", "create-fwc-mapd-refresh-job")
                 , ("admin-invites", "revoke-venue-invitation")
                 , ("admin-shift-types", "autosave-shift-type-name")
@@ -413,6 +411,12 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("feedback-moderation", "edit-feedback")
                 , ("feedback-moderation", "publish-feedback")
                 , ("feedback-moderation", "restore-feedback")
+                , ("roster", "switch-roster-group")
+                , ("self-service-leave", "open-self-service-leave-delete-confirmation")
+                , ("self-service-leave", "delete-self-service-leave-request")
+                , ("feedback-moderation", "open-feedback-archive-confirmation")
+                , ("staff", "open-staff-leave-delete-confirmation")
+                , ("staff", "delete-staff-leave-request")
                 ]
 
         intentDeclarations <-

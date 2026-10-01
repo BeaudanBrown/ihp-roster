@@ -25,6 +25,12 @@ export function isRosterSurfaceScope(value: unknown): value is RosterSurfaceScop
     return (isRosterRosterWeekScope(value));
 }
 
+export type RosterPersonalSurfaceScope =
+    RosterPersonalRosterPersonalScope;
+export function isRosterPersonalSurfaceScope(value: unknown): value is RosterPersonalSurfaceScope {
+    return (isRosterPersonalRosterPersonalScope(value));
+}
+
 export type RosterDayTimelineSurfaceScope =
     RosterDayTimelineRosterDayTimelineScope;
 export function isRosterDayTimelineSurfaceScope(value: unknown): value is RosterDayTimelineSurfaceScope {
@@ -109,6 +115,12 @@ export function isAdminExportsSurfaceScope(value: unknown): value is AdminExport
     return (isAdminExportsAdminExportsScopeScope(value));
 }
 
+export type AdminRecipientGroupsSurfaceScope =
+    AdminRecipientGroupsAdminRecipientGroupsScopeScope;
+export function isAdminRecipientGroupsSurfaceScope(value: unknown): value is AdminRecipientGroupsSurfaceScope {
+    return (isAdminRecipientGroupsAdminRecipientGroupsScopeScope(value));
+}
+
 export type AdminShiftTypesSurfaceScope =
     AdminShiftTypesAdminShiftTypesScopeScope;
 export function isAdminShiftTypesSurfaceScope(value: unknown): value is AdminShiftTypesSurfaceScope {
@@ -131,9 +143,10 @@ export type TimesheetsSurfaceFragmentKey =
     { kind: "timesheet-toolbar"; params: TimesheetsTimesheetToolbarFragmentParams | null }
   | { kind: "timesheet-day-columns"; params: TimesheetsTimesheetDayColumnsFragmentParams | null }
   | { kind: "timesheet-side-panel-content"; params: TimesheetsTimesheetSidePanelContentFragmentParams | null }
+  | { kind: "timesheet-staff-content"; params: TimesheetsTimesheetStaffContentFragmentParams | null }
   | { kind: "timesheet-day-section"; params: TimesheetsTimesheetDaySectionFragmentParams };
 export function isTimesheetsSurfaceFragmentKey(value: unknown): value is TimesheetsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && (typeof value["params"]["operationalDate"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-staff-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && (typeof value["params"]["operationalDate"] === "string"))));
 }
 
 export type RosterSurfaceFragmentKey =
@@ -146,12 +159,19 @@ export type RosterSurfaceFragmentKey =
   | { kind: "roster-wage-rail"; params: RosterRosterWageRailFragmentParams | null }
   | { kind: "roster-slots-grid"; params: RosterRosterSlotsGridFragmentParams | null }
   | { kind: "roster-staff-panel"; params: RosterRosterStaffPanelFragmentParams | null }
+  | { kind: "roster-settings-content"; params: RosterRosterSettingsContentFragmentParams | null }
   | { kind: "roster-week-overview"; params: RosterRosterWeekOverviewFragmentParams | null }
   | { kind: "roster-template-library"; params: RosterRosterTemplateLibraryFragmentFragmentParams | null }
   | { kind: "roster-day-section"; params: RosterRosterDaySectionFragmentParams }
   | { kind: "roster-row"; params: RosterRosterRowFragmentParams };
 export function isRosterSurfaceFragmentKey(value: unknown): value is RosterSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-settings-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+}
+
+export type RosterPersonalSurfaceFragmentKey =
+    { kind: "fit-preference-control"; params: RosterPersonalFitPreferenceControlFragmentParams | null };
+export function isRosterPersonalSurfaceFragmentKey(value: unknown): value is RosterPersonalSurfaceFragmentKey {
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "fit-preference-control" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type RosterDayTimelineSurfaceFragmentKey =
@@ -216,11 +236,12 @@ export function isProfileSurfaceFragmentKey(value: unknown): value is ProfileSur
 
 export type StaffSurfaceFragmentKey =
     { kind: "staff-details-section"; params: StaffStaffDetailsSectionFragmentParams | null }
+  | { kind: "staff-pay-warning-section"; params: StaffStaffPayWarningSectionFragmentParams | null }
   | { kind: "staff-preferences-section"; params: StaffStaffPreferencesSectionFragmentParams | null }
   | { kind: "staff-visible-unavailability-blackouts"; params: StaffStaffVisibleUnavailabilityBlackoutsFragmentParams | null }
   | { kind: "staff-leave-section"; params: StaffStaffLeaveSectionFragmentParams | null };
 export function isStaffSurfaceFragmentKey(value: unknown): value is StaffSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-pay-warning-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminPageSurfaceFragmentKey =
@@ -253,6 +274,12 @@ export function isAdminExportsSurfaceFragmentKey(value: unknown): value is Admin
     return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
+export type AdminRecipientGroupsSurfaceFragmentKey =
+    { kind: "admin-recipient-groups"; params: AdminRecipientGroupsAdminRecipientGroupsFragmentFragmentParams | null };
+export function isAdminRecipientGroupsSurfaceFragmentKey(value: unknown): value is AdminRecipientGroupsSurfaceFragmentKey {
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-recipient-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
+}
+
 export type AdminShiftTypesSurfaceFragmentKey =
     { kind: "admin-shift-types"; params: AdminShiftTypesAdminShiftTypesFragmentFragmentParams | null };
 export function isAdminShiftTypesSurfaceFragmentKey(value: unknown): value is AdminShiftTypesSurfaceFragmentKey {
@@ -278,6 +305,7 @@ export function isAdminXeroSurfaceFragmentKey(value: unknown): value is AdminXer
 export type SurfaceScope =
     { surface: "timesheets"; scope: TimesheetsSurfaceScope }
   | { surface: "roster"; scope: RosterSurfaceScope }
+  | { surface: "roster-personal"; scope: RosterPersonalSurfaceScope }
   | { surface: "roster-day-timeline"; scope: RosterDayTimelineSurfaceScope }
   | { surface: "leave-requests"; scope: LeaveRequestsSurfaceScope }
   | { surface: "self-service-leave"; scope: SelfServiceLeaveSurfaceScope }
@@ -292,16 +320,18 @@ export type SurfaceScope =
   | { surface: "admin-venue-config"; scope: AdminVenueConfigSurfaceScope }
   | { surface: "admin-invites"; scope: AdminInvitesSurfaceScope }
   | { surface: "admin-exports"; scope: AdminExportsSurfaceScope }
+  | { surface: "admin-recipient-groups"; scope: AdminRecipientGroupsSurfaceScope }
   | { surface: "admin-shift-types"; scope: AdminShiftTypesSurfaceScope }
   | { surface: "admin-roster-groups"; scope: AdminRosterGroupsSurfaceScope }
   | { surface: "admin-xero"; scope: AdminXeroSurfaceScope };
 export function isSurfaceScope(value: unknown): value is SurfaceScope {
-    return ((isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback" && isFeedbackSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
+    return ((isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-personal" && isRosterPersonalSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback" && isFeedbackSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
 }
 
 export type SurfaceFragmentKey =
     ({ surface: "timesheets" } & TimesheetsSurfaceFragmentKey)
   | ({ surface: "roster" } & RosterSurfaceFragmentKey)
+  | ({ surface: "roster-personal" } & RosterPersonalSurfaceFragmentKey)
   | ({ surface: "roster-day-timeline" } & RosterDayTimelineSurfaceFragmentKey)
   | ({ surface: "leave-requests" } & LeaveRequestsSurfaceFragmentKey)
   | ({ surface: "self-service-leave" } & SelfServiceLeaveSurfaceFragmentKey)
@@ -316,11 +346,12 @@ export type SurfaceFragmentKey =
   | ({ surface: "admin-venue-config" } & AdminVenueConfigSurfaceFragmentKey)
   | ({ surface: "admin-invites" } & AdminInvitesSurfaceFragmentKey)
   | ({ surface: "admin-exports" } & AdminExportsSurfaceFragmentKey)
+  | ({ surface: "admin-recipient-groups" } & AdminRecipientGroupsSurfaceFragmentKey)
   | ({ surface: "admin-shift-types" } & AdminShiftTypesSurfaceFragmentKey)
   | ({ surface: "admin-roster-groups" } & AdminRosterGroupsSurfaceFragmentKey)
   | ({ surface: "admin-xero" } & AdminXeroSurfaceFragmentKey);
 export function isSurfaceFragmentKey(value: unknown): value is SurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback" && isFeedbackSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params })));
+    return ((isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-personal" && isRosterPersonalSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback" && isFeedbackSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params })));
 }
 
 function __canonicalFrontendContractJson(value: unknown): string {
@@ -387,6 +418,20 @@ export const interactionSessionEndEvent = "bepis:interaction-session-end" as con
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
 
+export type WageDisplayModeEnum =
+    "hidden"
+  | "visible_timesheets"
+  | "all_timesheets"
+  | "visible_and_all_timesheets";
+export function isWageDisplayModeEnum(value: unknown): value is WageDisplayModeEnum {
+    return typeof value === "string" && ["hidden", "visible_timesheets", "all_timesheets", "visible_and_all_timesheets"].includes(value);
+}
+
+export function parseWageDisplayModeEnum(value: unknown): WageDisplayModeEnum {
+    if (isWageDisplayModeEnum(value)) return value;
+    throw new Error("Invalid WageDisplayModeEnum");
+}
+
 export type RosterImageExportStyle =
     "colour"
   | "print";
@@ -421,6 +466,16 @@ export function isDialogSubmitConfig(value: unknown): value is DialogSubmitConfi
 export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
     if (isDialogSubmitConfig(value)) return value;
     throw new Error("Invalid DialogSubmitConfig");
+}
+
+export type DialogDismissalGuardConfig = { formId: string; guardImmediately: boolean; confirmationTitle: string; keepEditingLabel: string; discardLabel: string };
+export function isDialogDismissalGuardConfig(value: unknown): value is DialogDismissalGuardConfig {
+    return isRecord(value) && hasExactKeys(value, ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"], ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"]) && (typeof value["formId"] === "string") && (typeof value["guardImmediately"] === "boolean") && (typeof value["confirmationTitle"] === "string") && (typeof value["keepEditingLabel"] === "string") && (typeof value["discardLabel"] === "string");
+}
+
+export function parseDialogDismissalGuardConfig(value: unknown): DialogDismissalGuardConfig {
+    if (isDialogDismissalGuardConfig(value)) return value;
+    throw new Error("Invalid DialogDismissalGuardConfig");
 }
 
 export type NavigationLoadingConfig = { loadingTitle: string; loadingMessage: string };
@@ -459,7 +514,13 @@ export const dialogCloseDomAttr = "data-bepis-dialog-close" as const;
 
 export const dialogSubmitDomAttr = "data-bepis-dialog-submit" as const;
 
+export const dialogEnterSubmitDomAttr = "data-bepis-dialog-enter-submit" as const;
+
 export const dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config" as const;
+
+export const dialogDismissalGuardDomAttr = "data-bepis-dialog-dismissal-guard" as const;
+
+export const dialogDismissalGuardConfigDomAttr = "data-bepis-dialog-dismissal-guard-config" as const;
 
 export const dialogBlockingDomAttr = "data-bepis-dialog-blocking" as const;
 
@@ -687,6 +748,26 @@ export const toggleTransportDomAttr = "data-bepis-toggle-transport" as const;
 export const toggleBreakRegionDomAttr = "data-bepis-toggle-break-region" as const;
 
 export const toggleConfigDomAttr = "data-bepis-toggle-config" as const;
+
+export const checkboxListRootDomAttr = "data-bepis-checkbox-list-root" as const;
+
+export const checkboxListGroupDomAttr = "data-bepis-checkbox-list-group" as const;
+
+export const checkboxListItemDomAttr = "data-bepis-checkbox-list-item" as const;
+
+export const checkboxListGroupToggleDomAttr = "data-bepis-checkbox-list-group-toggle" as const;
+
+export const checkboxListSelectAllDomAttr = "data-bepis-checkbox-list-select-all" as const;
+
+export const checkboxListClearAllDomAttr = "data-bepis-checkbox-list-clear-all" as const;
+
+export const checkboxListCountDomAttr = "data-bepis-checkbox-list-count" as const;
+
+export const checkboxListTotalDomAttr = "data-bepis-checkbox-list-total" as const;
+
+export const checkboxListWeightDomAttr = "data-bepis-checkbox-list-weight" as const;
+
+export const checkboxListSubmitDomAttr = "data-bepis-checkbox-list-submit" as const;
 
 export type TimePickerConfig = { rangeStart: string; rangeEnd: string; stepMinutes: number; emptyLabel: string };
 export function isTimePickerConfig(value: unknown): value is TimePickerConfig {
@@ -1007,6 +1088,18 @@ export const xeroCandidateFilterConfigDomAttr = "data-bepis-xero-candidate-filte
 
 export const xeroCandidateFilterEmptyDomAttr = "data-bepis-xero-candidate-filter-empty" as const;
 
+export const filterSelectionSectionDomAttr = "data-bepis-filter-selection-section" as const;
+
+export const filterSelectionItemDomAttr = "data-bepis-filter-selection-item" as const;
+
+export const filterSelectionClearDomAttr = "data-bepis-filter-selection-clear" as const;
+
+export const filterSelectionAllDomAttr = "data-bepis-filter-selection-all" as const;
+
+export const filterSelectionSelectedDomAttr = "data-bepis-filter-selection-selected" as const;
+
+export const filterSelectionCountDomAttr = "data-bepis-filter-selection-count" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const surfaceConfigDomAttr = "data-bepis-surface-config" as const;
@@ -1062,6 +1155,11 @@ export function isTimesheetsTimesheetSidePanelContentFragmentParams(value: unkno
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type TimesheetsTimesheetStaffContentFragmentParams = {  };
+export function isTimesheetsTimesheetStaffContentFragmentParams(value: unknown): value is TimesheetsTimesheetStaffContentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type TimesheetsTimesheetDaySectionFragmentParams = { operationalDate: FrontendContractDay };
 export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): value is TimesheetsTimesheetDaySectionFragmentParams {
     return isRecord(value) && hasExactKeys(value, ["operationalDate"], ["operationalDate"]) && (typeof value["operationalDate"] === "string");
@@ -1096,19 +1194,6 @@ export function parseRosterImageExportCell(value: unknown): RosterImageExportCel
     if (isRosterImageExportCell(value)) return value;
     throw new Error("Invalid RosterImageExportCell");
 }
-
-export type RosterWageFilterConfig = { wageFilterEnabled: boolean; wageFilterRefreshTargetIds: ReadonlyArray<string>; wageFilterRequestTargetIds: ReadonlyArray<string> };
-export function isRosterWageFilterConfig(value: unknown): value is RosterWageFilterConfig {
-    return isRecord(value) && hasExactKeys(value, ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"], ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"]) && (typeof value["wageFilterEnabled"] === "boolean") && (Array.isArray(value["wageFilterRefreshTargetIds"]) && value["wageFilterRefreshTargetIds"].every((item) => typeof item === "string")) && (Array.isArray(value["wageFilterRequestTargetIds"]) && value["wageFilterRequestTargetIds"].every((item) => typeof item === "string"));
-}
-
-export function parseRosterWageFilterConfig(value: unknown): RosterWageFilterConfig {
-    if (isRosterWageFilterConfig(value)) return value;
-    throw new Error("Invalid RosterWageFilterConfig");
-}
-
-export type RosterWageFilterRequest = { pinnedStaffKey?: string };
-export function encodeRosterWageFilterRequest(value: RosterWageFilterRequest): RosterWageFilterRequest { return value; }
 
 export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };
 export function isRosterWeekOverviewPanelConfig(value: unknown): value is RosterWeekOverviewPanelConfig {
@@ -1180,6 +1265,11 @@ export function isRosterRosterStaffPanelFragmentParams(value: unknown): value is
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type RosterRosterSettingsContentFragmentParams = {  };
+export function isRosterRosterSettingsContentFragmentParams(value: unknown): value is RosterRosterSettingsContentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type RosterRosterWeekOverviewFragmentParams = {  };
 export function isRosterRosterWeekOverviewFragmentParams(value: unknown): value is RosterRosterWeekOverviewFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
@@ -1198,6 +1288,16 @@ export function isRosterRosterDaySectionFragmentParams(value: unknown): value is
 export type RosterRosterRowFragmentParams = { rosterDayId: FrontendContractUuid; rowIndex: number };
 export function isRosterRosterRowFragmentParams(value: unknown): value is RosterRosterRowFragmentParams {
     return isRecord(value) && hasExactKeys(value, ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
+}
+
+export type RosterPersonalRosterPersonalScope = { venueId: FrontendContractUuid; userId: FrontendContractUuid };
+export function isRosterPersonalRosterPersonalScope(value: unknown): value is RosterPersonalRosterPersonalScope {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "userId"], ["venueId", "userId"]) && (typeof value["venueId"] === "string") && (typeof value["userId"] === "string");
+}
+
+export type RosterPersonalFitPreferenceControlFragmentParams = {  };
+export function isRosterPersonalFitPreferenceControlFragmentParams(value: unknown): value is RosterPersonalFitPreferenceControlFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; windowStartDate: FrontendContractDay; windowEndDate: FrontendContractDay; rosterCalendarRevision: number; rosterDayId: FrontendContractUuid };
@@ -1360,6 +1460,11 @@ export function isStaffStaffDetailsSectionFragmentParams(value: unknown): value 
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type StaffStaffPayWarningSectionFragmentParams = {  };
+export function isStaffStaffPayWarningSectionFragmentParams(value: unknown): value is StaffStaffPayWarningSectionFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type StaffStaffPreferencesSectionFragmentParams = {  };
 export function isStaffStaffPreferencesSectionFragmentParams(value: unknown): value is StaffStaffPreferencesSectionFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
@@ -1425,6 +1530,16 @@ export function isAdminExportsAdminExportsFragmentFragmentParams(value: unknown)
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type AdminRecipientGroupsAdminRecipientGroupsScopeScope = { venueId: FrontendContractUuid };
+export function isAdminRecipientGroupsAdminRecipientGroupsScopeScope(value: unknown): value is AdminRecipientGroupsAdminRecipientGroupsScopeScope {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
+}
+
+export type AdminRecipientGroupsAdminRecipientGroupsFragmentFragmentParams = {  };
+export function isAdminRecipientGroupsAdminRecipientGroupsFragmentFragmentParams(value: unknown): value is AdminRecipientGroupsAdminRecipientGroupsFragmentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type AdminShiftTypesAdminShiftTypesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminShiftTypesAdminShiftTypesScopeScope(value: unknown): value is AdminShiftTypesAdminShiftTypesScopeScope {
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
@@ -1476,13 +1591,15 @@ export function isAdminXeroAdminXeroStaffMappingsWaitFragmentFragmentParams(valu
 }
 
 export type VenueId = FrontendContractUuid;
-export type StaffFilterId = FrontendContractUuid;
-export type RosterGroupFilterId = FrontendContractUuid;
+export type StaffFilterIds = FrontendContractUuid;
+export type RosterGroupFilterIds = FrontendContractUuid;
+export type ShiftTypeFilterIds = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
 export type TemplateId = FrontendContractUuid;
 export type StaleShiftTypeIds = FrontendContractUuid;
 export type MappedShiftTypeIds = FrontendContractUuid;
+export type UserId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
 export type RosterGroupIdsField = FrontendContractUuid;
 export type DefaultStaffAwardLevelId = FrontendContractUuid;
@@ -1523,10 +1640,10 @@ export const rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start
 export const rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done" as const;
 export const rosterImageExportTriggerDomAttr = "data-bepis-roster-image-export-trigger" as const;
 export const rosterImageExportConfigDomAttr = "data-bepis-roster-image-export-config" as const;
+export const rosterFitViewportDomAttr = "data-bepis-roster-fit-viewport" as const;
 export const rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection" as const;
 export const rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row" as const;
 export const rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell" as const;
-export const rosterWageFilterConfigDomAttr = "data-bepis-roster-wage-filter-config" as const;
 export const rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel" as const;
 export const rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day" as const;
 export const rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today" as const;
@@ -1551,6 +1668,8 @@ export const rosterWeekOverviewAvailabilityDomAttr = "data-bepis-roster-week-ove
 export const rosterWeekOverviewClosureDomAttr = "data-bepis-roster-week-overview-closure" as const;
 export const rosterWeekOverviewCalendarDayDomAttr = "data-bepis-roster-week-overview-calendar-day" as const;
 export const rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order" as const;
+
+export const rosterPersonalFitActiveDomAttr = "data-bepis-roster-personal-fit-active" as const;
 
 export const rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source" as const;
 export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member" as const;
@@ -1684,11 +1803,11 @@ export function isLeaveSidePanelTabsKey(value: unknown): value is LeaveSidePanel
     return typeof value === "string" && ["staff", "settings"].includes(value);
 }
 
-export type FrontendSurfaceName = "timesheets" | "roster" | "roster-day-timeline" | "leave-requests" | "self-service-leave" | "billing" | "support" | "feedback" | "feedback-moderation" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
+export type FrontendSurfaceName = "timesheets" | "roster" | "roster-personal" | "roster-day-timeline" | "leave-requests" | "self-service-leave" | "billing" | "support" | "feedback" | "feedback-moderation" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-recipient-groups" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export type FrontendSurfaceLinkedHighlightActivation = "hover" | "focus" | "keyboard" | "pin" | "default";
 export type FrontendSurfaceLinkedHighlightEffect = "matching-source" | "matching-member" | "ordered-member-bounds";
 export type FrontendSurfaceLinkedHighlightDefinition = { name: string; sourceRoleAttribute: string; memberRoleAttribute: string; pinRoleAttribute: string | null; defaultRoleAttribute: string | null; orderStateAttribute: string | null; activations: ReadonlyArray<FrontendSurfaceLinkedHighlightActivation>; effects: ReadonlyArray<FrontendSurfaceLinkedHighlightEffect> };
-export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {"timesheets":[{"name":"timesheet-staff-cards-highlight","sourceRoleAttribute":timesheetsTimesheetStaffHighlightSourceDomAttr,"memberRoleAttribute":timesheetsTimesheetStaffHighlightMemberDomAttr,"pinRoleAttribute":timesheetsTimesheetStaffHighlightPinDomAttr,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard","pin"],"effects":["matching-source","matching-member"]}],"roster":[{"name":"staff-shifts-highlight","sourceRoleAttribute":rosterStaffHighlightSourceDomAttr,"memberRoleAttribute":rosterStaffHighlightMemberDomAttr,"pinRoleAttribute":rosterStaffHighlightPinDomAttr,"defaultRoleAttribute":rosterStaffHighlightDefaultDomAttr,"orderStateAttribute":rosterStaffHighlightOrderDomAttr,"activations":["hover","focus","keyboard","pin","default"],"effects":["matching-source","matching-member","ordered-member-bounds"]},{"name":"shift-group-highlight","sourceRoleAttribute":rosterShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"roster-day-timeline":[{"name":"shift-group-highlight","sourceRoleAttribute":rosterDayTimelineShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterDayTimelineShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"leave-requests":[{"name":"leave-staff-periods-highlight","sourceRoleAttribute":leaveRequestsLeaveStaffHighlightSourceDomAttr,"memberRoleAttribute":leaveRequestsLeaveStaffHighlightMemberDomAttr,"pinRoleAttribute":leaveRequestsLeaveStaffHighlightPinDomAttr,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard","pin"],"effects":["matching-source","matching-member"]}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {"timesheets":[{"name":"timesheet-staff-cards-highlight","sourceRoleAttribute":timesheetsTimesheetStaffHighlightSourceDomAttr,"memberRoleAttribute":timesheetsTimesheetStaffHighlightMemberDomAttr,"pinRoleAttribute":timesheetsTimesheetStaffHighlightPinDomAttr,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard","pin"],"effects":["matching-source","matching-member"]}],"roster":[{"name":"staff-shifts-highlight","sourceRoleAttribute":rosterStaffHighlightSourceDomAttr,"memberRoleAttribute":rosterStaffHighlightMemberDomAttr,"pinRoleAttribute":rosterStaffHighlightPinDomAttr,"defaultRoleAttribute":rosterStaffHighlightDefaultDomAttr,"orderStateAttribute":rosterStaffHighlightOrderDomAttr,"activations":["hover","focus","keyboard","pin","default"],"effects":["matching-source","matching-member","ordered-member-bounds"]},{"name":"shift-group-highlight","sourceRoleAttribute":rosterShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"roster-personal":[],"roster-day-timeline":[{"name":"shift-group-highlight","sourceRoleAttribute":rosterDayTimelineShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterDayTimelineShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"leave-requests":[{"name":"leave-staff-periods-highlight","sourceRoleAttribute":leaveRequestsLeaveStaffHighlightSourceDomAttr,"memberRoleAttribute":leaveRequestsLeaveStaffHighlightMemberDomAttr,"pinRoleAttribute":leaveRequestsLeaveStaffHighlightPinDomAttr,"defaultRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard","pin"],"effects":["matching-source","matching-member"]}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-recipient-groups":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
 export type FrontendSurfaceCompleteSetSortValueType = "text" | "integer" | "opaque";
 export type FrontendSurfaceCompleteSetSortComparatorDirection = "selected" | "ascending";
@@ -1696,15 +1815,15 @@ export type FrontendSurfaceCompleteSetSortDirection = "ascending" | "descending"
 export type FrontendSurfaceCompleteSetSortComparator = { field: string; valueType: FrontendSurfaceCompleteSetSortValueType; direction: FrontendSurfaceCompleteSetSortComparatorDirection; read: (row: unknown) => unknown };
 export type FrontendSurfaceCompleteSetSortKeyDefinition = { key: string; comparators: ReadonlyArray<FrontendSurfaceCompleteSetSortComparator> };
 export type FrontendSurfaceCompleteSetSortDefinition = { name: string; rootRoleAttribute: string; rowRoleAttribute: string; controlRoleAttribute: string; parseRow: (value: unknown) => unknown; isKey: (value: unknown) => boolean; keys: ReadonlyArray<FrontendSurfaceCompleteSetSortKeyDefinition>; defaultKey: string; defaultDirection: FrontendSurfaceCompleteSetSortDirection };
-export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceCompleteSetSortDefinition>> = {"timesheets":[{"name":"timesheet-staff-panel-sort","rootRoleAttribute":timesheetsTimesheetStaffPanelSortRootDomAttr,"rowRoleAttribute":timesheetsTimesheetStaffPanelSortRowDomAttr,"controlRoleAttribute":timesheetsTimesheetStaffPanelSortControlDomAttr,"parseRow":parseTimesheetStaffPanelSortRow,"isKey":isTimesheetStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]},{"key":"count","comparators":[{"field":"entryCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).entryCount},{"field":"approvedCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).approvedCount},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"roster":[{"name":"roster-staff-panel-sort","rootRoleAttribute":rosterStaffPanelSortRootDomAttr,"rowRoleAttribute":rosterStaffPanelSortRowDomAttr,"controlRoleAttribute":rosterStaffPanelSortControlDomAttr,"parseRow":parseRosterStaffPanelSortRow,"isKey":isRosterStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"shifts","comparators":[{"field":"assignedShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).assignedShifts},{"field":"idealShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).idealShifts},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-staff-panel-sort","rootRoleAttribute":leaveRequestsLeaveStaffPanelSortRootDomAttr,"rowRoleAttribute":leaveRequestsLeaveStaffPanelSortRowDomAttr,"controlRoleAttribute":leaveRequestsLeaveStaffPanelSortControlDomAttr,"parseRow":parseLeaveStaffPanelSortRow,"isKey":isLeaveStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]},{"key":"count","comparators":[{"field":"periodCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).periodCount},{"field":"pendingCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).pendingCount},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceCompleteSetSortDefinition>> = {"timesheets":[{"name":"timesheet-staff-panel-sort","rootRoleAttribute":timesheetsTimesheetStaffPanelSortRootDomAttr,"rowRoleAttribute":timesheetsTimesheetStaffPanelSortRowDomAttr,"controlRoleAttribute":timesheetsTimesheetStaffPanelSortControlDomAttr,"parseRow":parseTimesheetStaffPanelSortRow,"isKey":isTimesheetStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]},{"key":"count","comparators":[{"field":"entryCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).entryCount},{"field":"approvedCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).approvedCount},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseTimesheetStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"roster":[{"name":"roster-staff-panel-sort","rootRoleAttribute":rosterStaffPanelSortRootDomAttr,"rowRoleAttribute":rosterStaffPanelSortRowDomAttr,"controlRoleAttribute":rosterStaffPanelSortControlDomAttr,"parseRow":parseRosterStaffPanelSortRow,"isKey":isRosterStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"shifts","comparators":[{"field":"assignedShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).assignedShifts},{"field":"idealShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).idealShifts},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"roster-personal":[],"roster-day-timeline":[],"leave-requests":[{"name":"leave-staff-panel-sort","rootRoleAttribute":leaveRequestsLeaveStaffPanelSortRootDomAttr,"rowRoleAttribute":leaveRequestsLeaveStaffPanelSortRowDomAttr,"controlRoleAttribute":leaveRequestsLeaveStaffPanelSortControlDomAttr,"parseRow":parseLeaveStaffPanelSortRow,"isKey":isLeaveStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]},{"key":"count","comparators":[{"field":"periodCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).periodCount},{"field":"pendingCount","valueType":"integer","direction":"selected","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).pendingCount},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseLeaveStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-recipient-groups":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
 export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };
-export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {"timesheets":[{"name":"timesheet-side-panel-tabs","tabRoleAttribute":timesheetsTimesheetSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isTimesheetSidePanelTabsKey}],"roster":[{"name":"roster-staff-panel-tabs","tabRoleAttribute":rosterStaffPanelTabDomAttr,"keys":["staff","templates","settings"],"defaultKey":"staff","isKey":isRosterStaffPanelTabsKey},{"name":"roster-self-service-panel-tabs","tabRoleAttribute":rosterSelfServicePanelTabDomAttr,"keys":["quick-tools","settings"],"defaultKey":"quick-tools","isKey":isRosterSelfServicePanelTabsKey}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-request-tabs","tabRoleAttribute":leaveRequestsLeaveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"pending","isKey":isLeaveRequestTabsKey},{"name":"leave-archive-request-tabs","tabRoleAttribute":leaveRequestsLeaveArchiveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"archive","isKey":isLeaveArchiveRequestTabsKey},{"name":"leave-side-panel-tabs","tabRoleAttribute":leaveRequestsLeaveSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isLeaveSidePanelTabsKey}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {"timesheets":[{"name":"timesheet-side-panel-tabs","tabRoleAttribute":timesheetsTimesheetSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isTimesheetSidePanelTabsKey}],"roster":[{"name":"roster-staff-panel-tabs","tabRoleAttribute":rosterStaffPanelTabDomAttr,"keys":["staff","templates","settings"],"defaultKey":"staff","isKey":isRosterStaffPanelTabsKey},{"name":"roster-self-service-panel-tabs","tabRoleAttribute":rosterSelfServicePanelTabDomAttr,"keys":["quick-tools","settings"],"defaultKey":"quick-tools","isKey":isRosterSelfServicePanelTabsKey}],"roster-personal":[],"roster-day-timeline":[],"leave-requests":[{"name":"leave-request-tabs","tabRoleAttribute":leaveRequestsLeaveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"pending","isKey":isLeaveRequestTabsKey},{"name":"leave-archive-request-tabs","tabRoleAttribute":leaveRequestsLeaveArchiveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"archive","isKey":isLeaveArchiveRequestTabsKey},{"name":"leave-side-panel-tabs","tabRoleAttribute":leaveRequestsLeaveSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isLeaveSidePanelTabsKey}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-recipient-groups":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
 export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean; shelfRoleAttribute: string; shelfToggleRoleAttribute: string; shelfStateAttribute: string; shelfClosedValue: string; shelfOpenValue: string; isShelfState: (value: unknown) => boolean };
-export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {"timesheets":[{"name":"timesheet-side-panel","rootRoleAttribute":timesheetsTimesheetSidePanelRootDomAttr,"mainRoleAttribute":timesheetsTimesheetSidePanelMainDomAttr,"panelRoleAttribute":timesheetsTimesheetSidePanelPanelDomAttr,"toggleRoleAttribute":timesheetsTimesheetSidePanelToggleDomAttr,"labelRoleAttribute":timesheetsTimesheetSidePanelLabelDomAttr,"stateAttribute":timesheetsTimesheetSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":timesheetsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":timesheetsSidePanelShelfToggleDomAttr,"shelfStateAttribute":timesheetsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isTimesheetsSidePanelShelfState,"isState":isTimesheetsTimesheetSidePanelState}],"roster":[{"name":"roster-side-panel","rootRoleAttribute":rosterSidePanelRootDomAttr,"mainRoleAttribute":rosterSidePanelMainDomAttr,"panelRoleAttribute":rosterSidePanelPanelDomAttr,"toggleRoleAttribute":rosterSidePanelToggleDomAttr,"labelRoleAttribute":rosterSidePanelLabelDomAttr,"stateAttribute":rosterSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":rosterSidePanelShelfDomAttr,"shelfToggleRoleAttribute":rosterSidePanelShelfToggleDomAttr,"shelfStateAttribute":rosterSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isRosterSidePanelShelfState,"isState":isRosterSidePanelState}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-side-panel","rootRoleAttribute":leaveRequestsLeaveSidePanelRootDomAttr,"mainRoleAttribute":leaveRequestsLeaveSidePanelMainDomAttr,"panelRoleAttribute":leaveRequestsLeaveSidePanelPanelDomAttr,"toggleRoleAttribute":leaveRequestsLeaveSidePanelToggleDomAttr,"labelRoleAttribute":leaveRequestsLeaveSidePanelLabelDomAttr,"stateAttribute":leaveRequestsLeaveSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":leaveRequestsSidePanelShelfToggleDomAttr,"shelfStateAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isLeaveRequestsSidePanelShelfState,"isState":isLeaveRequestsLeaveSidePanelState}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {"timesheets":[{"name":"timesheet-side-panel","rootRoleAttribute":timesheetsTimesheetSidePanelRootDomAttr,"mainRoleAttribute":timesheetsTimesheetSidePanelMainDomAttr,"panelRoleAttribute":timesheetsTimesheetSidePanelPanelDomAttr,"toggleRoleAttribute":timesheetsTimesheetSidePanelToggleDomAttr,"labelRoleAttribute":timesheetsTimesheetSidePanelLabelDomAttr,"stateAttribute":timesheetsTimesheetSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":timesheetsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":timesheetsSidePanelShelfToggleDomAttr,"shelfStateAttribute":timesheetsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isTimesheetsSidePanelShelfState,"isState":isTimesheetsTimesheetSidePanelState}],"roster":[{"name":"roster-side-panel","rootRoleAttribute":rosterSidePanelRootDomAttr,"mainRoleAttribute":rosterSidePanelMainDomAttr,"panelRoleAttribute":rosterSidePanelPanelDomAttr,"toggleRoleAttribute":rosterSidePanelToggleDomAttr,"labelRoleAttribute":rosterSidePanelLabelDomAttr,"stateAttribute":rosterSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":rosterSidePanelShelfDomAttr,"shelfToggleRoleAttribute":rosterSidePanelShelfToggleDomAttr,"shelfStateAttribute":rosterSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isRosterSidePanelShelfState,"isState":isRosterSidePanelState}],"roster-personal":[],"roster-day-timeline":[],"leave-requests":[{"name":"leave-side-panel","rootRoleAttribute":leaveRequestsLeaveSidePanelRootDomAttr,"mainRoleAttribute":leaveRequestsLeaveSidePanelMainDomAttr,"panelRoleAttribute":leaveRequestsLeaveSidePanelPanelDomAttr,"toggleRoleAttribute":leaveRequestsLeaveSidePanelToggleDomAttr,"labelRoleAttribute":leaveRequestsLeaveSidePanelLabelDomAttr,"stateAttribute":leaveRequestsLeaveSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":leaveRequestsSidePanelShelfToggleDomAttr,"shelfStateAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isLeaveRequestsSidePanelShelfState,"isState":isLeaveRequestsLeaveSidePanelState}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-recipient-groups":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
-export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-template-library","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"feedback":["feedback-board"],"feedback-moderation":["feedback-desktop-count","feedback-mobile-count","feedback-review"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell","admin-xero-reference-sync","admin-xero-timesheet-preparation-wait","admin-xero-pay-item-import-wait","admin-xero-staff-mappings-wait"]} as const;
+export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-staff-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-settings-content","roster-template-library","roster-day-section","roster-row"],"roster-personal":["fit-preference-control"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"feedback":["feedback-board"],"feedback-moderation":["feedback-desktop-count","feedback-mobile-count","feedback-review"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section"],"staff":["staff-details-section","staff-pay-warning-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-recipient-groups":["admin-recipient-groups"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell","admin-xero-reference-sync","admin-xero-timesheet-preparation-wait","admin-xero-pay-item-import-wait","admin-xero-staff-mappings-wait"]} as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
 }
@@ -1715,9 +1834,10 @@ export const FrontendSurfaceInteractionRegistry = {"roster":{"sourceRefs":[{"ref
 
 export type FrontendSurfaceFragmentProtection =
     { kind: "replace" }
+  | { kind: "dirty-form"; savedHeader: string }
   | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 export function isFrontendSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceFragmentProtection {
-    return ((isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "savedHeader"], ["kind", "savedHeader"]) && (value["kind"] === "dirty-form") && (typeof value["savedHeader"] === "string")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
 }
 
 // FrontendSurface mount metadata is an exact surface-discriminated local envelope.
@@ -1730,6 +1850,11 @@ export function isTimesheetsMountedFragmentConfig(value: unknown): value is Time
 export type RosterMountedFragmentConfig = { fragmentKey: ({ surface: "roster" } & RosterSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
 export function isRosterMountedFragmentConfig(value: unknown): value is RosterMountedFragmentConfig {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+
+export type RosterPersonalMountedFragmentConfig = { fragmentKey: ({ surface: "roster-personal" } & RosterPersonalSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isRosterPersonalMountedFragmentConfig(value: unknown): value is RosterPersonalMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster-personal" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
 }
 
 export type RosterDayTimelineMountedFragmentConfig = { fragmentKey: ({ surface: "roster-day-timeline" } & RosterDayTimelineSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
@@ -1802,6 +1927,11 @@ export function isAdminExportsMountedFragmentConfig(value: unknown): value is Ad
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-exports" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
 }
 
+export type AdminRecipientGroupsMountedFragmentConfig = { fragmentKey: ({ surface: "admin-recipient-groups" } & AdminRecipientGroupsSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminRecipientGroupsMountedFragmentConfig(value: unknown): value is AdminRecipientGroupsMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-recipient-groups" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+
 export type AdminShiftTypesMountedFragmentConfig = { fragmentKey: ({ surface: "admin-shift-types" } & AdminShiftTypesSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
 export function isAdminShiftTypesMountedFragmentConfig(value: unknown): value is AdminShiftTypesMountedFragmentConfig {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-shift-types" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
@@ -1825,6 +1955,11 @@ export function isTimesheetsMountConfig(value: unknown): value is TimesheetsMoun
 export type RosterMountConfig = { surface: "roster"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<RosterMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "roster" }>; renderedDependencyWatermark: number } | null };
 export function isRosterMountConfig(value: unknown): value is RosterMountConfig {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster") && (value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind))))));
+}
+
+export type RosterPersonalMountConfig = { surface: "roster-personal"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<RosterPersonalMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "roster-personal" }>; renderedDependencyWatermark: number } | null };
+export function isRosterPersonalMountConfig(value: unknown): value is RosterPersonalMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-personal" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterPersonalMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-personal", fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster-personal") && (value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-personal", fragment.fragmentKey.kind))))));
 }
 
 export type RosterDayTimelineMountConfig = { surface: "roster-day-timeline"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<RosterDayTimelineMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "roster-day-timeline" }>; renderedDependencyWatermark: number } | null };
@@ -1897,6 +2032,11 @@ export function isAdminExportsMountConfig(value: unknown): value is AdminExports
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-exports" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminExportsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-exports") && (value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind))))));
 }
 
+export type AdminRecipientGroupsMountConfig = { surface: "admin-recipient-groups"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminRecipientGroupsMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-recipient-groups" }>; renderedDependencyWatermark: number } | null };
+export function isAdminRecipientGroupsMountConfig(value: unknown): value is AdminRecipientGroupsMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-recipient-groups" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminRecipientGroupsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-recipient-groups", fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-recipient-groups") && (value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-recipient-groups", fragment.fragmentKey.kind))))));
+}
+
 export type AdminShiftTypesMountConfig = { surface: "admin-shift-types"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminShiftTypesMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-shift-types" }>; renderedDependencyWatermark: number } | null };
 export function isAdminShiftTypesMountConfig(value: unknown): value is AdminShiftTypesMountConfig {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-shift-types" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminShiftTypesMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-shift-types") && (value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind))))));
@@ -1915,6 +2055,7 @@ export function isAdminXeroMountConfig(value: unknown): value is AdminXeroMountC
 export type FrontendSurfaceMountedFragmentConfig =
     TimesheetsMountedFragmentConfig
   | RosterMountedFragmentConfig
+  | RosterPersonalMountedFragmentConfig
   | RosterDayTimelineMountedFragmentConfig
   | LeaveRequestsMountedFragmentConfig
   | SelfServiceLeaveMountedFragmentConfig
@@ -1929,12 +2070,14 @@ export type FrontendSurfaceMountedFragmentConfig =
   | AdminVenueConfigMountedFragmentConfig
   | AdminInvitesMountedFragmentConfig
   | AdminExportsMountedFragmentConfig
+  | AdminRecipientGroupsMountedFragmentConfig
   | AdminShiftTypesMountedFragmentConfig
   | AdminRosterGroupsMountedFragmentConfig
   | AdminXeroMountedFragmentConfig;
 export type FrontendSurfaceMountConfig =
     TimesheetsMountConfig
   | RosterMountConfig
+  | RosterPersonalMountConfig
   | RosterDayTimelineMountConfig
   | LeaveRequestsMountConfig
   | SelfServiceLeaveMountConfig
@@ -1949,11 +2092,12 @@ export type FrontendSurfaceMountConfig =
   | AdminVenueConfigMountConfig
   | AdminInvitesMountConfig
   | AdminExportsMountConfig
+  | AdminRecipientGroupsMountConfig
   | AdminShiftTypesMountConfig
   | AdminRosterGroupsMountConfig
   | AdminXeroMountConfig;
 export function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {
-    return (isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isFeedbackMountConfig(value) || isFeedbackModerationMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value));
+    return (isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterPersonalMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isFeedbackMountConfig(value) || isFeedbackModerationMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminRecipientGroupsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value));
 }
 
 export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig {

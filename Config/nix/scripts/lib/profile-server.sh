@@ -2,139 +2,59 @@
 # Scripts sourcing this file must set PROFILE_PID_FILE before using
 # cleanup_profile_server.
 
-_ihp_roster_profile_lib_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=common.sh
-. "$_ihp_roster_profile_lib_dir/common.sh"
-unset _ihp_roster_profile_lib_dir
-
-profile_port_available() {
-    local port="$1"
-    ! lsof -Pan -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
-}
-
-configure_profile_run_isolation() {
-    local primary_port="${PORT:-8000}"
-    local requested_port="${PROFILE_APP_PORT:-}"
-    local lock_root="${PROFILE_PORT_LOCK_ROOT:-/tmp/bepis-profile-ports-$(id -u)}"
-    local candidate slot
-
-    [[ "$primary_port" =~ ^[0-9]+$ ]] || {
-        echo "Profile primary app port must be numeric: $primary_port" >&2
-        return 64
-    }
-    mkdir -p "$lock_root"
-    chmod 700 "$lock_root"
-
-    for slot in $(seq 0 999); do
-        candidate=$((20000 + slot * 4))
-        if [ -n "$requested_port" ]; then
-            [[ "$requested_port" =~ ^[0-9]+$ ]] || {
-                echo "Profile app port must be numeric: $requested_port" >&2
-                return 64
-            }
-            candidate="$requested_port"
-            slot="explicit-$candidate"
-        fi
-        if [ "$candidate" -le "$((primary_port + 1))" ] && [ "$((candidate + 3))" -ge "$primary_port" ]; then
-            echo "Profile port allocation $candidate-$((candidate + 3)) must not overlap the primary app port pair $primary_port/$((primary_port + 1))" >&2
-            return 64
-        fi
-        if [ "$candidate" -lt 1024 ] || [ "$((candidate + 3))" -gt 65535 ]; then
-            echo "Profile app port must allow a four-port allocation within 1024..65535: $candidate" >&2
-            return 64
-        fi
-
-        exec {PROFILE_PORT_LOCK_FD}>>"$lock_root/$slot.lock"
-        if flock -n -x "$PROFILE_PORT_LOCK_FD"; then
-            if profile_port_available "$candidate" \
-                && profile_port_available "$((candidate + 1))" \
-                && profile_port_available "$((candidate + 2))" \
-                && profile_port_available "$((candidate + 3))"; then
-                PROFILE_PRIMARY_APP_PORT="$primary_port"
-                PROFILE_APP_PORT="$candidate"
-                PROFILE_IDE_PORT="$((candidate + 1))"
-                PROFILE_OTEL_GRPC_PORT="$((candidate + 2))"
-                PROFILE_OTEL_HTTP_PORT="$((candidate + 3))"
-                PORT="$PROFILE_APP_PORT"
-                APP_BASE_URL="http://127.0.0.1:$PROFILE_APP_PORT"
-                IHP_IDE_BASEURL="http://127.0.0.1:$PROFILE_IDE_PORT"
-                export PROFILE_PRIMARY_APP_PORT PROFILE_APP_PORT PROFILE_IDE_PORT
-                export PROFILE_OTEL_GRPC_PORT PROFILE_OTEL_HTTP_PORT PORT APP_BASE_URL IHP_IDE_BASEURL
-                return 0
-            fi
-            flock -u "$PROFILE_PORT_LOCK_FD"
-        fi
-        eval "exec ${PROFILE_PORT_LOCK_FD}>&-"
-        unset PROFILE_PORT_LOCK_FD
-        [ -z "$requested_port" ] || {
-            echo "Requested profile port allocation $candidate-$((candidate + 3)) is unavailable" >&2
-            return 75
-        }
-    done
-
-    echo "No isolated four-port profile allocation is available" >&2
-    return 75
-}
-
-release_profile_run_isolation() {
-    [ -n "${PROFILE_PORT_LOCK_FD:-}" ] || return 0
-    flock -u "$PROFILE_PORT_LOCK_FD" 2>/dev/null || true
-    eval "exec ${PROFILE_PORT_LOCK_FD}>&-"
-    unset PROFILE_PORT_LOCK_FD
-}
-
 build_profile_server() {
     local profile_build_dir="${PROFILE_SERVER_BUILD_DIR:-$PWD/build/ProfileServer}"
-    local profile_server="$profile_build_dir/RunProfileServer"
-    local ghc_opts
+    local ghc_opts snapshot
     # shellcheck source=ghc.sh
-    . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/ghc.sh"
+    . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
     ghc_opts="$(ihp_roster_ghc_opts)"
-    mkdir -p "$profile_build_dir"
-    exec {profile_build_lock_fd}>>"$profile_build_dir/build.lock"
-    flock -x "$profile_build_lock_fd"
-    ihp_roster_prepare_ghc_build_dir "$profile_build_dir" "$ghc_opts"
-    # shellcheck disable=SC2086 # GHC options are intentionally an argument vector.
-    ghc $ghc_opts Main.hs -o "$profile_server" \
-        -odir "$profile_build_dir/obj" -hidir "$profile_build_dir/hi"
-    flock -u "$profile_build_lock_fd"
-    eval "exec ${profile_build_lock_fd}>&-"
-    PROFILE_SERVER_EXECUTABLE="$profile_server"
+    snapshot="${PROFILE_PID_FILE:?}.executable"
+    bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$profile_build_dir" "$ghc_opts" profile-build-lock -- \
+        bash "$BEPIS_SCRIPTS_ROOT/profile/build-image" "$profile_build_dir" "$ghc_opts" "$snapshot"
+    PROFILE_SERVER_EXECUTABLE="$snapshot"
     export PROFILE_SERVER_EXECUTABLE
 }
 
-process_group_pids() {
-    ihp_roster_process_group_pids "$@"
-}
-
 detect_profile_base_url() {
-    local pgid="$1"
-    local pids ports port
-    pids=$(process_group_pids "$pgid")
-    if [ -z "$pids" ]; then
-        return 1
+    local _pid="$1"
+    local port="${BEPIS_RUNNER_PORT:-}"
+    [ -n "$port" ] || return 1
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    "$(profile_runtime_binary)" process observe "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+        profile-server "$PWD" >/dev/null 2>&1 || return 1
+    if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
+        printf 'http://127.0.0.1:%s\n' "$port"
+        return 0
     fi
-
-    ports=$(ihp_roster_listen_ports_for_pids "$pids")
-
-    for port in $ports; do
-        if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
-            printf 'http://127.0.0.1:%s\n' "$port"
-            return 0
-        fi
-    done
-
     return 1
 }
 
-cleanup_profile_server() {
-    if [ -f "$PROFILE_PID_FILE" ]; then
-        local pid
-        pid=$(cat "$PROFILE_PID_FILE")
-        kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-        rm -f "$PROFILE_PID_FILE"
+profile_runtime_binary() {
+    if [ -n "${BEPIS_RUNTIME_BINARY:-}" ]; then
+        printf '%s\n' "$BEPIS_RUNTIME_BINARY"
+        return
     fi
-    release_profile_run_isolation
+    local launcher="${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}"
+    BEPIS_RUNTIME_BINARY="$("$launcher" runtime --print-binary)"
+    export BEPIS_RUNTIME_BINARY
+    printf '%s\n' "$BEPIS_RUNTIME_BINARY"
+}
+
+start_profile_server() {
+    local label="$1"
+    shift
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    export PROFILE_OWNER_FILE
+    "$(profile_runtime_binary)" process start "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+        "$PROFILE_LOG" "$label" "$PWD" -- "$@" >/dev/null
+}
+
+cleanup_profile_server() {
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    if [ -f "$PROFILE_PID_FILE" ] || [ -f "$PROFILE_OWNER_FILE" ]; then
+        "$(profile_runtime_binary)" process stop "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+            profile-server "$PWD" 3000 >/dev/null 2>&1 || true
+    fi
 }
 
 profile_runtime_process_group_totals() {

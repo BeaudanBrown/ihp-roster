@@ -3,6 +3,7 @@ module Web.Controller.Profiles where
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Runtime (frontendSurfaceFormSavedHeader)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
@@ -27,7 +28,7 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
 import Web.Profiles.Mutations
-import Web.Staff.Mutations (updateStaffMember)
+import Web.Staff.Mutations (updateStaffMember, updateStaffShiftPreferences)
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
                                         StaffShiftPreferencesSubmission (..),
@@ -101,8 +102,8 @@ instance Controller ProfilesController where
                         let staff = renderedStaff
                         let selectedShiftPreferences = renderedPreferences
                         render EditView { .. }
-        let finishCurrentUserUpdate section validStaff submittedSelections successMessage =
-                updateCurrentUserProfile section validStaff submittedSelections >>= \case
+        let finishCurrentUserUpdate section validStaff successMessage =
+                updateCurrentUserProfile section validStaff >>= \case
                     Nothing -> do
                         setErrorMessage "Your staff access for this venue is no longer active."
                         renderProfileResponse validStaff selectedShiftPreferences
@@ -130,7 +131,16 @@ instance Controller ProfilesController where
                             setErrorMessage preferenceError
                             renderProfileResponse staff selectedShiftPreferences
                         Right submittedSelections ->
-                            finishCurrentUserUpdate "preferences" staff submittedSelections "Shift preferences updated"
+                            updateStaffShiftPreferences staff submittedSelections >>= \case
+                                Nothing -> do
+                                    setErrorMessage "Your staff access for this venue is no longer active."
+                                    renderProfileResponse staff selectedShiftPreferences
+                                Just mutationResult ->
+                                    if isHtmxRequest
+                                        then respondWithProfileActorInvalidation staff mutationResult "Shift preferences updated"
+                                        else do
+                                            setSuccessMessage "Shift preferences updated"
+                                            redirectTo EditProfileAction
             Right (SubmittedStaffProfileDetails submitted)
                 | submitted.submittedProfileSection /= StaffProfileDetailsSection -> do
                     setErrorMessage "Choose a valid profile section."
@@ -149,7 +159,7 @@ instance Controller ProfilesController where
                                 if canManageProfileStaff
                                     then case (maybeExistingStaff, maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                         (Just originalStaff, Just selectedRosterGroupIds, Just _, Just _) -> do
-                                            updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences Nothing Nothing >>= \case
+                                            updateStaffMember originalStaff validStaff selectedRosterGroupIds Nothing Nothing >>= \case
                                                 Nothing -> do
                                                     setErrorMessage "This staff member is no longer active."
                                                     renderProfileResponse originalStaff selectedShiftPreferences
@@ -161,10 +171,11 @@ instance Controller ProfilesController where
                                                             setSuccessMessage "Profile updated"
                                                             redirectTo EditProfileAction
                                         _ -> renderProfileResponse validStaff selectedShiftPreferences
-                                    else finishCurrentUserUpdate "profile" validStaff selectedShiftPreferences "Profile updated"
+                                    else finishCurrentUserUpdate "profile" validStaff "Profile updated"
 
 respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> LiveMutationResult value -> Text -> IO ResponseReceived
 respondWithProfileActorInvalidation staff mutationResult successMessage = do
+    setHeader (fromString (cs frontendSurfaceFormSavedHeader), "true")
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (profileSurfaceScope scope) mutationResult.liveMutationTouchedResources (profileCandidateMountedFragments scope)

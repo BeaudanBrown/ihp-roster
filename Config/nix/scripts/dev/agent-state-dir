@@ -2,5 +2,4 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
-bepis_workspace_configure
-printf '%s\n' "$DEVENV_AGENT_STATE_DIR"
+exec "$(bepis_workspace_tooling_launcher)" workspace agent-state-dir

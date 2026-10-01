@@ -29,8 +29,8 @@ data AvailabilityWarningDay = AvailabilityWarningDay
     , availabilityWarningDayStaff :: !(Map.Map UUID AvailabilityWarningStaff)
     }
 
-buildAvailabilityWarningPeriods :: Int -> [Staff] -> [LeaveRequest] -> [AvailabilityWarningPeriod]
-buildAvailabilityWarningPeriods threshold staffMembers leaveRequests =
+buildAvailabilityWarningPeriods :: Day -> Int -> [Staff] -> [LeaveRequest] -> [AvailabilityWarningPeriod]
+buildAvailabilityWarningPeriods today threshold staffMembers leaveRequests =
     groupWarningDays warningDays
   where
     eligibleStaff =
@@ -54,7 +54,7 @@ buildAvailabilityWarningPeriods threshold staffMembers leaveRequests =
                     foldl'
                         (\days day -> Map.insertWith (Map.unionWith mergeWarningStaff) day (Map.singleton leaveRequest.staffId (warningStaff staff leaveRequest.status)) days)
                         byDay
-                        [leaveRequest.startDate .. addDays (-1) leaveRequest.endDate]
+                        [max today leaveRequest.startDate .. addDays (-1) leaveRequest.endDate]
             _ -> byDay
     warningStaff staff status =
         AvailabilityWarningStaff

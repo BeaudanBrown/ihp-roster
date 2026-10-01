@@ -29,6 +29,7 @@
     align-items: center;
     justify-content: center;
     width: 5.1rem;
+    padding-inline: 0.35rem;
     min-height: 2.25rem;
     margin: 0;
     cursor: pointer;

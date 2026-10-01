@@ -4,9 +4,14 @@
 
 - Records are venue- and staff-scoped. Backing status is `pending`, `approved`,
   or `denied`; lifecycle transitions append event/audit provenance rather than
-  silently deleting reviewed history. Staff may soft-delete only their own pending
-  requests from Profile; approved and denied history remains read-only.
+  erasing reviewed history. Staff may soft-delete their own current or upcoming
+  requests at any status from Profile. Managers may also soft-delete current or
+  upcoming requests for staff in their venue from Staff Edit or Unavailability.
+  Deleting an approved request removes its availability block, not assigned shifts.
 - `end_date` is exclusive. A one-day unavailable period is `[day, day + 1)`.
+  A request is past once its exclusive end date is on or before the venue-local
+  calendar day. Profile and Staff Edit show no past requests. The manager
+  Unavailability page alone shows them in its read-only Archive.
 - Staff-facing copy uses **Unavailability**, **Unavailable period**, and **Add
   unavailable time** while the backing schema retains leave terminology.
 - Staff self-service, manager review, and support behavior remain server-authorized.
@@ -37,13 +42,29 @@
 - Admins, owners, and founder support may manage venue-wide blackout periods;
   managers may only view them. Blackout dates are inclusive, venue-local,
   non-overlapping, and at most 366 days. Their normalized reason is visible to
-  staff.
-- Any new unavailable range overlapping a blackout is rejected in full, with no
-  role override. Existing requests remain valid when a later blackout is added.
+  staff. Blackout validation replaces only the submitted form, retaining its
+  surrounding open editor and other unfinished forms. A successful save returns
+  the saved period to its collapsed summary.
+- A blackout intersection or a newly exceeded daily maximum blocks the whole
+  draft. Staff receive affected dates but no other staff identities. Managers
+  and above can go back to edit or confirm one exception for any scoped target,
+  including themselves. This never changes the blackout. Existing requests remain
+  valid when a later blackout is added.
+- The optional maximum per day (1–100) is independent of warnings; when both
+  are set, warning cannot exceed maximum. Count distinct eligible people per
+  venue-local date from today, not forms. A person already counted on a date
+  consumes no additional place. Approval of a denied request can require a
+  capacity exception, but never a blackout exception.
+- Confirmations bind actor, venue, target, operation, draft and conflicts.
+  Reauthorize and recompute under the venue policy lock; new or worse conflicts
+  require another confirmation. One accepted confirmation commits one audited
+  submission or review; preview, Back to edit and replay add no requests.
 - The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.
   Warnings count distinct active, unarchived staff with pending or approved
   requests per calendar date, never block submission, and are manager-visible
-  only when the threshold is met.
+  only when the threshold is met. Warnings cover today onward in the venue's
+  timezone; past dates are excluded before counting and grouping, including
+  the past portion of requests spanning today. Request history is preserved.
 
 Exact normalization, overlap, grouping, and projection behavior is authoritative
 in `Blackouts.hs`, `AvailabilityWarnings.hs`, the schema, and focused tests.

@@ -7,6 +7,10 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminVenueSettingsSurface
     , AdminInvitesSurface
     , AdminExportsSurface
+    , AdminRecipientGroupsSurface
+    , AdminRecipientGroupsScope
+    , AdminRecipientGroupsFragment
+    , AdminRecipientGroups
     , AdminShiftTypesSurface
     , AdminRosterGroupsSurface
     , AdminXeroSurface
@@ -71,6 +75,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RosterWeekStartsOn
     , RosterCalendarRevision
     , UnavailableStaffWarningThreshold
+    , UnavailableStaffDailyMaximum
     , Email
     , RangeStart
     , RangeEnd
@@ -98,6 +103,7 @@ data AdminXeroPageScope
 data AdminVenueConfigScope
 data AdminInvitesScope
 data AdminExportsScope
+data AdminRecipientGroupsScope
 data AdminShiftTypesScope
 data AdminRosterGroupsScope
 data AdminXeroScope
@@ -109,6 +115,7 @@ data AdminXeroPage
 data AdminVenueConfig
 data AdminInvites
 data AdminExports
+data AdminRecipientGroups
 data AdminShiftTypes
 data AdminRosterGroups
 data AdminXero
@@ -119,6 +126,7 @@ data AdminVenueSettingsFragment
 data AdminRosterWindowStartDaySetting
 data AdminInvitesFragment
 data AdminExportsFragment
+data AdminRecipientGroupsFragment
 data AdminShiftTypesFragment
 data AdminRosterGroupsFragment
 data AdminXeroShellFragment
@@ -158,6 +166,7 @@ data TimePickerEnd
 data RosterWeekStartsOn
 data RosterCalendarRevision
 data UnavailableStaffWarningThreshold
+data UnavailableStaffDailyMaximum
 data Email
 data RangeStart
 data RangeEnd
@@ -191,6 +200,7 @@ data XeroReferenceSyncState
 type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]
 type AdminInvitesResource = Resource AdminInvites '[ Field VenueId 'WireUUID ]
 type AdminExportsResource = Resource AdminExports '[ Field VenueId 'WireUUID ]
+type AdminRecipientGroupsResource = Resource AdminRecipientGroups '[ Field VenueId 'WireUUID ]
 type AdminShiftTypesResource = Resource AdminShiftTypes '[ Field VenueId 'WireUUID ]
 type AdminRosterGroupsResource = Resource AdminRosterGroups '[ Field VenueId 'WireUUID ]
 type XeroConnectionResource = Resource XeroConnection '[ Field VenueId 'WireUUID ]
@@ -205,9 +215,16 @@ type AdminPageSurface =
              , ContainsSurface AdminInvites
              , ContainsSurface AdminVenueConfig
              , ContainsSurface AdminExports
+             , ContainsSurface AdminRecipientGroups
              , ContainsSurface AdminShiftTypes
              , ContainsSurface AdminRosterGroups
              ]
+         ]
+
+type AdminRecipientGroupsSurface =
+    Surface AdminRecipientGroups
+        '[ Scope AdminRecipientGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
+         , Fragment AdminRecipientGroupsFragment '[] '[ 'MountTarget AdminRecipientGroupsFragment '[], 'Eager, 'Live, 'DependsOn AdminRecipientGroupsResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminXeroPageSurface =
@@ -250,7 +267,9 @@ type AdminVenueSettingsSurface =
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
              ]
          , Action UpdateUnavailableStaffWarningThreshold
-            '[ OptionalField UnavailableStaffWarningThreshold 'WireInt ]
+            '[ OptionalField UnavailableStaffWarningThreshold 'WireInt
+             , OptionalField UnavailableStaffDailyMaximum 'WireInt
+             ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
              , 'HtmxSwap 'HtmxNoSwap
@@ -306,7 +325,10 @@ type AdminInvitesSurface =
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminExportsFragment '[] '[ 'MountTarget AdminExportsFragment '[], 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminExportsFragment '[] '[ 'MountTarget AdminExportsFragment '[], 'Eager, 'Live
+             , 'DependsOn AdminExportsResource '[ 'FromScope VenueId ]
+             , 'DependsOn AdminRecipientGroupsResource '[ 'FromScope VenueId ]
+             , 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
          , Action CreateExportJob
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay

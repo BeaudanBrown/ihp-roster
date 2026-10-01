@@ -11,29 +11,6 @@ ihp_roster_detect_cpu_count() {
     printf '1\n'
 }
 
-ihp_roster_process_group_pids() {
-    local pgid="$1"
-    pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
-}
-
-ihp_roster_listen_ports_for_pids() {
-    local pids="$1"
-    local lsof_pid_args=()
-    local pid
-
-    for pid in $pids; do
-        lsof_pid_args+=(-p "$pid")
-    done
-
-    if [ "${#lsof_pid_args[@]}" -eq 0 ]; then
-        return 1
-    fi
-
-    lsof -Pan -iTCP -sTCP:LISTEN "${lsof_pid_args[@]}" 2>/dev/null \
-        | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
-        | sort -n -u
-}
-
 ihp_roster_configure_test_postgres() {
     local mode="${TEST_POSTGRES_MODE:-}"
     local scripts_root

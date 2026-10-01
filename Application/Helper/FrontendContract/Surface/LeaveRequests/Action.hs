@@ -1,5 +1,9 @@
 module Application.Helper.FrontendContract.Surface.LeaveRequests.Action
-    ( approveLeaveRequestAction
+    ( resolveLeavePolicyAction
+    , resolveLeavePolicyActionFields
+    , resolveLeavePolicyActionParamsPresent
+    , parseResolveLeavePolicyActionParams
+    , approveLeaveRequestAction
     , createUnavailabilityBlackoutAction
     , createUnavailabilityBlackoutActionFields
     , deleteUnavailabilityBlackoutAction
@@ -17,7 +21,11 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Action
     , updateUnavailabilityBlackoutActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action (approveLeaveRequestAction,
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action (resolveLeavePolicyAction,
+                                                                                   resolveLeavePolicyActionFields,
+                                                                                   resolveLeavePolicyActionParamsPresent,
+                                                                                   parseResolveLeavePolicyActionParams,
+                                                                                   approveLeaveRequestAction,
                                                                                    approveLeaveRequestActionFields,
                                                                                    archiveLeaveRequestsPageAction,
                                                                                    archiveLeaveRequestsPageActionFields,

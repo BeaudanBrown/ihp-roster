@@ -3,7 +3,7 @@
 `Application.Helper.FrontendContract` owns browser-visible contracts. Haskell
 declarations are reflected into checked IR and generate
 `frontend/ts/generated/contracts.ts`; server rendering, wire validation,
-architecture facts, and TypeScript generation consume that same model.
+and TypeScript generation consume that same model.
 
 ## Interfaces And Ownership
 
@@ -70,15 +70,15 @@ do not leak into either registry.
 ## Generated Haskell Surface Adapters
 
 Frontend-contract generation is a separate Nix output, not a production runtime
-entry point. `.#frontend-contract-tools` owns the TypeScript contract renderer,
-Surface Haskell-adapter renderer, and typed architecture emitter. Its checked
+entry point. `.#frontend-contract-tools` owns the TypeScript contract and
+Surface Haskell-adapter renderers. Its checked
 module inventory distinguishes tooling-only modules from shared canonical
 authority modules without duplicating those source-derived counts here; shared
 reflection remains in production only where runtime
 builders, parsers, values, or metadata actually import it. The optimized server
 closure must never reference the tooling output. Package-backed CI freshness
-checks regenerate TypeScript, all managed Haskell adapters and private proofs,
-and architecture contracts before accepting checked-in generated artifacts.
+checks regenerate TypeScript and all managed Haskell adapters and private
+proofs before accepting checked-in generated artifacts.
 
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
@@ -232,7 +232,7 @@ permit only those generated edges plus the compatibility runtime and reject ever
 feature caller. Field construction remains in `Surface.Values`, exact parsing in
 `Surface.Request`, and HTML rendering in `Surface.Runtime`.
 
-`architecture-surface-request-closure` derives the focused request-facade
+`frontend-request-closure-check` derives the focused request-facade
 closures from source and rejects registered Surface catalogs, mount/live/wire
 runtime, private proofs, and adapter-generator machinery in those closures. Its
 policy file owns the exact expected module sets; do not duplicate generated
@@ -240,8 +240,8 @@ counts in prose.
 
 `HaskellAdapter.Registry` is the single typed authority for Action/Intent homes
 and operation eligibility, including explicit parser-only or excluded
-operations. `frontend-operation-evidence-matrix.tsv` owns compile-failure
-coverage and provenance. Generated modules remain private behind feature
+operations. `frontend-surface-compile-fail-check` registers the negative
+fixtures and their expected diagnostics. Generated modules remain private behind feature
 facades, production callers cannot use generic parser/metadata calls, and raw
 field constructors expose no bundle split or re-indexing path.
 

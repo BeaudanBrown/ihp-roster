@@ -27,9 +27,11 @@ or a branch name.
 ## Evidence and diagnosis
 
 A warm rehearsal normally completes in under 60 seconds. Cold CI targets under
-90 seconds after existing Nix realization. The harness owns two uniquely named
-databases in its managed disposable PostgreSQL profile and drops both on
-success, failure, or interruption.
+90 seconds after existing Nix realization. The independent PostgreSQL tooling owner validates the pinned plan, owns the
+bounded run directory and child process group, and allocates two uniquely named
+databases in its managed disposable profile. It terminates the migration child
+before dropping both databases on success, failure, or interruption. The shell
+recipe retains only application schema, SQL assertion, and comparison semantics.
 
 With `--keep-failure-artifacts`, failure evidence is retained under:
 

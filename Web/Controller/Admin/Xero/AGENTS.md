@@ -17,8 +17,10 @@ Read this before editing Xero admin controller submodules.
 - Imported pay-item dialog actions belong in `ImportedPayItems.hs`.
 - Reference sync actions belong in `ReferenceSync.hs` and call the shared
   application service.
-- Guided preparation actions belong in `Timesheets.hs`; do not recreate
-  standalone mapping/readiness panels or pre-wizard preview/submit/retry routes.
+- Guided preparation orchestration belongs in `Timesheets.hs`; its operation-local
+  shift checklist transport belongs in `Selection.hs`. Keep selection validation
+  and persistence in the Application layer. Do not recreate standalone
+  mapping/readiness panels or pre-wizard preview/submit/retry routes.
 - Shared controller response helpers belong in `Responses.hs`.
 
 ## Verification

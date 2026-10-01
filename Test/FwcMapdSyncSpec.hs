@@ -1,5 +1,8 @@
 module Test.FwcMapdSyncSpec where
 
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
+import Application.Helper.LiveUpdate.DurableCodec (decodeDurableResource, encodeDurableResource)
+
 import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
                                    assembleCanonicalClassificationValues,
                                    assemblePagedResults,
@@ -296,10 +299,17 @@ databaseTests = do
                     let summary = MapdPayload.MapdSyncSummary [] 0 0 0 0 0
                     performFwcMapdRefreshJobWith (pure (Right summary)) appJob
                     [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.award_rates.refresh" :: Text) |> fetch
-                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
-                    [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
-                    freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
-                    freshnessCheck.runAt `shouldSatisfy` (> addUTCTime fwcMaximumAge appJob.createdAt)
+                    resources <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                    map (\resource -> decodeDurableResource resource.resourceKey resource.resourcePayload) resources
+                        `shouldBe` [encodeDurableResource supportAwardRatesResource]
+                    completedJob <- fetch appJob.id
+                    completedJob.status `shouldBe` JobStatusSucceeded
+                    now <- getCurrentTime
+                    healthChecks <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
+                    map (\check -> (check.relatedId, check.runAt <= now)) healthChecks
+                        `shouldMatchList` [(Nothing, True), (Just (unpackId appJob.id), False)]
+                    forM_ (filter (isJust . (.relatedId)) healthChecks) \freshnessCheck ->
+                        freshnessCheck.runAt `shouldSatisfy` (> addUTCTime fwcMaximumAge appJob.createdAt)
 
             it "projects invalid provider snapshots to the safe job boundary" $ withContext do
                 withCleanDb do

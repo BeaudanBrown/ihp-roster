@@ -45,6 +45,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
+import Application.UnavailabilityBlackout.Mutations (lockVenueUnavailabilityBlackoutInCurrentTransaction)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction,
                                               withVenueInvitationRenewalLockInCurrentTransaction)
 import Control.Monad (void)
@@ -107,12 +108,15 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled =
             |> updateRecord
         pure (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
 
-setUnavailableStaffWarningThresholdMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe Int -> IO (LiveMutationResult VenueConfig)
-setUnavailableStaffWarningThresholdMutation venueConfig threshold =
+setUnavailableStaffWarningThresholdMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Int -> Maybe Int -> IO (LiveMutationResult VenueConfig)
+setUnavailableStaffWarningThresholdMutation threshold dailyMaximum =
     withDurableLiveMutation "admin.venue_config.unavailable_staff_warning_threshold" do
+        lockVenueUnavailabilityBlackoutInCurrentTransaction (unpackId currentVenueId)
+        venueConfig <- fetchVenueConfig
         now <- getCurrentTime
         updated <- venueConfig
             |> set #unavailableStaffWarningThreshold threshold
+            |> set #unavailableStaffDailyMaximum dailyMaximum
             |> set #updatedAt now
             |> updateRecord
         pure (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [leaveAvailabilityWarningsResource (unpackId currentVenueId)]))

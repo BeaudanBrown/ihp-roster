@@ -1,0 +1,8 @@
+packages:
+  tooling/core
+  tooling/workspace-state
+  tooling/postgres
+  tooling/runtime
+  tooling/epic-lifecycle
+  tooling/artifacts
+  tooling/runners

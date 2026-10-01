@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+durable_root="$fixture_root/durable"
+disposable_root="$fixture_root/disposable"
+concurrent_root="$fixture_root/concurrent"
+cleanup() {
+    DEV_POSTGRES_REPO_ROOT="$repo_root" DEV_POSTGRES_ROOT="$durable_root" dev-postgres stop >/dev/null 2>&1 || true
+    TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-postgres stop >/dev/null 2>&1 || true
+    TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$concurrent_root" test-postgres stop >/dev/null 2>&1 || true
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "postgres-lifecycle-test: $*" >&2
+    exit 1
+}
+
+# Durable development stop/start preserves customer-like local data.
+durable_socket="$(DEV_POSTGRES_REPO_ROOT="$repo_root" DEV_POSTGRES_ROOT="$durable_root" dev-postgres ensure)"
+psql -X -q -h "$durable_socket" -d app -v ON_ERROR_STOP=1 \
+    -c "CREATE TABLE durable_probe(value text); INSERT INTO durable_probe VALUES ('kept')" >/dev/null
+psql -X -q -h "$durable_socket" -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE external_shell_probe' >/dev/null
+DEV_POSTGRES_REPO_ROOT="$repo_root" DEV_POSTGRES_ROOT="$durable_root" dev-postgres stop >/dev/null
+durable_socket="$(DEV_POSTGRES_REPO_ROOT="$repo_root" DEV_POSTGRES_ROOT="$durable_root" dev-postgres ensure)"
+[ "$(psql -X -q -h "$durable_socket" -d app -At -v ON_ERROR_STOP=1 -c 'SELECT value FROM durable_probe')" = kept ] \
+    || fail "durable stop/start lost data"
+
+# Disposable Hspec stop removes only its validated owned data.
+disposable_socket="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-postgres ensure)"
+first_instance="$(cat "$disposable_root/instance-id")"
+psql -X -q -h "$disposable_socket" -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE disposable_probe' >/dev/null
+TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-postgres stop >/dev/null
+[ ! -e "$disposable_root/data" ] || fail "disposable stop preserved cluster data"
+disposable_socket="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-postgres ensure)"
+[ "$(cat "$disposable_root/instance-id")" != "$first_instance" ] || fail "disposable ensure reused removed instance"
+
+# Real shard resets must wait for template publication, then clone independent
+# databases. Hold the published flock path to make contention deterministic.
+postgres_binary="$("$repo_root/bin/tooling-run" postgres --print-binary)"
+python3 - "$repo_root" "$fixture_root/template" "$disposable_socket" "$postgres_binary" <<'PY'
+import fcntl
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+
+repo, root, socket, binary = sys.argv[1:]
+root = Path(root)
+for directory in ["Application", "ihp/ihp-ide/data", ".devenv"]:
+    (root / directory).mkdir(parents=True, exist_ok=True)
+(root / "ihp/ihp-ide/data/IHPSchema.sql").write_text("SELECT 1;\n")
+(root / "Application/Schema.sql").write_text("CREATE TABLE clone_probe (value text NOT NULL);\n")
+(root / "Application/Fixtures.sql").write_text("INSERT INTO clone_probe VALUES ('seeded');\n")
+launcher = root / "launcher"
+# Resolve the fresh executable once; build latency must not hide contention.
+launcher.write_text('#!/usr/bin/env bash\nshift\ntouch "$TEST_DATABASE_NAME.entered"\nexec "$TEMPLATE_TEST_POSTGRES_BINARY" "$@"\n')
+launcher.chmod(0o700)
+env = dict(os.environ, IHP_DEV_CHECKOUT=str(root / "ihp"), TEST_DB_SOCKET=socket,
+           TEST_DB_RESET_MODE="template", TEST_DB_LOAD_E2E_FIXTURES="0",
+           BEPIS_TEST_DB_TEMPLATE_HELD="0", BEPIS_TOOLING_LAUNCHER=str(launcher),
+           TEMPLATE_TEST_POSTGRES_BINARY=binary)
+processes = []
+with (root / ".devenv/test-db-template.lock").open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        for index in range(3):
+            database = f"reset_probe_{index}"
+            process = subprocess.Popen(["bash", f"{repo}/Config/nix/scripts/db/test-db-reset"],
+                cwd=root, env=dict(env, TEST_DATABASE_NAME=database),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+            processes.append((database, process))
+        deadline = time.monotonic() + 5
+        while not all((root / f"{database}.entered").exists() for database, _ in processes):
+            assert time.monotonic() < deadline, "shard resets did not reach template lock"
+            time.sleep(0.01)
+        # Give an incorrectly non-blocking owner time to exit while held.
+        time.sleep(0.2)
+        assert all(process.poll() is None for _, process in processes), "shard reset failed instead of waiting for template publication"
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        for database, process in processes:
+            output, _ = process.communicate(timeout=15)
+            assert process.returncode == 0, f"{database}: {output}"
+            value = subprocess.check_output(["psql", "-X", "-At", "-h", socket, "-d", database,
+                "-v", "ON_ERROR_STOP=1", "-c", "SELECT value FROM clone_probe"], text=True)
+            assert value.strip() == "seeded", f"{database}: incomplete schema clone"
+        count = subprocess.check_output(["psql", "-X", "-At", "-h", socket, "-d", "postgres",
+            "-c", "SELECT count(*) FROM pg_database WHERE datname LIKE 'ihp_roster_test_template_%'"], text=True)
+        assert count.strip() == "1", "template published more than once or staging database leaked"
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        for _, process in processes:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+            process.communicate(timeout=5)
+print("postgres-lifecycle-test: concurrent schema-template resets passed")
+PY
+
+# External mode never owns, recreates, stops, or cleans the supplied server.
+external_sentinel="$fixture_root/external-sentinel"
+printf 'keep\n' >"$external_sentinel"
+for command_name in recreate; do
+    set +e
+    output="$(DEV_POSTGRES_MODE=external DEV_POSTGRES_SOCKET="$durable_socket" dev-postgres "$command_name" 2>&1)"
+    status=$?
+    set -e
+    [ "$status" = 73 ] && [[ "$output" == *"refusing"* ]] || fail "external development $command_name was not refused"
+done
+set +e
+output="$(E2E_POSTGRES_MODE=external E2E_DB_SOCKET="$durable_socket" e2e-postgres cleanup --apply 2>&1)"
+status=$?
+set -e
+[ "$status" = 73 ] && [[ "$output" == *"refusing cleanup"* ]] || fail "external E2E cleanup was not refused"
+[ "$(cat "$external_sentinel")" = keep ] || fail "external mode mutated unrelated data"
+external_status="$(cd / && DEV_POSTGRES_MODE=external DEV_POSTGRES_SOCKET="$durable_socket" "$repo_root/bin/tooling-run" postgres profile dev status)"
+[[ "$external_status" == *"state=running"* ]] || fail "external mode required a repository checkout"
+[ "$(cd / && DEV_POSTGRES_MODE=external DEV_POSTGRES_SOCKET="$durable_socket" DEV_DATABASE_NAME=external_shell_probe "$repo_root/bin/tooling-run" postgres profile dev shell -At -c 'SELECT current_database()')" = external_shell_probe ] \
+    || fail "external development shell ignored DEV_DATABASE_NAME"
+[ "$(cd / && E2E_POSTGRES_MODE=external E2E_DB_SOCKET="$durable_socket" TEST_DATABASE_NAME=external_shell_probe "$repo_root/bin/tooling-run" postgres profile e2e shell -At -c 'SELECT current_database()')" = external_shell_probe ] \
+    || fail "external E2E shell ignored TEST_DATABASE_NAME"
+
+# Managed logs are rotated by PostgreSQL and retrieval is capped.
+[ "$(psql -X -q -h "$durable_socket" -d postgres -At -c 'SHOW logging_collector')" = on ] || fail "server log collector is disabled"
+set +e
+log_output="$(DEV_POSTGRES_REPO_ROOT="$repo_root" DEV_POSTGRES_ROOT="$durable_root" dev-postgres log 1001 2>&1)"
+log_status=$?
+set -e
+[ "$log_status" = 64 ] && [[ "$log_output" == *"between 1 and 1000"* ]] || fail "managed log retrieval was not bounded"
+set +e
+recovery_output="$(PORT=1 BEPIS_DEV_DB_APP_WAS_RUNNING=1 BEPIS_DEV_DB_RECOVERY_ATTEMPTS=0 "$repo_root/bin/tooling-run" postgres wait-app-recovery 2>&1)"
+recovery_status=$?
+set -e
+[ "$recovery_status" = 64 ] && [[ "$recovery_output" == *"must be positive"* ]] || fail "invalid recovery retry budget was accepted"
+
+# Foreign and symlinked roots fail before mutation.
+foreign_root="$fixture_root/foreign"
+mkdir "$foreign_root"
+printf 'sentinel\n' >"$foreign_root/keep"
+set +e
+foreign_output="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$foreign_root" test-postgres ensure 2>&1)"
+foreign_status=$?
+set -e
+[ "$foreign_status" = 73 ] && [[ "$foreign_output" == *"non-empty unowned"* ]] || fail "foreign root was not refused"
+[ "$(cat "$foreign_root/keep")" = sentinel ] || fail "foreign root was mutated"
+symlink_target="$fixture_root/symlink-target"
+symlink_root="$fixture_root/symlink-root"
+mkdir "$symlink_target"
+ln -s "$symlink_target" "$symlink_root"
+set +e
+symlink_output="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$symlink_root" test-postgres ensure 2>&1)"
+symlink_status=$?
+set -e
+[ "$symlink_status" = 73 ] && [[ "$symlink_output" == *"refusing symlink state root"* ]] || fail "symlink root was not refused"
+[ -z "$(find "$symlink_target" -mindepth 1 -print -quit)" ] || fail "symlink target was mutated"
+
+# A stale-looking cluster owned by a live process is never deleted.
+stale_root="$fixture_root/stale"
+TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$stale_root" test-postgres prepare-root >/dev/null
+mkdir "$stale_root/data"
+printf '%s\n' "$$" >"$stale_root/data/postmaster.pid"
+printf 'sentinel\n' >"$stale_root/data/keep"
+set +e
+stale_output="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$stale_root" test-postgres ensure 2>&1)"
+stale_status=$?
+set -e
+[ "$stale_status" = 73 ] && [[ "$stale_output" == *"not healthy"* ]] || fail "live stale PID was not refused"
+[ "$(cat "$stale_root/data/keep")" = sentinel ] || fail "stale live cluster was deleted"
+
+# Simultaneous ensure requests converge under the lifecycle lock.
+first_output="$fixture_root/first-socket"
+second_output="$fixture_root/second-socket"
+TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$concurrent_root" test-postgres ensure >"$first_output" &
+first_pid=$!
+TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$concurrent_root" test-postgres ensure >"$second_output" &
+second_pid=$!
+wait "$first_pid"
+wait "$second_pid"
+cmp -s "$first_output" "$second_output" || fail "concurrent ensure returned different sockets"
+[ "$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$concurrent_root" test-postgres status | grep -c '^state=running$')" = 1 ] \
+    || fail "concurrent ensure did not leave one healthy instance"
+
+echo "postgres-lifecycle-test: ok"

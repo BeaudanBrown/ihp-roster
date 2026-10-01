@@ -7,11 +7,13 @@ import Application.VenueTime.Model (ValidatedTimesheetTiming,
                                     timesheetTimingEndTime,
                                     timesheetTimingStartTime,
                                     timesheetTimingWorkedOn)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WagePublication (StaffHoursBucketKind (..),
                                     StaffHoursContribution (..))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Ratio (denominator, numerator)
@@ -21,6 +23,13 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
+
+payrollWorkbookFileName :: Text -> Day -> Day -> Text
+payrollWorkbookFileName configuredName rangeStart rangeEnd =
+    stem <> "-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
+  where
+    slug = Text.intercalate "-" (filter (not . Text.null) (Text.split (not . Char.isAlphaNum) (Text.toLower configuredName)))
+    stem = if Text.null slug then "payroll-workbook" else slug
 
 renderTextZipBase64 :: [(Text, Text)] -> Text
 renderTextZipBase64 files =
@@ -324,9 +333,9 @@ renderApprovedTimesheetCsv entriesWithTiming staffById approversById versionMani
 formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)
 
-formatElapsedSeconds :: NominalDiffTime -> Text
-formatElapsedSeconds elapsedSeconds =
-    tshow (fromRational (toRational elapsedSeconds) :: Scientific.Scientific)
+formatElapsedSeconds :: Seconds.Seconds -> Text
+formatElapsedSeconds duration =
+    tshow (fromInteger (Seconds.toSeconds duration) :: Scientific.Scientific)
 
 formatUtc :: UTCTime -> Text
 formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" timestamp)

@@ -10,8 +10,8 @@ terminal delivery outcomes.
 
 ## Envelope
 
-All delivery uses the `email_delivery` `AppJob` kind and payload schema version 1.
-Each envelope contains:
+All delivery uses the `email_delivery` `AppJob` kind. Account mail uses payload
+schema version 1. Each account envelope contains:
 
 - a versioned domain mail kind;
 - one snapshotted recipient account ID and address; and
@@ -38,6 +38,30 @@ belong in the payload, job result, or application logs. `related_table`, `relate
 - Results contain only delivery status, mail kind, domain-reference ID, and a bounded
   skip reason. Failure details remain in the queue's existing bounded error field.
 
+## Payroll group mail
+
+Version 2 is a closed payroll-group envelope containing the mail kind and retained
+`payroll_report_runs` reference, not an invented account identity. The run owns the
+immutable external recipient list and export artifact. Group enqueue shares the
+permanent email-job dedupe index. Raw-MIME construction supports all recipients in
+To and Reply-To; the SMTP call remains exclusively in `Application.EmailDelivery`.
+Existing version-1 mail is unchanged.
+
+Payroll sends revalidate cancellation/selection revisions and artifact expiry before
+dispatch. Delivery-disabled outcomes are terminal. The adapter commits an uncertain
+attempt before calling SMTP; a crash or transport exception never causes a blind
+whole-list retry. The pinned SMTP interface cannot distinguish every failure phase,
+so transport exceptions are conservatively acceptance-unknown. Pre-transport queue
+failures retain normal IHP retries. Only explicit updated sends recover uncertain
+or partially delivered reports; they generate new snapshots for the full current list.
+
+Adverse provider events are sticky at the report level, including older events:
+another recipient's delivered event cannot erase a group bounce. Exact Message-ID/
+provider-ID correlation remains authoritative. Minimal, deduplicated operational
+incidents alert active platform super admins; report addresses and payroll bytes
+never enter operational alerts. The mail attachment cap is 29,000,000 decoded bytes,
+leaving MIME/base64 headroom under Resend's 40 MB encoded message limit.
+
 ## Feedback mail kind
 
 `feedback_submitted_v1` selects every active platform super-admin account at enqueue
@@ -50,22 +74,29 @@ text with escaped feedback content, triage diagnostics, an explicitly labelled
 venue-local timestamp, and the Feedback review URL. Sender and reply-to remain
 system-controlled. Moderation does not enqueue submitter notifications.
 
-## Wage-source alert mail kinds
+## Wage-source incident mail
 
-Versioned FWC and DataVic alert kinds reference a completed
-`wage_source_health_check` job. That domain job snapshots only bounded source facts,
-never raw refresh exceptions or rendered mail. Final refresh failures evaluate after
-the tenth attempt; successful refreshes schedule one check just after the shared
-8-day or 45-day freshness boundary. A newer complete snapshot supersedes the delayed
-check without cancelling it.
+FWC and DataVic health checks now reconcile one source-scoped operational incident
+instead of sending independently for failure, missing, stale and annual symptoms.
+The retained health-check result contains bounded diagnostic snapshots for Support,
+while the incident event is the durable mail reference. Final refresh failures still
+qualify only after the tenth attempt. Successful refreshes enqueue immediate recovery
+reconciliation plus a check just after the 8-day or 45-day freshness boundary; the
+host refresh sweeps also enqueue reconciliation independently of each refresh attempt.
 
-Failure, missing, stale, and annual-FWC incidents use separate semantic keys. DataVic
-missing/stale incidents aggregate the Melbourne-local previous, current, and next
-years. Annual FWC evaluation begins with the earliest affected active venue calendar
-and is the only condition deferred when no active venue exists. Alert recipients are
-active platform super admins selected at incident evaluation; their addresses and the
-incident snapshot remain authoritative after enqueue, including when the source
-recovers before delivery.
+Symptoms are aggregated before dispatch. Provider failure remains distinct from
+usable payroll coverage, and a verified holiday override may mitigate affected-year
+coverage without resolving DataVic provider failure. Higher declared payroll impact
+can create one escalation; unchanged polls create no reminders. DataVic coverage uses
+the Melbourne-local previous, current and next years. Annual FWC evaluation begins
+with the earliest affected active venue calendar and is the only condition deferred
+when no active venue exists. Active platform super admins are snapshotted per event;
+a queued event remains deliverable after later source or recipient changes.
+
+Legacy wage-source mail kinds remain dispatchable for already queued jobs. The cutover
+migration seeds only a bounded incident sentinel from historical jobs, preserving all
+old queue history while suppressing blind deployment re-alerts until recovery and a
+genuine recurrence.
 
 ## Award drift and billing mail kinds
 
@@ -137,6 +168,22 @@ then. Enabled obsolete jobs are `delivery_skipped`; disabled jobs are
 `delivery_disabled`; sent, skipped, disabled, consumed, replaced, revoked, and final
 failure paths clear recoverable password/passkey delivery material. Direct account-mail
 transport and domain-specific transport fakes no longer exist.
+
+## Host watchdog direct delivery
+
+The Rozzy host watchdog is the sole worker-independent exception to queued
+application delivery. Its systemd-owned local outbox snapshots active platform
+super-admin recipients through security-definer database functions exposed only
+to the peer-authenticated `bepis_watchdog` role. It sends the same bounded
+operational transition through Resend with a stable event/recipient idempotency
+key, then mirrors the incident event and aggregate direct dispatch outcome into
+Support. It never reads customer/payroll records or application provider secrets,
+and cannot send business notifications. Database or Resend failure retains the
+same local event for retry; it does not create reminders or a fallback channel.
+The same boundary projects only Rozzy's latest backup-snapshot and isolated
+restore-verification timestamps plus bounded unit result labels. Backup contents,
+snapshot identifiers, repository credentials and routine success email remain
+outside the application database.
 
 ## Closed transport architecture and operations
 

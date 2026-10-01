@@ -14,4 +14,6 @@ import "./app-horizontal-scroll";
 import "./app-roster";
 import "./app-xero";
 import "./app-toggle-buttons";
+import "./app-checkbox-lists";
+import "./app-filter-selection";
 import "./app-preferences";

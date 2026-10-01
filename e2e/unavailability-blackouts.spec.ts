@@ -1,10 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady } from './support/runtime';
+import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
 import { loginAs } from './support/session';
 import { openAdminWithSeededPasskeySession } from './support/passkeys';
-import { runSql } from './support/database';
-import { setFlatpickrDate } from './support/profile';
+import { querySql, runSql, sqlString } from './support/database';
+import { openProfileLeaveSection, setFlatpickrDate } from './support/profile';
 
 type LiveSubscriptionWindow = Window & { __blackoutSubscriptionKeys?: string[] };
 
@@ -36,6 +36,53 @@ async function waitForSubscription(page: Page, prefix: string) {
 }
 
 test.describe('Unavailability submission blackouts', () => {
+    test('one confirmation covers blackout and capacity and Back preserves the draft @canonical-mobile', async ({ page }) => {
+        test.setTimeout(E2E_TIMEOUT.slowTest);
+        const venue = "'a1000000-0000-0000-0000-000000000001'";
+        const worker = 'a0000000-0000-0000-0000-000000000101';
+        const notes = uniqueE2EValue('e2e-combined-request');
+        const reason = uniqueE2EValue('e2e-blackout');
+        const start = '2099-11-10';
+        const end = '2099-11-11';
+        const savedSettings = querySql(`SELECT concat_ws(', ', coalesce(unavailable_staff_warning_threshold::text, 'NULL'),
+            coalesce(unavailable_staff_daily_maximum::text, 'NULL')) FROM venue_config WHERE venue_id = ${venue}`);
+        const createdRequests = () => querySql(`SELECT status FROM leave_requests WHERE venue_id = ${venue}
+            AND staff_id = '${worker}' AND notes = ${sqlString(notes)}`);
+        const form = page.locator('#self-service-leave-form');
+        const confirmation = page.getByRole('dialog').filter({ hasText: 'Confirm unavailability exception' });
+        try {
+            runSql(`UPDATE venue_config SET (unavailable_staff_warning_threshold, unavailable_staff_daily_maximum) = (NULL, 1)
+                WHERE venue_id = ${venue};
+                INSERT INTO unavailability_blackouts (venue_id, start_date, end_date, reason)
+                    VALUES (${venue}, '${start}', '${start}', ${sqlString(reason)});
+                INSERT INTO leave_requests (venue_id, staff_id, start_date, end_date, notes)
+                    VALUES (${venue}, 'a1000000-0000-0000-0000-000000000033', '${start}', '${end}', ${sqlString(reason)});`);
+            await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+            await openProfileLeaveSection(page);
+            await setFlatpickrDate(page, '#self-service-leave-form input[name="startDate"]', start);
+            await setFlatpickrDate(page, '#self-service-leave-form input[name="endDate"]', end);
+            await form.locator('textarea[name="notes"]').fill(notes);
+            await form.getByRole('button', { name: 'Add unavailable time' }).click();
+            await expect(confirmation).toContainText(reason);
+            await expect(confirmation).toContainText('2 unavailable (maximum 1)');
+            await expect(confirmation).toContainText('E2E Manager');
+            expect(createdRequests()).toBe('');
+            await confirmation.getByRole('button', { name: 'Back to edit' }).click();
+            await expect(form.locator('input[name="startDate"]')).toHaveValue(start);
+            await expect(form.locator('input[name="endDate"]')).toHaveValue(end);
+            await expect(form.locator('textarea[name="notes"]')).toHaveValue(notes);
+            expect(createdRequests()).toBe('');
+            await form.getByRole('button', { name: 'Add unavailable time' }).click();
+            await confirmation.getByRole('button', { name: 'Add request anyway' }).click();
+            await expect.poll(createdRequests).toBe('pending'); // Exactly one row, not two Pending rows.
+            expect(querySql(`SELECT count(*) FROM unavailability_blackouts WHERE venue_id = ${venue}
+                AND start_date = '${start}' AND end_date = '${start}' AND reason = ${sqlString(reason)}`)).toBe('1');
+        } finally {
+            runSql(`UPDATE venue_config SET (unavailable_staff_warning_threshold, unavailable_staff_daily_maximum) = (${savedSettings})
+                WHERE venue_id = ${venue};`);
+        }
+    });
+
     test('admins manage periods live while staff submissions remain blocked', async ({ browser, page: adminPage }) => {
         const managerContext = await browser.newContext();
         const workerContext = await browser.newContext();

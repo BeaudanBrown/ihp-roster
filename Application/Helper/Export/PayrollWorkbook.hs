@@ -8,6 +8,8 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookFilter (..)
     , PayrollWorkbookSheet (..)
     , PayrollWorkbookSheetFamily (..)
+    , PayrollWorkbookXeroQuantity (..)
+    , payrollWorkbookFromDefinitionWithXeroQuantities
     , availablePayrollWorkbookSheetFamilies
     , currentPayrollWorkbookDefinitionVersion
     , defaultPayrollWorkbookCellStyle
@@ -55,7 +57,9 @@ data PayrollWorkbookCellValue
 
 data PayrollWorkbookCellStyle = PayrollWorkbookCellStyle
     { bold         :: !Bool
+    , fontName     :: !(Maybe Text)
     , fillColor    :: !(Maybe PayrollWorkbookColor)
+    , borderColor  :: !(Maybe PayrollWorkbookColor)
     , numberFormat :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -100,6 +104,7 @@ data PayrollWorkbookSheetFamily
     | PayrollWorkbookShiftTypeHours
     | PayrollWorkbookEmployeePayBucketWages
     | PayrollWorkbookShiftTypeWages
+    | PayrollWorkbookXeroPayItems
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 instance InputValue PayrollWorkbookSheetFamily where
@@ -117,7 +122,7 @@ defaultPayrollWorkbookDefinition =
     PayrollWorkbookDefinition
         { payrollWorkbookDefinitionKey = "builtin-default"
         , payrollWorkbookDefinitionVersion = currentPayrollWorkbookDefinitionVersion
-        , payrollWorkbookDefinitionSheetFamilies = availablePayrollWorkbookSheetFamilies
+        , payrollWorkbookDefinitionSheetFamilies = filter (/= PayrollWorkbookXeroPayItems) availablePayrollWorkbookSheetFamilies
         }
 
 currentPayrollWorkbookDefinitionVersion :: Int
@@ -130,6 +135,7 @@ availablePayrollWorkbookSheetFamilies =
     , PayrollWorkbookShiftTypeHours
     , PayrollWorkbookEmployeePayBucketWages
     , PayrollWorkbookShiftTypeWages
+    , PayrollWorkbookXeroPayItems
     ]
 
 payrollWorkbookSheetFamilyKey :: PayrollWorkbookSheetFamily -> Text
@@ -139,6 +145,7 @@ payrollWorkbookSheetFamilyKey = \case
     PayrollWorkbookShiftTypeHours         -> "shift-type-hours"
     PayrollWorkbookEmployeePayBucketWages -> "employee-pay-bucket-wages"
     PayrollWorkbookShiftTypeWages         -> "shift-type-wages"
+    PayrollWorkbookXeroPayItems           -> "xero-pay-items"
 
 payrollWorkbookSheetFamilyConfigurationLabel :: PayrollWorkbookSheetFamily -> Text
 payrollWorkbookSheetFamilyConfigurationLabel = \case
@@ -147,6 +154,7 @@ payrollWorkbookSheetFamilyConfigurationLabel = \case
     PayrollWorkbookShiftTypeHours         -> "Hours by Shift Type"
     PayrollWorkbookEmployeePayBucketWages -> "Wages by Staff"
     PayrollWorkbookShiftTypeWages         -> "Wages by Shift Type"
+    PayrollWorkbookXeroPayItems           -> "Xero pay items"
 
 payrollWorkbookSheetFamilyFromText :: Text -> Either Text PayrollWorkbookSheetFamily
 payrollWorkbookSheetFamilyFromText value =
@@ -156,13 +164,16 @@ payrollWorkbookSheetFamilyFromText value =
         "shift-type-hours"          -> Right PayrollWorkbookShiftTypeHours
         "employee-pay-bucket-wages" -> Right PayrollWorkbookEmployeePayBucketWages
         "shift-type-wages"          -> Right PayrollWorkbookShiftTypeWages
+        "xero-pay-items"            -> Right PayrollWorkbookXeroPayItems
         unsupported                 -> Left ("Unsupported Payroll Workbook sheet family: " <> unsupported <> ".")
 
 defaultPayrollWorkbookCellStyle :: PayrollWorkbookCellStyle
 defaultPayrollWorkbookCellStyle =
     PayrollWorkbookCellStyle
         { bold = False
+        , fontName = Nothing
         , fillColor = Nothing
+        , borderColor = Nothing
         , numberFormat = Nothing
         }
 
@@ -179,16 +190,30 @@ payrollWorkbookFromDefinition ::
     Int ->
     PayrollWorkbookFactModel ->
     Either Text PayrollWorkbook
-payrollWorkbookFromDefinition definition rosterWeekStartsOn factModel = do
+payrollWorkbookFromDefinition = payrollWorkbookFromDefinitionWithXeroQuantities Nothing
+
+data PayrollWorkbookXeroQuantity = PayrollWorkbookXeroQuantity
+    { xeroQuantityStaffId :: UUID
+    , xeroQuantityStaffName :: Text
+    , xeroQuantityPayItemId :: Text
+    , xeroQuantityPayItemName :: Text
+    , xeroQuantityDate :: Day
+    , xeroQuantityUnits :: Rational
+    } deriving (Eq, Show)
+
+payrollWorkbookFromDefinitionWithXeroQuantities :: Maybe [PayrollWorkbookXeroQuantity] -> PayrollWorkbookDefinition -> Int -> PayrollWorkbookFactModel -> Either Text PayrollWorkbook
+payrollWorkbookFromDefinitionWithXeroQuantities quantities definition rosterWeekStartsOn factModel = do
     validatePayrollWorkbookDefinition definition
-    pure (payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel)
+    when (PayrollWorkbookXeroPayItems `elem` definition.payrollWorkbookDefinitionSheetFamilies && isNothing quantities)
+        (Left "Xero pay-items sheet requires resolved selected earnings quantities.")
+    pure (payrollWorkbookFromValidatedDefinition (fromMaybe [] quantities) definition rosterWeekStartsOn factModel)
 
 payrollWorkbookFromValidatedDefinition ::
-    PayrollWorkbookDefinition ->
+    [PayrollWorkbookXeroQuantity] -> PayrollWorkbookDefinition ->
     Int ->
     PayrollWorkbookFactModel ->
     PayrollWorkbook
-payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
+payrollWorkbookFromValidatedDefinition quantities definition rosterWeekStartsOn factModel =
     let projected = payrollWorkbookHourlyModelFromFacts factModel
      in PayrollWorkbook
             { sheets = concatMap (familySheets projected) definition.payrollWorkbookDefinitionSheetFamilies <> [dataSheet factModel]
@@ -205,7 +230,71 @@ payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
             map (dailySheet projected DailyWages) projected.payrollModelDays
         PayrollWorkbookShiftTypeWages ->
             map (shiftTypeSheet factModel shiftTypeModel ShiftTypeWages) [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
+        PayrollWorkbookXeroPayItems ->
+            map (xeroPayItemsSheet quantities) (summaryWeekAnchors rosterWeekStartsOn projected)
     shiftTypeModel = shiftTypeModelFromFacts factModel.payrollFactModelFacts
+
+xeroPayItemsSheet :: [PayrollWorkbookXeroQuantity] -> Day -> PayrollWorkbookSheet
+xeroPayItemsSheet quantities weekStart = PayrollWorkbookSheet
+    { name = "Xero " <> tshow weekStart
+    , hidden = False
+    , cells = sheetCells
+    , columnWidths = contentSizedColumnWidths sheetCells
+    , hiddenColumns = []
+    , tabColor = Nothing
+    , autoFilter = Nothing
+    , frozenRows = 1
+    , frozenColumns = 0
+    }
+  where
+    days = [weekStart .. addDays 6 weekStart]
+    inWeek = filter (\quantity -> quantity.xeroQuantityDate `elem` days) quantities
+    grouped = Map.fromListWith (Map.unionWith (+))
+        [ ((quantity.xeroQuantityStaffId, quantity.xeroQuantityPayItemId, quantity.xeroQuantityStaffName, quantity.xeroQuantityPayItemName), Map.singleton quantity.xeroQuantityDate quantity.xeroQuantityUnits)
+        | quantity <- inWeek ]
+    staffFills = Map.fromList $ zip
+        (List.nub [staffId | ((staffId, _, _, _), _) <- Map.toAscList grouped])
+        (cycle [color "FFFFFF", color "D9D9D9"])
+    sheetCells = zipWith (cell 1) [1 ..] (map PayrollWorkbookText (["Employee", "Pay item"] <> map (Text.pack . formatTime defaultTimeLocale "%A %d/%m") days <> ["Total"]))
+        <> concat (zipWith rowCells [2 ..] (Map.toAscList grouped))
+    tableStyle = defaultPayrollWorkbookCellStyle { fontName = Just "Calibri", borderColor = Just (color "B7B7B7") }
+    cell row column value = PayrollWorkbookCell row column value tableStyle
+    rowCells row ((staffId, _, staffName, itemName), byDate) =
+        let rowStyle = tableStyle { fillColor = Map.lookup staffId staffFills }
+         in zipWith (\column value -> PayrollWorkbookCell row column value rowStyle) [1 ..]
+            (map PayrollWorkbookText [staffName, itemName]
+                <> map (PayrollWorkbookNumber . fromRational . (\day -> Map.findWithDefault 0 day byDate)) days
+                <> [PayrollWorkbookNumber (fromRational (sum (Map.elems byDate)))])
+
+contentSizedColumnWidths :: [PayrollWorkbookCell] -> [(Int, Double)]
+contentSizedColumnWidths cells =
+    Map.toAscList (Map.fromListWith max [(cell.column, cellContentWidth cell) | cell <- cells])
+  where
+    cellContentWidth cell = case cell.value of
+        PayrollWorkbookText value | cell.column <= 2 -> singleLineLabelWidth value
+        PayrollWorkbookText value -> fromIntegral (Text.length value) + 2
+        PayrollWorkbookNumber value -> fromIntegral (Text.length (tshow value)) + 2
+        PayrollWorkbookFormula value -> fromIntegral (Text.length value) + 2
+
+-- Calibri 11 pixel advances, rather than treating every letter as a full digit
+-- width. Seven pixels of padding keep labels clear of the retained cell borders.
+-- Width data: https://github.com/jmcnamara/XlsxWriter/blob/main/xlsxwriter/utility.py
+-- Excel column widths are measured in seven-pixel digit units at this size.
+singleLineLabelWidth :: Text -> Double
+singleLineLabelWidth label = (Text.foldl' (\width char -> width + glyphWidth char) 0 label + 7) / 7
+  where
+    glyphWidth char
+        | char `elem` (" '" :: String) = 3
+        | char `elem` (",.:;I`ijl" :: String) = 4
+        | char `elem` ("!()-J[]frt{}" :: String) = 5
+        | char `elem` ("\"/\\Lcsz" :: String) = 6
+        | char `elem` ("#$*+0123456789<=>?EFSTYZ^_agkvxy|~" :: String) = 7
+        | char `elem` ("ADGHUV" :: String) = 9
+        | char `elem` ("&NOQ" :: String) = 10
+        | char `elem` ("%w" :: String) = 11
+        | char `elem` ("Mm" :: String) = 12
+        | char `elem` ("@W" :: String) = 13
+        | otherwise = 8
 
 validatePayrollWorkbookDefinition :: PayrollWorkbookDefinition -> Either Text ()
 validatePayrollWorkbookDefinition definition
@@ -749,13 +838,26 @@ renderCell cell =
 renderFormat :: PayrollWorkbookCellStyle -> Format
 renderFormat style =
     def
-        { _formatFont =
-            if style.bold
-                then Just def { _fontBold = Just True }
-                else Nothing
+        { _formatFont = case style.fontName of
+            Just name -> Just def { _fontName = Just name, _fontSize = Just 11, _fontBold = Just style.bold }
+            Nothing -> if style.bold then Just def { _fontBold = Just True } else Nothing
         , _formatFill = renderFill <$> style.fillColor
+        , _formatBorder = renderBorder <$> style.borderColor
         , _formatNumberFormat = UserNumberFormat <$> style.numberFormat
         }
+
+renderBorder :: PayrollWorkbookColor -> Border
+renderBorder (PayrollWorkbookColor argb) =
+    let edge = Just def
+            { _borderStyleColor = Just def { _colorARGB = Just argb }
+            , _borderStyleLine = Just LineStyleThin
+            }
+     in def
+            { _borderLeft = edge
+            , _borderRight = edge
+            , _borderTop = edge
+            , _borderBottom = edge
+            }
 
 renderFill :: PayrollWorkbookColor -> Fill
 renderFill (PayrollWorkbookColor argb) =

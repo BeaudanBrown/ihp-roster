@@ -50,7 +50,7 @@ successToast message =
         { toastOverlayTitle = Just "Success"
         , toastOverlayMessage = message
         , toastOverlayClass = "app-toast-success"
-        , toastOverlayAutoHideMs = 3200
+        , toastOverlayAutoHideMs = 5000
         }
 
 errorToast :: Text -> ToastOverlayConfig
@@ -59,7 +59,7 @@ errorToast message =
         { toastOverlayTitle = Just "Error"
         , toastOverlayMessage = message
         , toastOverlayClass = "app-toast-error"
-        , toastOverlayAutoHideMs = 4200
+        , toastOverlayAutoHideMs = 10000
         }
 
 toastOverlayHostClass :: ToastOverlayPosition -> Text
@@ -110,12 +110,12 @@ flashMessageToToast = \case
             { toastOverlayTitle = Just "Success"
             , toastOverlayMessage = message
             , toastOverlayClass = "app-toast-success"
-            , toastOverlayAutoHideMs = 3200
+            , toastOverlayAutoHideMs = 5000
             }
     ErrorFlashMessage message ->
         ToastOverlayConfig
             { toastOverlayTitle = Just "Error"
             , toastOverlayMessage = message
             , toastOverlayClass = "app-toast-error"
-            , toastOverlayAutoHideMs = 4200
+            , toastOverlayAutoHideMs = 10000
             }

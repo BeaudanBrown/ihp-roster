@@ -99,8 +99,9 @@ instance Controller PasskeysController where
         when (null passkeys) do
             setErrorMessage "Add your first passkey before sending a new-device setup link."
             earlyReturn (redirectToPath managementPath)
+        maySkip <- currentUserMaySkipPasskeyVerification
         verified <- isCurrentUserPasskeyVerified
-        unless verified do
+        unless (maySkip || verified) do
             setSession passkeyStepUpRedirectSessionKey managementPath
             strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
             earlyReturn $ if isHtmxRequest
@@ -165,8 +166,9 @@ safeLocalRedirect value
 
 ensureFreshPasskeyForManagement :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyForManagement managementPath = do
+    maySkip <- currentUserMaySkipPasskeyVerification
     verified <- isCurrentUserPasskeyVerified
-    unless verified do
+    unless (maySkip || verified) do
         withRequestContext do
             setSession passkeyStepUpRedirectSessionKey managementPath
             earlyReturn $ if isHtmxRequest

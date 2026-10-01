@@ -30,8 +30,17 @@ post-table rule so transition-table exhaustion cannot silently freeze an offset.
 
 A positive resolved interval segments at Melbourne local 00:00, 07:00, and 19:00.
 Every segment carries an authoritative local date, weekday/weekend kind, and Award
-window while duration remains the exact UTC elapsed duration, including fractional
-seconds and DST transitions. Segment durations conserve the source interval.
+window. Business duration uses signed integer `Seconds`: subtract UTC endpoints
+first, then round each elapsed interval independently to the nearest second,
+with half-seconds away from zero. DST transitions retain their elapsed meaning.
+Minute-precision business inputs (and whole-second intervals) conserve duration
+across segmentation. Fractional legacy intervals are normalised individually;
+conservation across fractional split boundaries is not promised. The rollout
+must audit such stored inputs rather than introduce a separate allocation rule.
+
+`Application.VenueTime.Seconds` owns duration construction and named arithmetic;
+its constructor is hidden. Stored instants, approved payroll quantities and
+money are not rewritten. Technical timers retain their existing precision.
 
 ## Copy semantics
 

@@ -56,7 +56,11 @@ def unused_tcp_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def connect_to_office(port: int):
+OPERATION_TIMEOUT_SECONDS = 30
+
+
+def connect_to_office(office: subprocess.Popen[str], port: int, deadline: float,
+                      deadline_exceeded: threading.Event):
     local_context = uno.getComponentContext()
     resolver = local_context.ServiceManager.createInstanceWithContext(
         "com.sun.star.bridge.UnoUrlResolver", local_context
@@ -65,13 +69,32 @@ def connect_to_office(port: int):
         f"uno:socket,host=127.0.0.1,port={port};urp;StarOffice.ComponentContext"
     )
     last_error: Exception | None = None
-    for _ in range(100):
+    attempts = 0
+
+    def startup_failure(reason: str) -> NoReturn:
+        elapsed = time.monotonic() - (deadline - OPERATION_TIMEOUT_SECONDS)
+        fail(f"could not connect to isolated LibreOffice: {reason}; "
+             f"elapsed={elapsed:.3f}s attempts={attempts} child_exit={office.poll()}; "
+             f"last_error={last_error}")
+
+    while True:
+        if deadline_exceeded.is_set() or time.monotonic() >= deadline:
+            startup_failure("30 second safety deadline exceeded")
+        if office.poll() is not None:
+            startup_failure("process exited before readiness")
         try:
-            return resolver.resolve(connection)
+            attempts += 1
+            context = resolver.resolve(connection)
         except Exception as exception:  # UNO raises generated exception classes
             last_error = exception
-            time.sleep(0.05)
-    fail(f"could not connect to isolated LibreOffice: {last_error}")
+        else:
+            # A blocking resolver can return after the watchdog has fired.
+            if deadline_exceeded.is_set() or time.monotonic() >= deadline:
+                startup_failure("30 second safety deadline exceeded")
+            if office.poll() is not None:
+                startup_failure("process exited during readiness")
+            return context
+        deadline_exceeded.wait(min(0.05, max(0, deadline - time.monotonic())))
 
 
 def parse_expectations(arguments: list[str]) -> list[tuple[str, str, float]]:
@@ -134,24 +157,91 @@ def stop_office(office: subprocess.Popen[str]) -> None:
             pass
 
 
+def parse_documents(arguments: list[str]) -> list[tuple[Path, list[tuple[str, str, float]]]]:
+    groups: list[list[str]] = [[]]
+    for argument in arguments:
+        if argument == "--next":
+            groups.append([])
+        else:
+            groups[-1].append(argument)
+    if not 1 <= len(groups) <= 4:
+        fail("one to four workbook cases are required")
+    documents = []
+    for group in groups:
+        if len(group) < 2:
+            fail("usage: libreoffice-recalculate.py WORKBOOK EXPECTATION... [--next WORKBOOK EXPECTATION...]")
+        path = Path(group[0])
+        if not path.is_file():
+            fail(f"workbook does not exist: {path}")
+        documents.append((path, parse_expectations(group[1:])))
+    return documents
+
+
+def check_deadline(deadline: float, exceeded: threading.Event) -> None:
+    if exceeded.is_set() or time.monotonic() >= deadline:
+        fail("LibreOffice exceeded the 30 second safety deadline")
+
+
+def verify_document(desktop: Any, workbook_path: Path,
+                    expectations: list[tuple[str, str, float]], recalculated_path: Path,
+                    deadline: float, deadline_exceeded: threading.Event) -> None:
+    document: Any | None = None
+    reopened_document: Any | None = None
+    try:
+        check_deadline(deadline, deadline_exceeded)
+        print("libreoffice-recalculate: loading workbook", file=sys.stderr, flush=True)
+        document = load_workbook(desktop, workbook_path)
+        if document is None:
+            fail("LibreOffice rejected the generated XLSX workbook")
+        document.enableAutomaticCalculation(True)
+        document.calculateAll()
+        check_deadline(deadline, deadline_exceeded)
+        print("libreoffice-recalculate: checking recalculated formulas", file=sys.stderr, flush=True)
+        assert_formula_values(document, expectations, "recalculated workbook")
+        document.storeAsURL(
+            recalculated_path.as_uri(),
+            (property_value("FilterName", "Calc MS Excel 2007 XML"), property_value("Overwrite", True)),
+        )
+        document.close(True)
+        document = None
+        check_deadline(deadline, deadline_exceeded)
+        print("libreoffice-recalculate: reopening saved XLSX", file=sys.stderr, flush=True)
+        if not zipfile.is_zipfile(recalculated_path):
+            fail("LibreOffice did not save a valid XLSX archive")
+        reopened_document = load_workbook(desktop, recalculated_path)
+        check_deadline(deadline, deadline_exceeded)
+        if reopened_document is None:
+            fail("LibreOffice could not reopen its recalculated XLSX workbook")
+        assert_formula_values(reopened_document, expectations, "reopened workbook")
+    finally:
+        failed = sys.exc_info()[0] is not None
+        cleanup_errors: list[str] = []
+        for opened in (reopened_document, document):
+            if opened is not None:
+                try:
+                    opened.close(True)
+                except Exception as exception:
+                    cleanup_errors.append(f"could not close workbook: {exception}")
+        if cleanup_errors and not failed:
+            fail("; ".join(cleanup_errors))
+    check_deadline(deadline, deadline_exceeded)
+    if desktop.getComponents().hasElements():
+        fail("LibreOffice retained an open document between workbook cases")
+
+
 def main() -> None:
-    if len(sys.argv) < 3:
-        fail("usage: libreoffice-recalculate.py WORKBOOK EXPECTATION...")
-    workbook_path = Path(sys.argv[1])
-    if not workbook_path.is_file():
-        fail(f"workbook does not exist: {workbook_path}")
-    expectations = parse_expectations(sys.argv[2:])
+    documents = parse_documents(sys.argv[1:])
 
     with tempfile.TemporaryDirectory(prefix="bepis-libreoffice-") as temporary_directory:
         temporary_path = Path(temporary_directory)
         profile_path = temporary_path / "profile"
         home_path = temporary_path / "home"
         home_path.mkdir()
-        recalculated_path = temporary_path / "recalculated.xlsx"
         port = unused_tcp_port()
         office_environment = {**os.environ, "HOME": str(home_path)}
         office_environment.pop("UNO_PATH", None)
         office_environment.pop("URE_BOOTSTRAP", None)
+        deadline = time.monotonic() + OPERATION_TIMEOUT_SECONDS
         office = subprocess.Popen(
             [
                 "libreoffice",
@@ -174,82 +264,42 @@ def main() -> None:
         deadline_exceeded = threading.Event()
 
         def enforce_deadline() -> None:
-            if not watchdog_finished.wait(timeout=30):
+            if not watchdog_finished.wait(timeout=max(0, deadline - time.monotonic())):
                 deadline_exceeded.set()
                 print("libreoffice-recalculate: exceeded 30 second safety deadline", file=sys.stderr, flush=True)
                 stop_office(office)
 
         watchdog = threading.Thread(target=enforce_deadline, daemon=True)
         watchdog.start()
-        desktop: Any | None = None
-        document: Any | None = None
-        reopened_document: Any | None = None
         try:
             print("libreoffice-recalculate: connecting", file=sys.stderr, flush=True)
-            context = connect_to_office(port)
+            context = connect_to_office(office, port, deadline, deadline_exceeded)
             if deadline_exceeded.is_set():
                 fail("LibreOffice exceeded the 30 second safety deadline")
             desktop = context.ServiceManager.createInstanceWithContext(
                 "com.sun.star.frame.Desktop", context
             )
-            print("libreoffice-recalculate: loading workbook", file=sys.stderr, flush=True)
-            document = load_workbook(desktop, workbook_path)
-            if document is None:
-                fail("LibreOffice rejected the generated XLSX workbook")
-            document.enableAutomaticCalculation(True)
-            document.calculateAll()
-            if deadline_exceeded.is_set():
-                fail("LibreOffice exceeded the 30 second safety deadline")
-            print("libreoffice-recalculate: checking recalculated formulas", file=sys.stderr, flush=True)
-            assert_formula_values(document, expectations, "recalculated workbook")
-            document.storeAsURL(
-                recalculated_path.as_uri(),
-                (
-                    property_value("FilterName", "Calc MS Excel 2007 XML"),
-                    property_value("Overwrite", True),
-                ),
-            )
-            document.close(True)
-            document = None
-
-            print("libreoffice-recalculate: reopening saved XLSX", file=sys.stderr, flush=True)
-            if not zipfile.is_zipfile(recalculated_path):
-                fail("LibreOffice did not save a valid XLSX archive")
-            reopened_document = load_workbook(desktop, recalculated_path)
-            if deadline_exceeded.is_set():
-                fail("LibreOffice exceeded the 30 second safety deadline")
-            if reopened_document is None:
-                fail("LibreOffice could not reopen its recalculated XLSX workbook")
-            assert_formula_values(reopened_document, expectations, "reopened workbook")
-            print(
-                f"LibreOffice formula reconciliation passed: {len(expectations)} cells "
-                f"with {program_directory.parent.parent.name}"
-            )
+            # One private profile, but no open document survives a case. The
+            # existing 30s deadline covers the ENTIRE batch (therefore every
+            # document too); the caller's 40s outer timeout remains unchanged.
+            for index, (workbook_path, expectations) in enumerate(documents):
+                verify_document(desktop, workbook_path, expectations,
+                                temporary_path / f"recalculated-{index}.xlsx",
+                                deadline, deadline_exceeded)
+                print(
+                    f"LibreOffice formula reconciliation passed: {len(expectations)} cells "
+                    f"with {program_directory.parent.parent.name}"
+                )
         finally:
             failed = sys.exc_info()[0] is not None
-            cleanup_errors: list[str] = []
-            try:
-                if reopened_document is not None:
-                    try:
-                        reopened_document.close(True)
-                    except Exception as exception:
-                        cleanup_errors.append(f"could not close reopened workbook: {exception}")
-                if document is not None:
-                    try:
-                        document.close(True)
-                    except Exception as exception:
-                        cleanup_errors.append(f"could not close workbook: {exception}")
-            finally:
-                watchdog_finished.set()
-                stop_office(office)
-            if failed or cleanup_errors:
+            watchdog_finished.set()
+            stop_office(office)
+            if failed:
                 standard_output, standard_error = office.communicate()
                 if standard_output:
                     print(standard_output, file=sys.stderr, flush=True)
                 if standard_error:
                     print(standard_error, file=sys.stderr, flush=True)
-            if cleanup_errors and not failed:
-                fail("; ".join(cleanup_errors))
 
 
 if __name__ == "__main__":

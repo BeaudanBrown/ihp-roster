@@ -3,7 +3,7 @@ import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openAdminWithSeededPasskeySession } from './support/passkeys';
-import { runSql } from './support/database';
+import { querySql, runSql } from './support/database';
 
 type LiveSubscriptionWindow = Window & { __thresholdSubscriptionKeys?: string[] };
 
@@ -57,7 +57,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
                 FROM leave_requests
                 WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
                 CREATE TABLE e2e_threshold_config_backup AS
-                SELECT venue_id, unavailable_staff_warning_threshold, updated_at
+                SELECT venue_id, unavailable_staff_warning_threshold, unavailable_staff_daily_maximum, updated_at
                 FROM venue_config
                 WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
                 CREATE TABLE e2e_threshold_staff_backup AS
@@ -65,7 +65,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
                 FROM staff
                 WHERE id = 'a1000000-0000-0000-0000-000000000031';
                 UPDATE venue_config
-                SET unavailable_staff_warning_threshold = NULL, updated_at = NOW()
+                SET unavailable_staff_warning_threshold = NULL, unavailable_staff_daily_maximum = NULL, updated_at = NOW()
                 WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
                 UPDATE leave_requests
                 SET status = 'denied', deleted_at = NULL, updated_at = NOW()
@@ -85,6 +85,22 @@ test.describe('Unavailable-staff threshold warnings', () => {
             await expect(passivePage.locator('#leave-availability-warnings')).toBeEmpty();
             await adminPage.getByRole('button', { name: 'Venue Settings' }).click();
             await expect(adminPage.locator('#venue-unavailable-staff-warning-threshold')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+
+            const maxOnlyResponse = adminPage.waitForResponse((response) =>
+                response.request().method() === 'POST' && response.url().includes('/UpdateUnavailableStaffWarningThreshold'),
+            );
+            const maximum = adminPage.getByRole('spinbutton', { name: 'Maximum per day' });
+            await maximum.fill('1');
+            await maximum.dispatchEvent('change');
+            const saved = await maxOnlyResponse;
+            expect(saved.status()).toBe(200);
+            expect(querySql(
+                "SELECT unavailable_staff_daily_maximum FROM venue_config WHERE unavailable_staff_warning_threshold IS NULL AND venue_id = 'a1000000-0000-0000-0000-000000000001'",
+            )).toBe('1');
+            // Open a fresh warning projection; a configured maximum alone does not enable it.
+            await gotoWhenReady(passivePage, '/LeaveRequests', '#leave-requests-shell');
+            await waitForLeaveSubscription(passivePage);
+            await expect(passivePage.locator('#leave-availability-warnings')).toBeEmpty();
 
             const thresholdResponsePromise = adminPage.waitForResponse((response) =>
                 response.request().method() === 'POST' && response.url().includes('/UpdateUnavailableStaffWarningThreshold'),
@@ -168,6 +184,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
                 WHERE request.id = backup.id;
                 UPDATE venue_config AS config
                 SET unavailable_staff_warning_threshold = backup.unavailable_staff_warning_threshold,
+                    unavailable_staff_daily_maximum = backup.unavailable_staff_daily_maximum,
                     updated_at = backup.updated_at
                 FROM e2e_threshold_config_backup AS backup
                 WHERE config.venue_id = backup.venue_id;

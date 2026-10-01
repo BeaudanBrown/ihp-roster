@@ -3,14 +3,16 @@ module Application.Async.Registry
     ) where
 
 import Application.Async.Boundary (runAppJobBoundary, throwAppJobError)
-import Application.Async.Error (AppJobError (JobUnknownKind))
+import Application.Async.Error (AppJobError (JobUnknownKind, JobValidationRejected))
+import Application.Async.Heartbeat
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
 import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.Helper.Telemetry (withJobTelemetrySpan)
-import Application.PublicHolidays.Job
+import Application.PayrollReports.Job
+import Application.PublicHolidays.ActiveJob
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
@@ -35,6 +37,7 @@ dispatchAppJob appJob =
                 when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
                 when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
                 handleEmailDeliveryFailureAfterFinalAttempt appJob
+                handlePayrollReportGenerationFinalFailure appJob
 
 registeredJobKindForTelemetry :: Text -> Text
 registeredJobKindForTelemetry kind
@@ -48,9 +51,11 @@ jobMaximumAttempts kind
 
 registeredJobKinds :: [Text]
 registeredJobKinds =
-    [ emailDeliveryJobKind
+    [ workerHeartbeatJobKind
+    , emailDeliveryJobKind
+    , payrollReportJobKind
     , fwcMapdRefreshJobKind
-    , publicHolidayRefreshJobKind
+    , activePublicHolidayJobKind
     , wageSourceHealthCheckJobKind
     , retiredRosterTimesheetCreationJobKind
     , xeroConnectionKeepaliveJobKind
@@ -64,9 +69,14 @@ dispatchAppJobByKind ::
     IO ()
 dispatchAppJobByKind appJob =
     case appJob.jobKind of
+        kind | kind == workerHeartbeatJobKind -> performWorkerHeartbeatJob appJob
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
+        kind | kind == payrollReportJobKind -> performPayrollReportJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
-        kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
+        -- Old jobs can survive a deploy or restore. Never fetch or renew coverage.
+        "public_holiday_refresh" -> throwAppJobError JobValidationRejected
+        "public_holiday_shadow" -> throwAppJobError JobValidationRejected
+        kind | kind == activePublicHolidayJobKind -> performActivePublicHolidayJob appJob
         kind | kind == wageSourceHealthCheckJobKind -> performWageSourceHealthCheckJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
@@ -76,8 +86,7 @@ dispatchAppJobByKind appJob =
 
 isWageSourceRefreshJob :: AppJob -> Bool
 isWageSourceRefreshJob appJob =
-    appJob.jobKind == fwcMapdRefreshJobKind
-        || appJob.jobKind == publicHolidayRefreshJobKind
+    appJob.jobKind == fwcMapdRefreshJobKind || appJob.jobKind == activePublicHolidayJobKind
 
 isBillingOperationalJob :: AppJob -> Bool
 isBillingOperationalJob appJob =

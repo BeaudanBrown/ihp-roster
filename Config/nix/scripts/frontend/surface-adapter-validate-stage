@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+stage_root="$1"
+shift
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+mapfile -t proof_files <"${FRONTEND_SURFACE_PROOF_LIST:?}"
+validation_dir="$stage_root/.validation"
+validation_ghc_opts="${FRONTEND_SURFACE_VALIDATION_GHC_OPTS:?} -i$stage_root"
+ihp_roster_prepare_ghc_build_dir "$validation_dir" "$validation_ghc_opts"
+echo "frontend-surface-adapters: typechecking complete staged module set" >&2
+# Deliberate option expansion: GHC_OPTS is the established compiler recipe.
+# shellcheck disable=SC2086
+ghc -no-link $validation_ghc_opts "$@" "${proof_files[@]}" \
+    -odir "$validation_dir/obj" -hidir "$validation_dir/hi" >/dev/null

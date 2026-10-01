@@ -1,6 +1,7 @@
 module Test.AsyncQueueSpec where
 
 import Application.Async.Boundary (runAppJobBoundary)
+import Application.Async.Heartbeat (workerHeartbeatJobKind)
 import Application.Async.Queue
 import Application.Async.Registry (dispatchAppJob)
 import Application.EmailDelivery (emailDeliveryJobKind)
@@ -70,6 +71,40 @@ tests = aroundAll withDatabaseTestContext do
                     , "reason" Aeson..= ("replaced_by_roster_timesheet_suggestions" :: Text)
                     ]
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects retired holiday jobs without producing freshness evidence" $ withContext do
+            withCleanDb do
+                forM_ ["public_holiday_refresh", "public_holiday_shadow"] \kind -> do
+                    job <- newRecord @AppJob
+                        |> set #jobKind kind
+                        |> set #status JobStatusRunning
+                        |> set #attemptsCount appJobMaxAttempts
+                        |> createRecord
+                    withFrameworkConfig config \frameworkConfig -> do
+                        let ?context = frameworkConfig
+                        result <- BaseException.try (dispatchAppJob job) :: IO (Either SomeException ())
+                        case result of
+                            Left failure -> tshow failure `shouldSatisfy` Text.isInfixOf "job-validation-rejected"
+                            Right () -> expectationFailure "Retired holiday job unexpectedly succeeded"
+                query @PublicHoliday |> fetchCount >>= (`shouldBe` 0)
+                query @PublicHolidayImportBatch |> fetchCount >>= (`shouldBe` 0)
+                query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetchCount >>= (`shouldBe` 0)
+
+        it "completes a host-requested worker heartbeat through the real worker registry" $ withContext do
+            withCleanDb do
+                heartbeat <-
+                    newRecord @AppJob
+                        |> set #jobKind workerHeartbeatJobKind
+                        |> set #status JobStatusRunning
+                        |> createRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    dispatchAppJob heartbeat
+
+                completed <- fetch heartbeat.id
+                completed.status `shouldBe` JobStatusSucceeded
+                completed.lastError `shouldBe` Nothing
 
         it "projects an unknown job kind to the one safe IHP boundary exception" $ withContext do
             withCleanDb do

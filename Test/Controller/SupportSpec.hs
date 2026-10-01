@@ -2,13 +2,15 @@ module Test.Controller.SupportSpec where
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
-import Application.Helper.Controller (passkeyStepUpRedirectSessionKey)
+import Application.Helper.Controller (passkeyStepUpRedirectSessionKey,
+                                      passkeyVerifiedUserSessionKey)
 import Application.Helper.ControllerContext
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.Impersonation
 import Application.Helper.LiveUpdate
 import Application.Helper.OpaqueToken (hashOpaqueToken)
 import Application.Helper.Xero
+import Application.PublicHolidays.ActiveJob (activePublicHolidayJobKind)
 import Application.Support.LiveUpdates
 import Config
 import qualified Data.Aeson as Aeson
@@ -731,6 +733,28 @@ tests = aroundAll withDatabaseTestContext do
                 invalidStoredReturnPath `shouldBe` Just "/RosterWeeks"
                 effectiveUserId `shouldBe` Nothing
 
+        it "lets founders enter and switch impersonation without verification when strong authentication is disabled" $ withContext do
+            forM_ [False, True] \hasCopiedPasskey -> withCleanDb do
+                venue <- createVenueWithConfig "Optional Founder Verification Venue"
+                founder <- createUserRecordWithPlatformRole "optional-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "optional-worker@example.com" "staff" True
+                owner <- createUserRecord "optional-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                when hasCopiedPasskey (ensureTestUserHasPasskey founder)
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue founder venue.id do
+                        support <- callAction SupportAction
+                        support `responseStatusShouldBe` status200
+                        support `responseBodyShouldContain` "/ShowPasskeySetupDialog"
+                        entry <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue worker.id))]
+                        entry `responseStatusShouldBe` status302
+                        getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just worker.id
+                        switched <- callActionWithParams SwitchSupportImpersonationAction [("userId", cs (inputValue owner.id))]
+                        switched `responseStatusShouldBe` status302
+                        getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just owner.id
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Impersonation Passkey Venue"
@@ -1106,8 +1130,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "id=\"support-award-rates\""
                 response `responseBodyShouldContain` "hx-target=\"#support-award-rates\""
                 response `responseBodyShouldContain` "id=\"support-public-holidays\""
-                response `responseBodyShouldContain` "hx-target=\"#support-public-holidays\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-public-holiday-refresh-job\""
+                response `responseBodyShouldContain` "/ShowPublicHolidaysSection"
+                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"create-public-holiday-refresh-job\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-fwc-mapd-refresh-job\""
 
         it "does not label a super-admin venue membership as support mode" $ withContext do
@@ -1183,19 +1207,73 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "2.625"
                 response `responseBodyShouldNotContain` "feedback-diagnostics-user@example.com"
 
-        it "routes support refresh mutations through touched resources" $ withContext do
+        it "keeps public holiday status reads separate from mutations" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdmin) True
+                superAdmin <- createUserRecordWithPlatformRole "support-holiday-readonly@example.com" "staff" (Just SuperAdmin) True
                 versionBefore <- currentLiveUpdateVersion supportSurfaceScope
+                jobCountBefore <- query @AppJob |> fetchCount
 
                 response <- withPasskeyVerifiedUser superAdmin do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction CreatePublicHolidayRefreshJobAction
-                versionAfter <- currentLiveUpdateVersion supportSurfaceScope
+                        callAction ShowPublicHolidaysSectionAction
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-public-holidays\""
+                liveFragmentResponseShouldRenderTarget response (supportFragmentRef SupportPublicHolidaysLiveFragment)
+                response `responseBodyShouldContain` "No automated DataVic import job recorded yet."
+                response `responseBodyShouldContain` "No accepted DataVic import recorded yet."
+                response `responseBodyShouldNotContain` "<form"
+                versionAfter <- currentLiveUpdateVersion supportSurfaceScope
                 versionAfter `shouldBe` versionBefore
+                query @AppJob |> fetchCount >>= (`shouldBe` jobCountBefore)
+
+        it "shows the latest active job and last accepted VIC DataVic receipt separately" $ withContext do
+            withCleanDb do
+                superAdmin <- createUserRecordWithPlatformRole "support-holiday-import@example.com" "staff" (Just SuperAdmin) True
+                let receipt jurisdiction source years acceptedAt =
+                        newRecord @PublicHolidayImportBatch
+                            |> set #jurisdiction (jurisdiction :: Text)
+                            |> set #source (source :: Text)
+                            |> set #targetYears years
+                            |> set #acceptedAt acceptedAt
+                            |> createRecord
+                _ <- receipt "VIC" "datavic_v2" [2024, 2025, 2026] (UTCTime (fromGregorian 2026 1 1) 46800)
+                _ <- receipt "VIC" "datavic_v2" [2025, 2026, 2027] (UTCTime (fromGregorian 2026 9 12) 46800)
+                _ <- receipt "VIC" "legacy_import" [2026] (UTCTime (fromGregorian 2026 9 13) 46800)
+                _ <- receipt "NSW" "datavic_v2" [2026] (UTCTime (fromGregorian 2026 9 14) 46800)
+                _ <- newRecord @AppJob
+                    |> set #jobKind activePublicHolidayJobKind
+                    |> set #createdAt (UTCTime (fromGregorian 2026 9 12) 46740)
+                    |> set #status JobStatusSucceeded
+                    |> createRecord
+                _ <- newRecord @AppJob
+                    |> set #jobKind activePublicHolidayJobKind
+                    |> set #createdAt (UTCTime (fromGregorian 2026 9 13) 46740)
+                    |> set #status JobStatusFailed
+                    |> set #lastError (Just "Active import failure detail")
+                    |> createRecord
+                _ <- newRecord @AppJob
+                    |> set #jobKind "public_holiday_shadow"
+                    |> set #createdAt (UTCTime (fromGregorian 2026 9 14) 46740)
+                    |> set #status JobStatusFailed
+                    |> set #lastError (Just "Retired shadow failure detail")
+                    |> createRecord
+
+                fragmentResponse <- withPasskeyVerifiedUser superAdmin do
+                    callAction ShowPublicHolidaysSectionAction
+                pageResponse <- withPasskeyVerifiedUser superAdmin do
+                    callAction SupportAction
+
+                liveFragmentResponseShouldRenderTarget fragmentResponse (supportFragmentRef SupportPublicHolidaysLiveFragment)
+                forM_ [fragmentResponse, pageResponse] \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "Latest automated import job:"
+                    response `responseBodyShouldContain` "2026-09-13 12:59 UTC"
+                    response `responseBodyShouldContain` "Active import failure detail"
+                    response `responseBodyShouldContain` "Last accepted DataVic import:"
+                    response `responseBodyShouldContain` "2026-09-12 13:00 UTC"
+                    response `responseBodyShouldContain` "2025, 2026, 2027"
+                    response `responseBodyShouldContain` "Cached holidays"
+                    response `responseBodyShouldNotContain` "Retired shadow failure detail"
+                    response `responseBodyShouldNotContain` "CreatePublicHolidayRefreshJob"
 
         it "deduplicates concurrent award-rate refresh enqueues without 500s" $ withContext do
             withCleanDb do

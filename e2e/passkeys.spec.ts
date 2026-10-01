@@ -277,17 +277,24 @@ test.describe('Venue-admin passkeys', () => {
     test('venue admin can delete their last passkey after fresh verification when strong auth is optional', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await openProfileSecuritySection(page);
-        await expect(page.locator('#profile-security-collapse table')).toBeVisible();
+        const passkeyTable = page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: 'Last used' }) });
+        await expect(passkeyTable).toBeVisible();
 
-        page.once('dialog', async (dialog) => {
-            expect(dialog.message()).toContain('Delete this passkey?');
-            await dialog.accept();
-        });
-        await page.getByRole('button', { name: 'Delete' }).first().click();
+        const passkeyRows = passkeyTable.locator('tbody tr');
+        await expect(passkeyRows).toHaveCount(1);
+        const deleteButton = passkeyRows.getByRole('button', { name: 'Delete', exact: true });
+        await deleteButton.click();
+        const confirmation = page.getByRole('dialog', { name: 'Delete passkey?', exact: true });
+        await expect(confirmation).toContainText('You may need to verify with a passkey before it is removed.');
+        await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(confirmation).toHaveCount(0);
+        await expect(passkeyRows).toHaveCount(1);
+        await deleteButton.click();
+        await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
 
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await openProfileSecuritySection(page);
-        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(0);
+        await expect(passkeyRows).toHaveCount(0);
         await expect(page.locator('body')).toContainText('No passkeys registered yet.');
     });
 

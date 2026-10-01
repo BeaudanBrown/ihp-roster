@@ -3,17 +3,25 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
-import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
-                                    TimesheetIntegrityError (TimesheetTimingInvalid))
+import Application.Helper.Export.Failure
+import Application.Helper.Export.WorkbookGeneration (generateWorkbookForVenue)
+import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetReview
+import Application.Helper.TimesheetSelection
+import Application.Helper.View.Overlay (dialogOverlayMountId,
+                                        renderDialogOverlay)
+import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
+                                    TimesheetIntegrityError (TimesheetTimingInvalid))
+import qualified Application.WageEngine as Wage
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (isRight)
+import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -24,8 +32,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.HSX.Markup (renderMarkupLazyText)
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status
@@ -37,6 +46,7 @@ import Web.Exports.Mutations (exportJobTouchedResources)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+import Web.View.Admin.ExportFailure (exportFailureDialog)
 
 archiveEntryText :: FilePath -> Zip.Archive -> IO Text
 archiveEntryText path archive =
@@ -44,9 +54,416 @@ archiveEntryText path archive =
         Nothing -> expectationFailure ("Missing XLSX archive entry: " <> path) >> pure ""
         Just entry -> pure (decodeUtf8 (LBS.toStrict (Zip.fromEntry entry)))
 
+emailFixture :: (?modelContext :: ModelContext) => IO (Venue, User, PayrollWorkbookConfiguration, RecipientGroup)
+emailFixture = do
+    venue <- createVenueWithConfig "Export email"
+    admin <- createUserRecord "export-email-admin@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue admin VenueAdmin
+    template <- newRecord @PayrollWorkbookConfiguration |> set #venueId (unpackId venue.id)
+        |> set #name "Email template" |> set #createdByUserId (unpackId admin.id) |> createRecord
+    _ <- newRecord @PayrollWorkbookConfigurationFamily |> set #configurationId (unpackId template.id)
+        |> set #familyKey "summary" |> set #position 0 |> createRecord
+    group <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Email group"
+        |> set #recipients ["email-fixture@example.com"] |> set #createdByUserId (unpackId admin.id)
+        |> set #updatedByUserId (unpackId admin.id) |> createRecord
+    pure (venue, admin, template, group)
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "renders every blocked timesheet with an escaped reason and an edit link" $ withContext $ withCurrentControllerContext do
+            let firstId = Id "00000000-0000-0000-0000-000000000001" :: Id TimesheetEntry
+                secondId = Id "00000000-0000-0000-0000-000000000002" :: Id TimesheetEntry
+                failure entryId = ExportEntryFailure entryId (fromGregorian 2026 11 4) (Just "Staff <Name>") Nothing Nothing "Saved interval <invalid>"
+                rendered = cs (renderMarkupLazyText (renderDialogOverlay (exportFailureDialog [failure firstId, failure secondId]))) :: Text
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction firstId))
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction secondId))
+            rendered `shouldSatisfy` Text.isInfixOf "Staff &lt;Name&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "Saved interval &lt;invalid&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "No payroll file was generated."
+            rendered `shouldSatisfy` Text.isInfixOf "Do not change valid times"
+        it "emails a full selected template without settings, refreshes stale recipients and deduplicates confirmation retries" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let previewParams = [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-06")]
+                let sendParams = previewParams <> [("reportConfigurationRevision", cs (tshow template.revision)), ("reportRosterStart", cs (tshow config.rosterWeekStartsOn)), ("reportTimezone", cs config.timezone), ("reportConfirmation", "99999999-9999-4999-8999-999999999901")]
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
+                opened `responseBodyShouldContain` "Review recipients"
+                opened `responseBodyShouldContain` "Email template"
+                opened `responseBodyShouldNotContain` "Manage recipient groups"
+                opened `responseBodyShouldNotContain` "download filters do not apply"
+                preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams PreviewPayrollReportAction previewParams)
+                preview `responseBodyShouldContain` "email-fixture@example.com"
+                preview `responseBodyShouldContain` "2025-01-06"
+                preview `responseBodyShouldContain` "2025-01-12"
+                preview `responseBodyShouldNotContain` "Approved only"
+                _ <- group |> set #recipients ["changed-fixture@example.com"] |> set #revision 1 |> updateRecord
+                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "0")]))
+                stale `responseBodyShouldContain` "Review the send confirmation again"
+                stale `responseBodyShouldContain` "changed-fixture@example.com"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+                sent <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
+                sent `responseBodyShouldContain` "Report queued for delivery"
+                sent `responseBodyShouldContain` "hx-swap-oob"
+                sent `responseBodyShouldNotContain` "This does not confirm inbox delivery"
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
+                query @PayrollReportRun |> fetchCount `shouldReturn` 1
+                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
+                run <- query @PayrollReportRun |> fetchOne
+                run.configurationId `shouldBe` Just (unpackId template.id)
+                run.recipients `shouldBe` ["changed-fixture@example.com"]
+                run.reportingWeek `shouldBe` fromGregorian 2025 1 6
+                run.exportJobId `shouldBe` Nothing
+
+        it "requires whole-group repeat acknowledgement across groups and defaults disabled schedule groups" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                other <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Another group"
+                    |> set #recipients ["another-fixture@example.com"] |> set #createdByUserId (unpackId admin.id)
+                    |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                _ <- newRecord @PayrollReportSetting |> set #venueId (unpackId venue.id) |> set #enabled False
+                    |> set #recipientGroupId (Just (unpackId group.id)) |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
+                opened `responseBodyShouldContain` cs ("value=\"" <> tshow group.id <> "\" selected")
+                back <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams (EmailPayrollReportAction template.id "2025-01-06") [("reportGroup", cs (tshow other.id))])
+                back `responseBodyShouldContain` cs ("value=\"" <> tshow other.id <> "\" selected")
+                let base = [("reportTemplate", cs (tshow template.id)), ("reportWeek", "2025-01-06"), ("reportConfigurationRevision", cs (tshow template.revision)), ("reportGroupRevision", "0"), ("reportRosterStart", cs (tshow config.rosterWeekStartsOn)), ("reportTimezone", cs config.timezone)]
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (base <> [("reportGroup", cs (tshow group.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999902")]))
+                let repeatParams = base <> [("reportGroup", cs (tshow other.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999903")]
+                denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction repeatParams)
+                denied `responseBodyShouldContain` "Send again"
+                denied `responseBodyShouldContain` "This sends a new copy to this group."
+                denied `responseBodyShouldNotContain` "type=\"checkbox\""
+                denied `responseBodyShouldContain` "another-fixture@example.com"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 1
+                accepted <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (repeatParams <> [("reportRepeat", "true")]))
+                accepted `responseBodyShouldContain` "Report queued for delivery"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 2
+
+        it "rejects malformed, incomplete, misaligned and foreign email selections without leaking recipients" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
+                forM_ ["not-a-date", "2999-01-01", "2025-01-06"] \week -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id week))
+                    response `responseBodyShouldContain` "Choose a completed roster week"
+                foreignVenue <- createVenueWithConfig "Foreign email group"
+                foreignGroup <- group |> set #venueId (unpackId foreignVenue.id) |> updateRecord
+                rejected <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-01")]
+                rejected `responseBodyShouldContain` "unavailable"
+                rejected `responseBodyShouldNotContain` "email-fixture@example.com"
+                restored <- foreignGroup |> set #venueId (unpackId venue.id) |> updateRecord
+                valid <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-01")]
+                valid `responseBodyShouldContain` "2025-01-01"
+                valid `responseBodyShouldContain` "2025-01-07"
+                valid `responseBodyShouldContain` "Send email"
+                now <- getCurrentTime
+                _ <- restored |> set #archivedAt (Just now) |> updateRecord
+                archived <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-01"))
+                archived `responseBodyShouldContain` "Create a recipient group"
+                archived `responseBodyShouldNotContain` "email-fixture@example.com"
+                malformed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", "not-a-uuid"), ("reportWeek", "2025-01-01")]
+                malformed `responseStatusShouldBe` status200
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+
+        it "shows grouped 06:00 scheduling without inline recipients, time input, manual sends or history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Scheduled controls"
+                admin <- createUserRecord "selector@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction PayrollReportsAction)
+                response `responseBodyShouldContain` "Enable automatic weekly reports"
+                response `responseBodyShouldContain` "Export template"
+                response `responseBodyShouldContain` "Recipient group"
+                response `responseBodyShouldNotContain` "New schedules send"
+                response `responseBodyShouldNotContain` "Next automatic report"
+                response `responseBodyShouldNotContain` "Manage recipient groups"
+                response `responseBodyShouldNotContain` "report-manual-week"
+                response `responseBodyShouldNotContain` "report-recipient-entry"
+                response `responseBodyShouldNotContain` "report-time"
+                response `responseBodyShouldNotContain` "Last four reporting weeks"
+                response `responseBodyShouldNotContain` "Review and send"
+
+        it "saves group scheduling at 06:00, preserves disabled selections, and ignores submitted times" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Scheduled modal"
+                admin <- createUserRecord "scheduled-modal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Payroll"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
+                template <- query @PayrollWorkbookConfiguration |> fetchOne
+                group <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Payroll group"
+                    |> set #recipients ["payroll@example.com"] |> set #createdByUserId (unpackId admin.id) |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                let params = [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportEnabled", "true"), ("reportMinute", "15:45")]
+                beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (withRequestHeaders [("HX-Request", "true")] (callActionWithParams SavePayrollReportsAction params))
+                saved `responseBodyShouldContain` "Scheduled reports saved"
+                saved `responseBodyShouldNotContain` "payroll-report-settings-form"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
+                setting <- query @PayrollReportSetting |> fetchOne
+                setting.enabled `shouldBe` True
+                setting.minuteOfDay `shouldBe` 360
+                setting.recipientGroupId `shouldBe` Just (unpackId group.id)
+                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SavePayrollReportsAction params)
+                stale `responseBodyShouldContain` "Settings changed"
+                stale `responseBodyShouldContain` "Payroll group"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
+                _ <- setting |> set #minuteOfDay 570 |> updateRecord
+                summary <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction ShowadminExportsLiveFragmentAction)
+                summary `responseBodyShouldContain` "Report email scheduled for"
+                summary `responseBodyShouldContain` "09:30"
+                disabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] (callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow setting.revision)), ("reportMinute", "23:59")])
+                disabledResponse `responseBodyShouldContain` "Scheduled reports saved"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 2)
+                hidden <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction ShowadminExportsLiveFragmentAction)
+                hidden `responseBodyShouldNotContain` "Report email scheduled for"
+                disabled <- fetch setting.id
+                disabled.enabled `shouldBe` False
+                disabled.configurationId `shouldBe` setting.configurationId
+                disabled.recipientGroupId `shouldBe` setting.recipientGroupId
+                disabled.minuteOfDay `shouldBe` 570
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams PayrollReportsAction [("reportWeek", "2025-01-06")])
+                opened `responseBodyShouldContain` "name=\"reportWeek\" value=\"2025-01-06\""
+                native <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow disabled.revision)), ("reportWeek", "2025-01-06")])
+                native `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders native) `shouldSatisfy` maybe False (Text.isInfixOf "anchorDate=2025-01-06" . cs)
+                legacySend <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SendPayrollReportAction [("reportWeek", "2025-01-06"), ("reportRevision", cs (tshow disabled.revision)), ("reportConfirmation", "99999999-9999-4999-8999-999999999999")]
+                legacySend `responseBodyShouldContain` "reportTemplate"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+
+        it "denies managers access to every payroll modal endpoint before parsing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager denied"
+                manager <- createUserRecord "report-manager-modal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                forM_ [PayrollReportsAction, SavePayrollReportsAction, EmailPayrollReportAction (Id (unpackId venue.id)) "invalid", PreviewPayrollReportAction, SendPayrollReportAction] \action -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction action)
+                    response `responseStatusShouldBe` status302
+                    response `responseBodyShouldNotContain` "report-recipients"
+                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
+
+        it "requires explicit payroll-disable confirmation before deleting a scheduled template" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Report deletion"
+                admin <- createUserRecord "report-delete@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Reports"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
+                response `responseStatusShouldBe` status302
+                configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                setting <- newRecord @PayrollReportSetting
+                    |> set #venueId (unpackId venue.id)
+                    |> set #configurationId (Just (unpackId configuration.id))
+                    |> set #recipients ["payroll@example.com"]
+                    |> set #enabled True
+                    |> set #updatedByUserId (unpackId admin.id)
+                    |> createRecord
+                confirmation <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                confirmation `responseBodyShouldContain` "disables automatic reports"
+                confirmation `responseBodyShouldContain` "confirmDisablePayrollReports"
+                unconfirmed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                unconfirmed `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 1
+                retained <- fetch setting.id
+                retained.enabled `shouldBe` True
+                confirmed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06") [("confirmDisablePayrollReports", "true")]
+                confirmed `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                disabled <- fetch setting.id
+                disabled.enabled `shouldBe` False
+                disabled.configurationId `shouldBe` Nothing
+                disabled.recipients `shouldBe` ["payroll@example.com"]
+
+        it "warns before normal and filtered exports, with scoped approved-only continuations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Export review"
+                admin <- createUserRecord "export-review@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                approvedStaff <- createStaffRecord venue (Just admin) "Approved" "Worker"
+                draftStaff <- createStaffRecord venue Nothing "Unapproved" "Worker"
+                let start = fromGregorian 2025 1 6
+                    end = fromGregorian 2025 1 12
+                approved <- createApprovedTimesheetEntryRecordAt venue approvedStaff admin start (UTCTime end 0)
+                draft <- createTimesheetEntryRecord venue draftStaff end
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays (-1) start)
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays 1 end)
+                deleted <- createTimesheetEntryRecord venue draftStaff start
+                _ <- deleted |> set #deletedAt (Just (UTCTime end 0)) |> updateRecord
+                foreignVenue <- createVenueWithConfig "Foreign review"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
+                _ <- createTimesheetEntryRecord foreignVenue foreignStaff start
+                rows <- fetchUnapprovedTimesheets venue.id start end
+                map (.unapprovedTimesheetEntry.id) rows `shouldBe` [draft.id]
+                let downloadParams = [("exportType", "approved_timesheets_csv"), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                    selectionParams = [("selectionExportType", "approved_timesheets_csv"), ("selectionRangeStart", "2025-01-06"), ("selectionRangeEnd", "2025-01-12"), ("selectedTimesheetEntries", "[]")]
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    forM_ [[], [("HX-Request", "true")]] \headers -> withRequestHeaders headers do
+                        warning <- callActionWithParams CreateExportJobAction downloadParams
+                        warning `responseStatusShouldBe` status200
+                        warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                        warning `responseBodyShouldContain` "Unapproved Worker"
+                        warning `responseBodyShouldNotContain` "Foreign Worker"
+                        warning `responseBodyShouldContain` "Continue anyway"
+                        warning `responseBodyShouldContain` "Cancel"
+                        warning `responseBodyShouldContain` "/ConfirmTimesheetExportDownload"
+                        when (not (null headers)) do
+                            lookup "HX-Reswap" (responseHeaders warning) `shouldBe` Just "innerHTML"
+                            lookup "HX-Redirect" (responseHeaders warning) `shouldBe` Nothing
+                        query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    -- Cancel/close has no server write. Reopening rechecks drafts.
+                    filtered <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams OpenTimesheetExportSelectionAction selectionParams)
+                    filtered `responseBodyShouldContain` "/ConfirmTimesheetExportSelection"
+                    filtered `responseBodyShouldNotContain` "Choose shifts for export"
+                    checklist <- callActionWithParams ConfirmTimesheetExportSelectionAction selectionParams
+                    checklist `responseBodyShouldContain` "Choose shifts for export"
+                    checklist `responseBodyShouldNotContain` "Unapproved Worker"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    downloaded <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams ConfirmTimesheetExportDownloadAction selectionParams)
+                    downloaded `responseStatusShouldBe` status200
+                    lookup "HX-Redirect" (responseHeaders downloaded) `shouldSatisfy` isJust
+                job <- query @ExportJob |> fetchOne
+                sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId job.id) |> fetch
+                map (.timesheetEntryId) sources `shouldBe` [unpackId approved.id]
+
+        forM_ [ConfirmTimesheetExportDownloadAction, ConfirmTimesheetExportSelectionAction] \confirmation -> do
+            it ("rejects missing/malformed continuation fields for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Invalid export review"
+                    admin <- createUserRecord "invalid-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue admin VenueAdmin
+                    withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        forM_ [[], [("selectionRangeStart", "not-a-day"), ("selectionRangeEnd", "2025-01-12"), ("selectionExportType", "unknown"), ("selectedTimesheetEntries", "[]")]] \params -> do
+                            response <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams confirmation params)
+                            response `responseStatusShouldBe` status200
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
+            it ("denies managers continuation access for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Denied export review"
+                    manager <- createUserRecord "denied-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue manager Manager
+                    response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction confirmation)
+                    response `responseStatusShouldBe` status302
+                    lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
+        it "exports manual Xero pay-item names and sealed units without any Xero setup" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Unlinked manual workbook"
+                admin <- createUserRecord "manual-workbook@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Level 1" 30 2.5 3 1 1.5 1.75
+                shift <- createShiftTypeRecord venue level "Bar"
+                staffUser <- createUserRecord "manual-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                first <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 9 0 0), setTestEndTime (TimeOfDay 12 0 0)]
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 19 0 0), setTestEndTime (TimeOfDay 21 0 0)]
+                result <- fetchWorkbookXeroQuantities venue.id [first, second]
+                case result of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Ordinary - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 5
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Evening After 7pm Loading - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== defaultWeekEpoch)
+                        map (.xeroQuantityStaffName) quantities `shouldSatisfy` all (== "Ava Worker")
+                selected <- fetchWorkbookXeroQuantities venue.id [first]
+                fmap (sum . map (.xeroQuantityUnits)) selected `shouldBe` Right 3
+                mismatchedVersion <- fetchWorkbookXeroQuantities venue.id [first |> set #staffPayVersionId Nothing]
+                mismatchedVersion `shouldSatisfy` isLeft
+                mismatchedApproval <- fetchWorkbookXeroQuantities venue.id [first |> set #approvedAt (Just (addUTCTime 1 approvedAt))]
+                mismatchedApproval `shouldSatisfy` isLeft
+                components <- query @TimesheetPayEarningsComponent |> fetch
+                map (.xeroMappingLegacyFallback) components `shouldSatisfy` all not
+                map (.xeroEarningsRateId) components `shouldSatisfy` all isNothing
+                query @XeroConnection |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetPayComponentXeroBinding |> fetchCount >>= (`shouldBe` 0)
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    created <- callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Manual Xero"), ("payrollWorkbookSheetFamilies", "[\"xero-pay-items\"]")]
+                    created `responseStatusShouldBe` status302
+                    configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                    generated <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12"), ("payrollWorkbookConfigurationId", cs (tshow configuration.id))]
+                    generated `responseStatusShouldBe` status200
+                    generated `responseBodyShouldNotContain` "toast"
+                exportJob <- query @ExportJob |> fetchOne
+                let archive = Zip.toArchive . LBS.fromStrict . Base64.decodeLenient . encodeUtf8 . fromMaybe "" $ exportJob.fileContents
+                strings <- archiveEntryText "xl/sharedStrings.xml" archive
+                strings `shouldSatisfy` Text.isInfixOf "Ordinary - Level 1 - "
+                strings `shouldSatisfy` Text.isInfixOf "Evening After 7pm Loading - Level 1 - "
+                sheet <- archiveEntryText "xl/worksheets/sheet1.xml" archive
+                sheet `shouldSatisfy` Text.isInfixOf "<v>5</v>"
+                sheet `shouldSatisfy` Text.isInfixOf "<v>2</v>"
+                let lastDay = fromGregorian 2025 1 12
+                overnight <- createAndApproveEntry venue staff lastDay admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 22 0 0), setTestEndTime (TimeOfDay 2 0 0)]
+                overnightQuantities <- fetchWorkbookXeroQuantities venue.id [overnight]
+                case overnightQuantities of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        quantities `shouldSatisfy` (not . null)
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== lastDay)
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Late Night After Midnight Loading - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+
+        forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \exportType ->
+            it (cs ("uses precisely the reviewed selection for " <> exportJobTypeToText exportType)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Selected export"
+                    owner <- createUserRecord "selected-export@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
+                    staff <- createStaffRecord venue (Just owner) "Selected" "Worker"
+                    let day = fromGregorian 2025 1 10
+                    first <- createApprovedTimesheetEntryRecordAt venue staff owner day (UTCTime day 0)
+                    second <- createApprovedTimesheetEntryRecordAt venue staff owner (addDays 1 day) (UTCTime day 0)
+                    let directParams = [("exportType", cs (exportJobTypeToText exportType)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                        selectedParams entries =
+                            [ ("selectionExportType", cs (exportJobTypeToText exportType))
+                            , ("selectionRangeStart", "2025-01-06")
+                            , ("selectionRangeEnd", "2025-01-12")
+                            , ("selectedTimesheetEntries", cs (Aeson.encode (map (encodeTimesheetSelectionIdentity . timesheetSelectionIdentity) entries)))
+                            ]
+                        newestJob = query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                    direct <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams CreateExportJobAction directParams)
+                    direct `responseStatusShouldBe` status302
+                    allJob <- newestJob
+                    allSelected <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first, second]))
+                    allSelected `responseStatusShouldBe` status302
+                    selectedAllJob <- newestJob
+                    selectedAllJob.fileContents `shouldBe` allJob.fileContents
+                    selectedResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    selectedResponse `responseStatusShouldBe` status302
+                    selectedJob <- newestJob
+                    sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId selectedJob.id) |> fetch
+                    map (.timesheetEntryId) sources `shouldBe` [unpackId first.id]
+                    -- Stale and empty filtered requests never create ready jobs.
+                    _ <- first |> set #updatedAt (addUTCTime 1 first.updatedAt) |> updateRecord
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams []))
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 3)
+
         it "redirects unauthenticated users from export jobs page" $ withContext do
             response <- callAction ExportJobsAction
             response `responseStatusShouldBe` status302
@@ -76,10 +493,17 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateExportJobAction
+                    warning <- callActionWithParams CreateExportJobAction
                         [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
                         , ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
+                        ]
+                    warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                    callActionWithParams ConfirmTimesheetExportDownloadAction
+                        [ ("selectionExportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("selectionRangeStart", "2025-01-06")
+                        , ("selectionRangeEnd", "2025-01-12")
+                        , ("selectedTimesheetEntries", "[]")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -236,7 +660,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #importedXeroPayItemId (Just importedItem.id)
                 staffUser <- createUserRecord "imported-payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
@@ -256,6 +680,11 @@ tests = aroundAll withDatabaseTestContext do
                     Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Worker, Ava Bar")
+                connection <- fetch (Id importedItem.xeroConnectionId :: Id XeroConnection)
+                _ <- connection |> set #connectionStatus ("disconnected" :: Text) |> updateRecord
+                manual <- fetchWorkbookXeroQuantities venue.id [entry]
+                fmap (map (\quantity -> (quantity.xeroQuantityPayItemName, quantity.xeroQuantityUnits))) manual
+                    `shouldBe` Right [("Xero Weekend Rate", 8)]
 
         it "limits staff-hours payroll exports to the requested date range" $ withContext do
             withCleanDb do
@@ -728,6 +1157,67 @@ tests = aroundAll withDatabaseTestContext do
                 mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,43.12,43.12"
                 mondayWages `shouldSatisfy` Text.isInfixOf "Total,268.12,268.12"
 
+        it "exports a persisted ten-minute missed-break penalty without nanosecond overrun" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Rounded missed break"
+                admin <- createUserRecord "rounded-missed-break@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue (Just admin) "Rounded" "Duration"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 19 30 0)
+                    , setTestEndTime (TimeOfDay 1 40 0)
+                    , setTestHadBreak True
+                    , setTestBreakMinutes 30
+                    , setTestBreakStartTime (Just (TimeOfDay 21 5 0))
+                    , setTestBreakEndTime (Just (TimeOfDay 21 35 0))
+                    ]
+                calculationResult <- loadApprovedTimesheetPayCalculation entry
+                calculation <- case calculationResult of
+                    Right (Just value) -> pure value
+                    other -> expectationFailure (cs (tshow other)) >> fail "Expected sealed calculation"
+                let missed = filter ((== Wage.MissedMealBreakAdditionCondition) . (.sourceCondition)) calculation.earningsComponents
+                map (.quantity) missed `shouldBe` [166666666667 / 1000000000000]
+                cents <- case buildHourlyWageCents [entry] (Map.singleton (unpackId entry.id) calculation) of
+                    Right value -> pure value
+                    Left failure -> expectationFailure (cs failure) >> fail "Hourly allocation failed"
+                sum (Map.elems cents) `shouldBe` round ((Wage.deriveFinalEarnings calculation.earningsComponents).finalEarningsTotalAmount * 100)
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+                job <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                job.status `shouldBe` exportJobStatusToText ExportReady
+                download <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                download `responseStatusShouldBe` status200
+                after <- loadApprovedTimesheetPayCalculation entry
+                after `shouldBe` calculationResult
+                buildHourlyWageCents [entry |> set #endsAt (addUTCTime (-60) entry.endsAt)] (Map.singleton (unpackId entry.id) calculation)
+                    `shouldSatisfy` isLeft
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0) ]
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                blocked <- generateWorkbookForVenue venue.id config
+                    [ entry |> set #endsAt (addUTCTime (-60) entry.endsAt)
+                    , second |> set #activePayCalculationId Nothing ]
+                    defaultPayrollWorkbookDefinition (fromGregorian 2025 1 6) (fromGregorian 2025 1 12)
+                case blocked of
+                    Left (ExportEntryFailures failures) -> do
+                        map (.entryFailureId) failures `shouldMatchList` [entry.id, second.id]
+                        map (.entryFailureStaffName) failures `shouldBe` replicate 2 (Just "Rounded Duration")
+                    _ -> expectationFailure "Expected all source and interval failures, not a partial workbook"
+                query @ExportJob |> fetchCount `shouldReturn` 1
+
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Venue"
@@ -811,7 +1301,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText PayrollWorkbookXlsx
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
-                exportJob.fileName `shouldBe` Just "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
+                exportJob.fileName `shouldBe` Just "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
                 exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
@@ -833,7 +1323,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders response) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll_workbook-2025-01-06-to-2025-01-12.xlsx\""
+                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
@@ -942,6 +1432,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 generateResponse `responseStatusShouldBe` status302
                 exportJob <- query @ExportJob |> fetchOne
+                exportJob.fileName `shouldBe` Just "summary-then-wages-2025-01-06-to-2025-01-12.xlsx"
                 auditEventsAfterGeneration <- query @AuditEvent |> fetch
                 map (.eventType) auditEventsAfterGeneration `shouldBe` ["export_generated"]
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
@@ -1019,7 +1510,19 @@ tests = aroundAll withDatabaseTestContext do
                         , ("rangeEnd", "2025-01-12")
                         ]
 
-                response `responseStatusShouldBe` status302
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Payroll export blocked"
+                response `responseBodyShouldContain` "Source Blocked"
+                response `responseBodyShouldContain` "No payroll file was generated."
+                fragment <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                            , ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12") ]
+                lookup "HX-Retarget" (responseHeaders fragment) `shouldBe` Just (cs ("#" <> dialogOverlayMountId))
+                lookup "HX-Reswap" (responseHeaders fragment) `shouldBe` Just "innerHTML"
+                fragment `responseBodyShouldContain` "Source Blocked"
+                fragment `responseBodyShouldContain` "EditTimesheetEntry"
                 exportJobs <- query @ExportJob |> fetch
                 exportJobs `shouldBe` []
 

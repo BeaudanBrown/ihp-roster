@@ -1,5 +1,30 @@
 /* Roster grid frame, rails, scroller, headers, and wage summary. */
 
+.roster-fit-viewport.is-fit-measured {
+    height: var(--fit-height);
+    overflow: clip;
+    touch-action: none;
+    user-select: none;
+}
+
+.roster-fit-viewport.is-fit-measured > .roster-grid-frame {
+    width: var(--fit-width);
+    max-width: none;
+    grid-template-columns: var(--fit-tracks);
+    transform-origin: top left;
+    transform: var(--fit-transform);
+}
+
+.roster-fit-viewport.is-fit-measured .roster-slots-scroller {
+    overflow: clip;
+    scroll-snap-type: none;
+    touch-action: none;
+}
+
+.roster-fit-viewport.is-fit-measured .roster-grid-frame .roster-slots-scroller .roster-slots-grid[role="grid"] {
+    min-width: 100%;
+}
+
 .roster-grid {
     --roster-grid-row-height: calc(var(--roster-row-height) + 0.65rem);
     --roster-slot-start-min-width: 4.6rem;

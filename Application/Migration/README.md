@@ -60,6 +60,8 @@ destructive changes:
   assignment migration.
 - `roster-timesheet-suggestion-cutover-runbook.md` — retirement of legacy
   roster-to-Timesheet workers and activation of transient suggestions.
+- `timesheet-roster-group-classification-614-runbook.md` — review and audited
+  operator correction of deterministic historical Timesheet classifications.
 - `timesheet-pay-ledger-234-runbook.md` and
   `haskell-wage-cutover-239-runbook.md` — immutable ledger and wage-authority
   cutover sequence.
@@ -77,6 +79,10 @@ named approval boundary in that runbook.
 - `public-holiday-override-runbook.md` — audited VIC 2026 calendar protection,
   Grand Final eve addition, Easter Monday 2027 correction, review expiry and
   separately approved return to DataVic (revisions `1789440000`/`1789440001`).
+
+- `../PublicHolidays/README.md` — #656 additive import acceptance evidence and
+  separately approved authenticated DataVic cutover. Revision `1792199000`
+  preserves legacy timestamps; it does not retire overrides or import dates.
 
 ## Data-Preserving Enum Conversions
 

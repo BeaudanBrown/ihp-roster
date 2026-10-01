@@ -1,8 +1,10 @@
 module Web.LeaveRequests.Mutations
     ( LeaveReviewDecision (..)
     , LeaveSubmissionResult (..)
+    , LeaveReviewResult (..)
+    , LeavePolicyConflicts (..)
     , ReviewedLeaveRequest (..)
-    , deletePendingLeaveRequest
+    , deleteActiveLeaveRequest
     , leaveReviewTouchedResources
     , reviewLeaveRequest
     , submitLeaveRequest
@@ -11,16 +13,17 @@ module Web.LeaveRequests.Mutations
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupStaffResource,
+                                                                    rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.SurfaceResource
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
-import Application.UnavailabilityBlackout.Mutations (findOverlappingUnavailabilityBlackout,
-                                                     lockVenueUnavailabilityBlackoutInCurrentTransaction)
+import Application.UnavailabilityBlackout.Mutations (lockVenueUnavailabilityBlackoutInCurrentTransaction)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Web.Controller.Prelude
+import Web.LeaveRequests.Policy
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
 data LeaveReviewDecision
@@ -36,48 +39,45 @@ data ReviewedLeaveRequest = ReviewedLeaveRequest
 
 data LeaveSubmissionResult
     = LeaveSubmissionStaffInactive
-    | LeaveSubmissionBlocked !UnavailabilityBlackout
+    | LeaveSubmissionBlocked !LeavePolicyConflicts !(Maybe Text)
+    | LeaveSubmissionInvalidConfirmation
     | LeaveSubmissionCreated !(LiveMutationResult LeaveRequest)
 
-submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO LeaveSubmissionResult
-submitLeaveRequest leaveRequest =
-    withDurableLiveMutationOutcome publicationFor do
-        maybeMutationResult <- withStaffOperationalLocksInCurrentTransaction [leaveRequest.staffId] do
-            staff <- fetch (Id leaveRequest.staffId :: Id Staff)
-            if not staff.isActive || isJust staff.archivedAt || staff.venueId /= leaveRequest.venueId
-                then pure (Left Nothing)
-                else do
-                    lockVenueUnavailabilityBlackoutInCurrentTransaction leaveRequest.venueId
-                    let lastUnavailableDate = addDays (-1) leaveRequest.endDate
-                    findOverlappingUnavailabilityBlackout leaveRequest.venueId leaveRequest.startDate lastUnavailableDate Nothing >>= \case
-                        Just blackout -> pure (Left (Just blackout))
-                        Nothing -> do
-                            createdLeaveRequest <- leaveRequest |> createRecord
-                            void $
-                                recordCurrentUserLeaveRequestEvent
-                                    createdLeaveRequest
-                                    (LeaveRequestEventTypeEnumCreated)
-                                    Nothing
-                                    (Just createdLeaveRequest.status)
-                                    Aeson.Null
-                            pure (Right createdLeaveRequest)
-        case maybeMutationResult of
-            Nothing -> pure LeaveSubmissionStaffInactive
-            Just (Left Nothing) -> pure LeaveSubmissionStaffInactive
-            Just (Left (Just blackout)) -> pure (LeaveSubmissionBlocked blackout)
-            Just (Right createdLeaveRequest) -> do
-                today <- utctDay <$> getCurrentTime
-                let createdStatus = createdLeaveRequest.status
-                let sectionResource = leaveRequestVisibleSectionResource today createdStatus createdLeaveRequest
-                pure $
-                    LeaveSubmissionCreated $
-                        liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [sectionResource])
+data LeaveReviewResult
+    = LeaveReviewUnavailable
+    | LeaveReviewBlocked !LeavePolicyConflicts !(Maybe Text)
+    | LeaveReviewInvalidConfirmation
+    | LeaveReviewCompleted !(LiveMutationResult ReviewedLeaveRequest)
+
+submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Text -> LeaveRequest -> IO LeaveSubmissionResult
+submitLeaveRequest token draft = withDurableLiveMutationOutcome publicationFor do
+    result <- withStaffOperationalLocksInCurrentTransaction [draft.staffId] do
+        lockVenueUnavailabilityBlackoutInCurrentTransaction draft.venueId
+        staff <- fetch (Id draft.staffId :: Id Staff)
+        authority <- fetchLeaveAuthority draft.venueId
+        let mayOverride = maybe False (\role -> hasVenueRole role Manager) authority && hasRole Manager
+        if isNothing authority || not staff.isActive || isJust staff.archivedAt || staff.venueId /= draft.venueId
+                || (not mayOverride && staff.userId /= Just (unpackId effectiveCurrentUser.id))
+            then pure LeaveSubmissionStaffInactive
+            else do
+                config <- fetchVenueConfig
+                today <- currentVenueCalendarDay config
+                checkLeavePolicy Nothing mayOverride token today config.unavailableStaffDailyMaximum draft >>= \case
+                    InvalidConfirmation -> pure LeaveSubmissionInvalidConfirmation
+                    Block conflicts confirmation -> pure (LeaveSubmissionBlocked conflicts confirmation)
+                    Admit conflicts -> do
+                        created <- draft |> set #status LeaveRequestStatusEnumPending |> createRecord
+                        void $ recordCurrentUserLeaveRequestEvent created LeaveRequestEventTypeEnumCreated Nothing (Just created.status) Aeson.Null
+                        recordOverride created conflicts
+                        let section = leaveRequestVisibleSectionResource today created.status created
+                        pure $ LeaveSubmissionCreated $ liveMutationResult created (baseLeaveTouchedResources created <> [section])
+    pure (fromMaybe LeaveSubmissionStaffInactive result)
   where
     publicationFor (LeaveSubmissionCreated result) = Just ("leave.submit", result.liveMutationTouchedResources)
     publicationFor _ = Nothing
 
-deletePendingLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (Maybe (LiveMutationResult LeaveRequest))
-deletePendingLeaveRequest leaveRequest =
+deleteActiveLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (Maybe (LiveMutationResult LeaveRequest))
+deleteActiveLeaveRequest leaveRequest =
     withDurableLiveMutationOutcome publicationFor do
         fmap join $ withStaffOperationalLocksInCurrentTransaction [leaveRequest.staffId] do
             lockedRequest <-
@@ -87,94 +87,89 @@ deletePendingLeaveRequest leaveRequest =
                     |> filterWhere (#staffId, leaveRequest.staffId)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOneOrNothing
+            now <- getCurrentTime
+            venueConfig <- fetchVenueConfig
+            today <- venueCalendarDayAt venueConfig now
             case lockedRequest of
-                Just pendingRequest | pendingRequest.status == LeaveRequestStatusEnumPending -> do
-                    now <- getCurrentTime
+                Just request | not (leaveRequestIsArchivedOn today request) -> do
+                    let reason = "staff_deleted_request" :: Text
                     deletedRequest <-
-                        pendingRequest
+                        request
                             |> set #deletedAt (Just now)
                             |> set #deletedByUserId (Just (unpackId authenticatedCurrentUser.id))
-                            |> set #deleteReason (Just "staff_deleted_pending_request")
+                            |> set #deleteReason (Just reason)
                             |> updateRecord
                     void $
                         recordCurrentUserLeaveRequestEvent
                             deletedRequest
                             LeaveRequestEventTypeEnumDeleted
-                            (Just pendingRequest.status)
+                            (Just request.status)
                             Nothing
-                            (Aeson.object ["reason" Aeson..= ("staff_deleted_pending_request" :: Text)])
+                            (Aeson.object ["reason" Aeson..= reason])
                     void $
                         recordCurrentUserAuditEvent
                             LeaveDeletedAudit
                             "leave_requests"
-                            (unpackId pendingRequest.id)
+                            (unpackId request.id)
                             (Aeson.object
-                                [ "staffId" Aeson..= pendingRequest.staffId
-                                , "startDate" Aeson..= pendingRequest.startDate
-                                , "endDate" Aeson..= pendingRequest.endDate
-                                , "previousStatus" Aeson..= inputValue pendingRequest.status
+                                [ "staffId" Aeson..= request.staffId
+                                , "startDate" Aeson..= request.startDate
+                                , "endDate" Aeson..= request.endDate
+                                , "previousStatus" Aeson..= inputValue request.status
                                 , "deletedAt" Aeson..= now
                                 ])
-                    let today = utctDay now
-                    pure $
-                        Just $
-                            liveMutationResult
-                                deletedRequest
-                                (baseLeaveTouchedResources deletedRequest <> [leaveRequestVisibleSectionResource today pendingRequest.status pendingRequest])
+                    rosterResources <-
+                        if request.status == LeaveRequestStatusEnumApproved
+                            then approvedLeaveDeletionRosterResources request
+                            else pure []
+                    pure $ Just $ liveMutationResult deletedRequest
+                        (baseLeaveTouchedResources deletedRequest <> [leaveRequestVisibleSectionResource today request.status request] <> rosterResources)
                 _ -> pure Nothing
   where
     publicationFor = fmap (\result -> ("leave.delete", result.liveMutationTouchedResources))
 
-reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (Maybe (LiveMutationResult ReviewedLeaveRequest))
-reviewLeaveRequest decision leaveRequest =
-    withDurableLiveMutationOutcome publicationFor do
-        maybeReviewResult <- fmap join $ withStaffOperationalLocksInCurrentTransaction [leaveRequest.staffId] do
-            staff <- fetch (Id leaveRequest.staffId :: Id Staff)
-            if not staff.isActive || isJust staff.archivedAt || staff.venueId /= leaveRequest.venueId
-                then pure Nothing
-                else do
-                    lockedLeaveRequest <- fetch leaveRequest.id
-                    let previousStatus = lockedLeaveRequest.status
-                    let wasApproved = previousStatus == LeaveRequestStatusEnumApproved
-                    updatedLeaveRequest <-
-                        lockedLeaveRequest
-                            |> set #status (reviewDecisionStatus decision)
-                            |> updateRecord
-                    void $
-                        recordCurrentUserLeaveRequestEvent
-                            updatedLeaveRequest
-                            (reviewDecisionEventType decision)
-                            (Just lockedLeaveRequest.status)
-                            (Just updatedLeaveRequest.status)
-                            Aeson.Null
-                    void $ recordCurrentUserAuditEvent
-                        (reviewDecisionAuditAction decision)
-                        "leave_requests"
-                        (unpackId (get #id lockedLeaveRequest))
-                        (Aeson.object
-                            [ "staffId" Aeson..= lockedLeaveRequest.staffId
-                            , "startDate" Aeson..= lockedLeaveRequest.startDate
-                            , "endDate" Aeson..= lockedLeaveRequest.endDate
-                            , "previousStatus" Aeson..= inputValue lockedLeaveRequest.status
-                            , "newStatus" Aeson..= inputValue updatedLeaveRequest.status
-                            ]
-                        )
-                    pure (Just (updatedLeaveRequest, previousStatus, wasApproved))
-
-        forM maybeReviewResult \(updatedLeaveRequest, previousStatus, wasApproved) -> do
-            venueConfig <- fetchVenueConfig
-            activeRosterScopes <- activeRosterWindowScopes
-            today <- utctDay <$> getCurrentTime
-            let touchedResources = leaveReviewTouchedResources today decision previousStatus updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
-            pure $
-                liveMutationResult
-                    ReviewedLeaveRequest
-                        { reviewedLeaveRequest = updatedLeaveRequest
-                        , reviewedLeaveWasAlreadyApproved = wasApproved
-                        }
-                    touchedResources
+reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Text -> LeaveReviewDecision -> LeaveRequest -> IO LeaveReviewResult
+reviewLeaveRequest token decision leaveRequest = withDurableLiveMutationOutcome publicationFor do
+    result <- withStaffOperationalLocksInCurrentTransaction [leaveRequest.staffId] do
+        lockVenueUnavailabilityBlackoutInCurrentTransaction leaveRequest.venueId
+        staff <- fetch (Id leaveRequest.staffId :: Id Staff)
+        authority <- fetchLeaveAuthority leaveRequest.venueId
+        locked <- fetch leaveRequest.id
+        config <- fetchVenueConfig
+        today <- currentVenueCalendarDay config
+        let previous = locked.status
+        let wasApproved = previous == LeaveRequestStatusEnumApproved
+        if not (hasRole Manager && maybe False (\role -> hasVenueRole role Manager) authority) || not staff.isActive || isJust staff.archivedAt
+                || staff.venueId /= locked.venueId || locked.staffId /= leaveRequest.staffId || locked.venueId /= leaveRequest.venueId
+                || isJust locked.deletedAt || leaveRequestIsArchivedOn today locked
+            then pure LeaveReviewUnavailable
+            else do
+                policy <- case (decision, previous) of
+                    (ApproveLeave, LeaveRequestStatusEnumDenied) ->
+                        checkLeavePolicy (Just ("approve-denied:" <> tshow (unpackId locked.id))) True token today config.unavailableStaffDailyMaximum locked
+                    _ | isJust token -> pure InvalidConfirmation
+                    _ -> pure (Admit (LeavePolicyConflicts [] []))
+                case policy of
+                    Block conflicts confirmation -> pure (LeaveReviewBlocked conflicts confirmation)
+                    InvalidConfirmation -> pure LeaveReviewInvalidConfirmation
+                    Admit conflicts -> do
+                        updated <- locked |> set #status (reviewDecisionStatus decision) |> updateRecord
+                        void $ recordCurrentUserLeaveRequestEvent updated (reviewDecisionEventType decision) (Just previous) (Just updated.status) Aeson.Null
+                        void $ recordCurrentUserAuditEvent (reviewDecisionAuditAction decision) "leave_requests" (unpackId locked.id) (Aeson.object
+                            [ "staffId" Aeson..= locked.staffId
+                            , "startDate" Aeson..= locked.startDate
+                            , "endDate" Aeson..= locked.endDate
+                            , "previousStatus" Aeson..= inputValue previous
+                            , "newStatus" Aeson..= inputValue updated.status
+                            ])
+                        recordOverride updated conflicts
+                        activeScopes <- activeRosterWindowScopes
+                        let touched = leaveReviewTouchedResources today decision previous updated <> (if reviewDecisionChangesRoster decision wasApproved then leaveRosterWindowResources activeScopes updated else [])
+                        pure $ LeaveReviewCompleted $ liveMutationResult (ReviewedLeaveRequest updated wasApproved) touched
+    pure (fromMaybe LeaveReviewUnavailable result)
   where
-    publicationFor = fmap (\result -> ("leave.review", result.liveMutationTouchedResources))
+    publicationFor (LeaveReviewCompleted result) = Just ("leave.review", result.liveMutationTouchedResources)
+    publicationFor _ = Nothing
 
 baseLeaveTouchedResources :: LeaveRequest -> [SurfaceResourceValue]
 baseLeaveTouchedResources leaveRequest =
@@ -198,10 +193,19 @@ leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumApproved = appro
 leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumDenied = deniedLeaveRequestsResource venueId
 leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumPending = pendingLeaveRequestsResource venueId
 
-leaveReviewRosterWeekResources :: [(UUID, UUID, Day, Day, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
-leaveReviewRosterWeekResources activeScopes _venueConfig decision wasApproved leaveRequest
-    | not (reviewDecisionChangesRoster decision wasApproved) = []
-    | otherwise =
+approvedLeaveDeletionRosterResources :: (?modelContext :: ModelContext) => LeaveRequest -> IO [SurfaceResourceValue]
+approvedLeaveDeletionRosterResources request = do
+    activeScopes <- activeRosterWindowScopes
+    -- Venue group resources also reach listeners in other app processes. Do
+    -- not rely on current staff-group membership: existing assignments may
+    -- still be visible in a group the staff member has since moved out of.
+    groups <- query @RosterGroup
+        |> filterWhere (#venueId, request.venueId)
+        |> fetch
+    pure (map (rosterGroupStaffResource . unpackId . (.id)) groups <> leaveRosterWindowResources activeScopes request)
+
+leaveRosterWindowResources :: [(UUID, UUID, Day, Day, Int)] -> LeaveRequest -> [SurfaceResourceValue]
+leaveRosterWindowResources activeScopes leaveRequest =
         Set.toList $ Set.fromList
             [ resource
             | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeScopes

@@ -12,7 +12,9 @@ wrongActionWireType =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
         ( surfaceActionFields
             (surfaceField @Timesheets.AnchorDate ("not-a-date" :: Text))
-            ( surfaceOptionalField @Timesheets.StaffFilterId Nothing
+            ( surfaceOptionalField @Timesheets.StaffFilterIds Nothing
+                &: surfaceOptionalField @Timesheets.RosterGroupFilterIds Nothing
+                &: surfaceOptionalField @Timesheets.ShiftTypeFilterIds Nothing
                 &: noSurfaceFields
             )
         )

@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.Registry
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin (AdminExportsSurface,
+                                                          AdminRecipientGroupsSurface,
                                                           AdminInvitesSurface,
                                                           AdminPageSurface,
                                                           AdminRosterGroupsSurface,
@@ -18,7 +19,7 @@ import Application.Helper.FrontendContract.Surface.Feedback (FeedbackSurface, Fe
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveRequestsSurface)
 import Application.Helper.FrontendContract.Surface.Profile (ProfileSurface,
                                                             StaffSurface)
-import Application.Helper.FrontendContract.Surface.Roster (RosterDayTimelineSurface,
+import Application.Helper.FrontendContract.Surface.Roster (RosterDayTimelineSurface, RosterPersonalSurface,
                                                            RosterSurface)
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave (SelfServiceLeaveSurface)
 import Application.Helper.FrontendContract.Surface.Support (SupportSurface)
@@ -27,6 +28,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets (TimesheetsSurface
 type RegisteredFrontendSurfaces =
     '[ TimesheetsSurface
      , RosterSurface
+     , RosterPersonalSurface
      , RosterDayTimelineSurface
      , LeaveRequestsSurface
      , SelfServiceLeaveSurface
@@ -41,6 +43,7 @@ type RegisteredFrontendSurfaces =
      , AdminVenueSettingsSurface
      , AdminInvitesSurface
      , AdminExportsSurface
+     , AdminRecipientGroupsSurface
      , AdminShiftTypesSurface
      , AdminRosterGroupsSurface
      , AdminXeroSurface

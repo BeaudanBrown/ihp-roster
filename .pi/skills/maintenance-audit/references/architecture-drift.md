@@ -130,8 +130,8 @@ Classify each:
 
 - true lexical policy (forbidden import, generated header): text/AST checks may
   be correct;
-- structural contract (every action has a wrapper): derive from architecture
-  facts/reflection/AST;
+- structural contract (every action has a wrapper): check the current
+  declarations and implementations;
 - runtime behavior (auth, route, DOM, serialization): exercise the interface;
 - exact compatibility/migration requirement: narrow literal checks may be the
   independent oracle.

@@ -6,12 +6,14 @@ module Application.Helper.FrontendContract.Surface.Roster.Live
     , rosterDayColumnsLiveFragment
     , rosterDayRailLiveFragment
     , rosterDaySectionLiveFragment
+    , rosterPersonalLiveScope
     , rosterDayTimelineLiveScope
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
+    , rosterSettingsContentLiveFragment
     , rosterTemplateLibraryLiveFragment
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
@@ -22,12 +24,13 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Live (roster
                                                                           rosterDayColumnsLiveFragment,
                                                                           rosterDayRailLiveFragment,
                                                                           rosterDaySectionLiveFragment,
-                                                                          rosterDayTimelineLiveScope,
+                                                                          rosterPersonalLiveScope, rosterDayTimelineLiveScope,
                                                                           rosterGridFrameLiveFragment,
                                                                           rosterGridToolbarLiveFragment,
                                                                           rosterRowLiveFragment,
                                                                           rosterSlotsGridLiveFragment,
                                                                           rosterStaffPanelLiveFragment,
+                                                                          rosterSettingsContentLiveFragment,
                                                                           rosterTemplateLibraryLiveFragment,
                                                                           rosterWageRailLiveFragment,
                                                                           rosterWeekLiveScope)

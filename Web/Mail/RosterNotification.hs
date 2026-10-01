@@ -60,7 +60,11 @@ orderedShifts :: [RosterNotificationShiftSnapshot] -> [RosterNotificationShiftSn
 orderedShifts = List.sortOn \shift -> (shift.shiftDate, shift.shiftStartsAt, shift.shiftRosterSlotId)
 
 renderMailHtml :: RosterNotificationMail -> Markup.Html
-renderMailHtml mail = [hsx|<pre>{renderMailText mail}</pre>|]
+renderMailHtml mail = [hsx|{forEach (Text.splitOn "\n\n" (renderMailText mail)) renderParagraph}|]
+  where
+    renderParagraph paragraph = [hsx|<p>{renderLines paragraph}</p>|]
+    renderLines paragraph = mconcat (List.intersperse [hsx|<br/>|] (map renderLine (Text.lines paragraph)))
+    renderLine line = [hsx|{line}|]
 
 renderMailText :: RosterNotificationMail -> Text
 renderMailText mail =

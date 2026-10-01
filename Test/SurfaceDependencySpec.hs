@@ -106,18 +106,19 @@ tests = do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let mountState = TimesheetsMountStateValue (TimesheetViewFilters [] [] [])
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
             let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
             let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
             let affectedByBoundary = planMountedFragments (Set.fromList [timesheetWeekBoundaryConfigResource venueId]) (timesheetsSurfaceScope scopeValue) candidates
 
             map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-2025-01-24"]
-            map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"]
+            map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content"]
             map (.mountedFragmentTargetId) affectedByBoundary
                 `shouldBe` [ "timesheet-week-toolbar"
                            , "timesheet-day-columns"
                            , "timesheet-side-panel-content"
+                           , "timesheet-staff-content"
                            , "timesheet-day-section-2025-01-20"
                            , "timesheet-day-section-2025-01-21"
                            , "timesheet-day-section-2025-01-22"
@@ -132,7 +133,7 @@ tests = do
             let staffId = fromWords 2 0 0 0
             let rosterGroupId = fromWords 3 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters (Just staffId) (Just rosterGroupId))
+            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters [staffId] [rosterGroupId] [])
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments
@@ -146,9 +147,9 @@ tests = do
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
             actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
             map (.mountedFragmentUrl) mountedFragments
-                `shouldSatisfy` all (Text.isInfixOf ("staffFilterId=" <> tshow staffId))
+                `shouldSatisfy` all (Text.isInfixOf ("staffFilterIds=" <> tshow staffId))
             map (.mountedFragmentUrl) mountedFragments
-                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterId=" <> tshow rosterGroupId))
+                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterIds=" <> tshow rosterGroupId))
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
@@ -174,10 +175,10 @@ tests = do
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) approvedResources candidates
                 `shouldBe` passiveFragmentKeys approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
             map (.mountedFragmentTargetId) affectedByBlackouts `shouldBe` ["unavailability-blackouts"]
-            map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-side-panel-content", "leave-availability-warnings"]
+            map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings"]
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
-            map (.mountedFragmentTargetId) affectedBySidePanelAndBlackouts `shouldBe` ["leave-side-panel-content", "leave-availability-warnings"]
+            map (.mountedFragmentTargetId) affectedBySidePanelAndBlackouts `shouldBe` ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings"]
 
         it "keeps subscription scope singular and executable descriptors local" do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
@@ -269,6 +270,7 @@ tests = do
                     , "roster-wage-rail"
                     , "roster-slots-grid"
                     , "roster-staff-panel-fragment"
+                    , "roster-settings-content"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
@@ -314,6 +316,7 @@ tests = do
                     , RosterLive.rosterDayRailLiveFragment
                     , RosterLive.rosterWageRailLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterSettingsContentLiveFragment
                     , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
                     ]
 
@@ -356,6 +359,7 @@ tests = do
                     , RosterLive.rosterWageRailLiveFragment
                     , RosterLive.rosterSlotsGridLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterSettingsContentLiveFragment
                     ]
 
         it "selects the slots scroll owner for broad slots-content changes" do
@@ -379,6 +383,7 @@ tests = do
                     , RosterLive.rosterWageRailLiveFragment
                     , RosterLive.rosterSlotsGridLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterSettingsContentLiveFragment
                     ]
 
         it "selects staff-bearing roster fragments for cross-process roster-group staff changes" do
@@ -395,6 +400,7 @@ tests = do
                 `shouldBe`
                     [ RosterLive.rosterSlotsGridLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterSettingsContentLiveFragment
                     ]
 
         it "selects structural roster wrappers only for structural week changes" do
@@ -414,6 +420,7 @@ tests = do
                 `shouldBe`
                     [ RosterLive.rosterContentLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterSettingsContentLiveFragment
                     ]
 
         it "keeps a parameterized child when the selected ancestor is a different instance" do

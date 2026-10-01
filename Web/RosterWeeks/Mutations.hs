@@ -1,5 +1,6 @@
 module Web.RosterWeeks.Mutations
     ( RosterSlotMutationResult (..)
+    , saveFitWholeWeekMutation
     , addRosterDayRowMutation
     , appendRosterWindowLaneMutation
     , copyRosterWindowFromSourceMutation
@@ -27,6 +28,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate.DurablePublisher (persistDurableInvalidationInCurrentTransaction)
+import Application.Helper.UserPreferences (saveCurrentUserFitWholeWeek)
 import Application.Helper.SurfaceResource
 import Application.RosterPublication.Mutations (withRosterWindowDateLockInCurrentTransaction)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
@@ -47,7 +49,12 @@ import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
                                   removeRosterWindowLane, repackRosterWindow,
                                   rosterWindowIsPublished)
 import Web.RosterWeeks.Service
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
+import Web.SurfaceInvalidation (withDurableLiveMutation, withDurableLiveMutationOutcome)
+
+saveFitWholeWeekMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> IO (LiveMutationResult ())
+saveFitWholeWeekMutation desired = withDurableLiveMutation "roster.fit_whole_week" do
+    saveCurrentUserFitWholeWeek desired
+    pure (liveMutationResult () [fitWeekPreferenceResource (unpackId effectiveCurrentUser.id)])
 
 withDurableRosterMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

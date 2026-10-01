@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
@@ -11,7 +12,10 @@ module Application.Helper.Export.PayrollWorkbookConfiguration
     , createStandardPayrollWorkbookConfigurationInCurrentTransaction
     , updateSavedPayrollWorkbookConfigurationInCurrentTransaction
     , deleteSavedPayrollWorkbookConfiguration
+    , deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable
+    , deleteSavedPayrollWorkbookConfigurationInCurrentTransaction
     , fetchSavedPayrollWorkbookConfiguration
+    , fetchSavedPayrollWorkbookConfigurationForVenue
     , listSavedPayrollWorkbookConfigurations
     , normalizePayrollWorkbookConfigurationName
     , payrollWorkbookConfigurationPersistenceError
@@ -24,6 +28,7 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenueOrNothing)
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Hasql (isUniqueViolation)
+import Application.PayrollReports.Settings (withPayrollReportVenueLock, clearPayrollReportTemplateInCurrentTransaction)
 import qualified Control.Exception as Exception
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -62,6 +67,7 @@ data PayrollWorkbookConfigurationError
     | PayrollWorkbookConfigurationNameConflict !Text
     | PayrollWorkbookConfigurationNotFound
     | PayrollWorkbookConfigurationStale
+    | PayrollWorkbookConfigurationScheduleConfirmationRequired
     | PayrollWorkbookConfigurationStoredDefinitionInvalid !Text
     deriving (Eq, Show)
 
@@ -89,7 +95,7 @@ createSavedPayrollWorkbookConfigurationInCurrentTransaction input =
 
 createSavedPayrollWorkbookConfigurationWithPersistence ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    (IO SavedPayrollWorkbookConfiguration -> IO (Either HasqlSessionError SavedPayrollWorkbookConfiguration)) ->
+    (((?modelContext :: ModelContext) => IO SavedPayrollWorkbookConfiguration) -> IO (Either HasqlSessionError SavedPayrollWorkbookConfiguration)) ->
     NewPayrollWorkbookConfiguration ->
     IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
 createSavedPayrollWorkbookConfigurationWithPersistence persist input
@@ -267,11 +273,17 @@ fetchSavedPayrollWorkbookConfiguration ::
     IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
 fetchSavedPayrollWorkbookConfiguration configurationId
     | not canManagePayrollWorkbookConfigurations = pure (Left PayrollWorkbookConfigurationAccessDenied)
-    | otherwise = do
+    | otherwise = fetchSavedPayrollWorkbookConfigurationForVenue currentVenueId configurationId
+
+-- Worker boundary: its caller owns authority; scope is never inferred from a user.
+fetchSavedPayrollWorkbookConfigurationForVenue ::
+    (?modelContext :: ModelContext) =>
+    Id Types.Venue -> Id Types.PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
+fetchSavedPayrollWorkbookConfigurationForVenue venueId configurationId = do
         maybeConfiguration <-
             query @Types.PayrollWorkbookConfiguration
                 |> filterWhere (#id, configurationId)
-                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#venueId, unpackId venueId)
                 |> fetchOneOrNothing
         case maybeConfiguration of
             Nothing -> pure (Left PayrollWorkbookConfigurationNotFound)
@@ -283,9 +295,21 @@ deleteSavedPayrollWorkbookConfiguration ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Id Types.PayrollWorkbookConfiguration ->
     IO (Either PayrollWorkbookConfigurationError ())
-deleteSavedPayrollWorkbookConfiguration configurationId
+deleteSavedPayrollWorkbookConfiguration = deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable False
+
+deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Bool -> Id Types.PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError ())
+deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable confirmed configurationId =
+    withTransaction (deleteSavedPayrollWorkbookConfigurationInCurrentTransaction confirmed configurationId)
+
+deleteSavedPayrollWorkbookConfigurationInCurrentTransaction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Bool -> Id Types.PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError ())
+deleteSavedPayrollWorkbookConfigurationInCurrentTransaction confirmed configurationId
     | not canManagePayrollWorkbookConfigurations = pure (Left PayrollWorkbookConfigurationAccessDenied)
     | otherwise = do
+        withPayrollReportVenueLock (unpackId currentVenueId)
         maybeConfiguration <-
             query @Types.PayrollWorkbookConfiguration
                 |> filterWhere (#id, configurationId)
@@ -293,7 +317,17 @@ deleteSavedPayrollWorkbookConfiguration configurationId
                 |> fetchOneOrNothing
         case maybeConfiguration of
             Nothing -> pure (Left PayrollWorkbookConfigurationNotFound)
-            Just configuration -> deleteRecord configuration >> pure (Right ())
+            Just configuration -> do
+                linked <- query @Types.PayrollReportSetting
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#configurationId, Just (unpackId configurationId))
+                    |> fetchExists
+                if linked && not confirmed
+                    then pure (Left PayrollWorkbookConfigurationScheduleConfirmationRequired)
+                    else do
+                        clearPayrollReportTemplateInCurrentTransaction (unpackId currentVenueId) (unpackId configurationId) (unpackId authenticatedCurrentUser.id)
+                        deleteRecord configuration
+                        pure (Right ())
 
 canManagePayrollWorkbookConfigurations :: (?context :: ControllerContext) => Bool
 canManagePayrollWorkbookConfigurations =

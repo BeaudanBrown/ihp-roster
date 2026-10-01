@@ -4,6 +4,9 @@
 
 module Web.View.Support.Index where
 
+import Application.EmailDelivery.Support (NotificationDeliveryHealth (..),
+                                          NotificationHealth (..),
+                                          NotificationIncidentEventHealth (..))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
@@ -15,11 +18,11 @@ import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
-import Application.Helper.JobStatus (jobStatusLabel)
-import Application.PublicHolidays.Override (PublicHolidayOverrideStatus (..))
+import Application.Helper.JobStatus (jobStatusHasDiagnostic, jobStatusLabel)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
+import Application.PublicHolidays.Override (PublicHolidayOverrideStatus (..))
 import Application.Support.LiveUpdates (supportSurface)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnostic (..),
                                                XeroTimesheetDiagnosticLine (..),
@@ -44,12 +47,17 @@ data IndexView = IndexView
     , fwcMapdAdminData              :: FwcMapdAdminData
     , latestFwcMapdRefreshJob       :: Maybe AppJob
     , activeFwcMapdRefreshJob       :: Maybe AppJob
-    , publicHolidayCoverage         :: [PublicHolidayCoverageYear]
-    , latestPublicHolidayRefreshJob :: Maybe AppJob
-    , activePublicHolidayRefreshJob :: Maybe AppJob
+    , publicHolidaySection         :: PublicHolidaySection
     , xeroDiagnosticSubmissionId    :: Text
     , xeroTimesheetDiagnostic       :: Maybe XeroTimesheetDiagnostic
     , xeroTimesheetDiagnosticError  :: Maybe Text
+    , notificationHealth            :: NotificationHealth
+    }
+
+data PublicHolidaySection = PublicHolidaySection
+    { publicHolidayCoverage :: [PublicHolidayCoverageYear]
+    , latestPublicHolidayImportJob :: Maybe AppJob
+    , latestAcceptedPublicHolidayImport :: Maybe PublicHolidayImportBatch
     }
 
 instance View IndexView where
@@ -94,7 +102,8 @@ instance View IndexView where
                 simpleAppPanel
                     "Public Holidays"
                     (Just "Victorian public holiday cache used by payroll penalty calculations.")
-                    (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+                    (renderPublicHolidaysSection publicHolidaySection)
+            notificationHealthPanel = renderNotificationHealthPanel notificationHealth
             page =
                 renderAppPage (AppPageConfig
                     { appPageTitle = "Support"
@@ -104,6 +113,7 @@ instance View IndexView where
                     , appPageWidthClass = ""
                     , appPageBody = [hsx|
                         <div class="app-page-stack">
+                            {notificationHealthPanel}
                             {xeroDiagnosticPanel}
                             {signInMethodsPanel}
                             {awardRatesPanel}
@@ -117,6 +127,143 @@ instance View IndexView where
                 {renderFrontendSurfaceMount supportSurface page}
             </section>
         |]
+
+renderNotificationHealthPanel :: NotificationHealth -> Html
+renderNotificationHealthPanel health =
+    simpleAppPanel
+        "Notification Health"
+        (Just "Durable incident transitions, recipient outcomes and Resend delivery state. Delivered means accepted by the recipient's mail server, not inbox placement.")
+        [hsx|
+            <div class="d-flex flex-column gap-4">
+                <div>
+                    <h3 class="h6">Open incidents</h3>
+                    {renderOpenIncidents health.openIncidents}
+                </div>
+                <div>
+                    <h3 class="h6">Recent incident transitions</h3>
+                    {renderRecentIncidentEvents health.recentIncidentEvents}
+                </div>
+                <div>
+                    <h3 class="h6">Recent delivery outcomes</h3>
+                    {renderRecentDeliveries health.recentDeliveries}
+                </div>
+                <div>
+                    <h3 class="h6">Host watchdog and backup verification</h3>
+                    {renderHostWatchdogStatus health.hostWatchdogStatus}
+                    {renderHostWatchdogDispatches health.recentHostDispatches}
+                </div>
+                <p class="small text-muted mb-0">Transitions with no eligible recipient: {tshow (length health.zeroRecipientEvents)}. Delivery-disabled and unknown historical provider states are preserved explicitly.</p>
+            </div>
+        |]
+
+renderOpenIncidents :: [OperationalIncident] -> Html
+renderOpenIncidents [] = [hsx|<p class="small text-muted">No open operational incidents.</p>|]
+renderOpenIncidents incidents = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Category</th><th>Source</th><th>Severity</th><th>Last observed</th></tr></thead>
+            <tbody>{forEach incidents renderIncidentRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderIncidentRow :: OperationalIncident -> Html
+renderIncidentRow incident = [hsx|
+    <tr><td>{incident.category}</td><td>{incident.affectedSource}</td><td>{incident.severity}</td><td>{tshow incident.lastObservedAt}</td></tr>
+|]
+
+renderRecentIncidentEvents :: [NotificationIncidentEventHealth] -> Html
+renderRecentIncidentEvents [] = [hsx|<p class="small text-muted">No durable incident transitions.</p>|]
+renderRecentIncidentEvents events = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Observed</th><th>Transition</th><th>Sequence</th><th>Eligible</th><th>Snapshot</th><th>Delivered</th><th>Failed</th><th>Pending</th></tr></thead>
+            <tbody>{forEach events renderIncidentEventRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderIncidentEventRow :: NotificationIncidentEventHealth -> Html
+renderIncidentEventRow eventHealth = [hsx|
+    <tr>
+        <td>{tshow eventHealth.event.observedAt}</td>
+        <td>{eventHealth.event.transition}</td>
+        <td>{tshow eventHealth.event.eventSequence}</td>
+        <td>{tshow eventHealth.event.eligibleRecipientCount}</td>
+        <td>{tshow eventHealth.recipientSnapshotCount}</td>
+        <td>{tshow eventHealth.deliveredCount}</td>
+        <td>{tshow eventHealth.failedCount}</td>
+        <td>{tshow eventHealth.pendingCount}</td>
+    </tr>
+|]
+
+renderRecentDeliveries :: [NotificationDeliveryHealth] -> Html
+renderRecentDeliveries [] = [hsx|<p class="small text-muted">No durable email deliveries.</p>|]
+renderRecentDeliveries deliveries = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Created</th><th>Kind</th><th>Queue</th><th>SMTP</th><th>Provider</th><th></th></tr></thead>
+            <tbody>{forEach deliveries renderDeliveryRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderDeliveryRow :: NotificationDeliveryHealth -> Html
+renderDeliveryRow delivery = [hsx|
+    <tr>
+        <td>{tshow delivery.job.createdAt}</td>
+        <td>{fromMaybe "unknown" delivery.mailKind}</td>
+        <td>{jobStatusLabel delivery.job.status}</td>
+        <td>{if isJust (delivery.providerState >>= (.smtpAcceptedAt)) then ("accepted" :: Text) else "not accepted"}</td>
+        <td>{maybe "unknown" (.providerStatus) delivery.providerState}</td>
+        <td>{renderResendControl delivery}</td>
+    </tr>
+|]
+
+renderHostWatchdogStatus :: Maybe HostWatchdogStatus -> Html
+renderHostWatchdogStatus Nothing = [hsx|<p class="small text-muted">No host watchdog status has been reconciled.</p>|]
+renderHostWatchdogStatus (Just status) = [hsx|
+    <dl class="row small mb-3">
+        <dt class="col-sm-3">Latest backup snapshot</dt>
+        <dd class="col-sm-9">{maybe "not observed" tshow status.lastBackupSnapshotAt}</dd>
+        <dt class="col-sm-3">Latest isolated restore verification</dt>
+        <dd class="col-sm-9">{maybe "not observed" tshow status.lastRestoreVerifiedAt}</dd>
+        <dt class="col-sm-3">Unit results</dt>
+        <dd class="col-sm-9">backup {status.backupResult}; verification {status.verificationResult}</dd>
+        <dt class="col-sm-3">Observed</dt>
+        <dd class="col-sm-9">{tshow status.observedAt}</dd>
+    </dl>
+|]
+
+renderHostWatchdogDispatches :: [HostWatchdogDispatch] -> Html
+renderHostWatchdogDispatches [] = [hsx|<p class="small text-muted">No host-local watchdog deliveries.</p>|]
+renderHostWatchdogDispatches dispatches = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Attempted</th><th>Status</th><th>Provider reference</th></tr></thead>
+            <tbody>{forEach dispatches renderHostWatchdogDispatch}</tbody>
+        </table>
+    </div>
+|]
+
+renderHostWatchdogDispatch :: HostWatchdogDispatch -> Html
+renderHostWatchdogDispatch dispatch = [hsx|
+    <tr>
+        <td>{tshow dispatch.attemptedAt}</td>
+        <td>{dispatch.dispatchStatus}</td>
+        <td>{fromMaybe "not available" dispatch.providerEmailId}</td>
+    </tr>
+|]
+
+renderResendControl :: NotificationDeliveryHealth -> Html
+renderResendControl delivery
+    | not delivery.canResend = mempty
+    | otherwise = [hsx|
+        <form method="POST" action={CreateSupportEmailResendAction delivery.job.id} class="d-flex gap-2">
+            <input class="form-control form-control-sm" type="text" name="reason" required="required" maxlength="240" placeholder="Reviewed reason" />
+            <button class="btn btn-sm btn-outline-danger" type="submit">Resend</button>
+        </form>
+    |]
 
 renderXeroTimesheetDiagnosticPanel :: Text -> Maybe XeroTimesheetDiagnostic -> Maybe Text -> Html
 renderXeroTimesheetDiagnosticPanel submissionId maybeDiagnostic maybeError =
@@ -243,18 +390,14 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
     </div>
 |]
 
-renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
-renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
+renderPublicHolidaysSection :: PublicHolidaySection -> Html
+renderPublicHolidaysSection PublicHolidaySection { .. } = [hsx|
     <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportPublicHolidays noSurfaceFields}
          class="d-flex flex-column gap-3">
-        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-            <div class="small app-muted">
-                <div>Cached statewide VIC public holidays for previous, current, and next year.</div>
-                <div>{renderPublicHolidayRefreshJobStatus latestRefreshJob}</div>
-            </div>
-            <div class="flex-shrink-0">
-                {renderPublicHolidayRefreshForm activeRefreshJob}
-            </div>
+        <div class="small app-muted">
+            <div>Automated DataVic imports update the Victorian public holiday calendar used by Bepis.</div>
+            <div>{renderPublicHolidayImportJobStatus latestPublicHolidayImportJob}</div>
+            <div>{renderAcceptedPublicHolidayImport latestAcceptedPublicHolidayImport}</div>
         </div>
         {renderPublicHolidayCoverageWarning publicHolidayCoverage}
         {renderPublicHolidayCoverageTable publicHolidayCoverage}
@@ -265,7 +408,7 @@ renderPublicHolidayCoverageWarning :: [PublicHolidayCoverageYear] -> Html
 renderPublicHolidayCoverageWarning publicHolidayCoverage
     | publicHolidayCoverageHasWarning publicHolidayCoverage = [hsx|
         <div class="alert alert-warning mb-0">
-            Public holiday coverage is missing, stale, or requires override review. Review the latest job and any protected calendar before payroll; refreshing DataVic cannot replace an active override.
+            Public holiday coverage is missing, stale, or requires override review. Check the import status and calendar coverage before payroll.
         </div>
     |]
     | otherwise = mempty
@@ -307,7 +450,7 @@ renderPublicHolidayCoverageStatus status =
         PublicHolidayCoverageStale -> [hsx|<span class="badge text-bg-warning">stale</span>|]
         PublicHolidayCoverageOverride overrideState reviewDueAt ->
             let label = case overrideState of
-                    OverrideReady -> "Verified override" :: Text
+                    OverrideReady   -> "Verified override" :: Text
                     OverrideExpired -> "Override review overdue"
                     OverrideInvalid -> "Override calendar mismatch"
              in [hsx|
@@ -315,37 +458,21 @@ renderPublicHolidayCoverageStatus status =
                 <div class="small">DataVic writes blocked. Review by {formatTimestamp reviewDueAt}.</div>
             |]
 
-renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
-renderPublicHolidayRefreshForm activeRefreshJob =
-    renderFrontendSurfaceActionForm
-        (SupportAction.createPublicHolidayRefreshJobAction SupportAction.createPublicHolidayRefreshJobActionFields)
-        (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
-            { actionRouteExtraAttrs = [("class", "d-grid")]
-            }
-        [hsx|
-            <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
-                {buttonLabel}
-            </button>
-        |]
-    where
-        buttonClass :: Text
-        buttonClass =
-            if isJust activeRefreshJob
-                then "btn btn-outline-secondary"
-                else "btn btn-primary"
-        buttonLabel =
-            if isJust activeRefreshJob
-                then "Refresh queued/running" :: Text
-                else "Refresh public holidays"
+renderPublicHolidayImportJobStatus :: Maybe AppJob -> Html
+renderPublicHolidayImportJobStatus = \case
+    Nothing -> [hsx|No automated DataVic import job recorded yet.|]
+    Just appJob -> [hsx|
+        Latest automated import job: <span class="fw-semibold">{jobStatusLabel appJob.status}</span> (queued {formatTimestamp appJob.createdAt}).
+        {if jobStatusHasDiagnostic appJob.status then renderJobError appJob else mempty}
+    |]
 
-renderPublicHolidayRefreshJobStatus :: Maybe AppJob -> Html
-renderPublicHolidayRefreshJobStatus maybeJob =
-    case maybeJob of
-        Nothing -> [hsx|No public holiday refresh job has been queued yet.|]
-        Just appJob -> [hsx|
-            Latest refresh job <span class="fw-semibold">{jobStatusLabel appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
-            {renderJobError appJob}
-        |]
+renderAcceptedPublicHolidayImport :: Maybe PublicHolidayImportBatch -> Html
+renderAcceptedPublicHolidayImport = \case
+    Nothing -> [hsx|No accepted DataVic import recorded yet.|]
+    Just receipt -> [hsx|
+        Last accepted DataVic import: <span class="fw-semibold">{formatTimestamp receipt.acceptedAt}</span>
+        (years: {Text.intercalate ", " (map tshow receipt.targetYears)}).
+    |]
 
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =

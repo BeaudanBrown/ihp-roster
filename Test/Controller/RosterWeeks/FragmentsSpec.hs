@@ -26,6 +26,7 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     rosterSlotStartOccurrence,
                                     rosterSlotStartTime, storedInstantLocalTime,
                                     storedInstantOccurrence)
+import qualified Application.VenueTime.Seconds as Seconds
 import Config
 import qualified Control.Exception as Exception
 import Control.Monad (guard)
@@ -43,9 +44,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -55,8 +56,8 @@ import qualified Text.Read as TextRead
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
-                            rosterDaySectionDomId, rosterGridFrameFragmentId, rosterRowDomIdText,
-                            rosterStaffPanelFragmentId)
+                            rosterDaySectionDomId, rosterGridFrameFragmentId,
+                            rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
                                      RosterTimelineDropBoundaryResolution (..),
                                      resolveRosterTimelineDropBoundaries)
@@ -147,7 +148,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterWageEstimatePreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("showWageEstimates", "true")]
+                            [("anchorDate", "2025-01-06"), ("rosterPayDisplayMode", "roster_pay_daily")]
                 layoutResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
@@ -158,12 +159,12 @@ tests = aroundAll withDatabaseTestContext do
                         let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
                 refreshesPersonalRosterSettings warningResponse
                 refreshesPersonalRosterSettings wageResponse
                 let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders layoutResponse)
                 layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
                 layoutTriggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
@@ -197,6 +198,7 @@ tests = aroundAll withDatabaseTestContext do
                          , RosterLive.rosterDayRailLiveFragment
                          , RosterLive.rosterWageRailLiveFragment
                          , RosterLive.rosterStaffPanelLiveFragment
+                         , RosterLive.rosterSettingsContentLiveFragment
                          ]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
@@ -226,6 +228,7 @@ tests = aroundAll withDatabaseTestContext do
                                , RosterLive.rosterWageRailLiveFragment
                                , RosterLive.rosterSlotsGridLiveFragment
                                , RosterLive.rosterStaffPanelLiveFragment
+                               , RosterLive.rosterSettingsContentLiveFragment
                                , RosterLive.rosterDaySectionLiveFragment (unpackId rosterDayId)
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 0
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1
@@ -1471,7 +1474,7 @@ tests = aroundAll withDatabaseTestContext do
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
                 rosterSlotStartOccurrence movedSlot `shouldBe` Just FirstOccurrence
                 rosterSlotEndOccurrence movedSlot `shouldBe` Just SecondOccurrence
-                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (Seconds.fromMinutes 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 fmap (.localDay) (movedSlot.startsAt >>= either (const Nothing) Just . storedInstantLocalTime movedSlot.timezone)
@@ -1533,11 +1536,11 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
-                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (Seconds.fromMinutes 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 10 0 0)
 
-        it "renders and moves a sub-minute authoritative timeline interval without truncation" $ withContext do
+        it "renders and moves a fractional legacy interval using its rounded whole-second duration" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Exact-Second Timeline Venue"
                 manager <- createUserRecord "roster-manager-exact-second-timeline@example.com" "staff" True
@@ -1571,7 +1574,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineBody <- (cs <$> responseBody timelineResponse) :: IO Text
                 let (beforeShiftSource, fromShiftSource) = Text.breakOn shiftSourceAttr timelineBody
                 let scopedShiftHtml = Text.takeEnd 500 beforeShiftSource <> Text.take 2000 fromShiftSource
-                let exactWidthPercent = ((0.5 / 60) * 100 / 1440 :: Double)
+                let exactWidthPercent = ((1 / 60) * 100 / 1440 :: Double)
                 scopedShiftHtml `shouldSatisfy` Text.isInfixOf "roster-day-timeline-shift-position"
                 cssPercentageAfter "width:" scopedShiftHtml
                     `shouldSatisfy` maybe False (\actualWidth -> abs (actualWidth - exactWidthPercent) < 1e-12)
@@ -1594,10 +1597,10 @@ tests = aroundAll withDatabaseTestContext do
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
                 case (movedSlot.startsAt, movedSlot.endsAt) of
-                    (Just startsAt, Just endsAt) -> diffUTCTime endsAt startsAt `shouldBe` 0.5
+                    (Just startsAt, Just endsAt) -> diffUTCTime endsAt startsAt `shouldBe` 1
                     _ -> expectationFailure "Expected moved exact-second boundaries"
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
-                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0.5)
+                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 9 0 1)
 
         it "moves a shift onto a semantic day target and grows the target day rows" $ withContext do
             withCleanDb do

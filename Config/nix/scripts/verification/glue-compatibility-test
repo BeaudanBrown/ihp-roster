@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="glue-compatibility-test"
+fixture_root="$(mktemp -d)"
+cleanup() { rm -rf "$fixture_root"; }
+trap cleanup EXIT
+fail() { echo "$program: $*" >&2; exit 1; }
+mkdir -p "$fixture_root/bin"
+
+cat > "$fixture_root/bin/playwright" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$GLUE_CAPTURE"
+exit "${GLUE_STATUS:-0}"
+SH
+chmod +x "$fixture_root/bin/playwright"
+
+# Discovery delegates without runtime leases, cleanup, PostgreSQL or compilation.
+for flag in --help --list; do
+    status=0
+    GLUE_CAPTURE="$fixture_root/discovery.actual" GLUE_STATUS=23 PATH="$fixture_root/bin:$PATH" \
+        E2E_RUNTIME_AUTO_CLEANUP=invalid BEPIS_TOOLING_LAUNCHER=/missing \
+        e2e "$flag" 'a spec.ts' || status=$?
+    [ "$status" = 23 ] || fail "E2E discovery started runtime or hid Playwright status"
+    printf '%s\n' test "$flag" 'a spec.ts' >"$fixture_root/discovery.expected"
+    cmp -s "$fixture_root/discovery.expected" "$fixture_root/discovery.actual" || fail "E2E discovery arguments changed"
+done
+
+mkdir -p "$fixture_root/tunnel/bin"
+cp justfile "$fixture_root/tunnel/justfile"
+cat > "$fixture_root/tunnel/bin/in-env" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' 'PORT=8100; MAILHOG_PORT=8125; SMTP_PORT=8126; IHP_ROSTER_DEV_GRAFANA_PORT=8130; IHP_ROSTER_DEV_TEMPO_PORT=8131; export PORT MAILHOG_PORT SMTP_PORT IHP_ROSTER_DEV_GRAFANA_PORT IHP_ROSTER_DEV_TEMPO_PORT'
+SH
+cat > "$fixture_root/bin/ssh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$GLUE_CAPTURE"
+SH
+chmod +x "$fixture_root/tunnel/bin/in-env" "$fixture_root/bin/ssh"
+target=grill
+GLUE_CAPTURE="$fixture_root/tunnel-$target.actual" PATH="$fixture_root/bin:$PATH" \
+    just --justfile "$fixture_root/tunnel/justfile" --working-directory "$fixture_root/tunnel" "tunnel-$target"
+cat > "$fixture_root/tunnel-$target.expected" <<EOF
+-N
+-T
+-L
+8100:localhost:8100
+-L
+8101:localhost:8101
+-L
+8125:localhost:8125
+-L
+8126:localhost:8126
+-L
+8130:localhost:8130
+-L
+8131:localhost:8131
+$target
+EOF
+cmp -s "$fixture_root/tunnel-$target.expected" "$fixture_root/tunnel-$target.actual" \
+    || fail "$target tunnel changed its exact SSH argument contract"
+
+echo "$program: ok"

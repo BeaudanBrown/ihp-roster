@@ -5,6 +5,7 @@ import Application.Helper.TimesheetPayLedger (ApprovedPayLedgerError (..))
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Helper.TimesheetSelection (TimesheetSelection (..))
 import Application.Helper.XeroTimesheetReadiness hiding
                                                  (validateXeroTimesheetReadiness)
 import qualified Application.Helper.XeroTimesheetReadiness as Readiness
@@ -30,7 +31,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.Support.XeroTimesheet (currentVenueBuckets)
+import Test.Support.XeroTimesheet (createDraftPayRun, currentVenueBuckets)
 
 validateXeroTimesheetReadiness :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO XeroTimesheetReadiness
 validateXeroTimesheetReadiness request =
@@ -494,6 +495,41 @@ tests = do
                 expectedEntryIds `shouldSatisfy` all (`elem` affectedEntryIds)
                 affectedEntryIds `shouldSatisfy` elem (unpackId secondEntry.id)
 
+        it "keeps unchanged matched and created pay items usable across repeated catalogue projections" $ withContext do
+            withCleanDb do
+                let start = fromGregorian 2026 4 27
+                fixture <- createReadyMappedFixture "weekly" start (fromGregorian 2026 5 3)
+                staff <- query @Staff |> fetch
+                shifts <- query @ShiftType |> fetch
+                levels <- query @AwardLevel |> fetch
+                bases <- query @AwardLevelBaseRate |> fetch
+                penalties <- query @AwardLevelPenaltyRate |> fetch
+                allowances <- query @AwardTimePenaltyAllowance |> fetch
+                let rate = newRecord @XeroEarningsRate
+                        |> set #xeroEarningsRateId "regression-rate"
+                        |> set #name "Regression rate"
+                        |> set #rateType (Just "RATEPERUNIT")
+                    rates = [rate]
+                    requirements = map (\item -> item { payItemRequirementMatch = Just rate, payItemRequirementRateType = fromMaybe "RATEPERUNIT" rate.rateType }) $
+                        deriveXeroPayItemRequirements 1 start (deriveXeroUsedAwardPayScopes staff shifts) levels bases penalties allowances rates
+                    sync = syncXeroPayItemRequirementRecords fixture.connection.id fixture.venue.id Nothing
+                _ <- sync requirements
+                matched <- sync requirements
+                let matchedItems = filter (isJust . (.payItemRequirementMatch)) matched
+                null matchedItems `shouldBe` False
+                map (.payItemRequirementStatus) matchedItems `shouldSatisfy` all (== Matched)
+                forM_ matchedItems \item -> forM_ item.payItemRequirementRecord \record -> do
+                    _ <- record |> set #requirementStatus XeroPayItemRequirementStatusEnumCreated |> updateRecord
+                    pure ()
+                created <- sync requirements
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) created) `shouldSatisfy` all (== XeroPayItemRequirementStatusEnumCreated)
+                changed <- sync (map (\item -> item { payItemRequirementRatePerUnit = Just 999999 }) requirements)
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) changed) `shouldSatisfy` all (== RateChanged)
+                recovered <- sync requirements
+                stable <- sync requirements
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) recovered) `shouldSatisfy` all (== RateChanged)
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) stable) `shouldSatisfy` all (== Matched)
+
         it "accepts matched managed pay item requirements as earnings-rate mappings" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
@@ -817,6 +853,27 @@ tests = do
                 fortnightlyReadiness <- validateXeroTimesheetReadiness fortnightly.request
                 fortnightlyReadiness.xeroTimesheetReady `shouldBe` True
 
+        it "requires a persisted matching draft, not a claimed request status" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                let expectMissingDraft request = do
+                        readiness <- validateXeroTimesheetReadiness request
+                        readiness.xeroTimesheetReady `shouldBe` False
+                        readinessBlockerCodes readiness `shouldBe` ["missing_draft_pay_run"]
+                expectMissingDraft fixture.request { readinessXeroPayRunId = Nothing }
+                expectMissingDraft fixture.request { readinessXeroPayRunId = Just "unknown-pay-run" }
+                forM_ [Just "POSTED", Just "FUTURE_STATUS", Nothing] \status -> do
+                    _ <- payRun |> set #payRunStatus status |> updateRecord
+                    expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd (addDays 1 payRun.payPeriodEnd) |> updateRecord
+                expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd payRun.payPeriodEnd |> set #xeroPayrollCalendarId ("another-calendar" :: Text) |> updateRecord
+                expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd payRun.payPeriodEnd |> set #xeroPayrollCalendarId payRun.xeroPayrollCalendarId |> updateRecord
+                readiness <- validateXeroTimesheetReadiness fixture.request
+                readinessBlockerCodes readiness `shouldBe` []
+
         it "blocks tampered selected period keys" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
@@ -853,6 +910,7 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
     connection <- createReadinessXeroConnection venue owner
     _ <- createSucceededXeroSyncRun venue connection
     _ <- createReadinessPayrollCalendar venue connection calendarType periodStart
+    payRun <- createDraftPayRun venue connection "calendar-ready" periodStart periodEnd
     buckets <- currentVenueBuckets venue periodStart
     requirements <- forM buckets \bucket ->
         newRecord @XeroPayItemRequirementRecord
@@ -879,10 +937,11 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
                     , readinessPeriodStart = periodStart
                     , readinessPeriodEnd = periodEnd
                     , readinessPaymentDate = Nothing
-                    , readinessXeroPayRunId = Nothing
-                    , readinessXeroPayRunStatus = Nothing
+                    , readinessXeroPayRunId = Just payRun.xeroPayRunId
+                    , readinessXeroPayRunStatus = payRun.payRunStatus
                     , readinessRemoteTimesheets = []
                     , readinessSkippedStaffIds = []
+                    , readinessSelection = AllEligible
                     }
             }
     when readyMapped do

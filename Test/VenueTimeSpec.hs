@@ -2,6 +2,7 @@ module Test.VenueTimeSpec where
 
 import Application.VenueTime
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime,
@@ -46,9 +47,9 @@ tests =
                     (civilTime (LocalTime (fromGregorian 2026 10 4) (TimeOfDay 3 30 0)) Nothing)
                 )
             segments <- expectRight (awardSegments interval)
-            resolvedIntervalElapsedSeconds interval `shouldBe` 60 * 60
+            resolvedIntervalElapsedSeconds interval `shouldBe` Seconds.fromMinutes 60
             map awardSegmentLocalWindow segments `shouldBe` [EarlyMorningWindow]
-            sum (map awardSegmentElapsedSeconds segments) `shouldBe` 60 * 60
+            Seconds.sum (map awardSegmentElapsedSeconds segments) `shouldBe` Seconds.fromMinutes 60
 
         it "autumn-first: requires and resolves the first repeated-time occurrence" do
             let localTime = LocalTime (fromGregorian 2026 4 5) (TimeOfDay 2 30 0)
@@ -65,8 +66,8 @@ tests =
                     (civilTime (LocalTime (fromGregorian 2026 4 5) (TimeOfDay 3 30 0)) Nothing)
                 )
             segments <- expectRight (awardSegments interval)
-            resolvedIntervalElapsedSeconds interval `shouldBe` 2 * 60 * 60
-            sum (map awardSegmentElapsedSeconds segments) `shouldBe` 2 * 60 * 60
+            resolvedIntervalElapsedSeconds interval `shouldBe` Seconds.fromMinutes 120
+            Seconds.sum (map awardSegmentElapsedSeconds segments) `shouldBe` Seconds.fromMinutes 120
 
         it "autumn-second: resolves the second repeated-time occurrence one elapsed hour later" do
             let localTime = LocalTime (fromGregorian 2026 4 5) (TimeOfDay 2 30 0)
@@ -83,8 +84,8 @@ tests =
                     (civilTime (LocalTime (fromGregorian 2026 4 5) (TimeOfDay 3 30 0)) Nothing)
                 )
             segments <- expectRight (awardSegments interval)
-            resolvedIntervalElapsedSeconds interval `shouldBe` 60 * 60
-            sum (map awardSegmentElapsedSeconds segments) `shouldBe` 60 * 60
+            resolvedIntervalElapsedSeconds interval `shouldBe` Seconds.fromMinutes 60
+            Seconds.sum (map awardSegmentElapsedSeconds segments) `shouldBe` Seconds.fromMinutes 60
 
         it "rejects a repeated-time occurrence attached to a unique civil time" do
             let localTime = LocalTime (fromGregorian 2026 4 5) (TimeOfDay 4 0 0)
@@ -129,7 +130,7 @@ tests =
             resolveInterval validCivil validCivil
                 `shouldBe` Left (NonPositiveResolvedInterval (resolvedInstantUTC instant) (resolvedInstantUTC instant))
 
-        it "preserves fractional elapsed seconds without quarter-hour normalization" do
+        it "rounds elapsed seconds individually without quarter-hour normalization" do
             let day = fromGregorian 2026 1 5
             interval <- expectRight
                 ( resolveInterval
@@ -138,8 +139,8 @@ tests =
                 )
             segments <- expectRight (awardSegments interval)
 
-            resolvedIntervalElapsedSeconds interval `shouldBe` 1.75
-            map awardSegmentElapsedSeconds segments `shouldBe` [1.75]
+            resolvedIntervalElapsedSeconds interval `shouldBe` Seconds.fromSeconds 2
+            map awardSegmentElapsedSeconds segments `shouldBe` [Seconds.fromSeconds 2]
 
         it "ambiguous-endpoint: requires the end occurrence and preserves its elapsed meaning" do
             let start = civilTime (LocalTime (fromGregorian 2026 4 5) (TimeOfDay 1 30 0)) Nothing
@@ -150,8 +151,8 @@ tests =
             firstEnd <- expectRight (resolveInterval start (civilTime ambiguousEnd (Just FirstOccurrence)))
             secondEnd <- expectRight (resolveInterval start (civilTime ambiguousEnd (Just SecondOccurrence)))
 
-            resolvedIntervalElapsedSeconds firstEnd `shouldBe` 60 * 60
-            resolvedIntervalElapsedSeconds secondEnd `shouldBe` 2 * 60 * 60
+            resolvedIntervalElapsedSeconds firstEnd `shouldBe` Seconds.fromMinutes 60
+            resolvedIntervalElapsedSeconds secondEnd `shouldBe` Seconds.fromMinutes 120
             resolvedInstantOccurrence (resolvedIntervalEnd firstEnd) `shouldBe` Just FirstOccurrence
             resolvedInstantOccurrence (resolvedIntervalEnd secondEnd) `shouldBe` Just SecondOccurrence
 
@@ -182,8 +183,8 @@ tests =
                     , LocalTime (fromGregorian 2026 7 11) (TimeOfDay 7 0 0)
                     ]
             map awardSegmentElapsedSeconds segments
-                `shouldBe` [29 * 60 + 45, 5 * 60 * 60, 7 * 60 * 60, 60 * 60 + 45]
-            sum (map awardSegmentElapsedSeconds segments)
+                `shouldBe` map Seconds.fromSeconds [29 * 60 + 45, 5 * 60 * 60, 7 * 60 * 60, 60 * 60 + 45]
+            Seconds.sum (map awardSegmentElapsedSeconds segments)
                 `shouldBe` resolvedIntervalElapsedSeconds interval
 
         it "copy preserves local clock times on the target date instead of adding UTC duration" do
@@ -204,8 +205,8 @@ tests =
                 `shouldBe` LocalTime (fromGregorian 2026 10 4) (TimeOfDay 1 30 0)
             resolvedInstantLocalTime (resolvedIntervalEnd copied)
                 `shouldBe` LocalTime (fromGregorian 2026 10 4) (TimeOfDay 3 30 0)
-            resolvedIntervalElapsedSeconds source `shouldBe` 2 * 60 * 60
-            resolvedIntervalElapsedSeconds copied `shouldBe` 60 * 60
+            resolvedIntervalElapsedSeconds source `shouldBe` Seconds.fromMinutes 120
+            resolvedIntervalElapsedSeconds copied `shouldBe` Seconds.fromMinutes 60
 
         it "copy preserves an overnight end date and requires an ambiguous target occurrence" do
             source <- expectRight
@@ -226,8 +227,8 @@ tests =
             resolvedInstantLocalTime (resolvedIntervalEnd first) `shouldBe` ambiguousEnd
             resolvedInstantOccurrence (resolvedIntervalEnd first) `shouldBe` Just FirstOccurrence
             resolvedInstantOccurrence (resolvedIntervalEnd second) `shouldBe` Just SecondOccurrence
-            resolvedIntervalElapsedSeconds first `shouldBe` 4 * 60 * 60
-            resolvedIntervalElapsedSeconds second `shouldBe` 5 * 60 * 60
+            resolvedIntervalElapsedSeconds first `shouldBe` Seconds.fromMinutes 240
+            resolvedIntervalElapsedSeconds second `shouldBe` Seconds.fromMinutes 300
 
         it "applies copy occurrence choices only to target endpoints that repeat" do
             source <- expectRight (resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
@@ -279,9 +280,9 @@ tests =
                 `shouldBe` Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (15 * 60 * 60)))
             authoritativeBreakEndsAt boundaries
                 `shouldBe` Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (15 * 60 * 60 + 15 * 60)))
-            authoritativeElapsedSeconds boundaries `shouldBe` 2 * 60 * 60
-            authoritativeBreakElapsedSeconds boundaries `shouldBe` 15 * 60
-            authoritativePaidElapsedSeconds boundaries `shouldBe` 105 * 60
+            authoritativeElapsedSeconds boundaries `shouldBe` Seconds.fromMinutes 120
+            authoritativeBreakElapsedSeconds boundaries `shouldBe` Seconds.fromMinutes 15
+            authoritativePaidElapsedSeconds boundaries `shouldBe` Seconds.fromMinutes 105
 
         it "resolves equal repeated shift clocks from the first to second occurrence" do
             let day = fromGregorian 2026 4 5
@@ -298,7 +299,7 @@ tests =
             authoritativeEndLocalTime boundaries `shouldBe` LocalTime day (TimeOfDay 2 30 0)
             authoritativeStartOccurrence boundaries `shouldBe` Just FirstOccurrence
             authoritativeEndOccurrence boundaries `shouldBe` Just SecondOccurrence
-            authoritativeElapsedSeconds boundaries `shouldBe` 60 * 60
+            authoritativeElapsedSeconds boundaries `shouldBe` Seconds.fromMinutes 60
 
         it "resolves equal repeated break clocks from the first to second occurrence" do
             let day = fromGregorian 2026 4 5
@@ -320,7 +321,7 @@ tests =
             authoritativeBreakEndLocalTime boundaries `shouldBe` Just (LocalTime day (TimeOfDay 2 30 0))
             authoritativeBreakStartOccurrence boundaries `shouldBe` Just FirstOccurrence
             authoritativeBreakEndOccurrence boundaries `shouldBe` Just SecondOccurrence
-            authoritativeBreakElapsedSeconds boundaries `shouldBe` 60 * 60
+            authoritativeBreakElapsedSeconds boundaries `shouldBe` Seconds.fromMinutes 60
 
         it "decodes persisted Timesheet timing into an opaque validated value" do
             let entry =
@@ -333,7 +334,7 @@ tests =
 
             timesheetTimingStartTime timing `shouldBe` TimeOfDay 11 0 0
             timesheetTimingEndTime timing `shouldBe` TimeOfDay 12 0 0
-            timesheetTimingElapsedSeconds timing `shouldBe` 60 * 60
+            timesheetTimingElapsedSeconds timing `shouldBe` Seconds.fromMinutes 60
 
         it "reports corrupt persisted Timesheet timing without throwing" do
             let start = UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime 0)
@@ -364,7 +365,7 @@ tests =
                 invalidZoneSlot = completeSlot |> set #timezone "not-a-zone"
 
             timing <- expectRight (decodeRosterShiftTiming completeSlot)
-            rosterShiftTimingElapsedSeconds timing `shouldBe` 60 * 60
+            rosterShiftTimingElapsedSeconds timing `shouldBe` Seconds.fromMinutes 60
             decodeRosterShiftTiming missingSlot `shouldBe` Left (RosterShiftTimingInvalid BoundaryShiftShapeInvalid)
             decodeRosterShiftTiming invalidZoneSlot
                 `shouldBe` Left (RosterShiftTimingInvalid (BoundaryUnsupportedTimezone "not-a-zone"))
@@ -397,7 +398,7 @@ propElapsedConservation :: NonNegative Integer -> Positive Integer -> Bool
 propElapsedConservation startSeed durationSeed =
     case awardSegments interval of
         Left _         -> False
-        Right segments -> sum (map awardSegmentElapsedSeconds segments) == resolvedIntervalElapsedSeconds interval
+        Right segments -> Seconds.sum (map awardSegmentElapsedSeconds segments) == resolvedIntervalElapsedSeconds interval
   where
     (interval, _) = generatedInterval startSeed durationSeed
 
@@ -453,7 +454,7 @@ classifiedElapsed =
                   , awardSegmentLocalDayKind segment
                   , awardSegmentLocalWindow segment
                   )
-                , awardSegmentElapsedSeconds segment
+                , Seconds.toElapsed (awardSegmentElapsedSeconds segment)
                 )
             )
 

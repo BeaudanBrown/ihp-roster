@@ -132,7 +132,7 @@ tests =
                 map (.reconciliationNoticeSeverity) notices `shouldBe` replicate 5 ReconciliationBlocker
                 List.sort (map (.reconciliationNoticeMessage) notices)
                     `shouldBe` List.sort
-                        [ "Xero timesheet approved-id is APPROVED and cannot be changed by Bepis. Review it in Xero before trying again."
+                        [ "Xero timesheet approved-id is APPROVED and cannot be changed by Bepis. A separate draft pay run does not make a processed timesheet editable. Use a custom workbook containing the Xero pay-items sheet for manual entry in Xero."
                         , "Xero has multiple distinct timesheets for this employee and period (one, two). Resolve them in Xero, then review again."
                         , "Xero returned an unsupported status for timesheet future-id (status FUTURE). Review it in Xero or contact support."
                         , "Xero returned a timesheet without an ID (status DRAFT). Refresh Xero data or contact support."

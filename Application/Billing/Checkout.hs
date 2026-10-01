@@ -41,7 +41,7 @@ data CheckoutOperationContext = CheckoutOperationContext
     , operationStripeConfig    :: !StripeConfig
     , operationVenue           :: !Venue
     , operationPrincipal       :: !BillingCheckoutPrincipal
-    , operationCustomerCreated :: !(VenueBillingCustomer -> IO ())
+    , operationCustomerCreated :: !(forall. (?modelContext :: ModelContext) => VenueBillingCustomer -> IO ())
     }
 
 data PreparedCheckout = PreparedCheckout
@@ -69,7 +69,7 @@ checkoutAllowedForSubscription (Just subscription) =
 startOrResumeCheckoutForPrincipalWithTransaction
     :: (?modelContext :: ModelContext)
     => (forall result. Text -> (result -> Bool) -> ((?modelContext :: ModelContext) => IO result) -> IO result)
-    -> (VenueBillingCustomer -> IO ())
+    -> ((?modelContext :: ModelContext) => VenueBillingCustomer -> IO ())
     -> StripeClient
     -> StripeConfig
     -> Venue
@@ -329,7 +329,8 @@ ensureVenueStripeCustomer operation =
                                         |> set #livemode stripeCustomer.stripeCustomerLivemode
                                         |> set #createdByUserId (Just (unpackId operation.operationPrincipal.billingCheckoutActor.id))
                                         |> createRecord
-                                operation.operationCustomerCreated customer
+                                let CheckoutOperationContext { operationCustomerCreated } = operation
+                                operationCustomerCreated customer
                                 pure (Right (customer, True))
 
 resolveBillingPrice :: StripeClient -> StripeConfig -> IO (Either Text StripePrice)

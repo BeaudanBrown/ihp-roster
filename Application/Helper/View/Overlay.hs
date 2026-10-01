@@ -6,6 +6,7 @@
 module Application.Helper.View.Overlay
     ( ConfirmationDialogConfig (..)
     , ConfirmationDialogTone (..)
+    , DialogDismissalGuardConfigValue (..)
     , DialogOverlayConfig (..)
     , OverlayButton (..)
     , OverlayButtonAction (..)
@@ -27,6 +28,7 @@ module Application.Helper.View.Overlay
 
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
+                                                             appShellActionAttrs,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Overlay.Runtime
@@ -51,10 +53,16 @@ data OverlayButtonContext
 data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
-    | OverlaySubmitFormLoadingAction !Text !Text
+    | OverlaySubmitFormLoadingAction
+        { overlaySubmitFormId       :: !Text
+        , overlaySubmitLoadingLabel :: !Text
+        , overlaySubmitEnabled      :: !Bool
+        , overlaySubmitExtraAttrs   :: ![(Text, Text)]
+        }
     | OverlayNavigateAction !Text
     | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !Text !Text
     | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)]
+    | GeneratedDialogButtonAction !AppShellActionIR !AppShellActionRoute !Bool
 
 data OverlayButton = OverlayButton
     { overlayButtonLabel  :: !Text
@@ -63,11 +71,12 @@ data OverlayButton = OverlayButton
     }
 
 data DialogOverlayConfig = DialogOverlayConfig
-    { dialogOverlayTitle        :: !Text
-    , dialogOverlayBody         :: !Html
-    , dialogOverlayStartButtons :: ![OverlayButton]
-    , dialogOverlayButtons      :: ![OverlayButton]
-    , dialogOverlayDialogClass  :: !Text
+    { dialogOverlayTitle          :: !Text
+    , dialogOverlayBody           :: !Html
+    , dialogOverlayStartButtons   :: ![OverlayButton]
+    , dialogOverlayButtons        :: ![OverlayButton]
+    , dialogOverlayDialogClass    :: !Text
+    , dialogOverlayDismissalGuard :: !(Maybe DialogDismissalGuardConfigValue)
     }
 
 data ConfirmationDialogTone
@@ -108,6 +117,7 @@ defaultDialogOverlayConfig title body buttons = DialogOverlayConfig
     , dialogOverlayStartButtons = []
     , dialogOverlayButtons = buttons
     , dialogOverlayDialogClass = ""
+    , dialogOverlayDismissalGuard = Nothing
     }
 
 dialogOverlayCloseButton :: Text -> OverlayButton
@@ -151,10 +161,11 @@ renderConfirmationDialog ConfirmationDialogConfig
             , OverlayButton
                 { overlayButtonLabel = confirmationDialogApproveLabel
                 , overlayButtonClass = confirmationToneButtonClass confirmationDialogApproveTone
-                , overlayButtonAction = OverlaySubmitFormLoadingAction confirmationDialogFormId confirmationDialogLoadingLabel
+                , overlayButtonAction = OverlaySubmitFormLoadingAction confirmationDialogFormId confirmationDialogLoadingLabel True []
                 }
             ]
         , dialogOverlayDialogClass = confirmationDialogClass
+        , dialogOverlayDismissalGuard = Nothing
         }
 
 confirmationToneButtonClass :: ConfirmationDialogTone -> Text
@@ -176,9 +187,10 @@ renderDialogOverlayWithCloseRole =
     renderDialogOverlayWithOptions [] [(domAttrValue @marker, "true")] False
 
 renderDialogOverlayWithOptions :: [(Text, Text)] -> [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
-renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, dialogOverlayDismissalGuard } = [hsx|
     <div class="modal fade show d-block"
-         {...dialogMountAttrs <> mountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
+         {...dialogMountAttrs <> mountAttrs <> maybe [] dialogDismissalGuardAttrs dialogOverlayDismissalGuard <> if keyboardEnabled then dialogKeyboardAttrs else []}
+          autofocus={not keyboardEnabled}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -202,6 +214,7 @@ renderDialogOverlayBodyOnly :: Text -> Text -> Html -> Html
 renderDialogOverlayBodyOnly ariaLabel dialogOverlayDialogClass dialogOverlayBody = [hsx|
     <div class="modal fade show d-block"
          {...dialogMountAttrs}
+         autofocus="autofocus"
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -252,11 +265,13 @@ renderOverlayButton context button =
                 {button.overlayButtonLabel}
             </button>
         |]
-        OverlaySubmitFormLoadingAction formId loadingLabel -> [hsx|
+        OverlaySubmitFormLoadingAction formId loadingLabel enabled extraAttrs -> [hsx|
             <button type="submit"
                     class={button.overlayButtonClass}
                     form={formId}
-                    {...dialogSubmitAttrs loadingLabel}>
+                    disabled={not enabled}
+                    {...dialogSubmitAttrs loadingLabel}
+                    {...extraAttrs}>
                 {button.overlayButtonLabel}
             </button>
         |]
@@ -276,6 +291,12 @@ renderOverlayButton context button =
                     {button.overlayButtonLabel}
                 </button>
             </form>
+        |]
+        GeneratedDialogButtonAction appShellAction route enabled -> [hsx|
+            <button type="button" class={button.overlayButtonClass} disabled={not enabled}
+                    {...appShellActionAttrs appShellAction route}>
+                {button.overlayButtonLabel}
+            </button>
         |]
         GeneratedDialogFormAction appShellAction route hiddenFields -> case context of
             MountedOverlayButton ->
@@ -313,13 +334,14 @@ renderGeneratedOverlayFormHiddenField (AppShellFieldValue (fieldName, fieldValue
 |]
 
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
-renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, .. } = [hsx|
     <div class="modal fade overflow-auto show app-page-dialog-modal"
+         {...dialogMountAttrs <> maybe [] dialogDismissalGuardAttrs dialogOverlayDismissalGuard}
          id="modal"
          tabindex="-1"
          role="dialog"
          aria-labelledby="modal-title"
-         aria-hidden="true"
+         aria-modal="true"
          onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
         <div class={classes [("modal-dialog", True), (dialogOverlayDialogClass, not (Text.null dialogOverlayDialogClass))]}
              role="document"

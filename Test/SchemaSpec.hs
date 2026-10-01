@@ -574,7 +574,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift type must stay within roster day venue"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue and Operational date"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue, Operational date and roster group"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -595,9 +595,12 @@ tests = describe "Schema" do
         get #hideApproved preferences `shouldBe` False
         get #showTimesheetSuggestions preferences `shouldBe` True
         get #showTimesheetWageEstimates preferences `shouldBe` True
+        get #timesheetWageDisplayMode preferences `shouldBe` Hidden
         get #timesheetPreferencesInitializedAt preferences `shouldBe` Nothing
         map inputValue (allEnumValues @RosterLayoutModeEnum) `shouldBe` ["day_rows", "day_columns"]
+        map inputValue (allEnumValues @WageDisplayModeEnum) `shouldBe` ["hidden", "visible_timesheets", "all_timesheets", "visible_and_all_timesheets"]
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE wage_display_mode_enum AS ENUM ('hidden', 'visible_timesheets', 'all_timesheets', 'visible_and_all_timesheets');"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_columns' NOT NULL"

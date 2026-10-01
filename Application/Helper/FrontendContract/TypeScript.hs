@@ -793,6 +793,8 @@ renderFrontendSurfaceSupportSchemas =
     renderSchemaFor BrowserGuardIR $
         TaggedUnionIR "FrontendSurfaceFragmentProtection" "FrontendSurfaceFragmentProtection" "kind"
             [ UnionCaseIR "Replace" "replace" []
+            , UnionCaseIR "DirtyForm" "dirty-form"
+                [ required "SavedHeader" "savedHeader" WireTextIR ]
             , UnionCaseIR "FocusedField" "focused-field"
                 [ required "ActiveSelector" "activeSelector" WireTextIR
                 , required "FieldKeyAttr" "fieldKeyAttr" WireTextIR

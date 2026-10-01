@@ -11,8 +11,53 @@ module Application.Helper.FrontendContract.AppShell
     , OpenFeedbackDialog
     , OpenPageHelpDialog
     , OpenPayrollWorkbookConfigurationDialog
+    , ConfirmTimesheetExportDownload
+    , ConfirmTimesheetExportSelection
+    , OpenTimesheetSelectionDialog
+    , OpenXeroShiftSelection
+    , RefreshXeroShiftSelection
+    , ChangeXeroShiftSelectionGroup
+    , SaveXeroShiftSelection
+    , SubmitXeroShiftSelection
+    , SelectionRunUpdatedAtField
+    , RefreshTimesheetSelectionDialog
+    , ChangeTimesheetSelectionGroup
+    , GenerateSelectedTimesheetExport
+    , SelectionRangeStartField
+    , SelectionRangeEndField
+    , SelectionExportTypeField
+    , SelectedTimesheetEntriesField
     , OpenPayrollWorkbookConfigurationDeleteDialog
     , DeletePayrollWorkbookConfigurationOverlay
+    , ConfirmDisablePayrollReportsField
+    , OpenRecipientGroupDialog
+    , SaveRecipientGroup
+    , OpenRecipientGroupDeleteDialog
+    , DeleteRecipientGroup
+    , RecipientGroupIdField
+    , RecipientGroupNameField
+    , RecipientGroupAddressesField
+    , RecipientGroupEntryField
+    , RecipientGroupAddField
+    , RecipientGroupRemoveField
+    , RecipientGroupRevisionField
+    , RecipientGroupDisableScheduleField
+    , OpenPayrollReports
+    , OpenPayrollReportEmail
+    , SavePayrollReports
+    , PreviewPayrollReport
+    , SendPayrollReport
+    , ReportTemplateField
+    , ReportGroupField
+    , ReportEnabledField
+    , ReportRevisionField
+    , ReportWeekField
+    , ReportConfigurationRevisionField
+    , ReportGroupRevisionField
+    , ReportRosterStartField
+    , ReportTimezoneField
+    , ReportRepeatField
+    , ReportConfirmationField
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
     , AddPayrollWorkbookConfigurationSheetOverlay
@@ -31,6 +76,7 @@ module Application.Helper.FrontendContract.AppShell
     , ContentField
     , FeedbackTitleField
     , OpenTimesheetEntryDialog
+    , OpenTimesheetFiltersDialog
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
@@ -113,6 +159,7 @@ module Application.Helper.FrontendContract.AppShell
     , InvitationEmailField
     ) where
 
+import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
@@ -130,8 +177,53 @@ data PartialNavigationHtmxAttrs
 data OpenFeedbackDialog
 data OpenPageHelpDialog
 data OpenPayrollWorkbookConfigurationDialog
+data ConfirmTimesheetExportDownload
+data ConfirmTimesheetExportSelection
+data OpenTimesheetSelectionDialog
+data OpenXeroShiftSelection
+data RefreshXeroShiftSelection
+data ChangeXeroShiftSelectionGroup
+data SaveXeroShiftSelection
+data SubmitXeroShiftSelection
+data SelectionRunUpdatedAtField
+data RefreshTimesheetSelectionDialog
+data ChangeTimesheetSelectionGroup
+data GenerateSelectedTimesheetExport
+data SelectionRangeStartField
+data SelectionRangeEndField
+data SelectionExportTypeField
+data SelectedTimesheetEntriesField
 data OpenPayrollWorkbookConfigurationDeleteDialog
 data DeletePayrollWorkbookConfigurationOverlay
+data ConfirmDisablePayrollReportsField
+data OpenRecipientGroupDialog
+data SaveRecipientGroup
+data OpenRecipientGroupDeleteDialog
+data DeleteRecipientGroup
+data RecipientGroupIdField
+data RecipientGroupNameField
+data RecipientGroupAddressesField
+data RecipientGroupEntryField
+data RecipientGroupAddField
+data RecipientGroupRemoveField
+data RecipientGroupRevisionField
+data RecipientGroupDisableScheduleField
+data OpenPayrollReports
+data OpenPayrollReportEmail
+data SavePayrollReports
+data PreviewPayrollReport
+data SendPayrollReport
+data ReportTemplateField
+data ReportGroupField
+data ReportEnabledField
+data ReportRevisionField
+data ReportWeekField
+data ReportConfigurationRevisionField
+data ReportGroupRevisionField
+data ReportRosterStartField
+data ReportTimezoneField
+data ReportRepeatField
+data ReportConfirmationField
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
 data AddPayrollWorkbookConfigurationSheetOverlay
@@ -150,6 +242,7 @@ data ContentField
 data FeedbackTitleField
 
 data OpenTimesheetEntryDialog
+data OpenTimesheetFiltersDialog
 data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
@@ -251,10 +344,80 @@ type AppShellContract =
          , AppShellAction OpenPageHelpDialog
             '[]
             DialogLauncherOptions
+         , AppShellAction OpenRecipientGroupDialog '[] DialogLauncherOptions
+         , AppShellAction OpenRecipientGroupDeleteDialog '[] DialogLauncherOptions
+         , AppShellAction SaveRecipientGroup
+            '[ Field RecipientGroupNameField 'WireText
+             , Field RecipientGroupAddressesField 'WireText
+             , OptionalField RecipientGroupIdField 'WireUUID
+             , OptionalField RecipientGroupRevisionField 'WireInt
+             , OptionalField RecipientGroupEntryField 'WireText
+             , OptionalField RecipientGroupAddField 'WireBool
+             , OptionalField RecipientGroupRemoveField 'WireText
+             ] DialogSubmitOptions
+         , AppShellAction DeleteRecipientGroup
+            '[ Field RecipientGroupRevisionField 'WireInt
+             , OptionalField RecipientGroupDisableScheduleField 'WireBool
+             ]
+            '[ AppShellHtmxMethod 'AppShellDelete
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
+         , AppShellAction OpenPayrollReports '[ OptionalField ReportWeekField 'WireDay ] DialogLauncherOptions
+         , AppShellAction OpenPayrollReportEmail '[ OptionalField ReportGroupField 'WireUUID ] DialogLauncherOptions
+         , AppShellAction SavePayrollReports
+            '[ OptionalField ReportTemplateField 'WireUUID
+             , OptionalField ReportGroupField 'WireUUID
+             , OptionalField ReportEnabledField 'WireBool
+             , OptionalField ReportRevisionField 'WireInt
+             , OptionalField ReportWeekField 'WireDay
+             ] DialogSubmitOptions
+         , AppShellAction PreviewPayrollReport
+            '[ Field ReportWeekField 'WireDay
+             , Field ReportTemplateField 'WireUUID
+             , OptionalField ReportGroupField 'WireUUID
+             ] DialogSubmitOptions
+         , AppShellAction SendPayrollReport
+            '[ Field ReportWeekField 'WireDay
+             , Field ReportTemplateField 'WireUUID
+             , Field ReportGroupField 'WireUUID
+             , Field ReportConfigurationRevisionField 'WireInt
+             , Field ReportGroupRevisionField 'WireInt
+             , Field ReportRosterStartField 'WireInt
+             , Field ReportTimezoneField 'WireText
+             , OptionalField ReportRepeatField 'WireBool
+             , Field ReportConfirmationField 'WireUUID
+             ] DialogSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
+         , AppShellAction ConfirmTimesheetExportDownload TimesheetSelectionFields DialogSubmitOptions
+         , AppShellAction ConfirmTimesheetExportSelection TimesheetSelectionFields DialogSubmitOptions
+         , AppShellAction OpenTimesheetSelectionDialog TimesheetSelectionFields DialogLauncherOptions
+         , AppShellAction RefreshTimesheetSelectionDialog TimesheetSelectionFields
+             '[ AppShellHtmxMethod 'AppShellPost
+              , AppShellHtmxTarget DialogOverlayMount
+              , AppShellHtmxSwap "innerHTML"
+              , AppShellHtmxTrigger "change"
+              , AppShellHtmxSync "#timesheet-selection-form:replace"
+              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+              ]
+         , AppShellAction ChangeTimesheetSelectionGroup TimesheetSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction GenerateSelectedTimesheetExport TimesheetSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction OpenXeroShiftSelection '[] DialogLauncherOptions
+         , AppShellAction RefreshXeroShiftSelection XeroShiftSelectionFields
+             '[ AppShellHtmxMethod 'AppShellPost
+              , AppShellHtmxTarget DialogOverlayMount
+              , AppShellHtmxSwap "innerHTML"
+              , AppShellHtmxTrigger "change"
+              , AppShellHtmxSync "#timesheet-selection-form:replace"
+              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+              ]
+         , AppShellAction ChangeXeroShiftSelectionGroup XeroShiftSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction SaveXeroShiftSelection XeroShiftSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction SubmitXeroShiftSelection XeroShiftSelectionFields XeroShiftSelectionSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
          , AppShellAction DeletePayrollWorkbookConfigurationOverlay
-            '[]
+            '[ OptionalField ConfirmDisablePayrollReportsField 'WireBool ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -287,6 +450,13 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
+         , AppShellAction OpenTimesheetFiltersDialog
+            '[]
+            '[ AppShellHtmxMethod 'AppShellGet
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction OpenTimesheetEntryDialog
             '[]
             '[ AppShellHtmxMethod 'AppShellGet
@@ -306,7 +476,7 @@ type AppShellContract =
          , AppShellAction OpenTimesheetDeleteConfirmationDialog
             '[ Field AnchorDateField 'WireText
              , Field RosterCalendarRevisionField 'WireText
-             , Field StaffFilterIdField 'WireText
+             , OptionalField StaffFilterIdField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellGet
              , AppShellHtmxTarget DialogOverlayMount
@@ -366,6 +536,9 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              , AppShellHtmxTrigger "load"
+             -- Progress invalidations may replace the ready form while its POST
+             -- is in flight. Synchronize on the stable mount, not that form.
+             , AppShellHtmxSync "#dialog-overlay-mount:drop"
              , AppShellHtmxIndicator "#xero-timesheet-preparation-modal-loading-indicator"
              ]
          , AppShellAction ContinueXeroTimesheetPreparationStaffOverlay '[] DialogSubmitOptions
@@ -469,6 +642,38 @@ type AppShellContract =
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          ]
+
+type XeroShiftSelectionFields =
+    '[ Field SelectionRunUpdatedAtField 'WireText
+     , Field SelectedTimesheetEntriesField ('WireList 'WireText)
+     ]
+
+type TimesheetSelectionFields =
+    '[ Field SelectionRangeStartField 'WireDay
+     , Field SelectionRangeEndField 'WireDay
+     , Field SelectionExportTypeField ('WireClosed ExportJobType)
+     , OptionalField PayrollWorkbookConfigurationIdField 'WireUUID
+     , Field SelectedTimesheetEntriesField ('WireList 'WireText)
+     ]
+
+type TimesheetSelectionSubmitOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#timesheet-selection-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxSync "#timesheet-selection-form:replace"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
+
+-- Confirmation can write to Xero: never cancel and replace an in-flight submit.
+type XeroShiftSelectionSubmitOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#timesheet-selection-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxSync "#timesheet-selection-form:drop"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
 
 type DialogLauncherFields = '[]
 

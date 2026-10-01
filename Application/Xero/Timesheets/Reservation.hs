@@ -15,6 +15,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   throwExternalRuntime)
 import Application.Helper.Hasql (isUniqueViolation)
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.Xero.Incident (reconcileXeroSubmissionIncidentInCurrentTransaction)
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
 import Application.Xero.Timesheets.ReconciliationReview
@@ -23,6 +24,7 @@ import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionRunStatusFromStatuses)
 import qualified Control.Exception as Exception
 import Control.Monad (guard, void)
+import Application.Helper.TimesheetSelection
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -78,16 +80,42 @@ reserveXeroTimesheetSubmissionRun runTemplate reservations remoteTimesheets =
         Nothing -> do
             result :: Either HasqlSessionError XeroTimesheetReservationOutcome <-
                 Exception.try $ withTransaction do
-                    lockReservationSourceEntries reservations >>= \case
+                    lockPreparationSelection runTemplate reservations >>= \case
                         Left message -> pure (XeroTimesheetReservationInvalid message)
-                        Right lockedReservations -> do
-                            mapM_ lockReservation (List.sortOn reservationLockKey lockedReservations)
-                            reserveInCurrentTransaction runTemplate lockedReservations remoteTimesheets
+                        Right () -> lockReservationSourceEntries reservations >>= \case
+                            Left message -> pure (XeroTimesheetReservationInvalid message)
+                            Right lockedReservations -> do
+                                mapM_ lockReservation (List.sortOn reservationLockKey lockedReservations)
+                                reserveInCurrentTransaction runTemplate lockedReservations remoteTimesheets
             case result of
                 Right outcome -> pure outcome
                 Left sessionError
                     | isUniqueViolation sessionError -> recoverExpectedUniqueRace sessionError reservations
                     | otherwise -> throwExternalRuntime sessionError
+
+lockPreparationSelection :: (?modelContext :: ModelContext) => XeroSubmissionRun -> [XeroTimesheetReservation] -> IO (Either Text ())
+lockPreparationSelection template reservations = case template.xeroTimesheetPreparationRunId of
+    Nothing -> pure (Right ())
+    Just runId -> do
+        locked :: [PG.Only UUID] <- unsafeSqlQuery
+            "SELECT id FROM xero_timesheet_preparation_runs WHERE id = ? AND venue_id = ? AND xero_connection_id = ? FOR UPDATE"
+            (unpackId runId, template.venueId, template.xeroConnectionId)
+        case locked of
+            [] -> pure (Left "Preparation venue or Xero connection changed. Review again.")
+            _ -> do
+                run <- fetch runId
+                let sources = concatMap (.reservationSourceEntries) reservations
+                    checked = do
+                        unless (run.payPeriodStart == Just template.payPeriodStart && run.payPeriodEnd == Just template.payPeriodEnd)
+                            (Left "Preparation period changed. Review again.")
+                        value <- maybe (Left "Choose shifts and review this preparation before submitting.") Right run.selectedEntriesJson
+                        identities <- case Aeson.fromJSON value of
+                            Aeson.Error _ -> Left "Choose shifts and review this preparation before submitting."
+                            Aeson.Success identities -> Right identities
+                        validated <- either (Left . renderTimesheetSelectionFailure) Right
+                            (validateTimesheetSelection template.venueId template.payPeriodStart template.payPeriodEnd (ExplicitSelection identities) sources)
+                        unless (length validated == length sources) (Left "Preparation selection changed. Review again.")
+                pure checked
 
 lockReservationSourceEntries ::
     (?modelContext :: ModelContext) =>
@@ -108,6 +136,12 @@ lockReservationSourceEntries reservations = do
     let lockedById = Map.fromList [(unpackId entry.id, entry) | entry <- lockedEntries]
         identityMatches expected current =
             current.isApproved
+                && isNothing current.deletedAt
+                && current.venueId == expected.venueId
+                && current.operationalDate == expected.operationalDate
+                && current.staffId == expected.staffId
+                && current.shiftTypeId == expected.shiftTypeId
+                && current.updatedAt == expected.updatedAt
                 && current.activePayCalculationId == expected.activePayCalculationId
                 && current.approvedAt == expected.approvedAt
                 && current.staffPayVersionId == expected.staffPayVersionId
@@ -153,6 +187,9 @@ reserveInCurrentTransaction runTemplate reservations remoteTimesheets = do
                 Nothing -> do
                     run <- runTemplate |> createRecord
                     submissions <- mapM (persistReservation run) reconciliations
+                    forM_ run.xeroTimesheetPreparationRunId \preparationId -> do
+                        preparation <- fetch preparationId
+                        preparation |> set #xeroSubmissionRunId (Just (unpackId run.id)) |> updateRecordDiscardResult
                     pure (XeroTimesheetReservationsCreated run submissions)
 
 allReservationsInProgress ::
@@ -167,7 +204,7 @@ reconcileReservation ::
     IO (XeroTimesheetReservation, Maybe XeroTimesheetSubmission, XeroTimesheetReconciliationDecision)
 reconcileReservation remoteTimesheets reservation = do
     active <- fetchActiveReservation reservation
-    existing <- mapM failAbandonedPendingSubmission active
+    existing <- mapM failAbandonedPendingSubmissionInCurrentTransaction active
     let local = existingSubmission <$> existing
         scopedRemote = filter (remoteMatchesReservation reservation) remoteTimesheets
         decision = reconcileXeroTimesheet local scopedRemote
@@ -182,25 +219,26 @@ failAbandonedXeroTimesheetSubmissionsForPeriod ::
     Day ->
     Day ->
     IO ()
-failAbandonedXeroTimesheetSubmissionsForPeriod connectionId periodStart periodEnd = do
-    pendingSubmissions <-
-        query @XeroTimesheetSubmission
-            |> filterWhere (#xeroConnectionId, connectionId)
-            |> filterWhere (#payPeriodStart, periodStart)
-            |> filterWhere (#payPeriodEnd, periodEnd)
-            |> filterWhere (#status, XeroTimesheetSubmissionStatusEnumPending)
-            |> fetch
-    void (mapM failAbandonedPendingSubmission pendingSubmissions)
+failAbandonedXeroTimesheetSubmissionsForPeriod connectionId periodStart periodEnd =
+    withTransaction do
+        pendingSubmissions <-
+            query @XeroTimesheetSubmission
+                |> filterWhere (#xeroConnectionId, connectionId)
+                |> filterWhere (#payPeriodStart, periodStart)
+                |> filterWhere (#payPeriodEnd, periodEnd)
+                |> filterWhere (#status, XeroTimesheetSubmissionStatusEnumPending)
+                |> fetch
+        void (mapM failAbandonedPendingSubmissionInCurrentTransaction pendingSubmissions)
 
 abandonedPendingMessage :: Text
 abandonedPendingMessage =
     "Bepis could not confirm whether Xero received this timesheet because the submission was interrupted. Check Xero, then start a fresh preparation to retry."
 
-failAbandonedPendingSubmission ::
+failAbandonedPendingSubmissionInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetSubmission ->
     IO XeroTimesheetSubmission
-failAbandonedPendingSubmission submission
+failAbandonedPendingSubmissionInCurrentTransaction submission
     | not (xeroSubmissionIsInProgress submission.status) = pure submission
     | otherwise = do
         now <- getCurrentTime
@@ -215,6 +253,7 @@ failAbandonedPendingSubmission submission
                         |> set #submittedAt (Just now)
                         |> updateRecord
                 refreshAbandonedSubmissionRun now failed
+                void (reconcileXeroSubmissionIncidentInCurrentTransaction now failed)
                 pure failed
 
 refreshAbandonedSubmissionRun ::
@@ -323,8 +362,10 @@ supersedeExisting ::
     Maybe XeroTimesheetSubmission ->
     IO ()
 supersedeExisting Nothing = pure ()
-supersedeExisting (Just submission) =
-    void (submission |> set #status XeroTimesheetSubmissionStatusEnumSuperseded |> updateRecord)
+supersedeExisting (Just submission) = do
+    now <- getCurrentTime
+    superseded <- submission |> set #status XeroTimesheetSubmissionStatusEnumSuperseded |> updateRecord
+    void (reconcileXeroSubmissionIncidentInCurrentTransaction now superseded)
 
 insertSubmissionEntry ::
     (?modelContext :: ModelContext) =>

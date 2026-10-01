@@ -1,0 +1,32 @@
+cabal-version: 3.0
+name: bepis-tooling-core
+version: 0.1.0.0
+build-type: Simple
+license: Apache-2.0
+
+library
+  exposed-modules: Bepis.Tooling.Core.OwnedFile
+  hs-source-dirs: src
+  build-depends:
+      base >=4.18 && <5
+    , bytestring
+    , directory
+    , filepath
+    , unix
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat -Werror
+
+test-suite bepis-tooling-core-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  build-depends:
+      base
+    , bepis-tooling-core
+    , bytestring
+    , directory
+    , filepath
+    , process
+    , temporary
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat -Werror -threaded

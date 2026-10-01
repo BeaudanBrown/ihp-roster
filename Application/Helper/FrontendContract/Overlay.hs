@@ -5,6 +5,12 @@ module Application.Helper.FrontendContract.Overlay
     ( OverlayContract
     , Overlay
     , DialogSubmitConfig
+    , DialogDismissalGuardConfig
+    , FormId
+    , GuardImmediately
+    , ConfirmationTitle
+    , KeepEditingLabel
+    , DiscardLabel
     , LoadingLabel
     , NavigationLoadingConfig
     , LoadingTitle
@@ -19,6 +25,8 @@ module Application.Helper.FrontendContract.Overlay
     , DialogClose
     , DialogDismissed
     , DialogSubmit
+    , DialogEnterSubmit
+    , DialogDismissalGuard
     , DialogBlocking
     , DialogKeyboard
     , DialogFocusRegion
@@ -36,6 +44,12 @@ import Application.Helper.FrontendContract.DSL
 data Overlay
 
 data DialogSubmitConfig
+data DialogDismissalGuardConfig
+data FormId
+data GuardImmediately
+data ConfirmationTitle
+data KeepEditingLabel
+data DiscardLabel
 data LoadingLabel
 
 data NavigationLoadingConfig
@@ -54,6 +68,8 @@ data DialogBackdrop
 data DialogClose
 data DialogDismissed
 data DialogSubmit
+data DialogEnterSubmit
+data DialogDismissalGuard
 data DialogBlocking
 data DialogKeyboard
 data DialogFocusRegion
@@ -66,6 +82,13 @@ type OverlayContract =
     Global Overlay
         '[ BrowserInboundSchema (Record DialogSubmitConfig
             '[ Field LoadingLabel 'WireText
+             ])
+         , BrowserInboundSchema (Record DialogDismissalGuardConfig
+            '[ Field FormId 'WireText
+             , Field GuardImmediately 'WireBool
+             , Field ConfirmationTitle 'WireText
+             , Field KeepEditingLabel 'WireText
+             , Field DiscardLabel 'WireText
              ])
          , BrowserInboundSchema (Record NavigationLoadingConfig
             '[ Field LoadingTitle 'WireText
@@ -82,7 +105,10 @@ type OverlayContract =
          , DomAttr DialogBackdrop
          , DomAttr DialogClose
          , DomAttr DialogSubmit
+         , DomAttr DialogEnterSubmit
          , DomAttr DialogSubmitConfig
+         , DomAttr DialogDismissalGuard
+         , DomAttr DialogDismissalGuardConfig
          , DomAttr DialogBlocking
          , DomAttr DialogKeyboard
          , DomAttr DialogFocusRegion
