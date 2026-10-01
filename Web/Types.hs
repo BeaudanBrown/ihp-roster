@@ -131,6 +131,8 @@ data ExportsController
     | PreviewPayrollReportAction
     | SendPayrollReportAction
     | CreateExportJobAction
+    | ConfirmTimesheetExportDownloadAction
+    | ConfirmTimesheetExportSelectionAction
     | OpenTimesheetExportSelectionAction
     | RefreshTimesheetExportSelectionAction
     | SelectTimesheetExportGroupAction { selectionDay :: Maybe Text }

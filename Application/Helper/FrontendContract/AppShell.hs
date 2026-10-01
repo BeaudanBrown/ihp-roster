@@ -11,6 +11,8 @@ module Application.Helper.FrontendContract.AppShell
     , OpenFeedbackDialog
     , OpenPageHelpDialog
     , OpenPayrollWorkbookConfigurationDialog
+    , ConfirmTimesheetExportDownload
+    , ConfirmTimesheetExportSelection
     , OpenTimesheetSelectionDialog
     , OpenXeroShiftSelection
     , RefreshXeroShiftSelection
@@ -175,6 +177,8 @@ data PartialNavigationHtmxAttrs
 data OpenFeedbackDialog
 data OpenPageHelpDialog
 data OpenPayrollWorkbookConfigurationDialog
+data ConfirmTimesheetExportDownload
+data ConfirmTimesheetExportSelection
 data OpenTimesheetSelectionDialog
 data OpenXeroShiftSelection
 data RefreshXeroShiftSelection
@@ -386,6 +390,8 @@ type AppShellContract =
              , Field ReportConfirmationField 'WireUUID
              ] DialogSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
+         , AppShellAction ConfirmTimesheetExportDownload TimesheetSelectionFields DialogSubmitOptions
+         , AppShellAction ConfirmTimesheetExportSelection TimesheetSelectionFields DialogSubmitOptions
          , AppShellAction OpenTimesheetSelectionDialog TimesheetSelectionFields DialogLauncherOptions
          , AppShellAction RefreshTimesheetSelectionDialog TimesheetSelectionFields
              '[ AppShellHtmxMethod 'AppShellPost

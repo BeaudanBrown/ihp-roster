@@ -1,5 +1,6 @@
 module Web.Exports.Selection
     ( openExportSelection
+    , confirmExportSelection
     , refreshExportSelection
     , changeExportSelectionGroup
     , generateSelectedExport
@@ -21,6 +22,7 @@ import IHP.ViewPrelude (Html)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (requestSelectedExportMutation)
 import Web.Exports.Responses (respondWithExportFailure)
+import Web.Exports.Review (renderExportReviewForm, withExportReview)
 import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import Web.View.TimesheetSelection
 
@@ -37,6 +39,19 @@ data ExportSelectionRequest = ExportSelectionRequest
 openExportSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 openExportSelection =
     case parseAppShellActionParams @Shell.OpenTimesheetSelectionDialog of
+        Left errors -> respondHtml [hsx|{surfaceRequestFieldErrorsMessage errors}|]
+        Right fields -> do
+            let start = surfaceFieldValue @Shell.SelectionRangeStartField fields
+                end = surfaceFieldValue @Shell.SelectionRangeEndField fields
+                exportType = surfaceFieldValue @Shell.SelectionExportTypeField fields
+                configurationId = surfaceFieldValue @Shell.PayrollWorkbookConfigurationIdField fields
+            withExportReview start end (renderExportReviewForm True start end exportType configurationId) $
+                showSelection True Nothing ExportSelectionRequest
+                    { rangeStart = start, rangeEnd = end, exportType, configurationId, tokens = [] }
+
+confirmExportSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+confirmExportSelection =
+    case parseAppShellActionParams @Shell.ConfirmTimesheetExportSelection of
         Left errors -> respondHtml [hsx|{surfaceRequestFieldErrorsMessage errors}|]
         Right fields -> showSelection True Nothing ExportSelectionRequest
             { rangeStart = surfaceFieldValue @Shell.SelectionRangeStartField fields

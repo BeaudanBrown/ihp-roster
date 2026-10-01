@@ -22,6 +22,11 @@ cross-module safety and payroll contracts.
 
 ## Reviewed Selections
 
+- Before normal download or opening a filtered checklist, active unapproved
+  Timesheets in the selected operational-day period are listed for explicit
+  continue/cancel review, using the same warning flow as Xero. Cancel creates
+  no export. Continuing never makes those entries eligible; generation and
+  selection validation remain approved-only. Reopening starts a fresh review.
 - Download retains all-eligible behavior. Filtered selections are operation-local,
   default to all eligible entries, and never change the period. Every output and
   source-provenance row consumes the same validated snapshot. Explicit empty,
