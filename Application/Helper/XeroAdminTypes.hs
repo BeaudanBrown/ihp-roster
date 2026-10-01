@@ -2,6 +2,7 @@
 
 module Application.Helper.XeroAdminTypes where
 
+import Application.Helper.TimesheetReview (UnapprovedTimesheetView)
 import Application.Xero.ReferenceTrust
 import Control.Monad (guard)
 import qualified Data.List as List
@@ -191,12 +192,6 @@ xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumSubmitted = 
 xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumFailed = XeroPreparationFailed
 xeroPreparationStateFromStatus Cancelled = XeroPreparationFailed
 
-data XeroUnapprovedTimesheetView = XeroUnapprovedTimesheetView
-    { unapprovedTimesheetEntry :: TimesheetEntry
-    , unapprovedTimesheetStaff :: Maybe Staff
-    }
-    deriving (Eq, Show)
-
 data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun
     , preparationState                       :: XeroTimesheetPreparationState
@@ -215,7 +210,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationStaffStepApproved           :: Bool
     , preparationCanSubmit                   :: Bool
     , preparationSelectedEntries             :: [TimesheetEntry]
-    , preparationUnapprovedTimesheets         :: [XeroUnapprovedTimesheetView]
+    , preparationUnapprovedTimesheets         :: [UnapprovedTimesheetView]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }

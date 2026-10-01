@@ -65,11 +65,29 @@ test.describe('Payroll export downloads', () => {
         expect(resetWeek).toEqual(currentWeek);
         const fileName = `payroll-workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
 
-        const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download');
+        const generationRequests: string[] = [];
+        const recordExportRequest = (request: import('@playwright/test').Request) => {
+            if (request.url().includes('/ConfirmTimesheetExportDownload')) generationRequests.push(request.url());
+        };
+        page.on('request', recordExportRequest);
+        await standardCard.getByRole('button', { name: 'Download', exact: true }).click();
+        const warningDialog = page.getByRole('dialog', { name: 'Unapproved timesheets in this export period' });
+        await expect(warningDialog).toBeVisible();
+        await expect(warningDialog).toContainText('will not be included in the export');
+        await expect(warningDialog.locator('li')).toHaveCount(1);
+        await page.screenshot({ path: testInfo.outputPath('unapproved-export-warning.png') });
+        await warningDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(warningDialog).toHaveCount(0);
+        expect(generationRequests).toEqual([]);
+        page.off('request', recordExportRequest);
+
+        const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download', true);
         expect(standardDownload.suggestedFilename()).toBe(fileName);
 
         await gotoExports(page);
         await standardCard.getByRole('button', { name: 'Filtered…' }).click();
+        await expect(warningDialog).toBeVisible();
+        await warningDialog.getByRole('button', { name: 'Continue anyway' }).click();
         const selectionDialog = page.getByRole('dialog', { name: 'Choose shifts for export' });
         await expect(selectionDialog).toBeVisible();
         await expect(selectionDialog).not.toContainText('Review this selection');
@@ -146,7 +164,7 @@ test.describe('Payroll export downloads', () => {
         await expect(configurationRow).toContainText('Sheets: Wages by Shift Type → Summary');
 
         const configuredRefresh = page.waitForResponse((response) => response.url().includes('/ShowadminExportsLiveFragment'), { timeout: E2E_TIMEOUT.assertion });
-        const configuredDownload = await generatePayrollReport(page, 'Wages then Summary', 'Download');
+        const configuredDownload = await generatePayrollReport(page, 'Wages then Summary', 'Download', true);
         expect(configuredDownload.suggestedFilename()).toBe(`wages-then-summary-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`);
         await configuredRefresh;
         const workbookXml = await readZipEntryText(configuredDownload, 'xl/workbook.xml');

@@ -1,5 +1,6 @@
 module Web.Exports.Selection
     ( openExportSelection
+    , confirmExportSelection
     , refreshExportSelection
     , changeExportSelectionGroup
     , generateSelectedExport
@@ -7,34 +8,48 @@ module Web.Exports.Selection
     ) where
 
 import Application.Helper.Export
-import Application.Helper.TimesheetSelection
-import Application.Helper.Url (appendQueryParams)
 import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Web.TimesheetSelection (fetchTimesheetSelectionRows)
+import Application.Helper.TimesheetSelection
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
+import IHP.ViewPrelude (Html)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (requestSelectedExportMutation)
+import Web.Exports.Review (renderExportReviewForm, withExportReview)
+import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import Web.View.TimesheetSelection
-import IHP.ViewPrelude (Html)
 
 -- HTTP transport is confined to this workflow; Application consumes only the
 -- shared typed selection and never reads request parameters.
 data ExportSelectionRequest = ExportSelectionRequest
-    { rangeStart :: Day
-    , rangeEnd :: Day
-    , exportType :: ExportJobType
+    { rangeStart      :: Day
+    , rangeEnd        :: Day
+    , exportType      :: ExportJobType
     , configurationId :: Maybe UUID
-    , tokens :: [Text]
+    , tokens          :: [Text]
     }
 
 openExportSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 openExportSelection =
     case parseAppShellActionParams @Shell.OpenTimesheetSelectionDialog of
+        Left errors -> respondHtml [hsx|{surfaceRequestFieldErrorsMessage errors}|]
+        Right fields -> do
+            let start = surfaceFieldValue @Shell.SelectionRangeStartField fields
+                end = surfaceFieldValue @Shell.SelectionRangeEndField fields
+                exportType = surfaceFieldValue @Shell.SelectionExportTypeField fields
+                configurationId = surfaceFieldValue @Shell.PayrollWorkbookConfigurationIdField fields
+            withExportReview start end (renderExportReviewForm True start end exportType configurationId) $
+                showSelection True Nothing ExportSelectionRequest
+                    { rangeStart = start, rangeEnd = end, exportType, configurationId, tokens = [] }
+
+confirmExportSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
+confirmExportSelection =
+    case parseAppShellActionParams @Shell.ConfirmTimesheetExportSelection of
         Left errors -> respondHtml [hsx|{surfaceRequestFieldErrorsMessage errors}|]
         Right fields -> showSelection True Nothing ExportSelectionRequest
             { rangeStart = surfaceFieldValue @Shell.SelectionRangeStartField fields

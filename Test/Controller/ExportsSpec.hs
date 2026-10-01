@@ -4,12 +4,13 @@ import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
 import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
-import Application.Helper.TimesheetSelection
-import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
-                                    TimesheetIntegrityError (TimesheetTimingInvalid))
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetReview
+import Application.Helper.TimesheetSelection
+import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
+                                    TimesheetIntegrityError (TimesheetTimingInvalid))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
@@ -26,8 +27,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status
@@ -49,6 +50,79 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "warns before normal and filtered exports, with scoped approved-only continuations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Export review"
+                admin <- createUserRecord "export-review@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                approvedStaff <- createStaffRecord venue (Just admin) "Approved" "Worker"
+                draftStaff <- createStaffRecord venue Nothing "Unapproved" "Worker"
+                let start = fromGregorian 2025 1 6
+                    end = fromGregorian 2025 1 12
+                approved <- createApprovedTimesheetEntryRecordAt venue approvedStaff admin start (UTCTime end 0)
+                draft <- createTimesheetEntryRecord venue draftStaff end
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays (-1) start)
+                _ <- createTimesheetEntryRecord venue draftStaff (addDays 1 end)
+                deleted <- createTimesheetEntryRecord venue draftStaff start
+                _ <- deleted |> set #deletedAt (Just (UTCTime end 0)) |> updateRecord
+                foreignVenue <- createVenueWithConfig "Foreign review"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
+                _ <- createTimesheetEntryRecord foreignVenue foreignStaff start
+                rows <- fetchUnapprovedTimesheets venue.id start end
+                map (.unapprovedTimesheetEntry.id) rows `shouldBe` [draft.id]
+                let downloadParams = [("exportType", "approved_timesheets_csv"), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                    selectionParams = [("selectionExportType", "approved_timesheets_csv"), ("selectionRangeStart", "2025-01-06"), ("selectionRangeEnd", "2025-01-12"), ("selectedTimesheetEntries", "[]")]
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    forM_ [[], [("HX-Request", "true")]] \headers -> withRequestHeaders headers do
+                        warning <- callActionWithParams CreateExportJobAction downloadParams
+                        warning `responseStatusShouldBe` status200
+                        warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                        warning `responseBodyShouldContain` "Unapproved Worker"
+                        warning `responseBodyShouldNotContain` "Foreign Worker"
+                        warning `responseBodyShouldContain` "Continue anyway"
+                        warning `responseBodyShouldContain` "Cancel"
+                        warning `responseBodyShouldContain` "/ConfirmTimesheetExportDownload"
+                        when (not (null headers)) do
+                            lookup "HX-Reswap" (responseHeaders warning) `shouldBe` Just "innerHTML"
+                            lookup "HX-Redirect" (responseHeaders warning) `shouldBe` Nothing
+                        query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    -- Cancel/close has no server write. Reopening rechecks drafts.
+                    filtered <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams OpenTimesheetExportSelectionAction selectionParams)
+                    filtered `responseBodyShouldContain` "/ConfirmTimesheetExportSelection"
+                    filtered `responseBodyShouldNotContain` "Choose shifts for export"
+                    checklist <- callActionWithParams ConfirmTimesheetExportSelectionAction selectionParams
+                    checklist `responseBodyShouldContain` "Choose shifts for export"
+                    checklist `responseBodyShouldNotContain` "Unapproved Worker"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+                    downloaded <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams ConfirmTimesheetExportDownloadAction selectionParams)
+                    downloaded `responseStatusShouldBe` status200
+                    lookup "HX-Redirect" (responseHeaders downloaded) `shouldSatisfy` isJust
+                job <- query @ExportJob |> fetchOne
+                sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId job.id) |> fetch
+                map (.timesheetEntryId) sources `shouldBe` [unpackId approved.id]
+
+        forM_ [ConfirmTimesheetExportDownloadAction, ConfirmTimesheetExportSelectionAction] \confirmation -> do
+            it ("rejects missing/malformed continuation fields for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Invalid export review"
+                    admin <- createUserRecord "invalid-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue admin VenueAdmin
+                    withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        forM_ [[], [("selectionRangeStart", "not-a-day"), ("selectionRangeEnd", "2025-01-12"), ("selectionExportType", "unknown"), ("selectedTimesheetEntries", "[]")]] \params -> do
+                            response <- withRequestHeaders [("HX-Request", "true")] (callActionWithParams confirmation params)
+                            response `responseStatusShouldBe` status200
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
+            it ("denies managers continuation access for " <> cs (tshow confirmation)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Denied export review"
+                    manager <- createUserRecord "denied-export-review@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue manager Manager
+                    response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction confirmation)
+                    response `responseStatusShouldBe` status302
+                    lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 0)
+
         it "exports manual Xero pay-item names and sealed units without any Xero setup" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unlinked manual workbook"
@@ -177,10 +251,17 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateExportJobAction
+                    warning <- callActionWithParams CreateExportJobAction
                         [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
                         , ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
+                        ]
+                    warning `responseBodyShouldContain` "Unapproved timesheets in this export period"
+                    callActionWithParams ConfirmTimesheetExportDownloadAction
+                        [ ("selectionExportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("selectionRangeStart", "2025-01-06")
+                        , ("selectionRangeEnd", "2025-01-12")
+                        , ("selectedTimesheetEntries", "[]")
                         ]
 
                 response `responseStatusShouldBe` status302

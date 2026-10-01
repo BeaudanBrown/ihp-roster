@@ -18,8 +18,11 @@ module Application.Xero.Timesheets.Prepare
     ) where
 
 import Application.Error.Types (AppResult)
-import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenueId)
+import Application.Helper.ControllerContext (authenticatedCurrentUser,
+                                             currentVenueId)
 import Application.Helper.Staff (isLinkedActiveStaff)
+import Application.Helper.TimesheetReview (fetchUnapprovedTimesheets)
+import Application.Helper.TimesheetSelection
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
@@ -40,7 +43,6 @@ import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.ReconciliationReview (XeroTimesheetReconciliationNotice (..),
                                                          reconciliationReviewNotices)
-import Application.Helper.TimesheetSelection
 import Application.Xero.Timesheets.Selection
 import Application.Xero.Timesheets.Submission
 import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed)
@@ -202,25 +204,10 @@ loadPreparationView run connection decisions readiness = do
     let selectedEntries = case preparationReadinessRequest run [] of
             Left _ -> []
             Right request -> either (const []) (\value -> value) (validateTimesheetSelection run.venueId request.readinessPeriodStart request.readinessPeriodEnd request.readinessSelection candidates)
-    unapprovedEntries <- case selectedPreparationPeriod run of
+    unapprovedTimesheets <- case selectedPreparationPeriod run of
         Left _ -> pure []
-        Right period ->
-            filter (not . (.isApproved))
-                <$> fetchPeriodTimesheetEntries (Id run.venueId) period.selectedPreparationPeriodStart period.selectedPreparationPeriodEnd
-    unapprovedStaff <-
-        if null unapprovedEntries
-            then pure []
-            else query @Staff
-                |> filterWhereIn (#id, map (Id . (.staffId)) unapprovedEntries)
-                |> fetch
-    let unapprovedTimesheets =
-            map
-                (\entry -> XeroUnapprovedTimesheetView
-                    { unapprovedTimesheetEntry = entry
-                    , unapprovedTimesheetStaff = find ((== entry.staffId) . unpackId . (.id)) unapprovedStaff
-                    })
-                unapprovedEntries
-        baseReadinessView = preparationReadinessView run readiness
+        Right period -> fetchUnapprovedTimesheets (Id run.venueId) period.selectedPreparationPeriodStart period.selectedPreparationPeriodEnd
+    let baseReadinessView = preparationReadinessView run readiness
         issueEntryIds =
             mapMaybe (.timesheetIssueTimesheetEntryId)
                 (baseReadinessView.timesheetReadinessBlockers <> baseReadinessView.timesheetReadinessWarnings)

@@ -117,6 +117,8 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | ConfirmTimesheetExportDownloadAction
+    | ConfirmTimesheetExportSelectionAction
     | OpenTimesheetExportSelectionAction
     | RefreshTimesheetExportSelectionAction
     | SelectTimesheetExportGroupAction { selectionDay :: Maybe Text }

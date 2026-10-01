@@ -24,9 +24,12 @@ import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               requestFixedExportMutation,
                               requestFixedExportWithPayrollWorkbookDefinitionMutation)
 import Web.Exports.Responses
-import Web.Exports.Selection (openExportSelection, refreshExportSelection, changeExportSelectionGroup, generateSelectedExport)
+import Web.Exports.Review (renderExportReviewForm, withExportReview)
+import Web.Exports.Selection (changeExportSelectionGroup,
+                              confirmExportSelection, generateSelectedExport,
+                              openExportSelection, refreshExportSelection)
 import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
-                                          editSavedWorkbookFromRequest)
+                                           editSavedWorkbookFromRequest)
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 exportDownloadUrl :: ExportJob -> Text
@@ -59,6 +62,23 @@ respondWithGeneratedExportDownload exportJob =
             setHeader ("HX-Reswap", "none")
             respondHtml mempty
         else redirectToPath (exportDownloadUrl exportJob)
+
+generateFixedExportDownload ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
+    ExportJobType -> Day -> Day -> Maybe (Id PayrollWorkbookConfiguration) -> IO ResponseReceived
+generateFixedExportDownload exportType rangeStart rangeEnd maybeConfigurationId =
+    case (exportType, maybeConfigurationId) of
+        (PayrollWorkbookXlsx, Just configurationId) ->
+            fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
+                Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
+                Right configuration ->
+                    requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= complete
+        (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
+        (_, Nothing) -> requestFixedExportMutation exportType rangeStart rangeEnd >>= complete
+  where
+    complete = \case
+        Left message -> respondWithExportGenerationError message
+        Right result -> respondWithGeneratedExportDownload result.liveMutationValue
 
 data PayrollWorkbookConfigurationDraftOperation
     = AddDraftSheet
@@ -143,6 +163,18 @@ instance Controller ExportsController where
 
     action currentAction@OpenTimesheetExportSelectionAction = runBepis currentAction BepisFormAction openExportSelection
 
+    action currentAction@ConfirmTimesheetExportSelectionAction = runBepis currentAction BepisFormAction confirmExportSelection
+
+    action currentAction@ConfirmTimesheetExportDownloadAction = runBepis currentAction BepisExportAction do
+        ensureVenueWritable
+        case parseAppShellActionParams @AppShell.ConfirmTimesheetExportDownload of
+            Left errors -> respondWithExportGenerationError (surfaceRequestFieldErrorsMessage errors)
+            Right fields -> generateFixedExportDownload
+                (surfaceFieldValue @AppShell.SelectionExportTypeField fields)
+                (surfaceFieldValue @AppShell.SelectionRangeStartField fields)
+                (surfaceFieldValue @AppShell.SelectionRangeEndField fields)
+                (Id <$> surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+
     action currentAction@RefreshTimesheetExportSelectionAction = runBepis currentAction BepisFormAction refreshExportSelection
 
     action currentAction@SelectTimesheetExportGroupAction { selectionDay } = runBepis currentAction BepisFormAction do
@@ -167,23 +199,8 @@ instance Controller ExportsController where
                 let rangeStart = surfaceFieldValue @Surface.RangeStart fields
                 let rangeEnd = surfaceFieldValue @Surface.RangeEnd fields
                 let maybeConfigurationId = Id <$> surfaceFieldValue @Surface.PayrollWorkbookConfigurationId fields
-                case (exportType, maybeConfigurationId) of
-                    (PayrollWorkbookXlsx, Just configurationId) ->
-                        fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
-                            Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
-                            Right configuration ->
-                                requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= \case
-                                    Left message -> respondWithExportGenerationError message
-                                    Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    (PayrollWorkbookXlsx, Nothing) ->
-                        requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
-                            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
-                    (_, Nothing) ->
-                        requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
-                            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
+                withExportReview rangeStart rangeEnd (renderExportReviewForm False rangeStart rangeEnd exportType (unpackId <$> maybeConfigurationId))
+                    (generateFixedExportDownload exportType rangeStart rangeEnd maybeConfigurationId)
 
     action currentAction@NewPayrollWorkbookConfigurationAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam

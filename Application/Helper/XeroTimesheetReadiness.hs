@@ -14,8 +14,9 @@ module Application.Helper.XeroTimesheetReadiness
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types (AppResult)
-import Application.Helper.TimesheetSelection
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
+import Application.Helper.TimesheetReview (fetchPeriodTimesheetEntries)
+import Application.Helper.TimesheetSelection
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.WageEngine (EarningsComponent (sourceCondition),
@@ -210,17 +211,6 @@ fetchActiveXeroConnection venueId =
         |> filterWhere (#connectionStatus, "active" :: Text)
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
-
-fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
-fetchPeriodTimesheetEntries venueId periodStart periodEnd =
-    query @TimesheetEntry
-        |> filterWhere (#venueId, unpackId venueId)
-        |> filterWhereGreaterThanOrEqualTo (#operationalDate, periodStart)
-        |> filterWhereLessThan (#operationalDate, addDays 1 periodEnd)
-        |> filterWhere (#deletedAt, Nothing)
-        |> orderBy #operationalDate
-        |> orderBy #startsAt
-        |> fetch
 
 fetchVerifiedStaffMappings :: (?modelContext :: ModelContext) => [UUID] -> XeroConnection -> IO [XeroStaffMapping]
 fetchVerifiedStaffMappings staffIds connection =

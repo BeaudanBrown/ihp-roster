@@ -9,28 +9,29 @@ import Control.Exception (bracket_)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.List as List
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text
 import Data.Time.Calendar (addDays, fromGregorian)
-import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
+                        secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
 import IHP.ModelSupport (unsafeSqlExecDiscardResult)
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition)
 import Network.HTTP.Types.Status (status200, status302, status500)
-import Network.Wai (responseHeaders)
+import Network.Wai (responseHeaders, responseStatus)
 import Test.Hspec
 import Test.Support
 import Web.Controller.Exports ()
@@ -195,10 +196,11 @@ tests = aroundAll withDatabaseTestContext do
                     bracket_ installFailure removeFailure do
                         forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \kind -> do
                             response <- withPasskeyVerifiedUserAndCurrentVenue fixture.admin fixture.venue.id
-                                (callActionWithParams CreateExportJobAction
-                                    [ ("exportType", cs (exportJobTypeToText kind))
-                                    , ("rangeStart", "2025-01-07")
-                                    , ("rangeEnd", "2025-01-13")
+                                (callActionWithParams ConfirmTimesheetExportDownloadAction
+                                    [ ("selectionExportType", cs (exportJobTypeToText kind))
+                                    , ("selectionRangeStart", "2025-01-07")
+                                    , ("selectionRangeEnd", "2025-01-13")
+                                    , ("selectedTimesheetEntries", "[]")
                                     ])
                             response `responseStatusShouldBe` status500
                             query @ExportJob |> fetchCount `shouldReturn` 0
@@ -712,11 +714,19 @@ generatePayrollExportJobForRange ::
 generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
     assertSealedPayrollEntries venue
     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
-        callActionWithParams CreateExportJobAction
+        initial <- callActionWithParams CreateExportJobAction
             [ ("exportType", cs (exportJobTypeToText exportType))
             , ("rangeStart", cs (tshow rangeStart))
             , ("rangeEnd", cs (tshow rangeEnd))
             ]
+        if responseStatus initial /= status200 then pure initial else do
+            initial `responseBodyShouldContain` "Unapproved timesheets in this export period"
+            callActionWithParams ConfirmTimesheetExportDownloadAction
+                [ ("selectionExportType", cs (exportJobTypeToText exportType))
+                , ("selectionRangeStart", cs (tshow rangeStart))
+                , ("selectionRangeEnd", cs (tshow rangeEnd))
+                , ("selectedTimesheetEntries", "[]")
+                ]
 
     response `responseStatusShouldBe` status302
 

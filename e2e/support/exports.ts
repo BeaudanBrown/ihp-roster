@@ -49,7 +49,7 @@ export function payrollReportCard(page: Page, reportName: string) {
     });
 }
 
-export async function generatePayrollReport(page: Page, reportName: string, downloadLabel = 'Download CSV') {
+export async function generatePayrollReport(page: Page, reportName: string, downloadLabel = 'Download CSV', acknowledgeUnapproved = false) {
     await ensureExportsSectionOpen(page);
     const card = payrollReportCard(page, reportName);
     await expect(card).toHaveCount(1, { timeout: E2E_TIMEOUT.action });
@@ -58,6 +58,11 @@ export async function generatePayrollReport(page: Page, reportName: string, down
     await expect(downloadButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     const downloadPromise = page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion });
     await downloadButton.click({ timeout: E2E_TIMEOUT.action });
+    if (acknowledgeUnapproved) {
+        const warning = page.getByRole('dialog', { name: 'Unapproved timesheets in this export period' });
+        await expect(warning).toBeVisible();
+        await warning.getByRole('button', { name: 'Continue anyway' }).click();
+    }
     return downloadPromise;
 }
 
