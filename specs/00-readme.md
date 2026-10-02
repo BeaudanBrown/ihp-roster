@@ -43,6 +43,7 @@ live in `README.md`, `Test/AGENTS.md`, and ADR 0004.
 - `04-roster-and-conflict-rules.md`
 - `05-timesheets-and-leave.md`
 - `06-pay-engine.md`
+- `07-daysheets.md` — locked configurable Daysheet v1 product scope and acceptance
 - `hospitality-award-pay-calculation-verification.md`
 - `hospitality-award-wage-compliance-matrix.md`
 

@@ -46,6 +46,9 @@ devenv.local.nix
 !.envrc
 notes
 
+# Local Daysheet design reference workbook.
+/daysheet-template.xlsx
+
 # Private local RSA document samples for manual extraction checks.
 Test/Fixtures/private/rsa/*
 !Test/Fixtures/private/rsa/README.md

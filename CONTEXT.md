@@ -60,6 +60,56 @@ _Avoid_: Schedule preset, copied roster
 One manager-requested email send for a Published roster-group window, with an immutable roster and recipient snapshot shared by every delivery job in the run.
 _Avoid_: Roster publication, email blast
 
+## Daysheets
+
+**Daysheet**:
+The venue's shared operational and financial record for one operational day.
+_Avoid_: Daily roster, separate area daysheet
+
+**Daysheet advisory check**:
+A configured business check that highlights a concern without preventing submission or report sending.
+_Avoid_: Submission gate, blocking validation
+
+**Unavailable calculation result**:
+A valid daysheet calculation that cannot produce a value from the current data, with a reason distinguishing it from a known zero.
+_Avoid_: Formula error, default zero
+
+**Daysheet definition version**:
+A published configuration defining a daysheet's fields, calculation rules, and entry/report layouts, retained by the daysheets created under it.
+_Avoid_: Latest form, live configuration
+
+**Venue reference list**:
+A configurable collection of reusable venue records shared across operational days, such as areas or terminals.
+_Avoid_: Daily entries, fixed built-in options
+
+**Daysheet record list**:
+A configurable collection of daily records belonging to one daysheet, which may reference reusable venue records.
+_Avoid_: Venue reference list, standalone daily sheets
+
+**Reference checklist**:
+A daysheet record list with exactly one row for each entry in a selected preserved venue reference list, rather than freely added rows.
+_Avoid_: Open list, optional terminal rows
+
+**Recorded sales**:
+Sales reported by the POS, which drive the starter daysheet's sales headline and kitchen, ticket, and bar breakdown independently of reconciliation discrepancies.
+_Avoid_: Actual takings, cash counted
+
+**Actual takings**:
+Amounts actually received, reconciled against expected receipts rather than used to redefine POS-recorded sales.
+_Avoid_: Recorded sales
+
+**Cash in / cash out**:
+Money added to or removed from an area's till outside ordinary POS cash sales and the retained float, including cash expenses and customer cashout.
+_Avoid_: Cash movements in user-facing copy
+
+**Customer cashout**:
+Cash handed to a customer against a matching amount included in an EFTPOS receipt, rather than a sale or venue expense.
+_Avoid_: Cash expense, additional card sale
+
+**Daysheet report snapshot**:
+A fixed record of a submitted daysheet captured for scheduled or manual reporting, distinct from the editable live daysheet.
+_Avoid_: Live report, latest daysheet
+
 ## Support
 
 **Support impersonation**:
