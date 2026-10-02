@@ -9,6 +9,8 @@ module Application.Helper.FrontendContract.PwaInstall.Runtime
     , pwaInstallResultAttrs
     , pwaInstallResultStateAttrs
     , pwaInstalledStatusAttrs
+    , pwaInstallLinkAttrs, pwaInstallHomeAttrs, pwaInstallManualAttrs, pwaInstallChooserAttrs
+    , PwaInstallGuide (..), pwaInstallGuideValue, pwaInstallGuidePanelAttrs
     ) where
 
 import qualified Application.Helper.FrontendContract.PwaInstall as Contract
@@ -55,6 +57,33 @@ pwaInstallResultStateAttrs state =
 
 pwaInstalledStatusAttrs :: [(Text, Text)]
 pwaInstalledStatusAttrs = roleAttrs canonicalPwaInstallDom.pwaInstalledStatusAttribute
+
+pwaInstallLinkAttrs, pwaInstallHomeAttrs, pwaInstallManualAttrs, pwaInstallChooserAttrs :: [(Text, Text)]
+pwaInstallLinkAttrs = roleAttrs (domAttrValue @Contract.PwaInstallLink)
+pwaInstallHomeAttrs = roleAttrs (domAttrValue @Contract.PwaInstallHome)
+pwaInstallManualAttrs = roleAttrs (domAttrValue @Contract.PwaInstallManual)
+pwaInstallChooserAttrs = roleAttrs (domAttrValue @Contract.PwaInstallChooser)
+
+-- Device and browser panels are server-owned; selection is disposable browser state.
+data PwaInstallGuide = IosGuide | AndroidGuide | WindowsGuide | MacGuide | LinuxGuide
+    | ChromeGuide | EdgeGuide | SafariGuide | FirefoxGuide | GeneralGuide
+    deriving (Eq, Show)
+
+pwaInstallGuidePanelAttrs :: PwaInstallGuide -> [(Text, Text)]
+pwaInstallGuidePanelAttrs guide = [(domAttrValue @Contract.PwaInstallGuidePanel, pwaInstallGuideValue guide)]
+
+pwaInstallGuideValue :: PwaInstallGuide -> Text
+pwaInstallGuideValue = \case
+    IosGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Ios
+    AndroidGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Android
+    WindowsGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Windows
+    MacGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Mac
+    LinuxGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Linux
+    ChromeGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Chrome
+    EdgeGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Edge
+    SafariGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Safari
+    FirefoxGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.Firefox
+    GeneralGuide -> enumLiteralValue @Contract.PwaInstallGuide @Contract.General
 
 pwaInstallStateValue :: PwaInstallState -> Text
 pwaInstallStateValue = \case
