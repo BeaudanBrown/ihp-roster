@@ -56,10 +56,11 @@ function setup() {
     const action = owner.append(new Form({ [actionAttribute]: "" }));
     const button = action.append(new Button());
     const notice = owner.append(new Node({ [noticeAttribute]: "" }));
-    const document = { getElementById: () => target } as unknown as Document;
+    const document = { getElementById: (id: string) => owner.querySelectorAll("*").find((node) => node.id === id) ?? null } as unknown as Document;
     const nativeOwner = owner as unknown as HTMLElement;
     const nativeTarget = target as unknown as HTMLElement;
-    const forms = createDirtyFormProtection(document, () => undefined, () => gate.refresh(nativeOwner));
+    const acknowledgements: string[] = [];
+    const forms = createDirtyFormProtection(document, (_owner, targetId) => acknowledgements.push(targetId), () => gate.refresh(nativeOwner));
     const gate = createSettledFormGate((candidate) => candidate !== nativeOwner ? null : ({
         definitions: [{ name: "fixture", actionRoleAttribute: actionAttribute, noticeRoleAttribute: noticeAttribute }],
         settled: !forms.protectedTarget(nativeTarget, nativeOwner),
@@ -75,7 +76,7 @@ function setup() {
         forms.handleEvent(event("htmx:afterRequest", xhr));
     };
     refresh();
-    return { owner, target, edit, action, button, notice, forms, gate, refresh, change, event, start, finish };
+    return { owner, target, edit, action, button, notice, forms, gate, refresh, change, event, start, finish, acknowledgements };
 }
 
 test("settled-form gate shares dirty/pending state and waits for explicit saved acknowledgement", () => fixture((f) => {
@@ -120,6 +121,36 @@ test("settled-form gate rejects native and HTMX submission while blocked", () =>
     assertEqual(custom.defaultPrevented, true);
     const ordinarySave = new CustomEvent("htmx:beforeRequest", { cancelable: true, detail: { elt: f.edit } });
     assertEqual(f.gate.guard(ordinarySave), false);
+}));
+
+test("overlapping dirty targets keep validation and acknowledgements local regardless of registration order", () => fixture((f) => {
+    const parent = f.owner.append(new Node({}, "parent-target"));
+    parent.append(f.target);
+    const sibling = parent.append(new Node({}, "sibling-target"));
+    const form = sibling.append(new Form());
+    const owner = f.owner as unknown as HTMLElement;
+    const policy = { kind: "dirty-form", savedHeader: "X-Test-Saved" } as const;
+    f.forms.register(owner, parent as unknown as HTMLElement, policy);
+    f.forms.register(owner, sibling as unknown as HTMLElement, policy);
+    f.forms.register(owner, parent as unknown as HTMLElement, policy);
+    form.snapshot = "submitted";
+    const xhr = new Xhr();
+    f.forms.handleEvent(new CustomEvent("htmx:beforeRequest", { detail: { xhr, elt: form } }));
+    xhr.status = 409;
+    f.forms.handleEvent(new CustomEvent("htmx:beforeOnLoad", { detail: { xhr } }));
+    const replacement = new Form();
+    replacement.snapshot = "submitted";
+    sibling.replaceChildren(replacement);
+    f.forms.afterSwap(new CustomEvent("htmx:afterSwap", { detail: { xhr } }));
+    assertEqual(f.forms.protectedTarget(f.target as unknown as HTMLElement, owner), false);
+    assertEqual(f.forms.protectedTarget(parent as unknown as HTMLElement, owner), true);
+    const resolved = new Xhr();
+    f.forms.handleEvent(new CustomEvent("htmx:beforeRequest", { detail: { xhr: resolved, elt: replacement } }));
+    resolved.saved = true;
+    f.forms.handleEvent(new CustomEvent("htmx:beforeOnLoad", { detail: { xhr: resolved } }));
+    f.forms.handleEvent(new CustomEvent("htmx:afterRequest", { detail: { xhr: resolved } }));
+    assertEqual(f.acknowledgements[0], "sibling-target");
+    assertEqual(f.forms.protectedTarget(parent as unknown as HTMLElement, owner), false);
 }));
 
 test("settled-form gate fails closed when a declared dirty target loses its forms", () => fixture((f) => {

@@ -30,10 +30,22 @@ export function createDirtyFormProtection(
 
     function register(owner: HTMLElement, target: HTMLElement, policy: Policy): void {
         for (const form of ownedForms(target, owner)) {
-            if (!forms.has(form)) forms.set(form, {
-                owner, targetId: target.id, policy, baseline: normalizedFormSnapshot(form),
-                revision: 0, pending: new Set(), invalid: false,
-            });
+            const existing = forms.get(form);
+            if (!existing || existing.owner !== owner) {
+                forms.set(form, {
+                    owner, targetId: target.id, policy, baseline: normalizedFormSnapshot(form),
+                    revision: 0, pending: new Set(), invalid: false,
+                });
+            } else {
+                // A promoted ancestor must protect every dirty descendant, but
+                // acknowledgements/validation belong to the narrowest declared
+                // form target. Registration order must not widen that boundary.
+                const previous = document.getElementById(existing.targetId);
+                if (!previous || previous.contains(target)) {
+                    existing.targetId = target.id;
+                    existing.policy = policy;
+                }
+            }
         }
     }
 

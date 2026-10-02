@@ -2923,15 +2923,24 @@
     }
     function register(owner, target, policy) {
       for (const form of ownedForms(target, owner)) {
-        if (!forms.has(form)) forms.set(form, {
-          owner,
-          targetId: target.id,
-          policy,
-          baseline: normalizedFormSnapshot(form),
-          revision: 0,
-          pending: /* @__PURE__ */ new Set(),
-          invalid: false
-        });
+        const existing = forms.get(form);
+        if (!existing || existing.owner !== owner) {
+          forms.set(form, {
+            owner,
+            targetId: target.id,
+            policy,
+            baseline: normalizedFormSnapshot(form),
+            revision: 0,
+            pending: /* @__PURE__ */ new Set(),
+            invalid: false
+          });
+        } else {
+          const previous = document2.getElementById(existing.targetId);
+          if (!previous || previous.contains(target)) {
+            existing.targetId = target.id;
+            existing.policy = policy;
+          }
+        }
       }
     }
     function protectedTarget(target, owner) {

@@ -138,7 +138,11 @@ the form. Deferred work retains invalidation, not response HTML, and refetches
 when safe. A successful response explicitly acknowledges the submitted snapshot;
 HTTP success alone is not an acknowledgement. Newer edits remain dirty, and an
 older validation response cannot replace them. Validation replaces only the
-submitted section. Form state belongs to the concrete DOM lifetime and is not
+submitted section. When dirty-form targets overlap, the narrowest declared target
+owns each form's acknowledgement and validation, independent of registration
+order; an ancestor still protects all its dirty descendant forms during promoted
+refreshes. A failed child save must not mark unrelated forms invalid.
+Form state belongs to the concrete DOM lifetime and is not
 transferred to a reopened dialog. Existing per-form HTMX synchronization remains
 the write-ordering authority; this protection does not cancel or reorder writes.
 
