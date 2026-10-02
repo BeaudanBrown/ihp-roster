@@ -15,6 +15,12 @@ immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
 staging/publication boundary is retained in `SPEC.md`.
 
+`Daily` owns the server-only saved-content document and pure edit decisions:
+per-cell revisions, fixed captured checklist identities, open-row tombstones,
+and exact deletion dependency confirmations. Persistence must authorize and
+serialize each mutation against the latest document; browser boundaries must
+expose typed commands rather than this opaque storage document.
+
 `Authority` rechecks live venue/membership authority under ordered locks.
 `Recipients` owns admin/owner-only external address management independently of
 versioned layouts. Address identities are immutable, removal is permanent, and

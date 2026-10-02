@@ -51,6 +51,7 @@ import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.DaysheetNumberSpec
 import qualified Test.DaysheetContractSpec
 import qualified Test.DaysheetEvaluationSpec
+import qualified Test.DaysheetDailySpec
 import qualified Test.DaysheetReferencesSpec
 import qualified Test.DaysheetRecipientsSpec
 import qualified Test.DaysheetStorageSpec
@@ -450,6 +451,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "AuditVocabulary", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [A5], definitionPartialInvariants = []} Test.AuditVocabularySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetContract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetContractSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetEvaluation", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetEvaluationSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "DaysheetDaily", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetDailySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetReferences", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetReferencesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetStorage", definitionEstimatedRuntimeSeconds = 2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetStorageSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetRecipients", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetRecipientsSpec.tests

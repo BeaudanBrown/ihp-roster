@@ -113,6 +113,22 @@ capture must preserve the published definition and source reference data needed
 to retain their meaning. Frozen reports capture results, not a promise to
 recompute them under future evaluator changes.
 
+## Daily Content Mutation Core
+
+`Daily` is a pure server-owned document boundary, not an authorization or browser
+request API. Documents are capped at 4 MiB and validated against the immutable
+captured definition/reference data. Blank cells keep revision metadata; a
+clear-and-reenter cycle cannot make an old edit current again. Independent
+fields compare independent revisions, not the whole document's revision.
+
+Checklist row keys exactly match the captured source list. Open-row deletion
+compares the target revision and exact incoming cell/revision set with explicit
+approval. Changed dependencies or target values require fresh confirmation.
+Clearing links advances their revisions, retains other rows/values, and deletes
+the target atomically at the persistence boundary. Only deleted identities are
+retained to reject stale add/edit retries; deleted content is not an edit-history
+archive. Re-adding a row is a new deliberate identity.
+
 ## Staged Reference Corrections And Storage
 
 A draft contains both the proposed definition and its proposed reference data.
