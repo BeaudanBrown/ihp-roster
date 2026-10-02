@@ -50,6 +50,7 @@ import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.DaysheetNumberSpec
 import qualified Test.DaysheetContractSpec
+import qualified Test.DaysheetEvaluationSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
 import qualified Test.Controller.RosterWeeks.FragmentsSpec
@@ -444,6 +445,7 @@ allSuites =
     [ databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Audit", definitionEstimatedRuntimeSeconds = 0.6, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.AuditSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "AuditVocabulary", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [A5], definitionPartialInvariants = []} Test.AuditVocabularySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetContract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetContractSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "DaysheetEvaluation", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetEvaluationSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetNumber", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetNumberSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "BoundaryUtilities", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.BoundaryUtilitiesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "StaticController", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.Controller.StaticSpec.tests

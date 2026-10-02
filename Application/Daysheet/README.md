@@ -6,12 +6,15 @@
 DSL graph before it becomes an expression tree. `Schema` and `Wire` reuse the
 backend FrontendContract DSL and exact carrier parsing; no separate JavaScript
 formula language belongs here. `Number` and `Results` supply exact arithmetic
-and unavailable-result laws for evaluation.
+and unavailable-result laws. `Evaluation` accepts a validated immutable saved
+snapshot, rejects calculated overrides and foreign references, and evaluates
+fields/advisories with a shared per-field-batch work budget.
 
 These pure modules do not authorize venue access, persist daily data, resolve
 operational-day instants, or send reports. Callers must preserve the product's
 pinned-definition/current-venue boundaries. Tests live in
-`Test/DaysheetContractSpec.hs` and `Test/DaysheetNumberSpec.hs`.
+`Test/DaysheetContractSpec.hs`, `Test/DaysheetNumberSpec.hs`, and
+`Test/DaysheetEvaluationSpec.hs`.
 
 Focused checks:
 

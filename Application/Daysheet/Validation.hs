@@ -13,6 +13,7 @@ import qualified Application.Daysheet.Number as Number
 import Data.Graph (SCC (..), stronglyConnComp)
 import Data.List (nub)
 import qualified Data.Text as Text
+import Data.Time (TimeOfDay (..))
 
 -- | Errors here reject publication, unlike ordinary unavailable saved inputs.
 data ContractError
@@ -99,7 +100,8 @@ literalType literal = case literal of
     MoneyLiteral value -> either (const (Left InvalidLiteral)) (const (Right MoneyType)) (Number.enteredMoney value)
     PercentageLiteral _ -> Right PercentageType
     DateLiteral _ -> Right DateType
-    OperationalTimeLiteral _ -> Right OperationalTimeType
+    OperationalTimeLiteral value
+        | todHour value >= 0 && todHour value < 24 && todMin value >= 0 && todMin value < 60 && todSec value >= 0 && todSec value < 60 -> Right OperationalTimeType
     _ -> Left InvalidLiteral
 
 -- | Enclosing row and aggregate item are lexical scopes, not caller-provided
