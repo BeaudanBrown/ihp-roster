@@ -11,15 +11,14 @@ import Application.Daysheet.DefinitionCodec
 import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
 import qualified Application.Daysheet.Evaluation as E
-import Application.Daysheet.Locks
+import Application.Daysheet.Authority (withAuthority)
 import Application.Daysheet.StorageError
 import Application.Error.Domain (projectDomainError)
-import Application.Error.Transaction (withAppResultTransaction)
 import Application.Error.Types
 import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Audit.Vocabulary
 import Application.VenueTime (melbourneTimeZoneName)
-import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
+import Control.Monad.Trans.Except (ExceptT, throwE)
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -36,20 +35,6 @@ failure = throwE . projectDomainError
 
 checked :: StorageError -> Either error a -> StoreM a
 checked errorValue = either (const (failure errorValue)) pure
-
-withAuthority :: (?modelContext :: ModelContext) => VenueMembership -> [VenueRoleEnum] -> ((?modelContext :: ModelContext) => StoreM a) -> IO (AppResult a)
-withAuthority expected roles action = withAppResultTransaction $ runExceptT do
-    locked <- liftIO (lockDaysheetAuthority expected)
-    unless locked (failure AccessDenied)
-    current <- liftIO (query @VenueMembership |> filterWhere (#id, expected.id) |> fetchOneOrNothing)
-    venue <- liftIO (query @Venue |> filterWhere (#id, Id expected.venueId) |> fetchOneOrNothing)
-    user <- liftIO (query @User |> filterWhere (#id, Id expected.userId) |> fetchOneOrNothing)
-    case (current, venue, user) of
-        (Just member, Just currentVenue, Just currentUser)
-            | member.isActive && isNothing member.archivedAt
-              && member.venueRole `elem` roles && currentVenue.status == Active
-              && isNothing currentVenue.closedAt && isNothing currentUser.deactivatedAt -> action
-        _ -> failure AccessDenied
 
 configuration :: (?modelContext :: ModelContext) => VenueMembership -> StoreM (Maybe DaysheetConfiguration)
 configuration member = liftIO (query @DaysheetConfiguration |> filterWhere (#venueId, member.venueId) |> fetchOneOrNothing)

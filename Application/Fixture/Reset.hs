@@ -115,6 +115,7 @@ applicationTableNames =
     , "daysheet_configurations"
     , "daysheet_definition_drafts"
     , "daysheet_definition_captures"
+    , "daysheet_report_recipients"
     ]
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
