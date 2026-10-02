@@ -7,6 +7,7 @@ import Application.Daysheet.Number (Number)
 import Data.Text (Text)
 import Data.Time (Day, TimeOfDay)
 import Data.UUID (UUID)
+import IHP.ModelSupport (InputValue (..))
 
 newtype FieldId = FieldId UUID deriving (Eq, Ord, Show)
 newtype ListId = ListId UUID deriving (Eq, Ord, Show)
@@ -29,16 +30,46 @@ data Literal
 
 -- | Root fields and row fields have disjoint evaluation contexts. During a
 -- fold, Current remains the enclosing row; Item denotes the selected list row.
-data Context = Root | Current | Item deriving (Eq, Show)
+data Context = Root | Current | Item deriving (Eq, Show, Enum, Bounded)
 data FieldPath = FieldPath Context [FieldId] deriving (Eq, Show)
 
 data Binary
     = Add | Subtract | Multiply | Divide
     | Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual
     | And | Or
-    deriving (Eq, Show)
-data Unary = Negate | Absolute | Not | RoundCents | PercentageRatio deriving (Eq, Show)
-data Aggregate = Sum | Count deriving (Eq, Show)
+    deriving (Eq, Show, Enum, Bounded)
+data Unary = Negate | Absolute | Not | RoundCents | PercentageRatio deriving (Eq, Show, Enum, Bounded)
+data Aggregate = Sum | Count deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue Context where
+    inputValue Root = "root"
+    inputValue Current = "current"
+    inputValue Item = "item"
+
+instance InputValue Binary where
+    inputValue Add = "add"
+    inputValue Subtract = "subtract"
+    inputValue Multiply = "multiply"
+    inputValue Divide = "divide"
+    inputValue Equal = "equal"
+    inputValue NotEqual = "not-equal"
+    inputValue Less = "less"
+    inputValue LessOrEqual = "less-or-equal"
+    inputValue Greater = "greater"
+    inputValue GreaterOrEqual = "greater-or-equal"
+    inputValue And = "and"
+    inputValue Or = "or"
+
+instance InputValue Unary where
+    inputValue Negate = "negate"
+    inputValue Absolute = "absolute"
+    inputValue Not = "not"
+    inputValue RoundCents = "round-cents"
+    inputValue PercentageRatio = "percentage-ratio"
+
+instance InputValue Aggregate where
+    inputValue Sum = "sum"
+    inputValue Count = "count"
 
 data Expression
     = Constant Literal
