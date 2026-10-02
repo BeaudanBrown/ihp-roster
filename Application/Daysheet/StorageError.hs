@@ -12,7 +12,7 @@ data StorageError
     deriving (Eq, Show, Generic)
 
 instance DomainError StorageError where
-    appErrorProjection AccessDenied = actionRequiredErrorProjection "You do not have permission to manage this Daysheet configuration."
+    appErrorProjection AccessDenied = actionRequiredErrorProjection "You do not have permission for this Daysheet action."
     appErrorProjection RevisionConflict = actionRequiredErrorProjection "This configuration changed. Reload and review your changes before saving."
     appErrorProjection MissingDraft = actionRequiredErrorProjection "There is no saved Daysheet definition draft."
     appErrorProjection NotPublished = actionRequiredErrorProjection "Publish a Daysheet definition before creating a Daysheet."

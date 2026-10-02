@@ -82,6 +82,7 @@ tests = describe "Daysheet daily content" do
         Right document <- pure fresh
         save (RootCell (field 3)) 0 (Just (ReferenceLink band)) document `shouldBe` Left InvalidDailyReference
         save (RootCell (field 2)) 0 (text "Not a number") document `shouldBe` Left (InvalidDailyInput (E.InvalidInput (field 2)))
+        save (RootCell (field 1)) 0 (text "NUL\NULvalue") document `shouldBe` Left (InvalidDailyInput (E.InvalidInput (field 1)))
         save (RowCell (ReferenceKey (list 10) (row 1)) (field 9)) 0 (text "Changed") document `shouldBe` Left ReadOnlyDailyField
     it "clears all confirmed incoming links while retaining referencing rows and unrelated values" do
         Right document <- pure linked

@@ -35,7 +35,16 @@ tests = aroundAll withDatabaseTestContext do
                 Right fresh <- captureDefinition member (fromGregorian 2026 10 3)
                 fresh.definitionVersionId `shouldBe` unpackId second.id
                 oldAgain <- fetch old.id
-                oldAgain `shouldBe` old
+                -- Generated has-many QueryBuilders are not persisted capture
+                -- facts and have no useful value equality. Compare every column.
+                oldAgain.id `shouldBe` old.id
+                oldAgain.venueId `shouldBe` old.venueId
+                oldAgain.operationalDate `shouldBe` old.operationalDate
+                oldAgain.timezone `shouldBe` old.timezone
+                oldAgain.definitionVersionId `shouldBe` old.definitionVersionId
+                oldAgain.referenceData `shouldBe` old.referenceData
+                oldAgain.capturedBy `shouldBe` old.capturedBy
+                oldAgain.createdAt `shouldBe` old.createdAt
                 Right repeated <- captureDefinition member (fromGregorian 2026 10 1)
                 repeated.id `shouldBe` old.id
                 decodeDefinition first.definition `shouldBe` Right Fixture.definition

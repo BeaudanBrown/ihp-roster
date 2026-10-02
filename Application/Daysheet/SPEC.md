@@ -129,6 +129,20 @@ the target atomically at the persistence boundary. Only deleted identities are
 retained to reject stale add/edit retries; deleted content is not an edit-history
 archive. Re-adding a row is a new deliberate identity.
 
+`DailyStorage` rechecks current venue/membership authority for every read/write.
+Creation, definition capture and initial checklist materialization commit or
+roll back together under the ordered venue lock; reads never create records.
+All edits load the latest saved document under that same serialization boundary.
+The database seals venue/day/capture identity, advances revisions, and prohibits
+reopening submission, but does not freeze submitted content. Last-edited metadata
+changes with content, not repeated Submit requests. Submission creates no report
+or mail job and applies no completeness/advisory gate. Browser orchestration must
+settle local pending saves/conflicts before invoking Submit or future Send.
+
+The canonical daily document cap is 4 MiB; the SQL JSONB text cap is 8 MiB to
+allow PostgreSQL's representation whitespace. NUL text is rejected before SQL.
+No per-field before/after values are written to the audit stream.
+
 ## Staged Reference Corrections And Storage
 
 A draft contains both the proposed definition and its proposed reference data.

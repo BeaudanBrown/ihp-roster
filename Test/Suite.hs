@@ -52,6 +52,7 @@ import qualified Test.DaysheetNumberSpec
 import qualified Test.DaysheetContractSpec
 import qualified Test.DaysheetEvaluationSpec
 import qualified Test.DaysheetDailySpec
+import qualified Test.DaysheetDailyStorageSpec
 import qualified Test.DaysheetReferencesSpec
 import qualified Test.DaysheetRecipientsSpec
 import qualified Test.DaysheetStorageSpec
@@ -454,6 +455,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetDaily", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetDailySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetReferences", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetReferencesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetStorage", definitionEstimatedRuntimeSeconds = 2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetStorageSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetDailyStorage", definitionEstimatedRuntimeSeconds = 2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetDailyStorageSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetRecipients", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetRecipientsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetNumber", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetNumberSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "EmailEnvelope", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.EmailEnvelopeSpec.tests

@@ -19,7 +19,10 @@ staging/publication boundary is retained in `SPEC.md`.
 per-cell revisions, fixed captured checklist identities, open-row tombstones,
 and exact deletion dependency confirmations. Persistence must authorize and
 serialize each mutation against the latest document; browser boundaries must
-expose typed commands rather than this opaque storage document.
+expose typed commands rather than this opaque storage document. `DailyStorage`
+provides scoped reads, atomic explicit creation, latest-state mutations, and
+idempotent submission. `Storage.withDefinitionCapture` keeps initial daily
+materialization and its immutable meaning in the same authority transaction.
 
 `Authority` rechecks live venue/membership authority under ordered locks.
 `Recipients` owns admin/owner-only external address management independently of

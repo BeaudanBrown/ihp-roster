@@ -3,7 +3,7 @@
 -- membership, never a request-selected actor. Authority is re-read under lock;
 -- ordinary venue authority cannot be synthesized from a platform user role.
 module Application.Daysheet.Storage
-    ( saveDraft, publishDraft, captureDefinition, retireCurrentReferences, updateCurrentReferences
+    ( saveDraft, publishDraft, captureDefinition, withDefinitionCapture, retireCurrentReferences, updateCurrentReferences
     ) where
 
 import qualified Application.Daysheet.Contract as D
@@ -114,7 +114,18 @@ publishDraft member expectedBase expectedDraft = withAuthority member [VenueAdmi
 -- One explicit venue/day creation captures one immutable meaning. Repeated or
 -- concurrent creation returns the existing capture, never a newer definition.
 captureDefinition :: (?modelContext :: ModelContext) => VenueMembership -> Day -> IO (AppResult DaysheetDefinitionCapture)
-captureDefinition member day = withAuthority member [Manager, VenueAdmin, VenueOwner] do
+captureDefinition member day = withDefinitionCapture member day pure
+
+-- Daily creation and its captured meaning commit together. The continuation
+-- receives the transaction-bound model context; no nested transaction or
+-- captured outer pool may split this atomic boundary.
+withDefinitionCapture :: (?modelContext :: ModelContext) => VenueMembership -> Day -> ((?modelContext :: ModelContext) => DaysheetDefinitionCapture -> StoreM a) -> IO (AppResult a)
+withDefinitionCapture member day action = withAuthority member [Manager, VenueAdmin, VenueOwner] do
+    captured <- captureDefinitionLocked member day
+    action captured
+
+captureDefinitionLocked :: (?modelContext :: ModelContext) => VenueMembership -> Day -> StoreM DaysheetDefinitionCapture
+captureDefinitionLocked member day = do
     existing <- liftIO (query @DaysheetDefinitionCapture |> filterWhere (#venueId, member.venueId) |> filterWhere (#operationalDate, day) |> fetchOneOrNothing)
     case existing of
         Just captured -> pure captured

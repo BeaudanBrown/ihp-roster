@@ -20,6 +20,7 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as ByteString
 import Data.List (find)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import GHC.Generics (Generic)
@@ -137,7 +138,7 @@ dailySnapshot definition references owner document = do
             { E.savedRoot = values (rootCells document)
             , E.savedRows = Map.unionWith Map.union (Map.fromListWith Map.union
                 [(list, Map.singleton key (values (rowCells row))) | row <- rows document, let ReferenceKey list key = rowKey row]) (E.savedRows captured) }
-    mapM_ (checkLink snapshot) (allCells document)
+    mapM_ (checkStoredValue snapshot) (allCells document)
     either (Left . InvalidDailyInput) (const (Right snapshot)) (E.prepareEvaluation definition snapshot)
   where
     unique keys = unless (length keys == Set.size (Set.fromList keys)) (Left InvalidDailyDocument)
@@ -160,9 +161,13 @@ dailySnapshot definition references owner document = do
     values = Map.fromList . mapMaybe (\(field, cell) -> fmap (\value -> (field, scoped value)) (cellValue cell))
     scoped (ReferenceScalar literal) = E.Scalar literal
     scoped (ReferenceLink (ReferenceKey list row)) = E.Reference (E.RecordReference owner list row)
-    checkLink snapshot (_, Cell _ (Just (ReferenceLink (ReferenceKey list row)))) =
+    checkStoredValue snapshot (_, Cell _ (Just (ReferenceLink (ReferenceKey list row)))) =
         unless (maybe False (Map.member row) (Map.lookup list (E.savedRows snapshot))) (Left InvalidDailyReference)
-    checkLink _ _ = Right ()
+    -- PostgreSQL JSONB cannot represent NUL. Reject it at the typed boundary,
+    -- not as a database exception after an otherwise valid edit.
+    checkStoredValue _ (address, Cell _ (Just (ReferenceScalar (TextLiteral value)))) =
+        when (Text.any (== '\NUL') value) (Left (InvalidDailyInput (E.InvalidInput (addressField address))))
+    checkStoredValue _ _ = Right ()
 
 saveCell :: Definition -> ReferenceData -> E.SnapshotKey -> CellAddress -> Integer -> Maybe ReferenceValue -> DailyDocument -> Either DailyError DailyDocument
 saveCell definition references owner address expected value document = do
