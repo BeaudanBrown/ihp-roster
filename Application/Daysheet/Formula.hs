@@ -6,11 +6,14 @@ module Application.Daysheet.Formula
     , Formula (..)
     , FormulaError (..)
     , compileFormula
+    , expandFormula
+    , flattenExpression
     ) where
 
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Validation (ContractError, expressionType)
+import Control.Monad.State.Strict (State, get, put, runState)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -50,12 +53,19 @@ data FormulaError
 -- and filters are validated before the formula can reach runtime evaluation.
 compileFormula :: Definition -> Maybe ListId -> Formula -> Either FormulaError Expression
 compileFormula definition scope formula = do
+    expression <- expandFormula formula
+    either (Left . FormulaTypeError) (const (Right expression)) (expressionType definition scope expression)
+
+-- | Structural graph decoding precedes whole-definition type validation when
+-- fields refer to other fields in the same persisted definition document.
+expandFormula :: Formula -> Either FormulaError Expression
+expandFormula formula = do
     if length (take (maxExpressionNodes limits + 1) (formulaSteps formula)) > maxExpressionNodes limits
         then Left TooManyNodes else Right ()
     table <- buildTable Map.empty (formulaSteps formula)
     (expression, _, visited) <- expand table Set.empty 1 (maxExpressionNodes limits) (formulaRoot formula)
     if Set.size visited == Map.size table then Right () else Left UnreachableNodes
-    either (Left . FormulaTypeError) (const (Right expression)) (expressionType definition scope expression)
+    pure expression
   where
     buildTable table [] = Right table
     buildTable table ((key@(NodeId value), step) : rest)
@@ -93,3 +103,24 @@ compileFormula definition scope formula = do
                             Right (Just c, remaining, seen)
                     (value, remaining, seenV) <- visit next child
                     finish (Fold operation list condition value) remaining (Set.union seenC seenV)
+
+-- | Canonical post-order nodes for a previously validated internal expression.
+-- Callers must validate before encoding; decoding always enforces graph limits.
+flattenExpression :: Expression -> Formula
+flattenExpression expression =
+    let (root, (_, nodes)) = runState (flatten expression) (0, [])
+     in Formula root (reverse nodes)
+  where
+    flatten :: Expression -> State (Int, [(NodeId, Step)]) NodeId
+    flatten expr = do
+        step <- case expr of
+            Constant literal -> pure (LiteralStep literal)
+            ReadField path -> pure (FieldStep path)
+            Binary operation left right -> BinaryStep operation <$> flatten left <*> flatten right
+            Unary operation child -> UnaryStep operation <$> flatten child
+            If condition yes no -> ConditionalStep <$> flatten condition <*> flatten yes <*> flatten no
+            Fold operation list predicate value -> AggregateStep operation list <$> traverse flatten predicate <*> flatten value
+        (next, nodes) <- get
+        let key = NodeId next
+        put (next + 1, (key, step) : nodes)
+        pure key

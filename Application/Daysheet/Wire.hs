@@ -5,7 +5,10 @@
 -- | Exact declaration-indexed formula decoding. JSON field/case names belong
 -- to Schema, not this parser. No browser or persisted formula is trusted merely
 -- because it passed structural decoding.
-module Application.Daysheet.Wire (decodeFormula, FormulaWireError (..)) where
+module Application.Daysheet.Wire
+    ( decodeFormula, FormulaWireError (..)
+    , expressionJson, parseExpressionJson, literalJson, parseLiteralJson
+    ) where
 
 import Prelude
 import Application.Daysheet.Contract
@@ -32,6 +35,23 @@ decodeFormula definition scope bytes
         value <- either (const (Left InvalidFormulaPayload)) Right (Aeson.eitherDecodeStrict' bytes)
         formula <- either (const (Left InvalidFormulaPayload)) Right (Aeson.parseEither parseFormula value)
         either (Left . InvalidFormula) Right (compileFormula definition scope formula)
+
+expressionJson :: Expression -> Aeson.Value
+expressionJson expression =
+    let Formula (NodeId root) nodes = flattenExpression expression
+     in recordValueIn @S.FormulaContracts @S.DaysheetFormula
+            (requiredField @S.RootNode root &: requiredField @S.Nodes nodes &: noFields)
+
+parseExpressionJson :: Aeson.Value -> Aeson.Parser Expression
+parseExpressionJson value = do
+    formula <- parseFormula value
+    either (const (fail "invalid formula graph")) pure (expandFormula formula)
+
+literalJson :: Literal -> Aeson.Value
+literalJson = contractReferenceJson @S.DaysheetLiteral
+
+parseLiteralJson :: Aeson.Value -> Aeson.Parser Literal
+parseLiteralJson = parseContractReference @S.DaysheetLiteral
 
 parseFormula :: Aeson.Value -> Aeson.Parser Formula
 parseFormula = parseRecordIn @S.FormulaContracts @S.DaysheetFormula \(root, (nodes, ())) -> do
