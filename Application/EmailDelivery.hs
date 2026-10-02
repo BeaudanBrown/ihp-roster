@@ -7,9 +7,11 @@ module Application.EmailDelivery
     , emailDeliveryJobKind
     , enqueueEmailDelivery
     , enqueueEmailDeliveryWithStatus
+    , enqueueExternalEmailDeliveryWithStatus
     , handleEmailDeliveryFailureAfterFinalAttempt
     , performEmailDeliveryJob
     , performEmailDeliveryJobWith
+    , performEmailDeliveryJobWithReportResolver
     ) where
 
 import Application.AccountSecurityEmail.Email
@@ -18,12 +20,14 @@ import Application.AccountSecurityEmail.TokenCipher (AccountSecurityTokenCipherE
 import Application.AccountSecurityEmail.Types
 import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
 import Application.Async.Error (AppJobError (..))
-import Application.Async.Payload (decodeAppJobPayloadV1)
+import Application.Async.Payload (decodeAppJobPayloadV1, decodeAppJobPayload)
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Correlation
 import Application.EmailDelivery.Enqueue
-import Application.EmailDelivery.Envelope (EmailDeliveryPayload (..))
+import Application.EmailDelivery.Envelope
+import Application.Daysheet.EmailContract
+import Application.Daysheet.Recipients (RecipientEligibilityFailure (..), withEligibleReportRecipient)
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
@@ -47,6 +51,8 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Either (isRight)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Web.Mail.DaysheetReport
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
@@ -76,10 +82,64 @@ performEmailDeliveryJobWith ::
     EmailDeliveryRuntime ->
     AppJob ->
     IO ()
-performEmailDeliveryJobWith runtime@EmailDeliveryRuntime { deliverMail } appJob = do
-    payload <- decodeAppJobPayloadV1 appJob
-    performPayload (runtime { deliverMail = deliverJobMail appJob deliverMail }) appJob payload
+performEmailDeliveryJobWith runtime =
+    -- The frozen-report workflow installs its resolver before producing report
+    -- jobs. Fail closed/retry, never silently mark a report sent or skipped when
+    -- that domain integration is unavailable. Legacy handlers are unchanged.
+    performEmailDeliveryJobWithReportResolver runtime (\_ -> throwAppJobError JobConfigurationUnavailable)
+
+performEmailDeliveryJobWithReportResolver ::
+    (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
+    EmailDeliveryRuntime ->
+    ((?modelContext :: ModelContext) => ExternalEmailPayload -> IO (Maybe ReportMailContent)) ->
+    AppJob -> IO ()
+performEmailDeliveryJobWithReportResolver runtime@EmailDeliveryRuntime { deliverMail } resolveReport appJob =
+    (case appJob.payloadSchemaVersion of
+        1 -> do
+            payload <- decodeAppJobPayloadV1 appJob
+            performPayload (runtime { deliverMail = deliverJobMail appJob deliverMail }) appJob payload
+        2 -> do
+            payload <- decodeAppJobPayload [2] appJob
+            performExternalPayload (runtime { deliverMail = deliverJobMail appJob deliverMail }) resolveReport appJob payload
+        _ -> throwAppJobError JobUnsupportedPayloadSchemaVersion)
         `Exception.catch` handleAccountSecurityCipherError
+
+performExternalPayload ::
+    (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
+    EmailDeliveryRuntime ->
+    ((?modelContext :: ModelContext) => ExternalEmailPayload -> IO (Maybe ReportMailContent)) ->
+    AppJob -> ExternalEmailPayload -> IO ()
+performExternalPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } resolveReport appJob payload = do
+    unless (payload.externalMailKind == daysheetReportMailKind) (throwAppJobError JobMalformedPersistedPayload)
+    validateRelatedTable appJob daysheetReportReferenceTable payload.externalDomainReferenceId
+    unless (appJob.venueId == Just payload.externalRecipient.externalVenueId) (throwAppJobError JobInvalidProvenance)
+    result <- withEligibleReportRecipient payload.externalRecipient payload.externalRecipientAddress do
+        disabled <- deliveryIsDisabled
+        if disabled then complete "delivery_disabled" Nothing else do
+            -- The resolver must verify frozen-report venue/report identity and
+            -- exact captured recipient membership, then render only that copy.
+            maybeContent <- resolveReport payload
+            case maybeContent of
+                Nothing -> complete "delivery_skipped" (Just "domain_reference_missing")
+                Just content -> do
+                    unless (Text.length content.reportSubject <= 254 && not (Text.any (`elem` ['\r', '\n', '\NUL']) content.reportSubject)) (throwAppJobError JobMalformedPersistedPayload)
+                    settings <- loadAppMailSettings
+                    deliverMail DaysheetReportMail
+                        { recipientAddress = payload.externalRecipientAddress
+                        , fromAddress = settings.mailFromAddress
+                        , replyToAddress = settings.mailReplyToAddress
+                        , content
+                        }
+                    complete "sent" Nothing
+    case result of
+        Right () -> pure ()
+        Left RecipientIdentityMismatch -> throwAppJobError JobInvalidProvenance
+        Left RecipientMissing -> complete "delivery_skipped" (Just "recipient_missing")
+        Left RecipientRemoved -> complete "delivery_skipped" (Just "recipient_removed")
+        Left RecipientVenueInactive -> complete "delivery_skipped" (Just "venue_inactive")
+  where
+    complete :: (?modelContext :: ModelContext) => Text -> Maybe Text -> IO ()
+    complete = completeEmailDeliveryResult appJob payload.externalMailKind payload.externalDomainReferenceId
 
 handleAccountSecurityCipherError :: AccountSecurityTokenCipherError -> IO value
 handleAccountSecurityCipherError = \case
@@ -515,7 +575,11 @@ completeEmailDelivery ::
     Text ->
     Maybe Text ->
     IO ()
-completeEmailDelivery appJob payload deliveryStatus maybeReason =
+completeEmailDelivery appJob payload =
+    completeEmailDeliveryResult appJob payload.payloadMailKind payload.payloadDomainReferenceId
+
+completeEmailDeliveryResult :: (?modelContext :: ModelContext) => AppJob -> Text -> UUID -> Text -> Maybe Text -> IO ()
+completeEmailDeliveryResult appJob mailKind domainReferenceId deliveryStatus maybeReason =
     void $
         appJob
             |> set #status JobStatusSucceeded
@@ -525,8 +589,8 @@ completeEmailDelivery appJob payload deliveryStatus maybeReason =
             |> set #result
                 ( Aeson.object
                     ( [ "deliveryStatus" Aeson..= deliveryStatus
-                      , "mailKind" Aeson..= payload.payloadMailKind
-                      , "domainReferenceId" Aeson..= payload.payloadDomainReferenceId
+                      , "mailKind" Aeson..= mailKind
+                      , "domainReferenceId" Aeson..= domainReferenceId
                       ]
                         <> maybe [] (\reason -> ["reason" Aeson..= reason]) maybeReason
                     )

@@ -25,24 +25,25 @@ Application/Billing/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
-Application/Daysheet/Authority.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Contract.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/DefinitionCodec.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/Authority.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Contract.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/EmailContract.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Evaluation.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Formula.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Locks.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Number.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/RecipientError.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/RecipientLocks.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Recipients.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/Formula.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Locks.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Number.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/RecipientError.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/RecipientLocks.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Recipients.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReferenceCodec.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/References.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Results.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Schema.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Storage.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/StorageError.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Validation.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/Wire.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/StorageError.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Validation.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Wire.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
@@ -544,6 +545,7 @@ Web/LeaveRequests/Request.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Responses.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/SelfService.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Billing/Notification.hs	production	runtime	Main	Reachable from Main
+Web/Mail/DaysheetReport.hs	production	runtime	Main	Reachable from Main
 Web/Mail/FeedbackNotification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/OperationalIncident.hs	production	runtime	Main	Reachable from Main
 Web/Mail/RosterNotification.hs	production	runtime	Main	Reachable from Main

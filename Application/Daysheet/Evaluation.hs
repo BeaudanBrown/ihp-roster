@@ -11,7 +11,7 @@ import Application.Daysheet.Contract
 import Application.Daysheet.Validation
 import qualified Application.Daysheet.Number as Number
 import qualified Application.Daysheet.Results as Results
-import Control.Monad.State.Strict (State, evalState, get, put)
+import Control.Monad.Trans.State.Strict (State, evalState, get, put)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text

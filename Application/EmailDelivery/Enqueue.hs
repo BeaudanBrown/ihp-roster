@@ -4,10 +4,12 @@ module Application.EmailDelivery.Enqueue
     , emailDeliveryJobKind
     , enqueueEmailDelivery
     , enqueueEmailDeliveryWithStatus
+    , enqueueExternalEmailDeliveryWithStatus
     ) where
 
 import Application.EmailDelivery.Persistence
-import Application.EmailDelivery.Envelope (EmailEnvelopeVersion (LegacyEnvelopeV1), emailRecipientAddressDigest)
+import Application.EmailDelivery.Envelope
+import Application.Daysheet.EmailContract (daysheetReportMailKind, daysheetReportReferenceTable)
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -47,26 +49,44 @@ enqueueEmailDeliveryWithStatus ::
     (?modelContext :: ModelContext) =>
     EmailDeliveryRequest ->
     IO EmailDeliveryEnqueueResult
-enqueueEmailDeliveryWithStatus request = do
-    let dedupeKey = emailDeliveryDedupeKey request
-    inserted <-
-        insertPermanentlyDeduplicatedEmailJob
-            EmailDeliveryInsert
-                { envelopeVersion = LegacyEnvelopeV1
-                , payload = emailDeliveryPayload request
-                , requestedByUserId = request.requestedByUserId
-                , venueId = request.venueId
-                , relatedTable = request.domainReferenceTable
-                , relatedId = request.domainReferenceId
-                , dedupeKey
-                }
+enqueueEmailDeliveryWithStatus request =
+    persistEmailJob EmailDeliveryInsert
+        { envelopeVersion = LegacyEnvelopeV1
+        , payload = emailDeliveryPayload request
+        , requestedByUserId = request.requestedByUserId
+        , venueId = request.venueId
+        , relatedTable = request.domainReferenceTable
+        , relatedId = request.domainReferenceId
+        , dedupeKey = emailDeliveryDedupeKey request
+        }
+
+-- A frozen report reference is its semantic event identity. The domain capture
+-- owns its intended-recipient set; this function cannot expand that set by
+-- scanning live recipients, and adding recipients never invokes it implicitly.
+enqueueExternalEmailDeliveryWithStatus :: (?modelContext :: ModelContext) => ExternalEmailPayload -> Maybe UUID -> IO EmailDeliveryEnqueueResult
+enqueueExternalEmailDeliveryWithStatus payload requestedBy = do
+    unless (payload.externalMailKind == daysheetReportMailKind && Aeson.fromJSON (externalEmailPayloadJson payload) == Aeson.Success payload) $
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Invalid external report email envelope"
+    persistEmailJob EmailDeliveryInsert
+        { envelopeVersion = ExternalEnvelopeV2
+        , payload = externalEmailPayloadJson payload
+        , requestedByUserId = requestedBy
+        , venueId = Just payload.externalRecipient.externalVenueId
+        , relatedTable = daysheetReportReferenceTable
+        , relatedId = payload.externalDomainReferenceId
+        , dedupeKey = externalEmailDedupeKey (tshow payload.externalDomainReferenceId) payload
+        }
+
+persistEmailJob :: (?modelContext :: ModelContext) => EmailDeliveryInsert -> IO EmailDeliveryEnqueueResult
+persistEmailJob request = do
+    inserted <- insertPermanentlyDeduplicatedEmailJob request
     case inserted of
         [appJob] -> pure (EnqueuedEmailDelivery appJob)
         [] -> do
             existing <-
                 query @AppJob
                     |> filterWhere (#jobKind, emailDeliveryJobKind)
-                    |> filterWhere (#dedupeKey, Just dedupeKey)
+                    |> filterWhere (#dedupeKey, Just request.dedupeKey)
                     |> orderByAsc #createdAt
                     |> fetchOneOrNothing
             case existing of

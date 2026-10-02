@@ -9,6 +9,18 @@ registry, and absence of retired mail job kinds from production Haskell source.
 See the [Email Delivery Contract](./SPEC.md) for envelope, eligibility, snapshot,
 dedupe, and domain semantics.
 
+## External Daysheet recipients
+
+`Envelope.hs` owns the retained v1 and explicit v2 payloads. New frozen-report
+jobs use `enqueueExternalEmailDeliveryWithStatus`; existing producers stay on
+v1 with unchanged dedupe keys. `Application/Daysheet/Recipients.hs` owns
+admin/owner management and the per-attempt cancellation lock. No live mail is
+needed for its controlled-provider tests.
+
+The report capture/projection workflow must install its verified frozen-report
+resolver before creating v2 jobs. Without it, active v2 attempts fail closed
+with the shared configuration error, not a success or permanent skip.
+
 ## Runtime configuration
 
 The web process and `RunJobs` worker must receive the same shared environment:

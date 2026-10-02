@@ -10,8 +10,8 @@ terminal delivery outcomes.
 
 ## Envelope
 
-All delivery uses the `email_delivery` `AppJob` kind and payload schema version 1.
-Each envelope contains:
+All delivery uses the `email_delivery` `AppJob` kind. Existing schema-v1
+payloads and permanent dedupe identities remain unchanged. Each v1 envelope contains:
 
 - a versioned domain mail kind;
 - one snapshotted recipient account ID and address; and
@@ -37,6 +37,33 @@ belong in the payload, job result, or application logs. `related_table`, `relate
   handler may complete obsolete/missing references as `delivery_skipped`.
 - Results contain only delivery status, mail kind, domain-reference ID, and a bounded
   skip reason. Failure details remain in the queue's existing bounded error field.
+
+## External report envelopes (schema v2)
+
+Schema v2 explicitly names a `venue-report-recipient` by immutable recipient,
+venue, and report IDs; its permanent `email-delivery-v2` identity includes the
+frozen report reference and normalized address digest. Neither a user account
+nor a parallel job kind is created. The shared enqueue permits only the Daysheet
+report mail kind. V1 invitation record IDs are not reinterpreted as accounts.
+
+Before each attempt, shared dispatch checks job provenance and holds the scoped
+recipient lock through resolution, delivery, and completion. Removed identities
+stay cancelled even after the same address is re-added. Addition alone enqueues
+nothing. Results/logs contain bounded statuses/reasons, never the destination or
+rendered report. Provider correlation, safe transport errors, and retries remain
+shared.
+
+The report workflow must install a resolver which verifies the frozen reference's
+venue/report and exact captured recipient membership before returning selected
+HTML/plain-text content. This domain renderer/capture integration belongs to
+Daysheets #636/#639. Until installed, active v2 delivery fails closed with a
+retryable configuration error; it does not silently discard a report. Recipient
+management UI integration belongs to the Daysheet designer/daily workflow.
+
+Removal waits for an already in-flight delivery holding its lock. Provider
+acceptance cannot be recalled; at-least-once delivery remains possible across a
+provider-accepted/local-completion failure. Cancellation governs subsequent
+attempts, not messages already accepted by the provider.
 
 ## Feedback mail kind
 

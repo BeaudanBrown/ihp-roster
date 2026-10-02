@@ -4,7 +4,15 @@ import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.Recipients
 import Application.Daysheet.References (ReferenceData (..))
 import Application.Daysheet.Storage
-import Application.EmailDelivery.Envelope (ExternalRecipient (..))
+import Application.EmailDelivery.Envelope (ExternalRecipient (..), ExternalEmailPayload (..))
+import Application.EmailDelivery
+import Application.Daysheet.EmailContract
+import Config
+import Control.Exception (SomeException, try)
+import qualified Data.Aeson as Aeson
+import IHP.FrameworkConfig (withFrameworkConfig)
+import Test.Support.EmailDelivery
+import Web.Mail.DaysheetReport (ReportMailContent (..))
 import Application.Error.Types (appErrorCode)
 import Control.Concurrent.Async (withAsync, wait)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
@@ -82,6 +90,58 @@ tests = aroundAll withDatabaseTestContext do
                 replacement.id `shouldNotBe` original.id
                 withEligibleReportRecipient (recipientIdentity original) original.address (pure ()) `shouldReturn` Left RecipientRemoved
                 withEligibleReportRecipient (recipientIdentity replacement) replacement.address (pure ()) `shouldReturn` Right ()
+        it "delivers v2 through the shared transport and permanently deduplicates the frozen event" $ withContext do
+            withCleanDb do
+                (member, version) <- setup
+                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 101)
+                EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload (Just member.userId)
+                queued.payloadSchemaVersion `shouldBe` 2
+                calls <- newIORef (0 :: Int)
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWithReportResolver
+                        (capturingEmailDeliveryRuntime (const (modifyIORef' calls (+ 1))))
+                        (\_ -> pure (Just (ReportMailContent "Frozen report" mempty "Frozen selected content"))) queued
+                readIORef calls `shouldReturn` 1
+                completed <- fetch queued.id
+                completed.status `shouldBe` JobStatusSucceeded
+                completed.result `shouldBe` Aeson.object ["deliveryStatus" Aeson..= ("sent" :: Text), "mailKind" Aeson..= daysheetReportMailKind, "domainReferenceId" Aeson..= payload.externalDomainReferenceId]
+                Text.isInfixOf recipient.address (tshow completed.result) `shouldBe` False
+                ExistingEmailDelivery repeated <- enqueueExternalEmailDeliveryWithStatus payload (Just member.userId)
+                repeated.id `shouldBe` queued.id
+        it "cancels a queued external send before resolving or transporting report content" $ withContext do
+            withCleanDb do
+                (member, version) <- setup
+                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 102)
+                EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
+                Right _ <- removeReportRecipient member reportKey recipient.id
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWithReportResolver
+                        (capturingEmailDeliveryRuntime (const (expectationFailure "removed recipient must not reach transport")))
+                        (\_ -> expectationFailure "removed recipient must not resolve content" >> pure Nothing) queued
+                completed <- fetch queued.id
+                completed.result `shouldBe` Aeson.object ["deliveryStatus" Aeson..= ("delivery_skipped" :: Text), "mailKind" Aeson..= daysheetReportMailKind, "domainReferenceId" Aeson..= payload.externalDomainReferenceId, "reason" Aeson..= ("recipient_removed" :: Text)]
+        it "uses the shared safe retry boundary and fails closed without a report resolver" $ withContext do
+            withCleanDb do
+                (member, version) <- setup
+                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 103)
+                EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    missingResolver <- try @SomeException (performEmailDeliveryJobWith enabledEmailDeliveryRuntime queued)
+                    either (const True) (const False) missingResolver `shouldBe` True
+                    failed <- try @SomeException (performEmailDeliveryJobWithReportResolver
+                        (failingEmailDeliveryRuntime "private SMTP diagnostic external@example.test")
+                        (\_ -> pure (Just (ReportMailContent "Frozen report" mempty "Frozen content"))) queued)
+                    either (\error -> not (Text.isInfixOf recipient.address (tshow error))) (const False) failed `shouldBe` True
+                    performEmailDeliveryJobWithReportResolver enabledEmailDeliveryRuntime
+                        (\_ -> pure (Just (ReportMailContent "Frozen report" mempty "Frozen content"))) queued
+                completed <- fetch queued.id
+                completed.status `shouldBe` JobStatusSucceeded
         it "makes the irreversible in-flight boundary explicit and cancels later attempts" $ withContext do
             withCleanDb do
                 (member, version) <- setup

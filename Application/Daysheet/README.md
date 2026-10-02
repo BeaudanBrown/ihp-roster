@@ -15,6 +15,13 @@ immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
 staging/publication boundary is retained in `SPEC.md`.
 
+`Authority` rechecks live venue/membership authority under ordered locks.
+`Recipients` owns admin/owner-only external address management independently of
+versioned layouts. Address identities are immutable, removal is permanent, and
+re-addition creates a new identity. The shared mail worker owns transport;
+`EmailContract` names the frozen-report reference boundary. Controlled-provider
+and committed concurrency tests live in `Test/DaysheetRecipientsSpec.hs`.
+
 The pure evaluator does not authorize venue access, persist daily entries,
 resolve operational-day instants, or send reports. Callers must preserve the
 product's pinned-definition/current-venue boundaries. Tests live in
@@ -26,5 +33,5 @@ Focused checks:
 
 ```bash
 bash ./bin/in-env typecheck
-bash ./bin/in-env hspec-pure --match Daysheet
+bash ./bin/in-env hspec-test --match Daysheet
 ```

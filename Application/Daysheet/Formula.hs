@@ -13,7 +13,7 @@ module Application.Daysheet.Formula
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Validation (ContractError, expressionType)
-import Control.Monad.State.Strict (State, get, put, runState)
+import Control.Monad.Trans.State.Strict (State, get, put, runState)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
