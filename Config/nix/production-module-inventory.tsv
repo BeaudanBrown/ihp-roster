@@ -25,6 +25,7 @@ Application/Billing/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Number.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main

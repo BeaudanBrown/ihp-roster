@@ -48,6 +48,7 @@ import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterTemplatesSpec
+import qualified Test.DaysheetNumberSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
 import qualified Test.Controller.RosterWeeks.FragmentsSpec
@@ -441,6 +442,7 @@ allSuites :: [TestSuite]
 allSuites =
     [ databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Audit", definitionEstimatedRuntimeSeconds = 0.6, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.AuditSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "AuditVocabulary", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [A5], definitionPartialInvariants = []} Test.AuditVocabularySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "DaysheetNumber", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetNumberSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "BoundaryUtilities", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.BoundaryUtilitiesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "StaticController", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.Controller.StaticSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "AsyncQueue", definitionEstimatedRuntimeSeconds = 0.7, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.AsyncQueueSpec.tests
