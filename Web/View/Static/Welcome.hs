@@ -1,4 +1,5 @@
 module Web.View.Static.Welcome where
+import Application.Helper.FrontendContract.PwaInstall.Runtime (pwaInstallLinkAttrs)
 import Application.Legal.Documents
 import qualified Data.Text as Text
 import Web.View.Prelude
@@ -22,7 +23,7 @@ instance View WelcomeView where
                         <a href={NewSessionAction} class="btn btn-primary btn-lg w-100">Sign In</a>
                     </div>
                     <div class="mt-4 d-flex flex-column gap-2">
-                        <a href={InstallAppAction}>Install Bepis</a>
+                        <a href={InstallAppAction} {...pwaInstallLinkAttrs}>Install Bepis</a>
                         <a href={PublicBillingSupportAction} class="link-secondary">Billing and support information</a>
                     </div>
                 </div>

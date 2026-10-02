@@ -1038,6 +1038,52 @@ export const pwaInstallResultStateDomAttr = "data-bepis-pwa-install-result-state
 
 export const pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status" as const;
 
+export const pwaInstallLinkDomAttr = "data-bepis-pwa-install-link" as const;
+
+export const pwaInstallHomeDomAttr = "data-bepis-pwa-install-home" as const;
+
+export const pwaInstallManualDomAttr = "data-bepis-pwa-install-manual" as const;
+
+export const pwaInstallChooserDomAttr = "data-bepis-pwa-install-chooser" as const;
+
+export const pwaInstallGuidePanelDomAttr = "data-bepis-pwa-install-guide-panel" as const;
+
+export type PwaInstallGuide =
+    "ios"
+  | "android"
+  | "windows"
+  | "mac"
+  | "linux"
+  | "chrome"
+  | "edge"
+  | "safari"
+  | "firefox"
+  | "general";
+export function isPwaInstallGuide(value: unknown): value is PwaInstallGuide {
+    return typeof value === "string" && ["ios", "android", "windows", "mac", "linux", "chrome", "edge", "safari", "firefox", "general"].includes(value);
+}
+
+export type PwaInstallDevice =
+    "ios"
+  | "android"
+  | "windows"
+  | "mac"
+  | "linux"
+  | "general";
+export function isPwaInstallDevice(value: unknown): value is PwaInstallDevice {
+    return typeof value === "string" && ["ios", "android", "windows", "mac", "linux", "general"].includes(value);
+}
+
+export type PwaInstallBrowser =
+    "chrome"
+  | "edge"
+  | "safari"
+  | "firefox"
+  | "general";
+export function isPwaInstallBrowser(value: unknown): value is PwaInstallBrowser {
+    return typeof value === "string" && ["chrome", "edge", "safari", "firefox", "general"].includes(value);
+}
+
 export type XeroCandidateFilterConfig = { searchProjection: string };
 export function isXeroCandidateFilterConfig(value: unknown): value is XeroCandidateFilterConfig {
     return isRecord(value) && hasExactKeys(value, ["searchProjection"], ["searchProjection"]) && (typeof value["searchProjection"] === "string");

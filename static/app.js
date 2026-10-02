@@ -460,6 +460,17 @@
   var pwaInstallResultDomAttr = "data-bepis-pwa-install-result";
   var pwaInstallResultStateDomAttr = "data-bepis-pwa-install-result-state";
   var pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status";
+  var pwaInstallLinkDomAttr = "data-bepis-pwa-install-link";
+  var pwaInstallHomeDomAttr = "data-bepis-pwa-install-home";
+  var pwaInstallManualDomAttr = "data-bepis-pwa-install-manual";
+  var pwaInstallChooserDomAttr = "data-bepis-pwa-install-chooser";
+  var pwaInstallGuidePanelDomAttr = "data-bepis-pwa-install-guide-panel";
+  function isPwaInstallGuide(value) {
+    return typeof value === "string" && ["ios", "android", "windows", "mac", "linux", "chrome", "edge", "safari", "firefox", "general"].includes(value);
+  }
+  function isPwaInstallDevice(value) {
+    return typeof value === "string" && ["ios", "android", "windows", "mac", "linux", "general"].includes(value);
+  }
   function isXeroCandidateFilterConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["searchProjection"], ["searchProjection"]) && typeof value["searchProjection"] === "string";
   }
@@ -895,9 +906,9 @@
   function rootFromTarget(target, fallback = document) {
     return isDomRoot(target) ? target : fallback;
   }
-  function closestHTMLElement(target, selector) {
+  function closestHTMLElement(target, selector2) {
     if (!isElement(target)) return null;
-    const element = target.closest(selector);
+    const element = target.closest(selector2);
     return isHTMLElement(element) ? element : null;
   }
 
@@ -1043,83 +1054,111 @@
     if (isPwaInstallState(value)) return value;
     throw new Error("Invalid PwaInstallState");
   }
+  function detectInstallEnvironment(userAgent, platform, maxTouchPoints) {
+    const device = /iPhone|iPad|iPod/.test(userAgent) || /Mac/.test(platform) && maxTouchPoints > 1 ? "ios" : /Android/.test(userAgent) ? "android" : /Windows/.test(userAgent) ? "windows" : /Macintosh|Mac OS X/.test(userAgent) ? "mac" : /Linux/.test(userAgent) ? "linux" : "general";
+    const embedded = /; wv\)|\bwv\b|FBAN|FBAV|Instagram|Line\//.test(userAgent);
+    const browser = embedded ? "general" : /Edg(?:e|A|iOS)?\//.test(userAgent) ? "edge" : /Firefox\/|FxiOS\//.test(userAgent) ? "firefox" : /Chrome\/|CriOS\//.test(userAgent) && !/OPR\/|SamsungBrowser\//.test(userAgent) ? "chrome" : /Version\/.*Safari\//.test(userAgent) ? "safari" : "general";
+    return { device, browser };
+  }
+  function selectedInstallGuides(device, browser) {
+    if (device === "ios" || device === "android") return [device];
+    if (device === "general") return ["general"];
+    const supported = browser === "chrome" || browser === "edge" || device === "mac" && browser === "safari" || device === "windows" && browser === "firefox";
+    return supported ? [device, browser] : [device, "chrome", "edge", ...device === "mac" ? ["safari"] : [], "general"];
+  }
   var deferredInstallPrompt = null;
   var installationCompleted = false;
-  function roleSelector(attribute) {
-    return `[${attribute}]`;
-  }
-  function isBeforeInstallPromptEvent(event) {
-    const candidate = event;
-    return typeof candidate.prompt === "function" && typeof candidate.userChoice?.then === "function";
-  }
-  function isStandalone() {
-    return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true || installationCompleted;
-  }
-  function installPage() {
-    return document.querySelector(roleSelector(pwaInstallPageDomAttr));
-  }
-  function renderInstallState() {
-    const page = installPage();
-    if (!page) return;
-    const installed = isStandalone();
-    const installedStatus = page.querySelector(roleSelector(pwaInstalledStatusDomAttr));
-    const installButton = page.querySelector(roleSelector(pwaInstallButtonDomAttr));
-    if (installedStatus) installedStatus.hidden = !installed;
-    if (installButton) installButton.hidden = installed || deferredInstallPrompt === null;
-  }
-  function installResultElements(result) {
-    const elements = Array.from(
-      result.querySelectorAll(roleSelector(pwaInstallResultStateDomAttr))
-    );
-    const byState = /* @__PURE__ */ new Map();
-    for (const element of elements) {
-      let state;
-      try {
-        state = parsePwaInstallState(element.getAttribute(pwaInstallResultStateDomAttr));
-      } catch (error) {
-        console.error?.("Invalid generated PWA install result state", error);
-        return null;
-      }
-      if (byState.has(state)) {
-        console.error?.("Invalid generated PWA install result state", `Duplicate state: ${state}`);
-        return null;
-      }
-      byState.set(state, element);
-    }
-    return byState;
-  }
-  function renderInstallResult(page, state) {
-    const result = page.querySelector(roleSelector(pwaInstallResultDomAttr));
-    if (!result) return;
-    const elements = installResultElements(result);
-    const selected = elements?.get(state);
-    if (!elements || !selected) {
-      console.error?.("Invalid generated PWA install result state", `Missing state: ${state}`);
+  var prompting = false;
+  var initializedPages = /* @__PURE__ */ new WeakSet();
+  var selector = (attribute) => `[${attribute}]`;
+  var installPage = () => document.querySelector(selector(pwaInstallPageDomAttr));
+  var standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  function renderGuides(page, device, browser) {
+    const panels = Array.from(page.querySelectorAll(selector(pwaInstallGuidePanelDomAttr)));
+    if (panels.some((panel) => !isPwaInstallGuide(panel.getAttribute(pwaInstallGuidePanelDomAttr)))) {
+      console.error("Invalid generated PWA guide panel");
       return;
     }
-    for (const element of elements.values()) {
-      element.hidden = element !== selected;
-    }
+    const selected = selectedInstallGuides(device, browser);
+    for (const panel of panels) panel.hidden = !selected.includes(panel.getAttribute(pwaInstallGuidePanelDomAttr));
   }
-  async function promptForInstallation(page) {
-    const installPrompt = deferredInstallPrompt;
-    if (!installPrompt || isStandalone()) return;
+  function renderInstallResult(page, state) {
+    const result = page.querySelector(selector(pwaInstallResultDomAttr));
+    if (!result) return;
+    const elements = Array.from(result.querySelectorAll(selector(pwaInstallResultStateDomAttr)));
+    const states = elements.map((element) => element.getAttribute(pwaInstallResultStateDomAttr));
+    if (states.some((value) => !isPwaInstallState(value)) || new Set(states).size !== states.length || state !== null && !states.includes(state)) {
+      console.error("Invalid generated PWA install result state");
+      return;
+    }
+    for (const element of elements) element.hidden = element.getAttribute(pwaInstallResultStateDomAttr) !== state;
+  }
+  function renderInstallState() {
+    const inApp = standalone();
+    for (const link of document.querySelectorAll(selector(pwaInstallLinkDomAttr))) {
+      link.hidden = inApp || installationCompleted;
+    }
+    const page = installPage();
+    if (!page) return;
+    if (inApp) {
+      const home = page.querySelector(selector(pwaInstallHomeDomAttr));
+      if (home instanceof HTMLAnchorElement && home.origin === window.location.origin) window.location.replace(home.href);
+      return;
+    }
+    if (!initializedPages.has(page)) {
+      const environment = detectInstallEnvironment(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+      renderGuides(page, environment.device, environment.browser);
+      const chooser = page.querySelector(`select${selector(pwaInstallChooserDomAttr)}`);
+      if (chooser) chooser.value = environment.device;
+      const details = page.querySelector(`details${selector(pwaInstallChooserDomAttr)}`);
+      if (details) {
+        details.hidden = false;
+        details.open = environment.device === "general";
+      }
+      initializedPages.add(page);
+    }
+    const status = page.querySelector(selector(pwaInstalledStatusDomAttr));
+    const button = page.querySelector(selector(pwaInstallButtonDomAttr));
+    const manual = page.querySelector(selector(pwaInstallManualDomAttr));
+    if (status) status.hidden = !installationCompleted;
+    if (button) button.hidden = installationCompleted || prompting || deferredInstallPrompt === null;
+    if (manual) manual.open = deferredInstallPrompt === null;
+    if (installationCompleted) renderInstallResult(page, null);
+  }
+  async function promptForInstallation(link) {
+    const prompt = deferredInstallPrompt;
+    if (!prompt || standalone() || installationCompleted || prompting) return;
     deferredInstallPrompt = null;
-    renderInstallState();
+    prompting = true;
+    let outcome;
     try {
-      await installPrompt.prompt();
-      const choice = await installPrompt.userChoice;
-      renderInstallResult(page, parsePwaInstallState(choice.outcome));
+      const started = prompt.prompt();
+      renderInstallState();
+      await started;
+      outcome = parsePwaInstallState((await prompt.userChoice).outcome);
     } catch {
-      renderInstallResult(page, parsePwaInstallState("failed"));
+      outcome = "failed";
+    } finally {
+      prompting = false;
+    }
+    renderInstallState();
+    if (installationCompleted || standalone()) return;
+    if (link && outcome !== "accepted") window.location.assign(link.href);
+    else {
+      const page = installPage();
+      if (page) renderInstallResult(page, outcome);
     }
   }
   (function enablePwaInstallation() {
     if (typeof window === "undefined") return;
     window.addEventListener("beforeinstallprompt", (event) => {
-      if (!isBeforeInstallPromptEvent(event)) return;
+      const candidate = event;
+      if (typeof candidate.prompt !== "function" || typeof candidate.userChoice?.then !== "function") return;
       event.preventDefault();
+      if (standalone() || installationCompleted || prompting) return;
       deferredInstallPrompt = event;
+      const page = installPage();
+      if (page) renderInstallResult(page, null);
       renderInstallState();
     });
     window.addEventListener("appinstalled", () => {
@@ -1128,14 +1167,30 @@
       renderInstallState();
     });
     document.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest(roleSelector(pwaInstallButtonDomAttr));
-      const page = button?.closest(roleSelector(pwaInstallPageDomAttr));
-      if (!button || !page) return;
-      void promptForInstallation(page);
+      if (!(event.target instanceof Element) || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = event.target.closest(`a${selector(pwaInstallLinkDomAttr)}`);
+      if (link && (!link.target || link.target === "_self") && !link.hasAttribute("download") && link.origin === window.location.origin && (deferredInstallPrompt || prompting) && !installationCompleted && !standalone()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!prompting) void promptForInstallation(link);
+        return;
+      }
+      const button = event.target.closest(`button${selector(pwaInstallButtonDomAttr)}`);
+      if (button?.closest(selector(pwaInstallPageDomAttr))) void promptForInstallation();
+    }, true);
+    document.addEventListener("change", (event) => {
+      if (!(event.target instanceof HTMLSelectElement) || !event.target.hasAttribute(pwaInstallChooserDomAttr)) return;
+      const value = event.target.value;
+      const page = event.target.closest(selector(pwaInstallPageDomAttr));
+      if (!page || !isPwaInstallDevice(value)) {
+        console.error("Invalid generated PWA device choice");
+        return;
+      }
+      renderGuides(page, value, "general");
     });
+    window.matchMedia("(display-mode: standalone)").addEventListener("change", renderInstallState);
     document.addEventListener("DOMContentLoaded", renderInstallState, { once: true });
+    document.addEventListener("ihp:load", renderInstallState);
     if (document.readyState !== "loading") renderInstallState();
   })();
 
@@ -1396,7 +1451,7 @@
     passkeyLoginDomAttr,
     passkeyRegistrationDomAttr,
     passkeySetupPromptDomAttr
-  ].map(roleSelector2).join(",");
+  ].map(roleSelector).join(",");
   function parsePasskeyFlowConfiguration(raw) {
     const config = parsePasskeyFlowConfig(JSON.parse(raw));
     switch (config.tag) {
@@ -1427,7 +1482,7 @@
       throw new Error(`PasskeyFlowConfig ${fieldName} must not be empty`);
     }
   }
-  function roleSelector2(attribute) {
+  function roleSelector(attribute) {
     return `[${attribute}]`;
   }
   function defaultDiagnosticReporter(diagnostic11) {
@@ -1441,13 +1496,13 @@
     };
   }
   function rootsWithRole(root, attribute) {
-    const selector = roleSelector2(attribute);
-    const roots = Array.from(root.querySelectorAll(selector));
-    if (root instanceof HTMLElement && root.matches(selector)) roots.unshift(root);
+    const selector2 = roleSelector(attribute);
+    const roots = Array.from(root.querySelectorAll(selector2));
+    if (root instanceof HTMLElement && root.matches(selector2)) roots.unshift(root);
     return roots;
   }
   function ownedElements(root, attribute) {
-    return Array.from(root.querySelectorAll(roleSelector2(attribute))).filter((element) => element.closest(passkeyFlowSelector) === root);
+    return Array.from(root.querySelectorAll(roleSelector(attribute))).filter((element) => element.closest(passkeyFlowSelector) === root);
   }
   function roleIsTrue(element, attribute) {
     return element.getAttribute(attribute) === "true";
@@ -3810,8 +3865,8 @@
     if (!trigger) return null;
     return trigger.split(/[\s,]+/, 1)[0] || null;
   }
-  function queryAll(root, selector) {
-    return Array.from(root.querySelectorAll(selector)).filter(isElementLike2);
+  function queryAll(root, selector2) {
+    return Array.from(root.querySelectorAll(selector2)).filter(isElementLike2);
   }
   function isElementLike2(value) {
     if (value === null || typeof value !== "object") return false;
@@ -4247,13 +4302,13 @@
       }
     };
   }
-  function hitTestClosest(root, clientX, clientY, selector) {
+  function hitTestClosest(root, clientX, clientY, selector2) {
     const doc = ownerDocumentFor(root);
     const elementFromPoint = doc?.elementFromPoint?.bind(doc);
     if (!elementFromPoint) return null;
     const hit = elementFromPoint(clientX, clientY);
     if (!isElementLike4(hit)) return null;
-    return hit.closest(selector);
+    return hit.closest(selector2);
   }
   function activeSessionEffects(session) {
     const variant = activeModifierVariant(session);
@@ -5429,7 +5484,7 @@
       return regions.length === 1 && regions[0] instanceof HTMLElement ? regions[0] : null;
     }
     function focusableDialogControls(region) {
-      const selector = [
+      const selector2 = [
         "input:not([type='hidden']):not([disabled])",
         "select:not([disabled])",
         "textarea:not([disabled])",
@@ -5438,7 +5493,7 @@
         "[contenteditable='true']",
         "[tabindex]:not([tabindex='-1'])"
       ].join(",");
-      return Array.from(region.querySelectorAll(selector)).filter((element) => {
+      return Array.from(region.querySelectorAll(selector2)).filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
         if (element.hidden || element.closest("[hidden], [inert]") !== null || element.getClientRects().length === 0) return false;
         return element.tabIndex >= 0;
@@ -6735,8 +6790,8 @@
     targetIsIgnored(target) {
       if (!(target instanceof Element)) return false;
       const custom = this.dragConfig?.ignoreSelector;
-      const selector = custom === null || custom === void 0 ? interactiveIgnoreSelector : `${interactiveIgnoreSelector}, ${custom}`;
-      return target.closest(selector) !== null;
+      const selector2 = custom === null || custom === void 0 ? interactiveIgnoreSelector : `${interactiveIgnoreSelector}, ${custom}`;
+      return target.closest(selector2) !== null;
     }
     startPointerTracking() {
       if (this.pointerAbortController !== null) return;
@@ -6900,8 +6955,8 @@
   function closestEditor(target) {
     return target.closest(editorSelector);
   }
-  function ownedControls(editor, selector) {
-    return Array.from(editor.querySelectorAll(selector)).filter((control) => closestEditor(control) === editor);
+  function ownedControls(editor, selector2) {
+    return Array.from(editor.querySelectorAll(selector2)).filter((control) => closestEditor(control) === editor);
   }
   function stateFor2(editor, report) {
     if (editor.getAttribute(rosterColumnEditorDomAttr) !== "true") {
@@ -7346,8 +7401,8 @@
   function diagnostic6(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function ownedElements3(surface, selector) {
-    return Array.from(surface.querySelectorAll(selector)).filter((element) => element.closest(surfaceSelector) === surface);
+  function ownedElements3(surface, selector2) {
+    return Array.from(surface.querySelectorAll(selector2)).filter((element) => element.closest(surfaceSelector) === surface);
   }
   function readImageExport(button, report) {
     if (button.getAttribute(rosterImageExportTriggerDomAttr) !== "true") {
@@ -7677,7 +7732,7 @@
   var panelSelector = `[${rosterWeekOverviewPanelDomAttr}]`;
   var daySelector = `[${rosterWeekOverviewDayDomAttr}]`;
   var todaySelector = `[${rosterWeekOverviewTodayDomAttr}]`;
-  function roleSelector3(attribute) {
+  function roleSelector2(attribute) {
     return `[${attribute}]`;
   }
   function defaultDiagnosticReporter9(diagnostic11) {
@@ -7687,7 +7742,7 @@
     return { code, elementId: element.id || null, message };
   }
   function ownedElements4(panel, attribute) {
-    return Array.from(panel.querySelectorAll(roleSelector3(attribute))).filter((element) => element.closest(panelSelector) === panel);
+    return Array.from(panel.querySelectorAll(roleSelector2(attribute))).filter((element) => element.closest(panelSelector) === panel);
   }
   function readPanel(panel, report) {
     try {
@@ -7871,7 +7926,7 @@
   }
 
   // frontend/ts/app-xero.ts
-  function roleSelector4(attribute) {
+  function roleSelector3(attribute) {
     return `[${attribute}]`;
   }
   function defaultDiagnosticReporter10(diagnostic11) {
@@ -7900,11 +7955,11 @@
     return true;
   }
   function ownedElements5(root, attribute) {
-    const rootSelector = roleSelector4(xeroCandidateFilterRootDomAttr);
-    return Array.from(root.querySelectorAll(roleSelector4(attribute))).filter((element) => element.closest(rootSelector) === root);
+    const rootSelector = roleSelector3(xeroCandidateFilterRootDomAttr);
+    return Array.from(root.querySelectorAll(roleSelector3(attribute))).filter((element) => element.closest(rootSelector) === root);
   }
   function readXeroCandidateFilterControl(input, report) {
-    const root = input.closest(roleSelector4(xeroCandidateFilterRootDomAttr));
+    const root = input.closest(roleSelector3(xeroCandidateFilterRootDomAttr));
     if (root === null) {
       report(diagnostic8(input, "missing-root", "Search input has no generated candidate-filter root"));
       return null;
@@ -7987,14 +8042,14 @@
     if (typeof window === "undefined" || typeof document === "undefined") return;
     document.addEventListener("input", (event) => {
       if (!(event.target instanceof Element)) return;
-      const search = event.target.closest(roleSelector4(xeroCandidateFilterSearchDomAttr));
+      const search = event.target.closest(roleSelector3(xeroCandidateFilterSearchDomAttr));
       if (!(search instanceof HTMLInputElement)) return;
       updateXeroCandidateFilter(search);
     });
     document.addEventListener("htmx:afterSwap", (event) => {
       const target = event.target;
       if (!(target instanceof Element || target instanceof Document)) return;
-      for (const search of target.querySelectorAll(roleSelector4(xeroCandidateFilterSearchDomAttr))) {
+      for (const search of target.querySelectorAll(roleSelector3(xeroCandidateFilterSearchDomAttr))) {
         if (search instanceof HTMLInputElement) updateXeroCandidateFilter(search);
       }
     });
@@ -8246,7 +8301,7 @@
   function updateFilterSelection(target) {
     const section = target.closest(`[${filterSelectionSectionDomAttr}]`);
     if (!(section instanceof HTMLElement)) return;
-    const owned = (selector) => Array.from(section.querySelectorAll(selector)).filter((element) => element.closest(`[${filterSelectionSectionDomAttr}]`) === section);
+    const owned = (selector2) => Array.from(section.querySelectorAll(selector2)).filter((element) => element.closest(`[${filterSelectionSectionDomAttr}]`) === section);
     const items = owned(`[${filterSelectionItemDomAttr}]`);
     if (!items.every((item) => item instanceof HTMLInputElement && item.type === "checkbox")) return;
     if (target.hasAttribute(filterSelectionClearDomAttr)) {
@@ -8402,8 +8457,8 @@
   function diagnostic10(root, code, message) {
     return { code, rootId: root.id, message };
   }
-  function exactlyOneWithin(root, selector, isExpected) {
-    const matches = Array.from(root.querySelectorAll(selector));
+  function exactlyOneWithin(root, selector2, isExpected) {
+    const matches = Array.from(root.querySelectorAll(selector2));
     return matches.length === 1 && isExpected(matches[0]) ? matches[0] : null;
   }
   function outputForInput(root, input) {

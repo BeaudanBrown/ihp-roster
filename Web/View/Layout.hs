@@ -2,11 +2,8 @@
 
 module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, renderFeedbackDesktopCount, renderFeedbackMobileCount, Html) where
 
-import Application.Feedback.LiveUpdates (feedbackDesktopCountSurface, feedbackMobileCountSurface)
-import qualified Application.Helper.FrontendContract.Surface.Feedback as FeedbackSurface
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
-import Application.Helper.ControllerContext (currentUserIsUnimpersonatedSuperAdmin, requestVenueState, RequestVenueState (..), BillingNavigationContext (..))
+import Application.Feedback.LiveUpdates (feedbackDesktopCountSurface,
+                                         feedbackMobileCountSurface)
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -16,12 +13,23 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction, AppNavigationHeader, AppPageContent)
-import Application.Helper.FrontendContract.Values (domAttrValue)
+import Application.Helper.ControllerContext (BillingNavigationContext (..),
+                                             RequestVenueState (..),
+                                             currentUserIsUnimpersonatedSuperAdmin,
+                                             requestVenueState)
+import Application.Helper.FrontendContract.AppShell (AppNavigationHeader,
+                                                     AppPageContent,
+                                                     SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.PwaInstall.Runtime (pwaInstallLinkAttrs)
+import qualified Application.Helper.FrontendContract.Surface.Feedback as FeedbackSurface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceFragmentTargetId)
+import Application.Helper.FrontendContract.Values (domAttrValue)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -29,7 +37,7 @@ import Generated.Types
 import IHP.ControllerSupport (ControllerContext, getRequestPathAndQuery)
 import IHP.ViewPrelude
 import qualified Network.Wai as Wai
-import Web.Routes () -- AutoRoute instances.
+import Web.Routes ()
 import Web.Types
 
 defaultLayout :: Html -> Html
@@ -98,7 +106,10 @@ renderAppHeader =
                         {renderMobileNavLinks}
                     </nav>
                     <nav class="app-mobile-nav-list" aria-label="Application installation">
-                        {renderMobileNavLink "Install Bepis" "bi-phone" (pathTo InstallAppAction) ["/InstallApp"]}
+                        <a class={mobileNavLinkClass ["/InstallApp"]} href={InstallAppAction} {...pwaInstallLinkAttrs}>
+                            <i class="bi bi-phone app-mobile-nav-icon" aria-hidden="true"></i>
+                            <span>Install Bepis</span>
+                        </a>
                     </nav>
                     {renderMobileFeedbackButton}
                     {renderMobileLogoutForm}

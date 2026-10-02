@@ -1,11 +1,10 @@
 import {
-    isPwaInstallState,
-    pwaInstallButtonDomAttr,
-    pwaInstalledStatusDomAttr,
-    pwaInstallPageDomAttr,
-    pwaInstallResultDomAttr,
-    pwaInstallResultStateDomAttr,
-    type PwaInstallState,
+    isPwaInstallState, isPwaInstallGuide, isPwaInstallDevice,
+    pwaInstallButtonDomAttr, pwaInstalledStatusDomAttr, pwaInstallPageDomAttr,
+    pwaInstallResultDomAttr, pwaInstallResultStateDomAttr, pwaInstallLinkDomAttr,
+    pwaInstallHomeDomAttr, pwaInstallManualDomAttr, pwaInstallChooserDomAttr,
+    pwaInstallGuidePanelDomAttr,
+    type PwaInstallState, type PwaInstallGuide, type PwaInstallDevice, type PwaInstallBrowser,
 } from "./generated/contracts";
 
 export function parsePwaInstallState(value: unknown): PwaInstallState {
@@ -13,139 +12,171 @@ export function parsePwaInstallState(value: unknown): PwaInstallState {
     throw new Error("Invalid PwaInstallState");
 }
 
-type InstallChoice = {
-    outcome: "accepted" | "dismissed";
-    platform?: string;
-};
+type Device = PwaInstallDevice;
+type Browser = PwaInstallBrowser;
+
+// Conservative heuristics only: viewport size says nothing about the device.
+export function detectInstallEnvironment(userAgent: string, platform: string, maxTouchPoints: number): { device: Device; browser: Browser } {
+    const device: Device = /iPhone|iPad|iPod/.test(userAgent) || (/Mac/.test(platform) && maxTouchPoints > 1)
+        ? "ios" : /Android/.test(userAgent) ? "android" : /Windows/.test(userAgent) ? "windows"
+            : /Macintosh|Mac OS X/.test(userAgent) ? "mac" : /Linux/.test(userAgent) ? "linux" : "general";
+    const embedded = /; wv\)|\bwv\b|FBAN|FBAV|Instagram|Line\//.test(userAgent);
+    const browser: Browser = embedded ? "general" : /Edg(?:e|A|iOS)?\//.test(userAgent) ? "edge"
+        : /Firefox\/|FxiOS\//.test(userAgent) ? "firefox"
+            : /Chrome\/|CriOS\//.test(userAgent) && !/OPR\/|SamsungBrowser\//.test(userAgent) ? "chrome"
+                : /Version\/.*Safari\//.test(userAgent) ? "safari" : "general";
+    return { device, browser };
+}
+
+export function selectedInstallGuides(device: Device, browser: Browser): PwaInstallGuide[] {
+    if (device === "ios" || device === "android") return [device];
+    if (device === "general") return ["general"];
+    const supported = browser === "chrome" || browser === "edge"
+        || (device === "mac" && browser === "safari") || (device === "windows" && browser === "firefox");
+    return supported ? [device, browser] : [device, "chrome", "edge", ...(device === "mac" ? ["safari" as const] : []), "general"];
+}
 
 type BeforeInstallPromptEvent = Event & {
     prompt: () => Promise<void>;
-    userChoice: Promise<InstallChoice>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
-
-type AppleNavigator = Navigator & {
-    standalone?: boolean;
-};
-
 let deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
+let prompting = false;
+const initializedPages = new WeakSet<HTMLElement>();
+const selector = (attribute: string): string => `[${attribute}]`;
+const installPage = (): HTMLElement | null => document.querySelector(selector(pwaInstallPageDomAttr));
+const standalone = (): boolean => window.matchMedia("(display-mode: standalone)").matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-function roleSelector(attribute: string): string {
-    return `[${attribute}]`;
+function renderGuides(page: HTMLElement, device: Device, browser: Browser): void {
+    const panels = Array.from(page.querySelectorAll<HTMLElement>(selector(pwaInstallGuidePanelDomAttr)));
+    // Validate the entire boundary before changing visibility.
+    if (panels.some(panel => !isPwaInstallGuide(panel.getAttribute(pwaInstallGuidePanelDomAttr)))) {
+        console.error("Invalid generated PWA guide panel");
+        return;
+    }
+    const selected = selectedInstallGuides(device, browser);
+    for (const panel of panels) panel.hidden = !selected.includes(panel.getAttribute(pwaInstallGuidePanelDomAttr) as PwaInstallGuide);
 }
 
-function isBeforeInstallPromptEvent(event: Event): event is BeforeInstallPromptEvent {
-    const candidate = event as Partial<BeforeInstallPromptEvent>;
-    return typeof candidate.prompt === "function"
-        && typeof candidate.userChoice?.then === "function";
-}
-
-function isStandalone(): boolean {
-    return window.matchMedia("(display-mode: standalone)").matches
-        || (navigator as AppleNavigator).standalone === true
-        || installationCompleted;
-}
-
-function installPage(): HTMLElement | null {
-    return document.querySelector<HTMLElement>(roleSelector(pwaInstallPageDomAttr));
+function renderInstallResult(page: HTMLElement, state: PwaInstallState | null): void {
+    const result = page.querySelector<HTMLElement>(selector(pwaInstallResultDomAttr));
+    if (!result) return;
+    const elements = Array.from(result.querySelectorAll<HTMLElement>(selector(pwaInstallResultStateDomAttr)));
+    const states = elements.map(element => element.getAttribute(pwaInstallResultStateDomAttr));
+    if (states.some(value => !isPwaInstallState(value)) || new Set(states).size !== states.length
+        || (state !== null && !states.includes(state))) {
+        console.error("Invalid generated PWA install result state");
+        return;
+    }
+    for (const element of elements) element.hidden = element.getAttribute(pwaInstallResultStateDomAttr) !== state;
 }
 
 function renderInstallState(): void {
+    const inApp = standalone();
+    for (const link of document.querySelectorAll<HTMLElement>(selector(pwaInstallLinkDomAttr))) {
+        link.hidden = inApp || installationCompleted;
+    }
     const page = installPage();
     if (!page) return;
-
-    const installed = isStandalone();
-    const installedStatus = page.querySelector<HTMLElement>(roleSelector(pwaInstalledStatusDomAttr));
-    const installButton = page.querySelector<HTMLButtonElement>(roleSelector(pwaInstallButtonDomAttr));
-
-    if (installedStatus) installedStatus.hidden = !installed;
-    if (installButton) installButton.hidden = installed || deferredInstallPrompt === null;
-}
-
-function installResultElements(result: HTMLElement): Map<PwaInstallState, HTMLElement> | null {
-    const elements = Array.from(
-        result.querySelectorAll<HTMLElement>(roleSelector(pwaInstallResultStateDomAttr)),
-    );
-    const byState = new Map<PwaInstallState, HTMLElement>();
-
-    for (const element of elements) {
-        let state: PwaInstallState;
-        try {
-            state = parsePwaInstallState(element.getAttribute(pwaInstallResultStateDomAttr));
-        } catch (error) {
-            console.error?.("Invalid generated PWA install result state", error);
-            return null;
-        }
-        if (byState.has(state)) {
-            console.error?.("Invalid generated PWA install result state", `Duplicate state: ${state}`);
-            return null;
-        }
-        byState.set(state, element);
-    }
-
-    return byState;
-}
-
-function renderInstallResult(page: HTMLElement, state: PwaInstallState): void {
-    const result = page.querySelector<HTMLElement>(roleSelector(pwaInstallResultDomAttr));
-    if (!result) return;
-
-    const elements = installResultElements(result);
-    const selected = elements?.get(state);
-    if (!elements || !selected) {
-        console.error?.("Invalid generated PWA install result state", `Missing state: ${state}`);
+    if (inApp) {
+        const home = page.querySelector<HTMLAnchorElement>(selector(pwaInstallHomeDomAttr));
+        if (home instanceof HTMLAnchorElement && home.origin === window.location.origin) window.location.replace(home.href);
         return;
     }
-
-    for (const element of elements.values()) {
-        element.hidden = element !== selected;
+    if (!initializedPages.has(page)) {
+        const environment = detectInstallEnvironment(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+        renderGuides(page, environment.device, environment.browser);
+        const chooser = page.querySelector<HTMLSelectElement>(`select${selector(pwaInstallChooserDomAttr)}`);
+        if (chooser) chooser.value = environment.device;
+        const details = page.querySelector<HTMLDetailsElement>(`details${selector(pwaInstallChooserDomAttr)}`);
+        if (details) {
+            details.hidden = false;
+            details.open = environment.device === "general";
+        }
+        initializedPages.add(page);
     }
+    const status = page.querySelector<HTMLElement>(selector(pwaInstalledStatusDomAttr));
+    const button = page.querySelector<HTMLButtonElement>(selector(pwaInstallButtonDomAttr));
+    const manual = page.querySelector<HTMLDetailsElement>(selector(pwaInstallManualDomAttr));
+    if (status) status.hidden = !installationCompleted;
+    if (button) button.hidden = installationCompleted || prompting || deferredInstallPrompt === null;
+    if (manual) manual.open = deferredInstallPrompt === null;
+    if (installationCompleted) renderInstallResult(page, null);
 }
 
-async function promptForInstallation(page: HTMLElement): Promise<void> {
-    const installPrompt = deferredInstallPrompt;
-    if (!installPrompt || isStandalone()) return;
-
+async function promptForInstallation(link?: HTMLAnchorElement): Promise<void> {
+    const prompt = deferredInstallPrompt;
+    if (!prompt || standalone() || installationCompleted || prompting) return;
     deferredInstallPrompt = null;
-    renderInstallState();
-
+    prompting = true;
+    // Call synchronously, while the initiating click still owns user activation.
+    let outcome: PwaInstallState;
     try {
-        await installPrompt.prompt();
-        const choice = await installPrompt.userChoice;
-        renderInstallResult(page, parsePwaInstallState(choice.outcome));
+        const started = prompt.prompt();
+        renderInstallState();
+        await started;
+        outcome = parsePwaInstallState((await prompt.userChoice).outcome);
     } catch {
-        renderInstallResult(page, parsePwaInstallState("failed"));
+        outcome = "failed";
+    } finally {
+        prompting = false;
+    }
+    renderInstallState();
+    if (installationCompleted || standalone()) return;
+    if (link && outcome !== "accepted") window.location.assign(link.href);
+    else {
+        const page = installPage();
+        if (page) renderInstallResult(page, outcome);
     }
 }
 
 (function enablePwaInstallation() {
     if (typeof window === "undefined") return;
-
-    window.addEventListener("beforeinstallprompt", (event) => {
-        if (!isBeforeInstallPromptEvent(event)) return;
-
+    window.addEventListener("beforeinstallprompt", event => {
+        const candidate = event as Partial<BeforeInstallPromptEvent>;
+        if (typeof candidate.prompt !== "function" || typeof candidate.userChoice?.then !== "function") return;
         event.preventDefault();
-        deferredInstallPrompt = event;
+        if (standalone() || installationCompleted || prompting) return;
+        deferredInstallPrompt = event as BeforeInstallPromptEvent;
+        const page = installPage();
+        if (page) renderInstallResult(page, null);
         renderInstallState();
     });
-
     window.addEventListener("appinstalled", () => {
         deferredInstallPrompt = null;
         installationCompleted = true;
         renderInstallState();
     });
-
-    document.addEventListener("click", (event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-
-        const button = target.closest<HTMLElement>(roleSelector(pwaInstallButtonDomAttr));
-        const page = button?.closest<HTMLElement>(roleSelector(pwaInstallPageDomAttr));
-        if (!button || !page) return;
-
-        void promptForInstallation(page);
+    // Capture before navigation adapters, without changing modified/new-tab clicks.
+    document.addEventListener("click", event => {
+        if (!(event.target instanceof Element) || event.defaultPrevented || event.button !== 0
+            || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const link = event.target.closest<HTMLAnchorElement>(`a${selector(pwaInstallLinkDomAttr)}`);
+        if (link && (!link.target || link.target === "_self") && !link.hasAttribute("download")
+            && link.origin === window.location.origin && (deferredInstallPrompt || prompting) && !installationCompleted && !standalone()) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (!prompting) void promptForInstallation(link);
+            return;
+        }
+        const button = event.target.closest<HTMLButtonElement>(`button${selector(pwaInstallButtonDomAttr)}`);
+        if (button?.closest(selector(pwaInstallPageDomAttr))) void promptForInstallation();
+    }, true);
+    document.addEventListener("change", event => {
+        if (!(event.target instanceof HTMLSelectElement) || !event.target.hasAttribute(pwaInstallChooserDomAttr)) return;
+        const value = event.target.value;
+        const page = event.target.closest<HTMLElement>(selector(pwaInstallPageDomAttr));
+        if (!page || !isPwaInstallDevice(value)) {
+            console.error("Invalid generated PWA device choice");
+            return;
+        }
+        // Manual corrections may concern a different device, so show browser alternatives.
+        renderGuides(page, value, "general");
     });
-
+    window.matchMedia("(display-mode: standalone)").addEventListener("change", renderInstallState);
     document.addEventListener("DOMContentLoaded", renderInstallState, { once: true });
+    document.addEventListener("ihp:load", renderInstallState);
     if (document.readyState !== "loading") renderInstallState();
 })();

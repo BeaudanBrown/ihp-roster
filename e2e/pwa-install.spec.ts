@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
+    pwaInstallLinkDomAttr,
     pwaInstallButtonDomAttr,
     pwaInstalledStatusDomAttr,
     pwaInstallPageDomAttr,
@@ -37,13 +38,108 @@ const resultStateSelector = `[${pwaInstallResultStateDomAttr}]`;
 const visibleResultStateSelector = `${installResultSelector} ${resultStateSelector}:not([hidden])`;
 
 test.describe('Install Bepis', () => {
+    for (const outcome of ['accepted', 'dismissed', 'failed'] as const) {
+        test(`install entry link prompts immediately: ${outcome} @canonical-mobile`, async ({ page }) => {
+            await gotoWhenReady(page, '/', 'a[href="/NewSession"]');
+            await page.evaluate((choice) => {
+                const state = window as Window & { __pwaPromptCallCount?: number };
+                state.__pwaPromptCallCount = 0;
+                const event = new Event('beforeinstallprompt', { cancelable: true });
+                Object.defineProperties(event, {
+                    prompt: { value: async () => {
+                        state.__pwaPromptCallCount! += 1;
+                        if (choice === 'failed') throw new Error('Synthetic failure');
+                    } },
+                    userChoice: { value: Promise.resolve({ outcome: choice === 'dismissed' ? 'dismissed' : 'accepted' }) },
+                });
+                window.dispatchEvent(event);
+            }, outcome);
+            await page.getByRole('link', { name: 'Install Bepis', exact: true }).click();
+            if (outcome === 'accepted') {
+                await expect(page).toHaveURL(/\/$/);
+                expect(await page.evaluate(() => (window as Window & { __pwaPromptCallCount?: number }).__pwaPromptCallCount)).toBe(1);
+            } else {
+                await expect(page).toHaveURL(/\/InstallApp$/);
+                await expect(page.locator(installPageSelector)).toBeVisible();
+                await expect(page.locator(installButtonSelector)).toBeHidden();
+            }
+        });
+    }
+
+    test('repeated install clicks do not navigate or re-prompt while choice is pending @canonical-mobile', async ({ page }) => {
+        await gotoWhenReady(page, '/', 'a[href="/NewSession"]');
+        await page.evaluate(() => {
+            const state = window as Window & { __pwaPromptCallCount?: number; __resolveInstallChoice?: () => void };
+            state.__pwaPromptCallCount = 0;
+            const event = new Event('beforeinstallprompt', { cancelable: true });
+            Object.defineProperties(event, {
+                prompt: { value: async () => { state.__pwaPromptCallCount! += 1; } },
+                userChoice: { value: new Promise(resolve => { state.__resolveInstallChoice = () => resolve({ outcome: 'accepted' }); }) },
+            });
+            window.dispatchEvent(event);
+        });
+        const link = page.getByRole('link', { name: 'Install Bepis', exact: true });
+        await link.click();
+        await link.click();
+        await expect(page).toHaveURL(/\/$/);
+        expect(await page.evaluate(() => (window as Window & { __pwaPromptCallCount?: number }).__pwaPromptCallCount)).toBe(1);
+        await page.evaluate(() => (window as Window & { __resolveInstallChoice?: () => void }).__resolveInstallChoice!());
+        await expect(page).toHaveURL(/\/$/);
+    });
+
+    test('modified install clicks retain link behavior @canonical-mobile', async ({ page }) => {
+        await gotoWhenReady(page, '/', 'a[href="/NewSession"]');
+        const prevented = await page.evaluate((attribute) => {
+            const prompt = new Event('beforeinstallprompt', { cancelable: true });
+            Object.defineProperties(prompt, {
+                prompt: { value: async () => { throw new Error('Modified click must not prompt'); } },
+                userChoice: { value: Promise.resolve({ outcome: 'accepted' }) },
+            });
+            window.dispatchEvent(prompt);
+            const link = document.querySelector(`a[${attribute}]`)!;
+            const event = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+            // Prevent the test's synthetic navigation after observing the adapter.
+            let intercepted = false;
+            link.addEventListener('click', e => { intercepted = e.defaultPrevented; e.preventDefault(); }, { once: true });
+            link.dispatchEvent(event);
+            return intercepted;
+        }, pwaInstallLinkDomAttr);
+        expect(prevented).toBe(false);
+    });
+
+    test('Apple standalone launch preserves authenticated home routing @canonical-mobile', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
+        await page.goto('/InstallApp');
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/);
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
+        await openAuthenticatedNavIfCollapsed(page);
+        await expect(page.getByRole('link', { name: 'Install Bepis', exact: true })).toBeHidden();
+    });
+
+    test('guide remains usable without JavaScript @canonical-mobile', async ({ browser, baseURL }) => {
+        const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+        try {
+            const page = await context.newPage();
+            await page.goto('/InstallApp');
+            await expect(page.getByRole('heading', { name: 'Install Bepis', exact: true })).toBeVisible();
+            for (const name of ['iPhone and iPad', 'Android', 'Windows', 'Mac', 'Linux']) {
+                await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+            }
+            await expect(page.getByText('Add to Home Screen', { exact: true })).toBeVisible();
+        } finally { await context.close(); }
+    });
     test('publishes install metadata and a public cross-platform guide @canonical-mobile', async ({ page }) => {
         await gotoWhenReady(page, '/InstallApp', installPageSelector);
         const installPageResponse = await page.request.get('/InstallApp');
         expect(installPageResponse.status()).toBe(200);
 
         await expect(page.getByRole('heading', { name: 'Install Bepis', exact: true })).toBeVisible();
+        await page.getByText('Choose another device', { exact: true }).click();
+        await page.getByLabel('Device', { exact: true }).selectOption('android');
         await expect(page.getByRole('heading', { name: 'Android', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'iPhone and iPad', exact: true })).toBeHidden();
+        await page.getByLabel('Device', { exact: true }).selectOption('ios');
         await expect(page.getByRole('heading', { name: 'iPhone and iPad', exact: true })).toBeVisible();
         await expect(page.getByText('Add to Home Screen', { exact: true })).toBeVisible();
         await expect(page.getByText('Open as Web App', { exact: true })).toBeVisible();
@@ -135,7 +231,7 @@ test.describe('Install Bepis', () => {
         await expectNoHorizontalViewportOverflow(page);
     });
 
-    test('offers the native Android prompt only after the user chooses to install @canonical-mobile', async ({ page }) => {
+    test('offers the native browser prompt only after the user chooses to install @canonical-mobile', async ({ page }) => {
         await page.addInitScript(() => {
             const promptState = window as Window & { __pwaPromptCallCount?: number };
             promptState.__pwaPromptCallCount = 0;
@@ -232,11 +328,10 @@ test.describe('Install Bepis', () => {
             }, { once: true });
         });
 
-        await gotoWhenReady(page, '/InstallApp', installPageSelector);
-
-        await expect(page.locator(installedStatusSelector)).toContainText('Bepis is installed on this device.');
-        await expect(page.locator(installedStatusSelector)).toBeVisible();
-        await expect(page.locator(installButtonSelector)).toBeHidden();
+        await page.goto('/InstallApp');
+        await expect(page).toHaveURL(/\/Welcome$/);
+        await expect(page.getByRole('link', { name: 'Sign In', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Install Bepis', exact: true })).toBeHidden();
     });
 
     test('updates the page when browser installation completes @canonical-mobile', async ({ page }) => {

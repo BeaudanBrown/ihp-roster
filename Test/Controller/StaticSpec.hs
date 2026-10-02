@@ -8,8 +8,8 @@ import Control.Exception (bracket)
 import qualified Data.Text.IO as TextIO
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import IHP.ViewSupport (liveReloadWebsocketUrl)
 import Test.Hspec
@@ -64,7 +64,13 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldContain` "Installation accepted. Bepis will appear on your device when installation completes."
             response `responseBodyShouldContain` "Installation was not completed. You can use the browser menu to try again."
             response `responseBodyShouldContain` "Installation could not start. Use the browser menu to install Bepis."
-            response `responseBodyShouldContain` "Bepis is installed on this device."
+            response `responseBodyShouldContain` "Installation complete. You can now open Bepis from your home screen or desktop."
+            response `responseBodyShouldContain` "Open Bepis straight from your home screen or desktop."
+            response `responseBodyShouldContain` "Internet required. You can also use Bepis in your browser."
+            response `responseBodyShouldContain` "data-bepis-pwa-install-home=\"true\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-guide-panel=\"linux\""
+            response `responseBodyShouldContain` "Choose another device"
+            response `responseBodyShouldContain` "open=\"open\""
             response `responseBodyShouldContain` "role=\"status\""
             response `responseBodyShouldContain` "aria-live=\"polite\""
             response `responseBodyShouldContain` "hidden=\"hidden\""
