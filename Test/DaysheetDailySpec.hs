@@ -3,6 +3,11 @@ module Test.DaysheetDailySpec where
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Daily
+import Application.Daysheet.Entry
+import qualified Application.Daysheet.Number as Number
+import Application.Helper.NominalText
+import Data.Either (isLeft)
+import Data.Time (TimeOfDay (..))
 import qualified Application.Daysheet.Evaluation as E
 import Application.Daysheet.References
 import qualified Data.Aeson as Aeson
@@ -58,6 +63,25 @@ linked = fresh >>= add band >>= add reading
 
 tests :: Spec
 tests = describe "Daysheet daily content" do
+    it "parses bounded numeric spelling exactly while preserving validation input" do
+        let parse kind value = parseNominalText @DaysheetNumericEntry value >>= parseNumericEntry kind
+        Right raw <- pure (parseNominalText @DaysheetNumericEntry " +001.60 ")
+        renderNominalText raw `shouldBe` " +001.60 "
+        Right (MoneyLiteral money) <- pure (parseNumericEntry MoneyType raw)
+        Number.fraction money `shouldBe` (8, 5)
+        Right (PercentageLiteral rate) <- pure (parse PercentageType "1.6")
+        Number.fraction rate `shouldBe` (2, 125)
+        parse WholeType "0" `shouldBe` Right (WholeLiteral 0)
+        parse WholeType "-12.0" `shouldBe` Right (WholeLiteral (-12))
+        map (parse MoneyType) ["1.005", "1+2", "1e3", "1,000", "", ".", "1/3"] `shouldSatisfy` all isLeft
+        parse WholeType "1.5" `shouldSatisfy` isLeft
+        parse DecimalType (Text.replicate 81 "1") `shouldSatisfy` isLeft
+        parse DecimalType (Text.replicate 40 "9") `shouldSatisfy` isLeft
+    it "parses clock values without inventing a date, instant, or invalid overnight time" do
+        let parse value = parseNominalText @DaysheetClockEntry value >>= parseClockEntry
+        parse "01:30" `shouldBe` Right (OperationalTimeLiteral (TimeOfDay 1 30 0))
+        parse "23:59:59" `shouldBe` Right (OperationalTimeLiteral (TimeOfDay 23 59 59))
+        map parse ["24:00", "23:60", "09:00:60", "tomorrow", "", "01:30\NUL"] `shouldSatisfy` all isLeft
     it "creates exactly the preserved active checklist rows with read-only pairing" do
         Right document <- pure fresh
         rowKeys document `shouldBe` [ReferenceKey (list 20) (row 1)]

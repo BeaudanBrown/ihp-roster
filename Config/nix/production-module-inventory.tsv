@@ -32,6 +32,7 @@ Application/Daysheet/DailyError.hs	development	unreachable	-	Not reachable from 
 Application/Daysheet/DailyStorage.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EmailContract.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Entry.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Evaluation.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Formula.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Locks.hs	production	runtime	Main	Reachable from Main

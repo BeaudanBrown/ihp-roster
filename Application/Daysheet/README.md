@@ -15,6 +15,11 @@ immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
 staging/publication boundary is retained in `SPEC.md`.
 
+`Entry` owns bounded nominal numeric/clock form spelling and exact semantic
+parsing against the pinned field type. Percent entry is human percentage units;
+stored percentages remain ratios. It accepts no formulas or floating-point
+coercion and retains submitted spelling for errors/conflicts.
+
 `Daily` owns the server-only saved-content document and pure edit decisions:
 per-cell revisions, fixed captured checklist identities, open-row tombstones,
 and exact deletion dependency confirmations. Persistence must authorize and
