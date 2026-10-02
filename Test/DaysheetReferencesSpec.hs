@@ -52,7 +52,7 @@ tests = describe "Daysheet reference staging" do
     it "allows explicitly retiring the dependent terminal instead" do
         let target = ReferenceKey areaList areaA
         let captured = retireReferences definition owner references target [RetireReference (ReferenceKey terminalList terminal)] >>= captureReferences definition owner
-        fmap (fmap Map.size . Map.lookup terminalList . E.savedRows) captured `shouldBe` Right (Just 0)
+        fmap (Map.size . Map.findWithDefault Map.empty terminalList . E.savedRows) captured `shouldBe` Right 0
     it "keeps incompatible staged values editable but forbids their publication" do
         let changed = definition { recordLists = [RecordList areaList "Areas" VenueReference [], RecordList terminalList "Terminals" VenueReference [Field areaField "Area text" TextType Entered]] }
         (encodeDefinition changed >>= decodeDefinition) `shouldBe` Right changed

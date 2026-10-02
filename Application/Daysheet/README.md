@@ -10,11 +10,17 @@ and unavailable-result laws. `Evaluation` accepts a validated immutable saved
 snapshot, rejects calculated overrides and foreign references, and evaluates
 fields/advisories with a shared per-field-batch work budget.
 
-These pure modules do not authorize venue access, persist daily data, resolve
-operational-day instants, or send reports. Callers must preserve the product's
-pinned-definition/current-venue boundaries. Tests live in
+`Storage` owns membership-scoped staging, publication, reference updates and
+immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
+`References` validates active links and explicit retirement plans. The approved
+staging/publication boundary is retained in `SPEC.md`.
+
+The pure evaluator does not authorize venue access, persist daily entries,
+resolve operational-day instants, or send reports. Callers must preserve the
+product's pinned-definition/current-venue boundaries. Tests live in
 `Test/DaysheetContractSpec.hs`, `Test/DaysheetNumberSpec.hs`, and
-`Test/DaysheetEvaluationSpec.hs`.
+`Test/DaysheetEvaluationSpec.hs`; reference and persistence suites cover staging
+and historical isolation.
 
 Focused checks:
 

@@ -5,6 +5,7 @@ module Application.Daysheet.References
     , ReferenceList (..), ReferenceData (..), ReferenceError (..)
     , ReferenceChange (..), Dependency (..)
     , validateReferences, captureReferences, retirementDependencies, retireReferences
+    , preservesReferences, activeReferenceData, preservesRetirementState
     ) where
 
 import Prelude
@@ -55,6 +56,7 @@ validateReferences definition owner dataValue@(ReferenceData lists) = do
     validateList list = do
         case filter ((== referenceListId list) . listId) (recordLists definition) of
             [source] | listMode source == VenueReference -> Right ()
+            _ | all referenceRetired (referenceRecords list) -> Right ()
             _ -> Left (UnknownReferenceList (referenceListId list))
         if length (referenceRecords list) > maxRowsPerList limits then Left ReferenceLimit else Right ()
         unique (map referenceRecordId (referenceRecords list))
@@ -70,7 +72,7 @@ snapshot owner (ReferenceData lists) = E.Snapshot owner Map.empty (Map.fromList
     [(referenceListId list, Map.fromList
         [(referenceRecordId row, Map.fromList [(field, convert value) | (field, value) <- referenceValues row])
         | row <- referenceRecords list, not (referenceRetired row)])
-    | list <- lists])
+    | list <- lists, any (not . referenceRetired) (referenceRecords list)])
   where
     convert (ReferenceScalar literal) = E.Scalar literal
     convert (ReferenceLink (ReferenceKey list row)) = E.Reference (E.RecordReference owner list row)
@@ -79,6 +81,30 @@ captureReferences :: Definition -> E.SnapshotKey -> ReferenceData -> Either Refe
 captureReferences definition owner dataValue = do
     validateReferences definition owner dataValue
     pure (snapshot owner dataValue)
+
+-- Retired identities survive configuration changes, even if their list has
+-- been removed from the future definition. They never enter new captures.
+activeReferenceData :: ReferenceData -> ReferenceData
+activeReferenceData (ReferenceData lists) = ReferenceData
+    [list { referenceRecords = rows } | list <- lists, let rows = filter (not . referenceRetired) (referenceRecords list), not (null rows)]
+
+preservesReferences :: ReferenceData -> ReferenceData -> Bool
+preservesReferences (ReferenceData before) (ReferenceData after) = all retained oldRows
+  where
+    oldRows = [(ReferenceKey (referenceListId list) (referenceRecordId row), referenceRetired row) | list <- before, row <- referenceRecords list]
+    newRows = Map.fromList [(ReferenceKey (referenceListId list) (referenceRecordId row), referenceRetired row) | list <- after, row <- referenceRecords list]
+    retained (key, wasRetired) = case Map.lookup key newRows of
+        Nothing -> False
+        Just isRetired -> not wasRetired || isRetired
+
+preservesRetirementState :: ReferenceData -> ReferenceData -> Bool
+preservesRetirementState (ReferenceData before) (ReferenceData after) =
+    all (\(key, state) -> Map.lookup key newRows == Just state) (Map.toList oldRows)
+        && all (\(key, state) -> Map.member key oldRows || not state) (Map.toList newRows)
+  where
+    states lists = Map.fromList [(ReferenceKey (referenceListId list) (referenceRecordId row), referenceRetired row) | list <- lists, row <- referenceRecords list]
+    oldRows = states before
+    newRows = states after
 
 retirementDependencies :: ReferenceData -> ReferenceKey -> [Dependency]
 retirementDependencies (ReferenceData lists) target =

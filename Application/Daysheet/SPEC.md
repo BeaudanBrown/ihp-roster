@@ -102,3 +102,41 @@ Reference definitions may contain calculated fields using reference-only data;
 capture must preserve the published definition and source reference data needed
 to retain their meaning. Frozen reports capture results, not a promise to
 recompute them under future evaluator changes.
+
+## Staged Reference Corrections And Storage
+
+A draft contains both the proposed definition and its proposed reference data.
+An incompatible reference-field type/choice/target change may be saved as a
+draft, but cannot publish until the admin explicitly corrects the affected
+reference values. Publication switches both documents in one transaction;
+current published data remains usable until that commit. This workflow was
+explicitly approved; it never edits historical instances, including Draft
+Daysheets.
+
+The server persistence document is owned by `DefinitionCodec`; expressions
+inside it use the same flat FrontendContract DSL encoding as `Wire`. The
+surrounding versioned domain document is server-only, not an opaque browser
+request payload. Designer actions must operate through their generated typed
+request boundaries. Both stored decoding and publication revalidate meaning.
+
+`Storage` owns ordinary membership-scoped mutation authority. It re-reads the
+current membership under lock, denies global-role substitution, and serializes
+by venue before locking membership. Configuration revision detects changes to
+the live reference set; a separate draft revision detects concurrent editing.
+Publishing a draft based on stale live references fails rather than overwriting
+newer data. Callers retain unsaved inputs and require an explicit reviewed save
+against the new base. Typed error results roll back the transaction.
+
+Ordinary reference additions/edits may update live data without republishing
+the definition. They cannot remove identities or change retirement state.
+Retirement requires an observed revision and explicit dependent reassignments
+or retirements; unresolved active links reject the entire operation. Retired
+identities are preserved in configuration documents and never restored
+implicitly. Only active entries enter new captures. Captures have one unique
+venue/Operational-day identity and retain immutable version/reference meaning.
+
+Database guards reject changes/deletion of published versions and captures.
+Venue equality is enforced alongside single-column foreign keys because the
+pinned IHP schema parser does not support composite foreign keys. Deployment
+verification uses the additive migration's real-runner rehearsal and preservation
+fixtures; no development reset is a customer-data upgrade strategy.

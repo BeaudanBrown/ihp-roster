@@ -54,6 +54,8 @@ data AuditEventType
     | FeedbackRestoredAudit
     | FeedbackVotedAudit
     | FeedbackUnvotedAudit
+    | DaysheetDefinitionPublishedAudit
+    | DaysheetReferencesRetiredAudit
     deriving (Bounded, Enum, Eq, Show)
 
 data AuditSourceChannel
@@ -64,6 +66,8 @@ data AuditSourceChannel
     deriving (Bounded, Enum, Eq, Show)
 
 auditEventTypeText :: AuditEventType -> Text
+auditEventTypeText DaysheetDefinitionPublishedAudit = "daysheet_definition_published"
+auditEventTypeText DaysheetReferencesRetiredAudit = "daysheet_references_retired"
 auditEventTypeText FeedbackSubmittedAudit = "feedback_submitted"
 auditEventTypeText FeedbackEditedAudit = "feedback_edited"
 auditEventTypeText FeedbackPublishedAudit = "feedback_published"

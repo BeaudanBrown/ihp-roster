@@ -62,6 +62,8 @@ auditEventWireContract =
     , (FeedbackRestoredAudit, "feedback_restored")
     , (FeedbackVotedAudit, "feedback_voted")
     , (FeedbackUnvotedAudit, "feedback_unvoted")
+    , (DaysheetDefinitionPublishedAudit, "daysheet_definition_published")
+    , (DaysheetReferencesRetiredAudit, "daysheet_references_retired")
     ]
 
 auditSourceChannelWireContract :: [(AuditSourceChannel, Text)]
