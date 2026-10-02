@@ -111,6 +111,10 @@ applicationTableNames =
     , "xero_timesheet_submissions"
     , "xero_timesheet_submission_entries"
     , "venue_membership_role_events"
+    , "daysheet_definition_versions"
+    , "daysheet_configurations"
+    , "daysheet_definition_drafts"
+    , "daysheet_definition_captures"
     ]
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
