@@ -7,11 +7,10 @@ module Application.EmailDelivery.Enqueue
     ) where
 
 import Application.EmailDelivery.Persistence
+import Application.EmailDelivery.Envelope (EmailEnvelopeVersion (LegacyEnvelopeV1), emailRecipientAddressDigest)
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -53,7 +52,8 @@ enqueueEmailDeliveryWithStatus request = do
     inserted <-
         insertPermanentlyDeduplicatedEmailJob
             EmailDeliveryInsert
-                { payload = emailDeliveryPayload request
+                { envelopeVersion = LegacyEnvelopeV1
+                , payload = emailDeliveryPayload request
                 , requestedByUserId = request.requestedByUserId
                 , venueId = request.venueId
                 , relatedTable = request.domainReferenceTable
@@ -93,10 +93,3 @@ emailDeliveryDedupeKey request =
         , tshow request.recipientAccountId
         , emailRecipientAddressDigest request.recipientAddress
         ]
-
-emailRecipientAddressDigest :: Text -> Text
-emailRecipientAddressDigest address =
-    tshow
-        ( Hash.hash
-            (TextEncoding.encodeUtf8 (Text.toCaseFold (Text.strip address))) :: Hash.Digest Hash.SHA256
-        )

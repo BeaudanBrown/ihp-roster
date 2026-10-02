@@ -42,6 +42,7 @@ Application/Daysheet/Wire.hs	development	unreachable	-	Not reachable from an exp
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Envelope.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main

@@ -23,6 +23,7 @@ import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Correlation
 import Application.EmailDelivery.Enqueue
+import Application.EmailDelivery.Envelope (EmailDeliveryPayload (..))
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
@@ -53,22 +54,6 @@ import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
-
-data EmailDeliveryPayload = EmailDeliveryPayload
-    { payloadMailKind           :: !Text
-    , payloadRecipientAccountId :: !UUID
-    , payloadRecipientAddress   :: !Text
-    , payloadDomainReferenceId  :: !UUID
-    }
-    deriving (Eq, Show)
-
-instance Aeson.FromJSON EmailDeliveryPayload where
-    parseJSON = Aeson.withObject "EmailDeliveryPayload" \object ->
-        EmailDeliveryPayload
-            <$> object Aeson..: "mailKind"
-            <*> object Aeson..: "recipientAccountId"
-            <*> object Aeson..: "recipientAddress"
-            <*> object Aeson..: "domainReferenceId"
 
 data EmailDeliveryRuntime = EmailDeliveryRuntime
     { deliveryIsDisabled :: !(IO Bool)
