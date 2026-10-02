@@ -116,6 +116,9 @@ data BrowserFixtureSortRowRole
 data BrowserFixtureSortControlRole
 data LabelSortKey
 data CountSortKey
+data BrowserFixtureGate
+data BrowserFixtureGateAction
+data BrowserFixtureGateNotice
 data BrowserFixtureTabs
 data BrowserFixtureTabRole
 data StaffTabKey
@@ -186,6 +189,9 @@ type BrowserFixtureSurface =
             'SortAscending
          , BrowserRole BrowserFixtureTabRole
          , TabSet BrowserFixtureTabs BrowserFixtureTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+         , BrowserRole BrowserFixtureGateAction
+         , BrowserRole BrowserFixtureGateNotice
+         , SettledFormGate BrowserFixtureGate BrowserFixtureGateAction BrowserFixtureGateNotice
          , BrowserRole BrowserFixtureSidePanelRootRole
          , BrowserRole BrowserFixtureSidePanelMainRole
          , BrowserRole BrowserFixtureSidePanelPanelRole
@@ -368,6 +374,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , ("browser-fixture-sort-row", "data-bepis-browser-fixture-browser-fixture-sort-row")
                        , ("browser-fixture-sort-control", "data-bepis-browser-fixture-browser-fixture-sort-control")
                        , ("browser-fixture-tab", "data-bepis-browser-fixture-browser-fixture-tab")
+                , ("browser-fixture-gate-action", "data-bepis-browser-fixture-browser-fixture-gate-action")
+                , ("browser-fixture-gate-notice", "data-bepis-browser-fixture-browser-fixture-gate-notice")
                        , ("browser-fixture-side-panel-root", "data-bepis-browser-fixture-browser-fixture-side-panel-root")
                        , ("browser-fixture-side-panel-main", "data-bepis-browser-fixture-browser-fixture-side-panel-main")
                        , ("browser-fixture-side-panel-panel", "data-bepis-browser-fixture-browser-fixture-side-panel-panel")
@@ -497,6 +505,19 @@ tests = describe "FrontendSurface DSL foundation" do
         browserFixtureTypeScript `shouldContainText` "\"defaultKey\":\"label\",\"defaultDirection\":\"ascending\""
         browserFixtureTypeScript `shouldContainText` "\"field\":\"browserFixtureSortCount\",\"valueType\":\"integer\",\"direction\":\"selected\""
         browserFixtureTypeScript `shouldContainText` "\"field\":\"browserFixtureSortRowKey\",\"valueType\":\"opaque\",\"direction\":\"ascending\""
+
+    it "generates settled-form gates from distinct declared roles" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let gate = fromMaybe (error "missing fixture gate") (listToMaybe surface.surfaceSettledFormGates)
+        gate.settledFormGateName `shouldBe` "browser-fixture-gate"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceSettledFormGateRegistry"
+        browserFixtureTypeScript `shouldContainText` "\"actionRoleAttribute\":browserFixtureBrowserFixtureGateActionDomAttr"
+        let malformed = surface { surfaceSettledFormGates = [gate { settledFormGateNoticeRole = gate.settledFormGateActionRole }] }
+        diagnosticMessages (checkedSurfaceContractIR (SurfaceContractIR [malformed])) `shouldContain`
+            ["surface browser-fixture gate browser-fixture-gate requires distinct declared action and notice roles"]
+        let missing = surface { surfaceBrowserRoles = filter (/= gate.settledFormGateActionRole) surface.surfaceBrowserRoles }
+        diagnosticMessages (checkedSurfaceContractIR (SurfaceContractIR [missing])) `shouldContain`
+            ["surface browser-fixture gate browser-fixture-gate requires distinct declared action and notice roles"]
 
     it "reflects and renders mount-local tab keys and defaults" do
         let surface = reflectSurfaceSpec @BrowserFixtureSurface

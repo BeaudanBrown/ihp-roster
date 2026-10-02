@@ -86,6 +86,7 @@ data ReflectedPrimitive
     | ReflectedLinkedHighlight !LinkedHighlightIR
     | ReflectedCompleteSetSort !CompleteSetSortIR
     | ReflectedTabSet !TabSetIR
+    | ReflectedSettledFormGate !SettledFormGateIR
     | ReflectedSidePanel !SidePanelIR
     | ReflectedLayer !Text
     | ReflectedPolicy !ConflictPolicyIR
@@ -294,6 +295,13 @@ instance
 
 instance ReflectCompleteSetSortPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) => ReflectPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) where
     reflectPrimitive = ReflectedCompleteSetSort (reflectCompleteSetSortPrimitive @('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection))
+
+instance (Typeable marker, Typeable actionRole, Typeable noticeRole) => ReflectPrimitive ('SettledFormGate marker actionRole noticeRole) where
+    reflectPrimitive = ReflectedSettledFormGate SettledFormGateIR
+        { settledFormGateName = protocolName @marker DomTokenName
+        , settledFormGateActionRole = reflectedBrowserAttribute @actionRole BrowserRoleName
+        , settledFormGateNoticeRole = reflectedBrowserAttribute @noticeRole BrowserRoleName
+        }
 
 class ReflectTabSetPrimitive (primitive :: SurfacePrimitive) where
     reflectTabSetPrimitive :: TabSetIR
@@ -888,6 +896,11 @@ addPrimitives primitives surface =
             ReflectedCompleteSetSort sortDefinition -> current
                 { surfaceCompleteSetSorts = current.surfaceCompleteSetSorts <> [qualifyCompleteSetSort current.surfaceName sortDefinition]
                 }
+            ReflectedSettledFormGate gate -> current
+                { surfaceSettledFormGates = current.surfaceSettledFormGates <>
+                    [gate { settledFormGateActionRole = qualifyBrowserAttribute current.surfaceName gate.settledFormGateActionRole
+                          , settledFormGateNoticeRole = qualifyBrowserAttribute current.surfaceName gate.settledFormGateNoticeRole }]
+                }
             ReflectedTabSet tabSet -> current
                 { surfaceTabSets = current.surfaceTabSets <> [qualifyTabSet current.surfaceName tabSet]
                 }
@@ -930,6 +943,7 @@ emptySurface = SurfaceIR
     , surfaceLinkedHighlights = []
     , surfaceCompleteSetSorts = []
     , surfaceTabSets = []
+    , surfaceSettledFormGates = []
     , surfaceSidePanels = []
     , surfaceLayers = []
     , surfacePolicies = []

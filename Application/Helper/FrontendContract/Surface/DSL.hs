@@ -55,6 +55,7 @@ module Application.Helper.FrontendContract.Surface.DSL
     , LinkedHighlight
     , CompleteSetSort
     , TabSet
+    , SettledFormGate
     , SidePanel
     , SidePanelShelfRole
     , SidePanelShelfToggleRole
@@ -289,6 +290,7 @@ data SurfacePrimitive
     | LinkedHighlight Type Type Type [LinkedHighlightActivation] [LinkedHighlightEffect]
     | CompleteSetSort Type Type Type Type Type [CompleteSetSortKeySpec] Type CompleteSetSortDirection
     | TabSet Type Type [Type] Type
+    | SettledFormGate Type Type Type
     | SidePanel Type Type Type Type Type Type Type Type Type
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
@@ -320,6 +322,9 @@ type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHig
 type CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection =
     'CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
 type TabSet name tabRole keys defaultKey = 'TabSet name tabRole keys defaultKey
+-- Native action controls and a server-rendered waiting notice. The existing
+-- dirty-form owner supplies readiness; this declares no second edit tracker.
+type SettledFormGate name actionRole noticeRole = 'SettledFormGate name actionRole noticeRole
 -- SidePanel includes a responsive shelf with independent transient visibility.
 -- These capability-owned markers are registered by reflection for each Surface.
 data SidePanelShelfRole

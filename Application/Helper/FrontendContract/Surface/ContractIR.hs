@@ -44,6 +44,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , SurfaceIR (..)
     , SidePanelIR (..)
     , TabSetIR (..)
+    , SettledFormGateIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
     , htmxSyntaxRawReason
@@ -83,6 +84,7 @@ data SurfaceIR = SurfaceIR
     , surfaceLinkedHighlights    :: ![LinkedHighlightIR]
     , surfaceCompleteSetSorts    :: ![CompleteSetSortIR]
     , surfaceTabSets             :: ![TabSetIR]
+    , surfaceSettledFormGates    :: ![SettledFormGateIR]
     , surfaceSidePanels          :: ![SidePanelIR]
     , surfaceLayers              :: ![Text]
     , surfacePolicies            :: ![ConflictPolicyIR]
@@ -227,6 +229,13 @@ data CompleteSetSortComparatorIR = CompleteSetSortComparatorIR
     , completeSetSortComparatorField       :: !Text
     , completeSetSortComparatorValueType   :: !CompleteSetSortValueTypeIR
     , completeSetSortComparatorDirection   :: !CompleteSetSortComparatorDirectionIR
+    }
+    deriving (Eq, Show)
+
+data SettledFormGateIR = SettledFormGateIR
+    { settledFormGateName :: !Text
+    , settledFormGateActionRole :: !BrowserAttributeIR
+    , settledFormGateNoticeRole :: !BrowserAttributeIR
     }
     deriving (Eq, Show)
 
@@ -405,6 +414,7 @@ validateSurface surface =
         <> validateLinkedHighlights surface
         <> validateCompleteSetSorts surface
         <> validateTabSets surface
+        <> validateSettledFormGates surface
         <> validateSidePanels surface
         <> validateInteractionEffects surface
         <> validateLiveFragmentInvalidation surface
@@ -680,6 +690,17 @@ validateCompleteSetSorts surface =
     sortLabel sortDefinition = "surface " <> surface.surfaceName <> " complete-set sort " <> sortDefinition.completeSetSortName
     comparatorLabel sortDefinition key comparator =
         sortLabel sortDefinition <> " key " <> key.completeSetSortKeyName <> " comparator " <> comparator.completeSetSortComparatorField
+
+validateSettledFormGates :: SurfaceIR -> [ContractDiagnostic]
+validateSettledFormGates surface =
+    validateUnique surface.surfaceName "settled form gate" (map (.settledFormGateName) surface.surfaceSettledFormGates)
+        <> concatMap validateGate surface.surfaceSettledFormGates
+  where
+    validateGate gate =
+        [ diagnostic "invalid-settled-form-gate-role" ("surface " <> surface.surfaceName <> " gate " <> gate.settledFormGateName <> " requires distinct declared action and notice roles")
+        | gate.settledFormGateActionRole == gate.settledFormGateNoticeRole
+            || any (`notElem` surface.surfaceBrowserRoles) [gate.settledFormGateActionRole, gate.settledFormGateNoticeRole]
+        ]
 
 validateTabSets :: SurfaceIR -> [ContractDiagnostic]
 validateTabSets surface =

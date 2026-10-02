@@ -1,4 +1,5 @@
-import { surfaceConfigDomAttr } from "../generated/contracts";
+import { surfaceConfigDomAttr, FrontendSurfaceSettledFormGateRegistry } from "../generated/contracts";
+import { createSettledFormGate } from "./settled-form-gate";
 import { resolveLiveFragmentInteractionConflict, type ActiveInteractionSessionTracker } from "../interaction/live-conflicts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import { createFocusedFieldProtection } from "./focus";
@@ -54,6 +55,18 @@ export function createLiveFragmentRefresher(options: {
     const forms = createDirtyFormProtection(targetDocument, (ownerEl, targetId) => {
         const fragment = readFrontendSurfaceMountElement(ownerEl)?.fragments.find((candidate) => candidate.targetId === targetId);
         if (fragment) request({ ...fragment, ownerEl });
+    }, (owner) => gates.refresh(owner));
+    const gates = createSettledFormGate((owner) => {
+        const mount = readFrontendSurfaceMountElement(owner);
+        if (!mount || stopped || !owner.isConnected) return null;
+        return {
+            definitions: FrontendSurfaceSettledFormGateRegistry[mount.surface],
+            settled: mount.fragments.filter((fragment) => fragment.protection.kind === "dirty-form").every((fragment) => {
+                const target = targetDocument.getElementById(fragment.targetId);
+                return target instanceof HTMLElement && target.closest(`[${surfaceConfigDomAttr}]`) === owner
+                    && !forms.protectedTarget(target, owner);
+            }),
+        };
     });
     const ownerStates = new Map<HTMLElement, OwnerRefreshState>();
     let generation = 1;
@@ -68,6 +81,7 @@ export function createLiveFragmentRefresher(options: {
                 forms.register(ownerEl, target, fragment.protection);
             }
         }
+        gates.refresh(ownerEl);
         const existing = ownerStates.get(ownerEl);
         if (existing) {
             existing.active = true;
@@ -512,6 +526,7 @@ export function createLiveFragmentRefresher(options: {
             markProtectionChanged(target);
         },
         handleFormEvent(event) {
+            if (gates.guard(event)) return;
             if (event.type === "htmx:afterSwap") forms.afterSwap(event);
             else forms.handleEvent(event);
         },

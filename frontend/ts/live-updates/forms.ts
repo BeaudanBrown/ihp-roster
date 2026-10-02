@@ -18,6 +18,7 @@ type Submission = { form: HTMLFormElement; state: FormState; snapshot: string; r
 export function createDirtyFormProtection(
     document: Document,
     saved: (owner: HTMLElement, targetId: string) => void,
+    readinessChanged: (owner: HTMLElement) => void = () => undefined,
 ) {
     const forms = new WeakMap<HTMLFormElement, FormState>();
     const submissions = new WeakMap<XMLHttpRequest, Submission>();
@@ -48,7 +49,10 @@ export function createDirtyFormProtection(
     function changed(target: Element): void {
         const form = target instanceof HTMLFormElement ? target : target.closest("form");
         const state = form ? forms.get(form) : undefined;
-        if (state) state.revision += 1;
+        if (state) {
+            state.revision += 1;
+            readinessChanged(state.owner);
+        }
     }
 
     function handleEvent(event: Event): void {
@@ -61,6 +65,7 @@ export function createDirtyFormProtection(
             if (!form || !state) return;
             state.pending.add(xhr);
             submissions.set(xhr, { form, state, snapshot: normalizedFormSnapshot(form), revision: state.revision, saved: false });
+            readinessChanged(state.owner);
             return;
         }
         const submission = submissions.get(xhr);
@@ -85,7 +90,11 @@ export function createDirtyFormProtection(
                 event.preventDefault();
             }
         }
-        if (event.type === "htmx:afterRequest") state.pending.delete(xhr);
+        if (event.type === "htmx:afterRequest") {
+            state.pending.delete(xhr);
+            if (!submission.saved) state.invalid = true;
+            readinessChanged(state.owner);
+        }
     }
 
     function afterSwap(event: Event): void {
@@ -102,6 +111,7 @@ export function createDirtyFormProtection(
             const next = forms.get(form);
             if (next) { next.baseline = state.baseline; next.invalid = true; }
         }
+        readinessChanged(state.owner);
     }
 
     return { register, protectedTarget, changed, handleEvent, afterSwap };

@@ -95,6 +95,9 @@ export function enableLiveUpdateRuntime(): void {
     document.addEventListener("htmx:responseError", refresher.flushInteractionDeferredFragmentsWithoutActiveSessions);
     document.addEventListener(dialogDismissedEvent, () => window.setTimeout(syncRuntime, 0));
 
+    // Capture native submission before HTMX's bubbling listener, including
+    // keyboard submission and requestSubmit without an enabled button.
+    document.addEventListener("submit", (event) => refresher.handleFormEvent(event), true);
     const scheduleFocusedFlush = () => window.setTimeout(refresher.flushFocusedFragmentsWithoutActiveInputs, 0);
     for (const name of ["htmx:beforeRequest", "htmx:beforeOnLoad", "htmx:beforeSwap", "htmx:afterRequest"]) {
         document.addEventListener(name, (event) => {

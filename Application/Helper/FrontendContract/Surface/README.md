@@ -229,6 +229,20 @@ them through generated roles and native state without importing one capability's
 feature meaning into another. See the parent FrontendContract README and focused
 view/runtime modules for those boundaries.
 
+### Pending-edit action gates
+
+`SettledFormGate name actionRole noticeRole` declares a mount-local readiness
+barrier. Declare both roles as distinct `BrowserRole`s; put the action role on
+ordinary Submit/Send forms and the notice role on server-rendered waiting copy.
+The existing dirty-form owner—not a second feature tracker—disables native
+submit controls and rejects native/HTMX submission while declared dirty-form
+fragments contain unsaved values, in-flight saves, or unresolved validation or
+conflict responses. Only the declared saved-acknowledgement header settles a
+save; an old acknowledgement does not discard newer local input. Missing forms
+in a declared dirty target fail closed. Server-disabled controls stay disabled,
+and nested mounts are isolated. This gate does not submit fields, resolve
+conflicts, authorize operations, or replace the owning server transaction.
+
 ## Live Authorization And Resources
 
 The complete live contract is in `Application/Helper/LiveUpdate.SPEC.md`; these

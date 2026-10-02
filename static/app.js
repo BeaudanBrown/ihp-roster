@@ -742,6 +742,7 @@
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceSettledFormGateRegistry = { "timesheets": [], "roster": [], "roster-day-timeline": [], "leave-requests": [], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-settings-content", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-pay-warning-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
   function isFrontendSurfaceName(value) {
@@ -2720,6 +2721,44 @@
     return { versions, handleMessage, handleActorEvent };
   }
 
+  // frontend/ts/live-updates/settled-form-gate.ts
+  function createSettledFormGate(stateFor3) {
+    const initialDisabled = /* @__PURE__ */ new WeakMap();
+    const ownerSelector = `[${surfaceConfigDomAttr}]`;
+    function owned(owner, attribute) {
+      return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter((element) => element.closest(ownerSelector) === owner);
+    }
+    function refresh(owner) {
+      const state = stateFor3(owner);
+      if (!state) return;
+      for (const definition of state.definitions) {
+        for (const element of owned(owner, definition.actionRoleAttribute)) {
+          if (!(element instanceof HTMLFormElement)) continue;
+          for (const control of Array.from(element.elements)) {
+            if (!(control instanceof HTMLButtonElement || control instanceof HTMLInputElement) || control.type !== "submit" || control.closest(ownerSelector) !== owner) continue;
+            if (!initialDisabled.has(control)) initialDisabled.set(control, control.disabled);
+            control.disabled = initialDisabled.get(control) || !state.settled;
+          }
+        }
+        for (const notice of owned(owner, definition.noticeRoleAttribute)) notice.hidden = state.settled;
+      }
+    }
+    function guard(event) {
+      if (event.type !== "submit" && event.type !== "htmx:beforeRequest") return false;
+      const target = event.type === "submit" ? event.target : detailTarget(event, "elt");
+      const form = target instanceof HTMLFormElement ? target : target instanceof Element ? target.closest("form") : null;
+      const owner = form?.closest(ownerSelector);
+      if (!form || !owner) return false;
+      const state = stateFor3(owner);
+      if (!state || state.settled || !state.definitions.some((definition) => form.hasAttribute(definition.actionRoleAttribute))) return false;
+      event.preventDefault();
+      if (event.type === "submit") event.stopImmediatePropagation();
+      refresh(owner);
+      return true;
+    }
+    return { refresh, guard };
+  }
+
   // frontend/ts/interaction/live-conflicts.ts
   var attrs2 = InteractionDom.attributes;
   var defaultInteractionDeferFallbackTimeoutMs = 5e3;
@@ -2876,7 +2915,7 @@
   }
 
   // frontend/ts/live-updates/forms.ts
-  function createDirtyFormProtection(document2, saved) {
+  function createDirtyFormProtection(document2, saved, readinessChanged = () => void 0) {
     const forms = /* @__PURE__ */ new WeakMap();
     const submissions = /* @__PURE__ */ new WeakMap();
     function ownedForms(target, owner) {
@@ -2905,7 +2944,10 @@
     function changed(target) {
       const form = target instanceof HTMLFormElement ? target : target.closest("form");
       const state = form ? forms.get(form) : void 0;
-      if (state) state.revision += 1;
+      if (state) {
+        state.revision += 1;
+        readinessChanged(state.owner);
+      }
     }
     function handleEvent(event) {
       const xhr = detailTarget(event, "xhr");
@@ -2917,6 +2959,7 @@
         if (!form2 || !state2) return;
         state2.pending.add(xhr);
         submissions.set(xhr, { form: form2, state: state2, snapshot: normalizedFormSnapshot(form2), revision: state2.revision, saved: false });
+        readinessChanged(state2.owner);
         return;
       }
       const submission = submissions.get(xhr);
@@ -2939,7 +2982,11 @@
           event.preventDefault();
         }
       }
-      if (event.type === "htmx:afterRequest") state.pending.delete(xhr);
+      if (event.type === "htmx:afterRequest") {
+        state.pending.delete(xhr);
+        if (!submission.saved) state.invalid = true;
+        readinessChanged(state.owner);
+      }
     }
     function afterSwap(event) {
       const xhr = detailTarget(event, "xhr");
@@ -2956,6 +3003,7 @@
           next.invalid = true;
         }
       }
+      readinessChanged(state.owner);
     }
     return { register, protectedTarget, changed, handleEvent, afterSwap };
   }
@@ -2980,6 +3028,17 @@
     const forms = createDirtyFormProtection(targetDocument, (ownerEl, targetId) => {
       const fragment = readFrontendSurfaceMountElement(ownerEl)?.fragments.find((candidate) => candidate.targetId === targetId);
       if (fragment) request({ ...fragment, ownerEl });
+    }, (owner) => gates.refresh(owner));
+    const gates = createSettledFormGate((owner) => {
+      const mount = readFrontendSurfaceMountElement(owner);
+      if (!mount || stopped || !owner.isConnected) return null;
+      return {
+        definitions: FrontendSurfaceSettledFormGateRegistry[mount.surface],
+        settled: mount.fragments.filter((fragment) => fragment.protection.kind === "dirty-form").every((fragment) => {
+          const target = targetDocument.getElementById(fragment.targetId);
+          return target instanceof HTMLElement && target.closest(`[${surfaceConfigDomAttr}]`) === owner && !forms.protectedTarget(target, owner);
+        })
+      };
     });
     const ownerStates = /* @__PURE__ */ new Map();
     let generation = 1;
@@ -2992,6 +3051,7 @@
           forms.register(ownerEl, target, fragment.protection);
         }
       }
+      gates.refresh(ownerEl);
       const existing = ownerStates.get(ownerEl);
       if (existing) {
         existing.active = true;
@@ -3381,6 +3441,7 @@
         markProtectionChanged(target);
       },
       handleFormEvent(event) {
+        if (gates.guard(event)) return;
         if (event.type === "htmx:afterSwap") forms.afterSwap(event);
         else forms.handleEvent(event);
       },
@@ -3467,6 +3528,7 @@
     document.addEventListener("htmx:afterSettle", () => window.setTimeout(syncRuntime, 0));
     document.addEventListener("htmx:responseError", refresher.flushInteractionDeferredFragmentsWithoutActiveSessions);
     document.addEventListener(dialogDismissedEvent, () => window.setTimeout(syncRuntime, 0));
+    document.addEventListener("submit", (event) => refresher.handleFormEvent(event), true);
     const scheduleFocusedFlush = () => window.setTimeout(refresher.flushFocusedFragmentsWithoutActiveInputs, 0);
     for (const name of ["htmx:beforeRequest", "htmx:beforeOnLoad", "htmx:beforeSwap", "htmx:afterRequest"]) {
       document.addEventListener(name, (event) => {

@@ -489,6 +489,7 @@ renderFrontendSurfaceRegistries surfaces =
         <> renderFrontendSurfaceLinkedHighlightContracts surfaces
         <> renderFrontendSurfaceCompleteSetSortContracts surfaces
         <> renderFrontendSurfaceTabSetContracts surfaces
+        <> renderFrontendSurfaceSettledFormGateContracts surfaces
         <> renderFrontendSurfaceSidePanelContracts surfaces
         <> [ "export const FrontendSurfaceFragmentRegistry = " <> objectLiteral fragmentEntries <> " as const;"
            , "export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {"
@@ -519,6 +520,19 @@ renderFrontendSurfaceTabSetKeyTypes surface =
 
 tabSetKeyTypeName :: TabSetIR -> Text
 tabSetKeyTypeName tabSet = typeNameFromMarker tabSet.tabSetMarker <> "Key"
+
+renderFrontendSurfaceSettledFormGateContracts :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceSettledFormGateContracts surfaces =
+    [ "export type FrontendSurfaceSettledFormGateDefinition = { name: string; actionRoleAttribute: string; noticeRoleAttribute: string };"
+    , "export const FrontendSurfaceSettledFormGateRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSettledFormGateDefinition>> = " <> objectLiteral entries <> ";"
+    , ""
+    ]
+  where
+    entries = [(surface.surfaceName, arrayLiteral [objectLiteral
+        [("name", quote gate.settledFormGateName)
+        , ("actionRoleAttribute", surfaceBrowserAttributeConstName surface gate.settledFormGateActionRole)
+        , ("noticeRoleAttribute", surfaceBrowserAttributeConstName surface gate.settledFormGateNoticeRole)]
+        | gate <- surface.surfaceSettledFormGates]) | surface <- surfaces]
 
 renderFrontendSurfaceTabSetContracts :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceTabSetContracts surfaces =
