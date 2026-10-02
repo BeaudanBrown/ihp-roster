@@ -51,6 +51,7 @@ explainUnavailable :: Evaluation -> UnavailableReason -> Text
 explainUnavailable (Evaluation definition _) reason = case reason of
     MissingInput key -> "Enter " <> label key <> "."
     MissingReference key -> "Choose an available record for " <> label key <> "."
+    MissingChecklistReference -> "The preserved checklist entry is unavailable."
     ZeroDenominator -> "Cannot divide by zero."
     NumericLimit -> "The calculation exceeds the supported numeric range."
     EvaluationLimit -> "The calculation exceeds the supported work limit."
@@ -164,6 +165,13 @@ evalExpression :: Evaluation -> Scope -> Scope -> Expression -> Eval (Result Val
 evalExpression evaluation@(Evaluation definition snapshot) current item expression = spend case expression of
     Constant literal -> pure (Known (Scalar literal))
     ReadField (FieldPath context fields) -> follow (case context of Root -> Nothing; Current -> current; Item -> item) fields
+    ChecklistReference context -> pure case (case context of Root -> Nothing; Current -> current; Item -> item) of
+        Just (list, row) -> case listMode <$> findList definition list of
+            Just (ReferenceChecklist source)
+                | maybe False (Map.member row) (Map.lookup source (savedRows snapshot)) ->
+                    Known (Reference (RecordReference (snapshotKey snapshot) source row))
+            _ -> Unavailable MissingChecklistReference
+        Nothing -> Unavailable MissingChecklistReference
     Binary operation left right -> do
         a <- evalExpression evaluation current item left
         b <- evalExpression evaluation current item right

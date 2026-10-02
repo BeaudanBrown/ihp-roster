@@ -142,6 +142,14 @@ expressionType definition current expression = do
                 Current -> maybe (Left InvalidContext) (fmap listFields . findList definition) current
                 Item -> maybe (Left InvalidContext) (fmap listFields . findList definition) item
             if length path > maxReferenceDepth limits then Left ResourceLimit else resolve fields path
+        ChecklistReference context -> do
+            if contractVersion definition == 2 then Right () else Left UnsupportedVersion
+            source <- maybe (Left InvalidContext) (findList definition) (case context of Root -> Nothing; Current -> current; Item -> item)
+            case listMode source of
+                ReferenceChecklist target -> do
+                    referenced <- findList definition target
+                    if listMode referenced == VenueReference then Right (ReferenceType target) else Left InvalidChecklist
+                _ -> Left InvalidChecklist
         Binary operation a b -> do
             aType <- infer item a
             bType <- infer item b
@@ -180,6 +188,7 @@ children :: Expression -> [Expression]
 children expression = case expression of
     Constant _ -> []
     ReadField _ -> []
+    ChecklistReference _ -> []
     Binary _ a b -> [a, b]
     Unary _ a -> [a]
     If a b c -> [a, b, c]
@@ -194,7 +203,7 @@ allFields definition = rootFields definition <> concatMap listFields (recordList
 -- must also succeed before an untrusted definition may be published.
 validateFields :: Definition -> Either ContractError ()
 validateFields definition = do
-    if contractVersion definition == 1 then Right () else Left UnsupportedVersion
+    if contractVersion definition `elem` [1, 2] then Right () else Left UnsupportedVersion
     let fields = allFields definition
     if length fields > maxFields limits || length (recordLists definition) > maxLists limits then Left ResourceLimit else Right ()
     unique DuplicateField (map fieldId fields)

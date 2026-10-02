@@ -40,6 +40,28 @@ knownMoney n d = Right [Known (E.Scalar (MoneyLiteral (number n d)))]
 
 tests :: Spec
 tests = describe "Daysheet server evaluation" do
+    it "reads preserved checklist records in row and aggregate contexts without editable links" do
+        let source = ListId (UUID.fromWords 0 0 0 10)
+        let checklist = ListId (UUID.fromWords 0 0 0 11)
+        let row = E.RowId (UUID.fromWords 0 0 0 12)
+        let definition = base
+                { contractVersion = 2
+                , rootFields = [Field (key 5) "Selected terminal" (ReferenceType source) Entered,
+                    Field (key 4) "Matching receipts" WholeType (Calculated (Fold Count checklist (Just (Binary Equal (ChecklistReference Item) (ReadField (FieldPath Root [key 5])))) (whole 1)))]
+                , recordLists = [RecordList source "Terminals" VenueReference [Field (key 1) "Label" TextType Entered],
+                    RecordList checklist "Receipts" (ReferenceChecklist source)
+                        [Field (key 2) "Terminal" (ReferenceType source) (Calculated (ChecklistReference Current)),
+                         Field (key 3) "Terminal label" TextType (Calculated (ReadField (FieldPath Current [key 2, key 1])))]] }
+        let reference = E.Reference (E.RecordReference (E.snapshotKey emptySnapshot) source row)
+        let snapshot = emptySnapshot
+                { E.savedRoot = Map.singleton (key 5) reference
+                , E.savedRows = Map.fromList [(source, Map.singleton row (Map.singleton (key 1) (E.Scalar (TextLiteral "Preserved terminal")))), (checklist, Map.singleton row Map.empty)] }
+        let evaluate saved = E.prepareEvaluation definition saved >>= \ready -> E.evaluate ready [E.RowTarget checklist row (key 2), E.RowTarget checklist row (key 3), E.RootTarget (key 4)]
+        evaluate snapshot `shouldBe` Right [Known reference, Known (E.Scalar (TextLiteral "Preserved terminal")), Known (E.Scalar (WholeLiteral 1))]
+        evaluate (snapshot { E.savedRows = Map.delete source (E.savedRows snapshot) }) `shouldBe`
+            Right [Unavailable MissingChecklistReference, Unavailable MissingChecklistReference, Unavailable MissingChecklistReference]
+        let override = snapshot { E.savedRows = Map.insert checklist (Map.singleton row (Map.singleton (key 2) reference)) (E.savedRows snapshot) }
+        either Just (const Nothing) (E.prepareEvaluation definition override) `shouldBe` Just (E.CalculatedInput (key 2))
     it "preserves money precision and applies explicit half-away rounding" do
         runExpression MoneyType (Unary RoundCents (Binary Multiply (Binary Divide (money 1 1) (whole 3)) (whole 3))) `shouldBe` knownMoney 1 1
         runExpression MoneyType (Unary RoundCents (Binary Divide (money 201 100) (whole 2))) `shouldBe` knownMoney 101 100

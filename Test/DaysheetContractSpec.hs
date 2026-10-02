@@ -7,6 +7,9 @@ import Application.Daysheet.Wire
 import Application.Daysheet.Validation
 import qualified Application.Daysheet.Number as Number
 import qualified Data.UUID as UUID
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.ByteString.Lazy as ByteString
 import Test.Hspec
 
 fieldKey :: FieldId
@@ -34,6 +37,20 @@ tests = describe "Daysheet definition contract" do
         let daily = RecordList dailyKey "Terminal receipts" (ReferenceChecklist venueKey) []
         validateDefinition (base { recordLists = [RecordList venueKey "Terminals" VenueReference [], daily] }) `shouldBe` Right ()
         validateDefinition (base { recordLists = [RecordList venueKey "Daily" OpenDaily [], daily] }) `shouldBe` Left InvalidChecklist
+    it "exposes the checklist pairing through the typed bounded formula DSL only in checklist scope" do
+        let source = ListId (UUID.fromWords 0 0 0 10)
+        let checklist = ListId (UUID.fromWords 0 0 0 11)
+        let open = ListId (UUID.fromWords 0 0 0 12)
+        let definition = base { contractVersion = 2, recordLists = [RecordList source "Terminals" VenueReference [], RecordList checklist "Receipts" (ReferenceChecklist source) [], RecordList open "Notes" OpenDaily []] }
+        let expression = ChecklistReference Current
+        expressionType definition (Just checklist) expression `shouldBe` Right (ReferenceType source)
+        expressionType (definition { contractVersion = 1 }) (Just checklist) expression `shouldBe` Left UnsupportedVersion
+        expressionType definition Nothing expression `shouldBe` Left InvalidContext
+        expressionType definition (Just open) expression `shouldBe` Left InvalidChecklist
+        expressionType definition (Just checklist) (ChecklistReference Root) `shouldBe` Left InvalidContext
+        compileFormula definition (Just checklist) (flattenExpression expression) `shouldBe` Right expression
+        AesonTypes.parseEither parseExpressionJson (expressionJson expression) `shouldBe` Right expression
+        decodeFormula definition (Just checklist) (ByteString.toStrict (Aeson.encode (expressionJson expression))) `shouldBe` Right expression
     it "rejects venue references into daily lists" do
         let venueKey = ListId UUID.nil
         let dailyKey = ListId (UUID.fromWords 0 0 0 1)
@@ -56,7 +73,7 @@ tests = describe "Daysheet definition contract" do
         binaryType Divide MoneyType WholeType `shouldBe` Right MoneyType
         unaryType PercentageRatio PercentageType `shouldBe` Right DecimalType
     it "rejects unknown contract versions" do
-        validateFields (base { contractVersion = 2 }) `shouldBe` Left UnsupportedVersion
+        validateFields (base { contractVersion = 3 }) `shouldBe` Left UnsupportedVersion
     it "rejects deleted field references and cycles" do
         let formula = ReadField (FieldPath Root [fieldKey])
         expressionType base Nothing formula `shouldBe` Left (UnknownField fieldKey)

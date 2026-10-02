@@ -73,6 +73,8 @@ instance ContractReference S.DaysheetStep where
             (requiredField @S.LiteralValue value &: noFields)
         FieldStep path -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetStep @S.FieldStep
             (requiredField @S.Path path &: noFields)
+        ChecklistReferenceStep context -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetStep @S.ChecklistReferenceStep
+            (requiredField @S.ContextValue context &: noFields)
         BinaryStep operation (NodeId left) (NodeId right) -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetStep @S.BinaryStep
             (requiredField @S.Operator operation &: requiredField @S.LeftNode left &: requiredField @S.RightNode right &: noFields)
         UnaryStep operation (NodeId child) -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetStep @S.UnaryStep
@@ -84,6 +86,7 @@ instance ContractReference S.DaysheetStep where
     parseContractReference = parseTaggedUnionIn @S.FormulaContracts @S.DaysheetStep
         (unionCase @S.LiteralStep (\(value, ()) -> pure (LiteralStep value))
         |: unionCase @S.FieldStep (\(path, ()) -> pure (FieldStep path))
+        |: unionCase @S.ChecklistReferenceStep (\(context, ()) -> pure (ChecklistReferenceStep context))
         |: unionCase @S.BinaryStep (\(operation, (left, (right, ()))) -> pure (BinaryStep operation (NodeId left) (NodeId right)))
         |: unionCase @S.UnaryStep (\(operation, (child, ())) -> pure (UnaryStep operation (NodeId child)))
         |: unionCase @S.ConditionalStep (\(condition, (yes, (no, ()))) -> pure (ConditionalStep (NodeId condition) (NodeId yes) (NodeId no)))

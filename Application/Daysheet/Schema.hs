@@ -19,6 +19,7 @@ data Step
 data DaysheetStep
 data LiteralStep
 data FieldStep
+data ChecklistReferenceStep
 data BinaryStep
 data UnaryStep
 data ConditionalStep
@@ -69,6 +70,7 @@ type FormulaContract = Global DaysheetFormulaContractRoot
      , ServerSchema (TaggedUnion DaysheetStep
          '[ Case LiteralStep '[Field LiteralValue ('WireRef DaysheetLiteral)]
           , Case FieldStep '[Field Path ('WireRef DaysheetPath)]
+          , Case ChecklistReferenceStep '[Field ContextValue ('WireClosed Context)]
           , Case BinaryStep '[Field Operator ('WireClosed Binary), Field LeftNode 'WireInt, Field RightNode 'WireInt]
           , Case UnaryStep '[Field Operator ('WireClosed Unary), Field ChildNode 'WireInt]
           , Case ConditionalStep '[Field ConditionNode 'WireInt, Field YesNode 'WireInt, Field NoNode 'WireInt]

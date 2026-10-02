@@ -76,6 +76,9 @@ instance InputValue Aggregate where
 data Expression
     = Constant Literal
     | ReadField FieldPath
+    -- The checklist row keeps its preserved source record identity. This leaf
+    -- exposes the pairing without an editable duplicate or hidden formula.
+    | ChecklistReference Context
     | Binary Binary Expression Expression
     | Unary Unary Expression
     | If Expression Expression Expression
@@ -129,6 +132,7 @@ data Definition = Definition
 data UnavailableReason
     = MissingInput FieldId
     | MissingReference FieldId
+    | MissingChecklistReference
     | ZeroDenominator
     | NumericLimit
     | EvaluationLimit

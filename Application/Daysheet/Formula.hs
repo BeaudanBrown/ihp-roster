@@ -24,6 +24,7 @@ newtype NodeId = NodeId Int deriving (Eq, Ord, Show)
 data Step
     = LiteralStep Literal
     | FieldStep FieldPath
+    | ChecklistReferenceStep Context
     | BinaryStep Binary NodeId NodeId
     | UnaryStep Unary NodeId
     | ConditionalStep NodeId NodeId NodeId
@@ -83,6 +84,7 @@ expandFormula formula = do
             case step of
                 LiteralStep value -> finish (Constant value) (fuel - 1) Set.empty
                 FieldStep path -> finish (ReadField path) (fuel - 1) Set.empty
+                ChecklistReferenceStep context -> finish (ChecklistReference context) (fuel - 1) Set.empty
                 UnaryStep operation child -> do
                     (value, remaining, visited) <- visit (fuel - 1) child
                     finish (Unary operation value) remaining visited
@@ -116,6 +118,7 @@ flattenExpression expression =
         step <- case expr of
             Constant literal -> pure (LiteralStep literal)
             ReadField path -> pure (FieldStep path)
+            ChecklistReference context -> pure (ChecklistReferenceStep context)
             Binary operation left right -> BinaryStep operation <$> flatten left <*> flatten right
             Unary operation child -> UnaryStep operation <$> flatten child
             If condition yes no -> ConditionalStep <$> flatten condition <*> flatten yes <*> flatten no

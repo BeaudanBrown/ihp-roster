@@ -59,6 +59,16 @@ current Daysheet's daily records and its preserved venue records. Valid UUIDs
 alone cannot establish that scope. Venue reference calculations cannot read
 root/daily data.
 
+Engine contract version 2 adds `ChecklistReference Current/Item`, a typed leaf
+for the paired preserved record of a reference-checklist row. It is invalid in
+root/open-list/venue-reference contexts and unavailable if the preserved entry
+is missing. Daily persistence must use the preserved row key in each checklist
+list, enforce exactly the captured source key set, and prohibit editing that
+pairing. Authors can expose it as a normal calculated reference field and follow
+its fields through ordinary paths. No implicit editable field is injected.
+Version 1 remains readable with its unchanged vocabulary and meaning; existing
+captures are never migrated to version 2.
+
 A filtered/grouped sum is a Sum fold with a typed Boolean predicate. Grouping
 compares Item references with Current references. Nested folds are not allowed;
 intermediate calculated fields provide reusable stages without nested iteration.
