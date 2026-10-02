@@ -15,9 +15,11 @@ newtype ChoiceId = ChoiceId UUID deriving (Eq, Ord, Show)
 newtype SectionId = SectionId UUID deriving (Eq, Ord, Show)
 newtype ReportId = ReportId UUID deriving (Eq, Ord, Show)
 
+data Choice = Choice { choiceId :: ChoiceId, choiceLabel :: Text } deriving (Eq, Show)
+
 -- | A definition key is not a database record identity.
 data FieldType
-    = TextType | BooleanType | ChoiceType [ChoiceId] | WholeType | DecimalType
+    = TextType | BooleanType | ChoiceType [Choice] | WholeType | DecimalType
     | MoneyType | PercentageType | DateType | OperationalTimeType
     | ReferenceType ListId
     deriving (Eq, Show)
@@ -108,6 +110,7 @@ data Block
     = Instructions Text
     | FieldBlock FieldId
     | AdvisoryBlock Advisory
+    | RowAdvisoryBlock ListId Advisory
     | TableBlock ListId [FieldId] (Maybe FieldId) [(FieldId, SortDirection)]
     deriving (Eq, Show)
 data Section = Section SectionId Text [Block] deriving (Eq, Show)

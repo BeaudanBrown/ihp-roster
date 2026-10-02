@@ -4,6 +4,7 @@ module Application.Daysheet.Validation
     , unaryType
     , expressionType
     , validateFields
+    , validateDefinition
     ) where
 
 import Prelude
@@ -29,6 +30,11 @@ data ContractError
     | InvalidLiteral
     | InvalidChecklist
     | InvalidReferenceScope
+    | InvalidLabel
+    | DuplicateChoice ChoiceId
+    | DuplicateSection SectionId
+    | DuplicateReport ReportId
+    | InvalidLayout
     deriving (Eq, Show)
 
 numeric :: FieldType -> Bool
@@ -124,7 +130,7 @@ expressionType definition current expression = do
             let count = 1 + sum counts
             if count > maxExpressionNodes limits then Left ResourceLimit else Right count
     infer item expr = case expr of
-        Constant (ChoiceLiteral key) -> case nub [choices | f <- allFields definition, ChoiceType choices <- [fieldType f], key `elem` choices] of
+        Constant (ChoiceLiteral key) -> case nub [choices | f <- allFields definition, ChoiceType choices <- [fieldType f], key `elem` map choiceId choices] of
             [choices] -> Right (ChoiceType choices)
             _ -> Left InvalidLiteral
         Constant literal -> literalType literal
@@ -191,6 +197,7 @@ validateFields definition = do
     if length fields > maxFields limits || length (recordLists definition) > maxLists limits then Left ResourceLimit else Right ()
     unique DuplicateField (map fieldId fields)
     unique DuplicateList (map listId (recordLists definition))
+    unique DuplicateChoice [choiceId choice | field <- fields, ChoiceType choices <- [fieldType field], choice <- choices]
     mapM_ (validateField Nothing) (rootFields definition)
     mapM_ validateList (recordLists definition)
     mapM_ rejectCycle (stronglyConnComp [(field, fieldId field, dependencies field) | field <- fields])
@@ -199,6 +206,7 @@ validateFields definition = do
         key : _ -> Left (failure key)
         [] -> Right ()
     validateList list = do
+        validateLabel (listLabel list)
         case listMode list of
             ReferenceChecklist target -> do
                 reference <- findList definition target
@@ -206,8 +214,11 @@ validateFields definition = do
             _ -> Right ()
         mapM_ (validateField (Just (listId list))) (listFields list)
     validateField scope field = do
+        validateLabel (fieldLabel field)
         case fieldType field of
-            ChoiceType choices | null choices || length choices > 256 || length choices /= length (nub choices) -> Left InvalidFieldType
+            ChoiceType choices ->
+                if null choices || length choices > 256 then Left InvalidFieldType
+                else mapM_ (validateLabel . choiceLabel) choices
             ReferenceType target -> do
                 referenced <- findList definition target
                 case scope of
@@ -229,3 +240,50 @@ validateFields definition = do
         _ -> concatMap reads (children expression)
     rejectCycle (AcyclicSCC _) = Right ()
     rejectCycle (CyclicSCC fields) = Left (CyclicFields (map fieldId fields))
+
+validateLabel :: Text.Text -> Either ContractError ()
+validateLabel text
+    | Text.null (Text.strip text) || Text.length text > maxTextLength limits = Left InvalidLabel
+    | otherwise = Right ()
+
+-- | Publication-level semantic validation. A byte-limited boundary decoder is
+-- still required before this function. Layout changes share field dependency
+-- validation; deleting a displayed field cannot publish a broken report.
+validateDefinition :: Definition -> Either ContractError ()
+validateDefinition definition = do
+    validateFields definition
+    if length (reports definition) > 64 then Left ResourceLimit else Right ()
+    unique DuplicateReport [key | Report key _ _ _ <- reports definition]
+    validateSections (entryLayout definition)
+    mapM_ validateReport (reports definition)
+  where
+    unique failure keys = case [key | key <- nub keys, length (filter (== key) keys) > 1] of
+        key : _ -> Left (failure key)
+        [] -> Right ()
+    validateReport (Report _ label sections outputs) = do
+        validateLabel label
+        if null outputs || length outputs /= length (nub outputs) then Left InvalidLayout else Right ()
+        validateSections sections
+    validateSections sections = do
+        if length sections > 128 || sum [length blocks | Section _ _ blocks <- sections] > 512 then Left ResourceLimit else Right ()
+        unique DuplicateSection [key | Section key _ _ <- sections]
+        mapM_ (\(Section _ label blocks) -> validateLabel label >> mapM_ validateBlock blocks) sections
+    validateBlock block = case block of
+        Instructions text -> validateLabel text
+        FieldBlock key -> findField (rootFields definition) key >> Right ()
+        AdvisoryBlock advisory -> validateAdvisory Nothing advisory
+        RowAdvisoryBlock key advisory -> do
+            _ <- findList definition key
+            validateAdvisory (Just key) advisory
+        TableBlock key columns grouping ordering -> do
+            list <- findList definition key
+            if null columns || length columns /= length (nub columns) || length ordering > length columns then Left InvalidLayout else Right ()
+            -- Do not leak unselected values through grouping/sort headers.
+            let controls = maybe [] pure grouping <> map fst ordering
+            if all (`elem` columns) controls && length (map fst ordering) == length (nub (map fst ordering)) then Right () else Left InvalidLayout
+            mapM_ (findField (listFields list)) columns >> Right ()
+    validateAdvisory scope advisory = do
+        validateLabel (passedMessage advisory)
+        validateLabel (concernMessage advisory)
+        actual <- expressionType definition scope (advisoryCondition advisory)
+        if actual == BooleanType then Right () else Left IncompatibleTypes

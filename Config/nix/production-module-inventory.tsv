@@ -28,6 +28,7 @@ Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Contract.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Formula.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Number.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/Results.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Schema.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Validation.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Wire.hs	development	unreachable	-	Not reachable from an explicit production executable root

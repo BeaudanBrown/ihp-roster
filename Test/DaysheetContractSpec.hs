@@ -17,6 +17,38 @@ base = Definition 1 [] [] [] []
 
 tests :: Spec
 tests = describe "Daysheet definition contract" do
+    it "represents all ten field types and stable labelled choices" do
+        let list = ListId UUID.nil
+        let choice = Choice (ChoiceId UUID.nil) "Dinner"
+        let types = [TextType, BooleanType, ChoiceType [choice], WholeType, DecimalType, MoneyType, PercentageType, DateType, OperationalTimeType, ReferenceType list]
+        let fields = zipWith (\n t -> Field (FieldId (UUID.fromWords 0 0 0 n)) "Value" t Entered) [1..] types
+        validateDefinition (base { rootFields = fields, recordLists = [RecordList list "Areas" VenueReference []] }) `shouldBe` Right ()
+    it "checks every layout dependency before publication" do
+        let section = Section (SectionId UUID.nil) "Summary" [FieldBlock fieldKey]
+        validateDefinition (base { entryLayout = [section] }) `shouldBe` Left (UnknownField fieldKey)
+        let field = Field fieldKey "Count" WholeType Entered
+        validateDefinition (base { rootFields = [field], entryLayout = [section] }) `shouldBe` Right ()
+    it "allows checklists only over preserved venue references" do
+        let venueKey = ListId UUID.nil
+        let dailyKey = ListId (UUID.fromWords 0 0 0 1)
+        let daily = RecordList dailyKey "Terminal receipts" (ReferenceChecklist venueKey) []
+        validateDefinition (base { recordLists = [RecordList venueKey "Terminals" VenueReference [], daily] }) `shouldBe` Right ()
+        validateDefinition (base { recordLists = [RecordList venueKey "Daily" OpenDaily [], daily] }) `shouldBe` Left InvalidChecklist
+    it "rejects venue references into daily lists" do
+        let venueKey = ListId UUID.nil
+        let dailyKey = ListId (UUID.fromWords 0 0 0 1)
+        let venue = RecordList venueKey "Terminals" VenueReference [Field fieldKey "Invalid link" (ReferenceType dailyKey) Entered]
+        validateDefinition (base { recordLists = [venue, RecordList dailyKey "Daily" OpenDaily []] }) `shouldBe` Left InvalidReferenceScope
+    it "types filtered grouped money sums in distinct enclosing/item scopes" do
+        let list = ListId UUID.nil
+        let areaList = ListId (UUID.fromWords 0 0 0 1)
+        let amountKey = FieldId (UUID.fromWords 0 0 0 2)
+        let areaKey = FieldId (UUID.fromWords 0 0 0 3)
+        let rows = RecordList list "Cash out" OpenDaily [Field amountKey "Amount" MoneyType Entered, Field areaKey "Area" (ReferenceType areaList) Entered]
+        let areas = RecordList areaList "Areas" VenueReference []
+        let definition = base { recordLists = [rows, areas] }
+        let predicate = Binary Equal (ReadField (FieldPath Item [areaKey])) (ReadField (FieldPath Current [areaKey]))
+        expressionType definition (Just list) (Fold Sum list (Just predicate) (ReadField (FieldPath Item [amountKey]))) `shouldBe` Right MoneyType
     it "keeps money distinct from text and ordinary decimals" do
         binaryType Add MoneyType TextType `shouldBe` Left IncompatibleTypes
         binaryType Add MoneyType DecimalType `shouldBe` Left IncompatibleTypes
