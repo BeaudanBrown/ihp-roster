@@ -39,7 +39,8 @@ import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
                                         rosterShiftDialogLauncherAttrs,
-                                        rosterSlotDialogUrl)
+                                        rosterSlotDialogUrl,
+                                        shiftTypeBadgeColourKey)
 
 renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
@@ -90,7 +91,7 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
                  data-roster-day-timeline="true"
                  data-roster-day-timeline-editable={if editable then ("true" :: Text) else "false"}
                  hx-swap-oob={maybeSwapOob}>
-            <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
+            <div class="roster-day-timeline" role="group" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
                 {forEach gridModel.gridSlotNames (renderTimelineLane timelineWindow editable rosterDay gridModel.gridRosterCalendarRevision staffById shiftTypeById slotsByDefinition gridModel.gridRenderIndexes.rosterTimingBySlotId)}
             </div>
@@ -129,6 +130,11 @@ renderTimelineScaleTick timelineWindow minute = [hsx|
     </div>
 |]
 
+renderTimelineGridline :: TimelineWindow -> Int -> Html
+renderTimelineGridline timelineWindow minute = [hsx|
+    <span style={timelineLeftStyle timelineWindow minute}></span>
+|]
+
 renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Int -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> Map.Map UUID.UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming) -> RosterWindowLane -> Html
 renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById shiftTypeById slotsByDefinition timingBySlotId windowLane =
     let maybeLane = laneForOperationalDate rosterDay.operationalDate windowLane
@@ -139,13 +145,16 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
         dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
      in [hsx|
         <section class="roster-day-timeline-lane"
-                 role="rowgroup"
+                 aria-label={rosterWindowLaneName windowLane}
                  style={"--roster-timeline-track-count:" <> tshow trackCount <> ";"}>
             <div class="roster-day-timeline-lane-label">
                 <span class="fw-semibold">{rosterWindowLaneName windowLane}</span>
                 <span class="text-muted small">{assignedShiftCount} shifts</span>
             </div>
-            <div class="roster-day-timeline-lane-body" role="row">
+            <div class="roster-day-timeline-lane-body">
+                <div class="roster-day-timeline-gridlines" aria-hidden="true">
+                    {forEach (timelineHourTicks timelineWindow) (renderTimelineGridline timelineWindow)}
+                </div>
                 <div class="roster-day-timeline-dropzones" aria-hidden={if editable then ("false" :: Text) else "true"}>
                     {forEach dropzones (renderTimelineDropzone timelineWindow)}
                 </div>
@@ -171,17 +180,29 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
     let isOpen = rosterShiftIsOpen timelineShiftSlot
         canLaunch = editable || (isOpen && hasManagementMode)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
-        shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
+        shiftType = timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById)
+        shiftTypeLabel = maybe "Shift" (.name) shiftType
+        detailLabel = staffLabel <> " · " <> timelineShiftTimeLabel <> " · " <> shiftTypeLabel
+            <> (if timelineShiftTimingInvalid then " · Timing needs repair" else "")
         groupKey = "existing:" <> tshow timelineShiftSlot.id
-        shiftArticle = [hsx|
-            <article {...launcherAttrs} class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]}
-                     tabindex={if canLaunch then ("0" :: Text) else ""}
-                     aria-label={if isOpen then ("Open shift" :: Text) else staffLabel}>
-                <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel}{timingIssue}</div>
-                <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
-                <div class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{shiftTypeLabel}</div>
-            </article>
+        shiftClasses = classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]
+        shiftContents = [hsx|
+            <span class="roster-day-timeline-shift-staff">{staffLabel}</span>
+            <span class="roster-day-timeline-shift-time">{timelineShiftTimeLabel}{timingIssue}</span>
+            <span class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{openMarker}{shiftTypeLabel}</span>
         |]
+        shiftArticle = if canLaunch
+            then [hsx|
+                <button {...launcherAttrs} {...cardAttrs} type="button" class={shiftClasses}
+                        data-roster-shift-colour={shiftTypeBadgeColourKey shiftType}
+                        aria-label={detailLabel}>{shiftContents}</button>
+            |]
+            else [hsx|
+                <article class={shiftClasses} tabindex="0"
+                         data-roster-shift-colour={shiftTypeBadgeColourKey shiftType}
+                         aria-label={detailLabel}>{shiftContents}</article>
+            |]
+        openMarker = when isOpen [hsx|<span class="roster-day-timeline-open-marker">◇ OPEN · </span>|]
         timingIssue = if timelineShiftTimingInvalid
             then [hsx|<span class="roster-shift-timing-issue text-warning" data-roster-timing-issue="true" title="Timing needs repair">!</span>|]
             else mempty
@@ -190,10 +211,11 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
                 then rosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision))
                 else []
         card = [hsx|
-            <div {...cardAttrs} class="roster-day-timeline-shift-position"
+            <div class="roster-day-timeline-shift-position"
                  style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}>
                 {shiftArticle}
             </div>
+            <div class="roster-day-timeline-shift-details" aria-hidden="true">{detailLabel}</div>
         |]
         cardAttrs = if editable && not timelineShiftTimingInvalid
             then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey

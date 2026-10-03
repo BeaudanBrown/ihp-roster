@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { rosterStaffPanelTabDomAttr } from '../frontend/ts/generated/contracts';
+import { dialogMountDomAttr, rosterStaffPanelTabDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     addRowToRosterDay,
@@ -15,6 +15,7 @@ import {
     rosterShiftLaunchers,
 } from './support/roster';
 import { gotoWhenReady } from './support/runtime';
+import { querySql, runSql, sqlString } from './support/database';
 import { openAdminWithSeededPasskeySession } from './support/passkeys';
 
 async function loginAndOpenRoster(page: Page) {
@@ -111,6 +112,58 @@ test.describe('Roster row controls', () => {
         const timelineLabel = page.locator('.roster-day-timeline-shift-role').filter({ hasText: fullLabel }).first();
         await expect(timelineLabel).toBeVisible();
         await expectReliableEndEllipsis(timelineLabel, fullLabel);
+
+        const timelineCard = timelineLabel.locator('..');
+        const timelineDetails = timelineCard.locator('..').locator('+ .roster-day-timeline-shift-details');
+        await timelineCard.focus();
+        await expect(timelineDetails).toBeVisible();
+        await expect(timelineDetails).toContainText(fullLabel);
+        await expect(timelineCard).toHaveAttribute('aria-label', new RegExp(fullLabel));
+        for (const width of [390, 1280]) {
+            await page.setViewportSize({ width, height: 900 });
+            const geometry = await page.locator('.roster-day-timeline-lane').evaluateAll((lanes) => lanes.map((lane) => {
+                const bounds = lane.getBoundingClientRect();
+                const cards = Array.from(lane.querySelectorAll('.roster-day-timeline-shift')).map((card) => card.getBoundingClientRect());
+                const ticks = Array.from(document.querySelectorAll('.roster-day-timeline-scale-tick')) as HTMLElement[];
+                const lines = Array.from(lane.querySelectorAll('.roster-day-timeline-gridlines span')) as HTMLElement[];
+                return {
+                    contained: cards.every((card) => card.top >= bounds.top && card.bottom <= bounds.bottom && card.right <= bounds.right + 1),
+                    heights: cards.map((card) => card.height),
+                    noCollisions: cards.every((a, i) => cards.slice(i + 1).every((b) => a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top || b.bottom <= a.top)),
+                    sameScale: lines.length === ticks.length && lines.every((line, i) => line.style.left === ticks[i].style.left),
+                };
+            }));
+            expect(geometry.length).toBeGreaterThan(0);
+            for (const lane of geometry) {
+                expect(lane.contained).toBe(true);
+                expect(lane.noCollisions).toBe(true);
+                expect(lane.sameScale).toBe(true);
+                expect(new Set(lane.heights).size).toBeLessThanOrEqual(1);
+            }
+        }
+        await page.screenshot({ path: test.info().outputPath('timeline-layout.png'), fullPage: true });
+        const slotId = new URL((await timelineCard.getAttribute('hx-get'))!, page.url()).searchParams.get('rosterSlotId');
+        expect(slotId).not.toBeNull();
+        await timelineCard.press('Enter');
+        await expect(page.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
+
+        // A real short Open fixture must remain distinguishable when its text cannot fit.
+        const saved = JSON.parse(querySql(`SELECT json_build_object('endsAt', ends_at, 'staffId', staff_id, 'assignmentState', assignment_state) FROM roster_slots WHERE id = ${sqlString(slotId!)}`)) as { endsAt: string; staffId: string; assignmentState: string };
+        try {
+            runSql(`UPDATE roster_slots SET ends_at = starts_at + interval '15 minutes', staff_id = NULL, assignment_state = 'open' WHERE id = ${sqlString(slotId!)}`);
+            await page.reload();
+            const shortOpen = page.locator('.roster-day-timeline-shift.is-roster-shift-open').first();
+            await expect(shortOpen).toBeVisible();
+            await expect(shortOpen).toHaveCSS('border-top-style', 'dashed');
+            await expect(shortOpen).toHaveCSS('border-bottom-style', 'dashed');
+            const shortWidth = await shortOpen.evaluate((element) => element.getBoundingClientRect().width);
+            expect(shortWidth).toBeLessThan(15);
+            await shortOpen.focus();
+            await expect(shortOpen.locator('..').locator('+ .roster-day-timeline-shift-details')).toContainText('OPEN');
+            await expect(shortOpen.locator('..').locator('+ .roster-day-timeline-shift-details')).toBeVisible();
+        } finally {
+            runSql(`UPDATE roster_slots SET ends_at = ${sqlString(saved.endsAt)}, staff_id = ${sqlString(saved.staffId)}, assignment_state = ${sqlString(saved.assignmentState)} WHERE id = ${sqlString(slotId!)}`);
+        }
 
         const adminContext = await browser.newContext();
         const adminPage = await adminContext.newPage();

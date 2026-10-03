@@ -449,6 +449,15 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
                 timelineSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord (timelineSlot |> setTestStartTime (Just (TimeOfDay 9 0 0)) |> setTestEndTime (Just (TimeOfDay 13 0 0)))
+                overlap <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
+                _ <- updateRecord (overlap |> setTestStartTime (Just (TimeOfDay 10 0 0)) |> setTestEndTime (Just (TimeOfDay 11 0 0)) |> set #assignmentState "open" |> set #staffId Nothing)
+                forM_ timelineSlot.shiftTypeId \shiftTypeId -> do
+                    shiftType <- fetch (Id shiftTypeId :: Id ShiftType)
+                    updateRecord (shiftType |> set #colourKey Palette1)
+                emptySlotName <- fetchSlotNameRecord venue "Late"
+                _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay emptySlotName
+                adjacent <- createRosterSlotRecord rosterDay slotName (Just staffMember) 2
+                _ <- updateRecord (adjacent |> setTestStartTime (Just (TimeOfDay 11 0 0)) |> setTestEndTime (Just (TimeOfDay 11 15 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
@@ -462,6 +471,21 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                response `responseBodyShouldContain` "--roster-timeline-track-count:2;"
+                response `responseBodyShouldContain` "roster-day-timeline-gridlines"
+                response `responseBodyShouldContain` "roster-day-timeline-shift-details"
+                response `responseBodyShouldContain` "roster-day-timeline-open-marker"
+                response `responseBodyShouldContain` "data-roster-shift-colour=\"palette-1\""
+                response `responseBodyShouldContain` "aria-label=\"Late\""
+                response `responseBodyShouldContain` "type=\"button\" class=\"roster-day-timeline-shift"
+                response `responseBodyShouldContain` "aria-label=\"Alpha Crew"
+                body <- (cs <$> responseBody response) :: IO Text
+                let timelineBody = snd (Text.breakOn "class=\"roster-day-timeline-shell\"" body)
+                Text.count "--roster-timeline-track:1;" timelineBody `shouldBe` 2
+                Text.count "--roster-timeline-track:0;" timelineBody `shouldBe` 1
+                timelineBody `shouldSatisfy` (not . Text.isInfixOf "--roster-timeline-track:2;")
+                savedAdjacent <- fetch adjacent.id
+                savedAdjacent.rowIndex `shouldBe` 2
 
         it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
             withCleanDb do

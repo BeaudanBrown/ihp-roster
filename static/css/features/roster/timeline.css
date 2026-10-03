@@ -5,11 +5,12 @@
 .roster-day-timeline {
     --roster-timeline-label-width: clamp(7rem, 13vw, 11rem);
     --roster-timeline-row-min-height: 4rem;
-    --roster-timeline-track-height: 3.25rem;
+    --roster-timeline-track-height: calc(4.5rem * var(--app-density-control-scale));
     --roster-timeline-track-gap: 0.35rem;
     width: 100%;
     max-width: 100%;
     overflow: hidden;
+    container-type: inline-size;
 }
 
 .roster-day-timeline-scale,
@@ -74,13 +75,24 @@
         + 1rem
     );
     background-color: color-mix(in srgb, var(--bs-body-bg) 86%, var(--bs-secondary-bg));
-    background-image: linear-gradient(to right, color-mix(in srgb, var(--bs-border-color) 100%, transparent) 1px, transparent 1px);
-    background-size: calc(100% / 24) 100%;
+    /* Lines are positioned with the same server-owned scale as cards and ticks. */
     overflow: visible;
 }
 
-.roster-day-timeline-dropzones,
-.roster-day-timeline-shifts {
+.roster-day-timeline-gridlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.roster-day-timeline-gridlines span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px solid var(--bs-border-color);
+}
+
+.roster-day-timeline-dropzones {
     position: absolute;
     inset: 0.5rem 0;
 }
@@ -90,6 +102,13 @@
 }
 
 .roster-day-timeline-shifts {
+    position: relative;
+    display: grid;
+    margin: 0.5rem 0;
+    padding-top: calc(
+        var(--roster-timeline-track-count, 1) * var(--roster-timeline-track-height)
+        + max(0, var(--roster-timeline-track-count, 1) - 1) * var(--roster-timeline-track-gap)
+    );
     z-index: 2;
     pointer-events: none;
 }
@@ -115,7 +134,7 @@
 .roster-day-timeline-shift-position {
     position: absolute;
     top: calc(var(--roster-timeline-track) * (var(--roster-timeline-track-height) + var(--roster-timeline-track-gap)));
-    min-height: var(--roster-timeline-track-height);
+    height: var(--roster-timeline-track-height);
     overflow: visible;
     pointer-events: none;
 }
@@ -123,23 +142,28 @@
 .roster-day-timeline-shift {
     position: relative;
     width: 100%;
-    min-width: 4rem;
-    min-height: var(--roster-timeline-track-height);
-    padding: 0.45rem 0.55rem;
+    box-sizing: border-box;
+    text-align: left;
+    color: var(--bs-body-color);
+    min-width: 0;
+    height: var(--roster-timeline-track-height);
+    padding: 0.4rem min(0.55rem, 8%);
+    pointer-events: auto;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.55rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 78%, var(--bs-primary) 22%);
+    border-left: 3px solid var(--roster-shift-type-colour, var(--bs-border-color));
+    background: color-mix(in srgb, var(--bs-body-bg) 78%, var(--roster-shift-type-colour, var(--bs-secondary-bg)) 22%);
     box-shadow: var(--app-shadow-sm);
     overflow: hidden;
 }
 
+/* Preserve the type colour at the left; dashed edges identify even very short Open shifts. */
 .roster-day-timeline-shift.is-roster-shift-open {
-    border-color: var(--app-warning-border-strong);
-    background: var(--app-warning-tint);
-    box-shadow: inset 0 0 0 1px var(--app-warning-border-soft), var(--app-shadow-sm);
+    border-top: 2px dashed var(--app-warning-border-strong);
+    border-bottom: 2px dashed var(--app-warning-border-strong);
 }
 
-.roster-day-timeline-shift.is-roster-shift-open .roster-day-timeline-shift-staff {
+.roster-day-timeline-open-marker {
     color: var(--app-warning-conflict-text);
     font-weight: 900;
     letter-spacing: 0.08em;
@@ -170,7 +194,48 @@ html[data-bepis-interaction-active="true"] .roster-day-timeline-shift {
 
 .roster-day-timeline-shift-staff {
     font-weight: 700;
-    line-height: 1.1;
+    font-size: calc(0.85rem * var(--app-density-font-scale));
+    line-height: 1.3;
+}
+
+.roster-day-timeline-shift:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: -2px;
+}
+
+.roster-day-timeline-shift-staff,
+.roster-day-timeline-shift-time,
+.roster-day-timeline-shift-role {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A lane-wide detail line avoids clipping at either edge and never covers cards. */
+.roster-day-timeline-shift-details {
+    grid-area: 1 / 1;
+    min-width: 0;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--bs-body-color);
+    background: var(--bs-body-bg);
+    visibility: hidden;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
+.roster-day-timeline-shift-position:hover + .roster-day-timeline-shift-details,
+.roster-day-timeline-shift-position:focus-within + .roster-day-timeline-shift-details {
+    visibility: visible;
+}
+
+.roster-day-timeline-shift-position:focus-within + .roster-day-timeline-shift-details {
+    z-index: 1;
+}
+
+.roster-day-timeline-scale-tick:first-child {
+    transform: none;
 }
 
 .roster-day-timeline-shift-role {
@@ -181,8 +246,14 @@ html[data-bepis-interaction-active="true"] .roster-day-timeline-shift {
     white-space: nowrap;
 }
 
-@media (max-width: 991.98px) {
+@container (max-width: 1000px) {
     .roster-day-timeline-scale-tick:nth-child(even) {
+        display: none;
+    }
+}
+
+@container (max-width: 550px) {
+    .roster-day-timeline-scale-tick:not(:nth-child(4n + 1)) {
         display: none;
     }
 }
