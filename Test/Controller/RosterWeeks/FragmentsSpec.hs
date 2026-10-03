@@ -37,6 +37,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (diffUTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -1433,7 +1434,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                     >>= (`shouldBe` 0)
 
-        it "requires a target occurrence before moving a timeline shift into the repeated autumn hour" $ withContext do
+        it "moves a timeline shift directly to the chosen instant in the repeated autumn hour" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Timeline DST Venue"
                 manager <- createUserRecord "roster-manager-timeline-move-dst@example.com" "staff" True
@@ -1456,7 +1457,7 @@ tests = aroundAll withDatabaseTestContext do
                         , timelineTargetRosterDay = targetDay
                         , timelineTargetSlotDefinition = targetLane
                         , timelineTargetRowIndex = 0
-                        , timelineTargetStartTime = TimeOfDay 2 30 0
+                        , timelineMoveStartsAt = posixSecondsToUTCTime 1775316600
                         , timelineMoveIsNoOp = False
                         , timelineSourceTiming = sourceTiming
                         }
@@ -1464,9 +1465,9 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         resolveRosterTimelineDropBoundaries directIntent ""
                 case directResolution of
-                    RosterTimelineDropBoundaryFailure repeatedEndpoints _ _ -> repeatedEndpoints `shouldBe` (True, False)
-                    _ -> expectationFailure "Expected Operational date ambiguity for the timeline target"
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1590"
+                    RosterTimelineDropBoundaryReady _ -> pure ()
+                    _ -> expectationFailure "Expected the target instant to resolve its own occurrence"
+                let targetToken = "instant:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1775316600"
                 let coreParams =
                         [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                         , ("rosterView", "timeline")
@@ -1474,23 +1475,10 @@ tests = aroundAll withDatabaseTestContext do
                         , ("sourceItemKey", cs sourceToken)
                         , ("targetDropzoneKey", cs targetToken)
                         ]
-                let baseParams = coreParams <> [("timelineStartOccurrence", "")]
-
-                chooserResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction (rosterMutationParams 64 <> baseParams)
-
-                chooserResponse `responseStatusShouldBe` status200
-                chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"timelineStartOccurrence\""
-                chooserResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"timelineEndOccurrence\""
-                chooserResponse `responseBodyShouldNotContain` "type=\"hidden\" name=\"timelineStartOccurrence\""
-                unchangedSlot <- fetch sourceSlot.id
-                unchangedSlot.rosterDayId `shouldBe` unpackId sourceDay.id
-
                 movedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams MoveRosterTimelineShiftAction
-                            (rosterMutationParams 64 <> coreParams <> [("timelineStartOccurrence", "first")])
+                            (rosterMutationParams 64 <> coreParams)
 
                 movedResponse `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
@@ -1527,9 +1515,9 @@ tests = aroundAll withDatabaseTestContext do
                         Right value -> pure value
                 sourceSlot <- updateRecord (applyRosterSlotBoundaries boundaries sourceSlot)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let sameTargetToken = "time:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1590"
+                let sameTargetToken = "instant:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1775316600"
                 targetLane <- ensureRosterWeekSlotDefinitionForSlotName targetDay slotName
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":540"
+                let targetToken = "instant:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1775343600"
                 let moveParams targetDropzoneKey dayOffset =
                         [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                         , ("rosterView", "timeline")
@@ -1550,6 +1538,17 @@ tests = aroundAll withDatabaseTestContext do
                 unchangedSlot <- fetch sourceSlot.id
                 unchangedSlot.startsAt `shouldBe` sourceSlot.startsAt
                 unchangedSlot.endsAt `shouldBe` sourceSlot.endsAt
+
+                let secondOccurrenceTarget = "instant:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1775320200"
+                repeatedMoveResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction
+                            (rosterMutationParams 64 <> moveParams secondOccurrenceTarget "5")
+                repeatedMoveResponse `responseStatusShouldBe` status200
+                repeatedSlot <- fetch sourceSlot.id
+                rosterSlotStartTime repeatedSlot `shouldBe` Just (TimeOfDay 2 30 0)
+                rosterSlotStartOccurrence repeatedSlot `shouldBe` Just SecondOccurrence
+                rosterSlotElapsedSeconds repeatedSlot `shouldBe` Just (60 * 60)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1604,7 +1603,23 @@ tests = aroundAll withDatabaseTestContext do
 
                 let sourceToken = "existing:" <> tshow sourceSlot.id
                 targetLane <- ensureRosterWeekSlotDefinitionForSlotName targetDay slotName
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":540"
+                -- Well-formed but unsnapped/out-of-range requests cannot change the shift.
+                forEach ["1736201101", "1736287200"] \seconds -> do
+                    let invalidTarget = "instant:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":" <> seconds
+                    rejected <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams MoveRosterTimelineShiftAction $
+                                rosterMutationParams 0 <>
+                                    [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
+                                    , ("sourceItemKey", cs sourceToken)
+                                    , ("targetDropzoneKey", cs invalidTarget)
+                                    ]
+                    rejected `responseStatusShouldBe` status200
+                    rejected `responseBodyShouldContain` "Drag the shift onto an open timeline time target."
+                    unchanged <- fetch sourceSlot.id
+                    unchanged.startsAt `shouldBe` sourceSlot.startsAt
+                    unchanged.endsAt `shouldBe` sourceSlot.endsAt
+                let targetToken = "instant:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1736201100"
                 moveResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams MoveRosterTimelineShiftAction $
@@ -1622,8 +1637,8 @@ tests = aroundAll withDatabaseTestContext do
                 case (movedSlot.startsAt, movedSlot.endsAt) of
                     (Just startsAt, Just endsAt) -> diffUTCTime endsAt startsAt `shouldBe` 0.5
                     _ -> expectationFailure "Expected moved exact-second boundaries"
-                rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
-                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0.5)
+                rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 5 0)
+                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 9 5 0.5)
 
         it "moves a shift onto a semantic day target and grows the target day rows" $ withContext do
             withCleanDb do

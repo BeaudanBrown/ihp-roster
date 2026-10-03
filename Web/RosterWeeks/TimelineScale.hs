@@ -6,12 +6,14 @@ module Web.RosterWeeks.TimelineScale
     , timelineInstantAt
     , timelineClockLabel
     , timelineOperationalMinute
+    , timelineSnapInstants
     ) where
 
 import Application.Helper.TimeRules (normalizeWindowEndMinute,
                                       rosterOperationalStartMinuteOfDay)
 import Application.VenueTime
 import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import IHP.Prelude
 
 data TimelineScale = TimelineScale
@@ -50,6 +52,15 @@ resolveDisplayBoundary occurrence day minute =
     (days, clockMinute) = minute `divMod` 1440
     (hours, minutes) = clockMinute `divMod` 60
     civil = MelbourneCivilTime (addDays (toInteger days) day) (TimeOfDay hours minutes 0) Nothing
+
+-- | Snap to real five-minute boundaries, not offsets from the expanded range
+-- origin: a saved boundary may include seconds (or fractions of a second).
+-- Epoch alignment also gives both occurrences of an autumn clock unique keys.
+timelineSnapInstants :: TimelineScale -> [UTCTime]
+timelineSnapInstants scale =
+    [ posixSecondsToUTCTime (fromInteger (tick * 300))
+    | tick <- [ceiling (utcTimeToPOSIXSeconds scale.scaleStartsAt / 300) .. floor (utcTimeToPOSIXSeconds scale.scaleEndsAt / 300)]
+    ]
 
 timelineOffsetMinutes :: TimelineScale -> UTCTime -> Double
 timelineOffsetMinutes scale instant = realToFrac (diffUTCTime instant scale.scaleStartsAt) / 60

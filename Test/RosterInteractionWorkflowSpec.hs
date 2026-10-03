@@ -6,6 +6,7 @@ import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -49,18 +50,19 @@ tests = do
                         unpackId rosterDayId == firstId && unpackId slotDefinitionId == secondId && rowIndex == 3
                     _ -> False
 
-        it "parses timeline placement as a typed target and rejects malformed minutes" do
+        it "parses instant timeline targets and rejects malformed or unbounded epochs" do
             let firstId = workflowUuid "11111111-1111-1111-1111-111111111111"
                 secondId = workflowUuid "22222222-2222-2222-2222-222222222222"
-            parseTimelineShiftDropTargetToken "time:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:375"
+            parseTimelineShiftDropTargetToken "instant:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:1775316600"
                 `shouldSatisfy` \case
-                    Just TimelineShiftDropTarget { timelineTargetRosterDayId, timelineTargetSlotDefinitionId, timelineTargetOperationalMinute } ->
+                    Just TimelineShiftDropTarget { timelineTargetRosterDayId, timelineTargetSlotDefinitionId, timelineTargetStartsAt } ->
                         unpackId timelineTargetRosterDayId == firstId
                             && unpackId timelineTargetSlotDefinitionId == secondId
-                            && timelineTargetOperationalMinute == 375
+                            && timelineTargetStartsAt == posixSecondsToUTCTime 1775316600
                     _ -> False
-            parseTimelineShiftDropTargetToken "time:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:not-a-minute"
-                `shouldBe` Nothing
+            forEach ["not-an-instant", "1.5", "-1", "253402300800", "9999999999999999999999999999999999999999999"] \raw ->
+                parseTimelineShiftDropTargetToken ("instant:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:" <> raw)
+                    `shouldBe` Nothing
 
     describe "explicit roster shift assignment" do
         it "applies Staff and Open as closed assignment variants" do

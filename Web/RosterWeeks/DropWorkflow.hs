@@ -29,6 +29,8 @@ import Control.Monad (guard)
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Web.RosterWeeks.TimelineScale (TimelineScale (..), timelineScaleForDay)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
@@ -37,7 +39,6 @@ import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
                                   rosterWindowTarget)
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
                                 fetchActiveStaffForCurrentVenue,
-                                resolveRosterTimelineTargetBoundaries,
                                 rosterSlotCopyAmbiguousEndpoints)
 
 data RosterDropSource
@@ -76,7 +77,7 @@ data RosterShiftDropTarget
 data TimelineShiftDropTarget = TimelineShiftDropTarget
     { timelineTargetRosterDayId       :: !(Id RosterDay)
     , timelineTargetSlotDefinitionId  :: !(Id RosterLane)
-    , timelineTargetOperationalMinute :: !Int
+    , timelineTargetStartsAt          :: !UTCTime
     }
     deriving (Eq, Show)
 
@@ -86,7 +87,7 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     , timelineTargetRosterDay      :: !RosterDay
     , timelineTargetSlotDefinition :: !RosterLane
     , timelineTargetRowIndex       :: !Int
-    , timelineTargetStartTime      :: !TimeOfDay
+    , timelineMoveStartsAt         :: !UTCTime
     , timelineMoveIsNoOp           :: !Bool
     , timelineSourceTiming         :: !ValidatedRosterShiftTiming
     }
@@ -157,21 +158,17 @@ resolveRosterDayDropBoundaries intent selections = do
             Right copiedSlot -> RosterDayDropBoundaryReady copiedSlot
 
 resolveRosterTimelineDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterTimelineShiftIntent -> Text -> IO RosterTimelineDropBoundaryResolution
-resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
-    case parseOccurrenceParam startOccurrenceValue of
-        Left message -> pure (RosterTimelineDropInvalid message)
-        Right startOccurrence -> do
-            venueConfig <- fetchVenueConfig
-            let targetShiftDate = rosterShiftStartDate intent.timelineTargetRosterDay.operationalDate intent.timelineTargetStartTime
-                repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate intent.timelineTargetStartTime, False)
-                selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
-            let duration = rosterShiftTimingElapsedSeconds intent.timelineSourceTiming
-            pure $ case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate intent.timelineTargetStartTime startOccurrence of
-                Left failure -> RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure
-                Right boundaries
-                    | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
-                        RosterTimelineDropInvalid invalidRosterSlotTimingMessage
-                    | otherwise -> RosterTimelineDropBoundaryReady boundaries
+resolveRosterTimelineDropBoundaries intent _ = do
+    let startsAt = intent.timelineMoveStartsAt
+        endsAt = addUTCTime (rosterShiftTimingElapsedSeconds intent.timelineSourceTiming) startsAt
+    pure $ case authoritativeBoundariesFromInstants intent.timelineSourceSlot.timezone startsAt endsAt Nothing Nothing of
+        Left _ -> RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+        Right boundaries
+            | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
+                RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+            | operationalDayForLocalTime (authoritativeStartLocalTime boundaries) /= intent.timelineTargetRosterDay.operationalDate ->
+                RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+            | otherwise -> RosterTimelineDropBoundaryReady boundaries
 
 validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Bool -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
 validateRosterShiftDropIntent scope allowSemanticDayNoOp sourceToken targetToken = do
@@ -287,17 +284,27 @@ validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
                     Just targetRosterDay -> resolveRosterLaneReference (Just targetRosterDay.id) target.timelineTargetSlotDefinitionId
                 case (maybeTargetRosterDay, maybeTargetSlotDefinition) of
                     (Just targetRosterDay, Just targetSlotDefinition) -> do
-                        let sourceStart = rosterShiftTimingStartTime sourceTiming
-                            targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
+                        venueConfig <- fetchVenueConfig
+                        daySlots <- query @RosterSlot
+                            |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+                            |> filterWhere (#deletedAt, Nothing)
+                            |> fetch
+                        let intervals = mapMaybe (either (const Nothing) (Just . rosterShiftTimingBoundaries) . decodeRosterShiftTiming) daySlots
+                            scale = timelineScaleForDay targetRosterDay.operationalDate
+                                venueConfig.timePickerStartMinuteOfDay venueConfig.timePickerFinalSelectableMinuteOfDay
+                                [(authoritativeStartsAt boundaries, authoritativeEndsAt boundaries) | boundaries <- intervals]
+                            targetStart = target.timelineTargetStartsAt
+                            targetEnd = addUTCTime (rosterShiftTimingElapsedSeconds sourceTiming) targetStart
+                            sourceStart = authoritativeStartsAt (rosterShiftTimingBoundaries sourceTiming)
                             targetDefinitionMatchesWeek = targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id
                             isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
                                 && sourceSlot.rosterLaneId == unpackId targetSlotDefinition.id
-                                && sourceStart == targetStartTime
-                            validTargetStart = isNoOp
-                                || ( isQuarterHourMinutes target.timelineTargetOperationalMinute
-                                     && target.timelineTargetOperationalMinute >= rosterOperationalStartMinuteOfDay
-                                     && target.timelineTargetOperationalMinute <= rosterOperationalFinalSelectableMinute
-                                   )
+                                && sourceStart == targetStart
+                            validTargetStart = isNoOp || case scale of
+                                Left _ -> False
+                                Right window -> targetStart >= window.scaleStartsAt
+                                    && targetEnd <= window.scaleEndsAt
+                                    && utcTimeToPOSIXSeconds targetStart / 300 == fromInteger (floor (utcTimeToPOSIXSeconds targetStart / 300))
                         maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
                         pure $ Right do
                             targetRowIndex <- maybeRowIndex
@@ -315,7 +322,7 @@ validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
                                 , timelineTargetRosterDay = targetRosterDay
                                 , timelineTargetSlotDefinition = targetSlotDefinition
                                 , timelineTargetRowIndex = targetRowIndex
-                                , timelineTargetStartTime = targetStartTime
+                                , timelineMoveStartsAt = targetStart
                                 , timelineMoveIsNoOp = isNoOp
                                 , timelineSourceTiming = sourceTiming
                                 }
@@ -372,14 +379,16 @@ parseRosterShiftDropTargetToken token =
 parseTimelineShiftDropTargetToken :: Text -> Maybe TimelineShiftDropTarget
 parseTimelineShiftDropTargetToken token =
     case Text.splitOn ":" token of
-        ["time", rawRosterDayId, rawSlotDefinitionId, rawMinute] -> do
+        ["instant", rawRosterDayId, rawSlotDefinitionId, rawSeconds] -> do
             rosterDayId <- Id <$> parseUUIDText rawRosterDayId
             slotDefinitionId <- Id <$> parseUUIDText rawSlotDefinitionId
-            minute <- TextRead.readMaybe (cs rawMinute)
+            seconds <- TextRead.readMaybe @Integer (cs rawSeconds)
+            -- Bound untrusted epochs before timezone/calendar conversion.
+            guard (seconds >= 0 && seconds <= 253402300799)
             pure TimelineShiftDropTarget
                 { timelineTargetRosterDayId = rosterDayId
                 , timelineTargetSlotDefinitionId = slotDefinitionId
-                , timelineTargetOperationalMinute = minute
+                , timelineTargetStartsAt = posixSecondsToUTCTime (fromInteger seconds)
                 }
         _ -> Nothing
 

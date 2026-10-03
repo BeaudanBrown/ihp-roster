@@ -4,6 +4,7 @@ import Application.VenueTime.Model (decodeRosterShiftTiming)
 import Web.RosterWeeks.TimelineScale
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude (newRecord, unpackId)
@@ -58,6 +59,21 @@ tests = describe "Roster grid row grouping" do
         case timelineScaleForDay (fromGregorian 2026 10 3) 120 240 [] of
             Left failure -> expectationFailure (cs (tshow failure))
             Right scale -> timelineClockLabel scale.scaleStartsAt `shouldBe` "03:00"
+
+    it "snaps to five-minute instants independently of a fractional expanded origin" do
+        let start = posixSecondsToUTCTime 1775316600.5
+            end = posixSecondsToUTCTime 1775317500
+            scale = TimelineScale start end (899.5 / 60)
+        timelineSnapInstants scale `shouldBe` map posixSecondsToUTCTime [1775316900, 1775317200, 1775317500]
+
+    it "keeps repeated clock targets distinct and omits spring gap targets" do
+        case (timelineScaleForDay (fromGregorian 2026 4 4) 360 345 [], timelineScaleForDay (fromGregorian 2026 10 3) 360 345 []) of
+            (Right autumn, Right spring) -> do
+                let repeated = filter (\instant -> timelineClockLabel instant `elem` ["02:30 (first)", "02:30 (second)"]) (timelineSnapInstants autumn)
+                length repeated `shouldBe` 2
+                length (nub repeated) `shouldBe` 2
+                map timelineClockLabel (timelineSnapInstants spring) `shouldNotContain` ["02:30"]
+            _ -> expectationFailure "Expected valid transition scales"
 
     it "sorts day-column slots by start time" do
         let slotA = newRecord @RosterLane

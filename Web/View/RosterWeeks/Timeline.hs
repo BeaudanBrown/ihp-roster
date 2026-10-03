@@ -36,6 +36,7 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
                                         rosterShiftDialogLauncherAttrs,
@@ -172,13 +173,13 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
         </section>
     |]
 
-renderTimelineDropzone :: TimelineWindow -> Day -> (Int, Text) -> Html
-renderTimelineDropzone timelineWindow day (minute, targetKey) =
+renderTimelineDropzone :: TimelineWindow -> Day -> (UTCTime, Text) -> Html
+renderTimelineDropzone timelineWindow day (instant, targetKey) =
     [hsx|
         <div {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)} class="roster-day-timeline-dropzone"
-             style={timelineDropzoneStyle timelineWindow minute}
-             data-roster-timeline-minute={tshow (timelineOperationalMinute day (timelineInstantAt timelineWindow.timelineWindowScale (fromIntegral minute)))}
-             aria-label={"Move shift to " <> timelineClockLabel (timelineInstantAt timelineWindow.timelineWindowScale (fromIntegral minute))}>
+             style={timelineDropzoneStyle timelineWindow instant}
+             data-roster-timeline-minute={tshow (timelineOperationalMinute day instant)}
+             aria-label={"Move shift to " <> timelineClockLabel instant}>
         </div>
     |]
 
@@ -278,15 +279,11 @@ placeInTrack trackIndex (trackEnd:rest) startMin endMin
         let (selectedTrack, updatedRest) = placeInTrack (trackIndex + 1) rest startMin endMin
          in (selectedTrack, trackEnd : updatedRest)
 
-timelineDropzones :: TimelineWindow -> RosterDay -> RosterLane -> [(Int, Text)]
+timelineDropzones :: TimelineWindow -> RosterDay -> RosterLane -> [(UTCTime, Text)]
 timelineDropzones timelineWindow rosterDay slotDefinition =
-    [ (minute, "time:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":" <> tshow (timelineOperationalMinute rosterDay.operationalDate (timelineInstantAt timelineWindow.timelineWindowScale (fromIntegral minute))))
-    | minute <- timelineQuarterHours timelineWindow
+    [ (instant, "instant:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":" <> tshow (floor (utcTimeToPOSIXSeconds instant) :: Integer))
+    | instant <- timelineSnapInstants timelineWindow.timelineWindowScale
     ]
-
-timelineQuarterHours :: TimelineWindow -> [Int]
-timelineQuarterHours TimelineWindow { timelineWindowEndMinute } =
-    [0, 15 .. timelineWindowEndMinute]
 
 timelineHourTicks :: TimelineWindow -> [Int]
 timelineHourTicks TimelineWindow { timelineWindowEndMinute } =
@@ -296,12 +293,14 @@ timelineLeftStyle :: TimelineWindow -> Int -> Text
 timelineLeftStyle timelineWindow minute =
     "left:" <> timelinePercent timelineWindow (fromIntegral minute) <> "%;"
 
-timelineDropzoneStyle :: TimelineWindow -> Int -> Text
-timelineDropzoneStyle timelineWindow minute
-    | minute == timelineWindow.timelineWindowEndMinute = "left:" <> timelinePercent timelineWindow minuteOffset <> "%;right:0;"
-    | otherwise = "left:" <> timelinePercent timelineWindow minuteOffset <> "%;width:" <> timelinePercent timelineWindow 15 <> "%;"
+timelineDropzoneStyle :: TimelineWindow -> UTCTime -> Text
+timelineDropzoneStyle timelineWindow instant =
+    "left:" <> timelinePercent timelineWindow start <> "%;width:" <> timelinePercent timelineWindow (end - start) <> "%;"
   where
-    minuteOffset = fromIntegral minute
+    scale = timelineWindow.timelineWindowScale
+    minuteOffset = timelineOffsetMinutes scale instant
+    start = max 0 (minuteOffset - 2.5)
+    end = min scale.scaleMinutes (minuteOffset + 2.5)
 
 timelineShiftStyle :: TimelineWindow -> Double -> Double -> Int -> Text
 timelineShiftStyle timelineWindow startMin endMin track =
