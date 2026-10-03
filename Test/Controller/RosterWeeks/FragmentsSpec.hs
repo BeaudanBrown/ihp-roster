@@ -467,6 +467,8 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-drag-scroll-container=\"true\""
+                response `responseBodyShouldContain` "data-bepis-session-long-press-ms=\"450\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"540\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")

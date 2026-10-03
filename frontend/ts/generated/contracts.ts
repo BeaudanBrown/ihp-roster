@@ -588,6 +588,10 @@ export const sessionThresholdDomAttr = "data-bepis-session-threshold" as const;
 
 export const sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms" as const;
 
+export const dragScrollContainerDomAttr = "data-bepis-drag-scroll-container" as const;
+
+export const sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms" as const;
+
 export const interactionActiveDomAttr = "data-bepis-interaction-active" as const;
 
 export const disposableLayerDomAttr = "data-bepis-disposable-layer" as const;
@@ -641,6 +645,8 @@ export type InteractionDomAttributes = {
     sessionReadOnly: typeof sessionReadOnlyDomAttr;
     sessionThreshold: typeof sessionThresholdDomAttr;
     sessionTimeoutMs: typeof sessionTimeoutMsDomAttr;
+    dragScrollContainer: typeof dragScrollContainerDomAttr;
+    sessionLongPressMs: typeof sessionLongPressMsDomAttr;
     interactionActive: typeof interactionActiveDomAttr;
     disposableLayer: typeof disposableLayerDomAttr;
     conflictPolicies: typeof conflictPoliciesDomAttr;
@@ -671,7 +677,7 @@ export type InteractionPointerFields = {
 };
 export type InteractionDom = { attributes: InteractionDomAttributes; values: InteractionDomValues; pointerFields: InteractionPointerFields };
 export const InteractionDom: InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName },
 };

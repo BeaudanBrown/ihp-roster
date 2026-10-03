@@ -55,6 +55,8 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , frontendSurfaceActivationRefAttrs
     , frontendSurfaceDropzoneRefAttrs
     , frontendSurfaceSourceRefAttrs
+    , frontendSurfaceDragScrollContainerAttrs
+    , frontendSurfaceLongPressDragAttrs
     ) where
 
 import qualified Application.Helper.FrontendContract.Interaction as Interaction
@@ -79,6 +81,17 @@ frontendSurfaceDropzoneKeyAttribute = deriveDomAttributeTypeName @Interaction.Dr
 
 frontendSurfaceActivationRefAttribute :: Text
 frontendSurfaceActivationRefAttribute = deriveDomAttributeTypeName @Interaction.ActivationRef
+
+-- | Opt this scroll owner into horizontal edge scrolling during an active
+-- drag. Ordinary pointer/touch scrolling remains native.
+frontendSurfaceDragScrollContainerAttrs :: [(Text, Text)]
+frontendSurfaceDragScrollContainerAttrs =
+    [(deriveDomAttributeTypeName @Interaction.DragScrollContainer, "true")]
+
+-- | Touch activation is explicit; unmarked sources remain mouse/pen only.
+frontendSurfaceLongPressDragAttrs :: [(Text, Text)]
+frontendSurfaceLongPressDragAttrs =
+    [(deriveDomAttributeTypeName @Interaction.SessionLongPressMs, "450")]
 
 renderFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
 renderFrontendSurfaceSourceRef ref key body =

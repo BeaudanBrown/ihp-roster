@@ -75,6 +75,8 @@ export type ActivePointerSession = {
     currentClientY: number;
     thresholdPx: number;
     activated: boolean;
+    longPressMs: number | null;
+    hasMoved: boolean;
     effects: PointerSessionEffectRunner;
 };
 
@@ -113,6 +115,8 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("pointermove", controller.handlePointerMove);
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
+    root.addEventListener("touchmove", controller.handleTouchMove, { passive: false });
+    root.addEventListener("contextmenu", controller.handleContextMenu);
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
@@ -125,6 +129,8 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("pointermove", controller.handlePointerMove);
         root.removeEventListener("pointerup", controller.handlePointerUp);
         root.removeEventListener("pointercancel", controller.handlePointerCancel);
+        root.removeEventListener("touchmove", controller.handleTouchMove);
+        root.removeEventListener("contextmenu", controller.handleContextMenu);
         root.removeEventListener("keydown", controller.handleKeyDown);
         root.removeEventListener("keyup", controller.handleKeyUp);
         root.removeEventListener("click", controller.handleClick, true);
@@ -140,7 +146,40 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     const fallbackThresholdPx = options.thresholdPx ?? defaultThresholdPx;
     let activeSession: ActivePointerSession | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let longPressHandle: ReturnType<typeof setTimeout> | null = null;
     let suppressNextClickMarker: ElementLike | null = null;
+    let scrollFrame: number | null = null;
+    let lastScrollFrameTime: number | null = null;
+
+    const stopEdgeScrolling = () => {
+        if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+        scrollFrame = null;
+        lastScrollFrameTime = null;
+    };
+
+    const startEdgeScrolling = (session: ActivePointerSession) => {
+        const owner = session.marker.closest(`[${attrs.dragScrollContainer}]`);
+        if (!owner || owner.getAttribute(attrs.dragScrollContainer) !== values.enabled
+            || closestInteractionMount(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
+        const container = owner as HTMLElement;
+        const frame = (time: number) => {
+            scrollFrame = null;
+            if (activeSession !== session || !session.activated) return;
+            if (container.isConnected === false) {
+                cancelSession(session, null);
+                return;
+            }
+            const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
+            lastScrollFrameTime = time;
+            if (scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed)) {
+                session.hasMoved = true;
+                session.effects.update(session);
+                runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
+            }
+            if (activeSession === session) scrollFrame = requestAnimationFrame(frame);
+        };
+        scrollFrame = requestAnimationFrame(frame);
+    };
 
     const clearTimeoutHandle = () => {
         if (timeoutHandle !== null) clearTimeout(timeoutHandle);
@@ -158,6 +197,9 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
     const cleanupSession = (session: ActivePointerSession, reason: string) => {
         clearTimeoutHandle();
+        stopEdgeScrolling();
+        if (longPressHandle !== null) clearTimeout(longPressHandle);
+        longPressHandle = null;
         session.effects.cleanup(session);
         clearDisposableLayers(session.mount);
         releasePointerCapture(session.marker, session.pointerId);
@@ -196,10 +238,18 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     const updateSession = (session: ActivePointerSession, event: PointerEventLike) => {
         session.currentClientX = numberValue(event.clientX);
         session.currentClientY = numberValue(event.clientY);
+        if (!session.activated && session.pointerType === "touch") {
+            if (movementDistance(session) >= session.thresholdPx) cancelSession(session, event);
+            return;
+        }
         if (!session.activated && movementDistance(session) < session.thresholdPx) return;
         const firstActivation = !session.activated;
+        if (movementDistance(session) >= session.thresholdPx) session.hasMoved = true;
         session.activated = true;
-        if (firstActivation) session.effects.activate(session);
+        if (firstActivation) {
+            session.effects.activate(session);
+            startEdgeScrolling(session);
+        }
         updateActiveModifierVariant(session, event);
         session.effects.update(session);
         runtime.emit({
@@ -214,15 +264,22 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
     return {
         handlePointerDown(event: Event) {
+            if (activeSession?.pointerType === "touch" && (event as PointerEventLike).pointerType === "touch"
+                && !isMatchingPointerEvent(event, activeSession)) {
+                cancelSession(activeSession, event);
+                return;
+            }
             const start = readPointerSessionStart(event, fallbackThresholdPx);
             if (!start) return;
 
             if (activeSession) cancelSession(activeSession, event);
             clearDisposableLayers(start.mount);
             activeSession = start;
-            capturePointer(start.marker, start.pointerId);
-            setDocumentInteractionActive(start, true);
-            if (event.cancelable) event.preventDefault();
+            if (start.pointerType !== "touch") {
+                capturePointer(start.marker, start.pointerId);
+                setDocumentInteractionActive(start, true);
+                if (event.cancelable) event.preventDefault();
+            }
 
             const result = runtime.emit({
                 phase: "start",
@@ -240,22 +297,49 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
             dispatchInteractionSessionStart(sessionSnapshot(start));
             scheduleTimeout(start);
+            if (start.pointerType === "touch" && start.longPressMs !== null) {
+                longPressHandle = setTimeout(() => {
+                    longPressHandle = null;
+                    if (activeSession !== start) return;
+                    start.activated = true;
+                    capturePointer(start.marker, start.pointerId);
+                    setDocumentInteractionActive(start, true);
+                    start.effects.activate(start);
+                    start.effects.update(start);
+                    startEdgeScrolling(start);
+                    runtime.emit({ phase: "preview", intent: start.intent, fields: pointerSessionFields(start), mount: start.mount, marker: start.marker, sourceEvent: null });
+                }, start.longPressMs);
+            }
         },
         handlePointerMove(event: Event) {
             if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
-            if (event.cancelable) event.preventDefault();
+            if (event.cancelable && (activeSession.pointerType !== "touch" || activeSession.activated)) event.preventDefault();
             updateSession(activeSession, event);
         },
         handlePointerUp(event: Event) {
             if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
             if (event.cancelable && activeSession.activated) event.preventDefault();
-            updateSession(activeSession, event);
-            if (activeSession.activated) finishSession(activeSession, event);
-            else cancelSession(activeSession, event);
+            const session = activeSession;
+            updateSession(session, event);
+            if (activeSession !== session) return;
+            if (session.activated && session.hasMoved) finishSession(session, event);
+            else cancelSession(session, event);
         },
         handlePointerCancel(event: Event) {
             if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
             cancelSession(activeSession, event);
+        },
+        handleTouchMove(event: Event) {
+            if (!activeSession || activeSession.pointerType !== "touch") return;
+            const touches = (event as TouchEvent).touches;
+            if (touches && touches.length > 1) {
+                cancelSession(activeSession, event);
+                return;
+            }
+            if (activeSession.activated && event.cancelable) event.preventDefault();
+        },
+        handleContextMenu(event: Event) {
+            if (activeSession?.pointerType === "touch" && activeSession.activated && event.cancelable) event.preventDefault();
         },
         handleKeyDown(event: Event) {
             if (!activeSession) return;
@@ -302,9 +386,9 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
 export function readPointerSessionStart(event: Event, fallbackThresholdPx = defaultThresholdPx): ActivePointerSession | null {
     const pointerEvent = event as PointerEventLike;
-    if (pointerEvent.pointerType === "touch") return null;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
+    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs.sessionLongPressMs) ?? 0) <= 0) return null;
     if (isDisabled(marker)) return null;
     const interactiveControl = closestInteractiveControl(event.target);
     if (interactiveControl && interactiveControl !== marker) return null;
@@ -367,6 +451,8 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         currentClientY: startClientY,
         thresholdPx: Math.max(0, thresholdPx),
         activated: false,
+        longPressMs: numberAttribute(input.marker, attrs.sessionLongPressMs),
+        hasMoved: false,
         effects: noOpEffectRunner,
     };
     session.effects = createPointerSessionEffectRunner(session);
@@ -401,6 +487,21 @@ export function createPointerSessionEffectRunner(session: ActivePointerSession):
             for (const handler of globalHandlers) handler.cleanup(activeSession);
         },
     };
+}
+
+// Geometry only: the server opts a scroll owner in; neither targets nor opaque
+// keys are interpreted here. A stationary pointer keeps scrolling via RAF.
+export function scrollHorizontalDragContainer(container: HTMLElement, clientX: number, clientY: number, elapsedMs: number): boolean {
+    const rect = container.getBoundingClientRect();
+    const edge = Math.min(48, container.clientWidth / 3);
+    const right = rect.left + container.clientWidth;
+    if (edge <= 0 || clientY < rect.top || clientY > rect.top + rect.height
+        || clientX < rect.left - edge || clientX > right + edge) return false;
+    const direction = clientX < rect.left + edge ? -Math.min(1, (rect.left + edge - clientX) / edge)
+        : clientX > right - edge ? Math.min(1, (clientX - right + edge) / edge) : 0;
+    const before = container.scrollLeft;
+    container.scrollLeft = Math.max(0, Math.min(container.scrollWidth - container.clientWidth, before + direction * 0.48 * elapsedMs));
+    return container.scrollLeft !== before;
 }
 
 export function hitTestClosest(root: Document | Element, clientX: number, clientY: number, selector: string): Element | null {

@@ -234,6 +234,8 @@
   var sessionReadOnlyDomAttr = "data-bepis-session-read-only";
   var sessionThresholdDomAttr = "data-bepis-session-threshold";
   var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
+  var dragScrollContainerDomAttr = "data-bepis-drag-scroll-container";
+  var sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms";
   var interactionActiveDomAttr = "data-bepis-interaction-active";
   var disposableLayerDomAttr = "data-bepis-disposable-layer";
   var conflictPoliciesDomAttr = "data-bepis-conflict-policies";
@@ -258,7 +260,7 @@
   var deltaXFieldName = "deltaX";
   var deltaYFieldName = "deltaY";
   var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
@@ -4056,6 +4058,8 @@
     root.addEventListener("pointermove", controller.handlePointerMove);
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
+    root.addEventListener("touchmove", controller.handleTouchMove, { passive: false });
+    root.addEventListener("contextmenu", controller.handleContextMenu);
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
@@ -4067,6 +4071,8 @@
       root.removeEventListener("pointermove", controller.handlePointerMove);
       root.removeEventListener("pointerup", controller.handlePointerUp);
       root.removeEventListener("pointercancel", controller.handlePointerCancel);
+      root.removeEventListener("touchmove", controller.handleTouchMove);
+      root.removeEventListener("contextmenu", controller.handleContextMenu);
       root.removeEventListener("keydown", controller.handleKeyDown);
       root.removeEventListener("keyup", controller.handleKeyUp);
       root.removeEventListener("click", controller.handleClick, true);
@@ -4081,7 +4087,37 @@
     const fallbackThresholdPx = options.thresholdPx ?? defaultThresholdPx;
     let activeSession = null;
     let timeoutHandle = null;
+    let longPressHandle = null;
     let suppressNextClickMarker = null;
+    let scrollFrame = null;
+    let lastScrollFrameTime = null;
+    const stopEdgeScrolling = () => {
+      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+      scrollFrame = null;
+      lastScrollFrameTime = null;
+    };
+    const startEdgeScrolling = (session) => {
+      const owner = session.marker.closest(`[${attrs5.dragScrollContainer}]`);
+      if (!owner || owner.getAttribute(attrs5.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
+      const container = owner;
+      const frame = (time) => {
+        scrollFrame = null;
+        if (activeSession !== session || !session.activated) return;
+        if (container.isConnected === false) {
+          cancelSession(session, null);
+          return;
+        }
+        const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
+        lastScrollFrameTime = time;
+        if (scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed)) {
+          session.hasMoved = true;
+          session.effects.update(session);
+          runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
+        }
+        if (activeSession === session) scrollFrame = requestAnimationFrame(frame);
+      };
+      scrollFrame = requestAnimationFrame(frame);
+    };
     const clearTimeoutHandle = () => {
       if (timeoutHandle !== null) clearTimeout(timeoutHandle);
       timeoutHandle = null;
@@ -4096,6 +4132,9 @@
     };
     const cleanupSession = (session, reason) => {
       clearTimeoutHandle();
+      stopEdgeScrolling();
+      if (longPressHandle !== null) clearTimeout(longPressHandle);
+      longPressHandle = null;
       session.effects.cleanup(session);
       clearDisposableLayers(session.mount);
       releasePointerCapture(session.marker, session.pointerId);
@@ -4131,10 +4170,18 @@
     const updateSession = (session, event) => {
       session.currentClientX = numberValue(event.clientX);
       session.currentClientY = numberValue(event.clientY);
+      if (!session.activated && session.pointerType === "touch") {
+        if (movementDistance(session) >= session.thresholdPx) cancelSession(session, event);
+        return;
+      }
       if (!session.activated && movementDistance(session) < session.thresholdPx) return;
       const firstActivation = !session.activated;
+      if (movementDistance(session) >= session.thresholdPx) session.hasMoved = true;
       session.activated = true;
-      if (firstActivation) session.effects.activate(session);
+      if (firstActivation) {
+        session.effects.activate(session);
+        startEdgeScrolling(session);
+      }
       updateActiveModifierVariant(session, event);
       session.effects.update(session);
       runtime.emit({
@@ -4148,14 +4195,20 @@
     };
     return {
       handlePointerDown(event) {
+        if (activeSession?.pointerType === "touch" && event.pointerType === "touch" && !isMatchingPointerEvent(event, activeSession)) {
+          cancelSession(activeSession, event);
+          return;
+        }
         const start = readPointerSessionStart(event, fallbackThresholdPx);
         if (!start) return;
         if (activeSession) cancelSession(activeSession, event);
         clearDisposableLayers(start.mount);
         activeSession = start;
-        capturePointer(start.marker, start.pointerId);
-        setDocumentInteractionActive(start, true);
-        if (event.cancelable) event.preventDefault();
+        if (start.pointerType !== "touch") {
+          capturePointer(start.marker, start.pointerId);
+          setDocumentInteractionActive(start, true);
+          if (event.cancelable) event.preventDefault();
+        }
         const result = runtime.emit({
           phase: "start",
           intent: start.intent,
@@ -4171,22 +4224,49 @@
         }
         dispatchInteractionSessionStart(sessionSnapshot(start));
         scheduleTimeout(start);
+        if (start.pointerType === "touch" && start.longPressMs !== null) {
+          longPressHandle = setTimeout(() => {
+            longPressHandle = null;
+            if (activeSession !== start) return;
+            start.activated = true;
+            capturePointer(start.marker, start.pointerId);
+            setDocumentInteractionActive(start, true);
+            start.effects.activate(start);
+            start.effects.update(start);
+            startEdgeScrolling(start);
+            runtime.emit({ phase: "preview", intent: start.intent, fields: pointerSessionFields(start), mount: start.mount, marker: start.marker, sourceEvent: null });
+          }, start.longPressMs);
+        }
       },
       handlePointerMove(event) {
         if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
-        if (event.cancelable) event.preventDefault();
+        if (event.cancelable && (activeSession.pointerType !== "touch" || activeSession.activated)) event.preventDefault();
         updateSession(activeSession, event);
       },
       handlePointerUp(event) {
         if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
         if (event.cancelable && activeSession.activated) event.preventDefault();
-        updateSession(activeSession, event);
-        if (activeSession.activated) finishSession(activeSession, event);
-        else cancelSession(activeSession, event);
+        const session = activeSession;
+        updateSession(session, event);
+        if (activeSession !== session) return;
+        if (session.activated && session.hasMoved) finishSession(session, event);
+        else cancelSession(session, event);
       },
       handlePointerCancel(event) {
         if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
         cancelSession(activeSession, event);
+      },
+      handleTouchMove(event) {
+        if (!activeSession || activeSession.pointerType !== "touch") return;
+        const touches = event.touches;
+        if (touches && touches.length > 1) {
+          cancelSession(activeSession, event);
+          return;
+        }
+        if (activeSession.activated && event.cancelable) event.preventDefault();
+      },
+      handleContextMenu(event) {
+        if (activeSession?.pointerType === "touch" && activeSession.activated && event.cancelable) event.preventDefault();
       },
       handleKeyDown(event) {
         if (!activeSession) return;
@@ -4232,9 +4312,9 @@
   }
   function readPointerSessionStart(event, fallbackThresholdPx = defaultThresholdPx) {
     const pointerEvent = event;
-    if (pointerEvent.pointerType === "touch") return null;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
+    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs5.sessionLongPressMs) ?? 0) <= 0) return null;
     if (isDisabled(marker)) return null;
     const interactiveControl = closestInteractiveControl(event.target);
     if (interactiveControl && interactiveControl !== marker) return null;
@@ -4276,6 +4356,8 @@
       currentClientY: startClientY,
       thresholdPx: Math.max(0, thresholdPx),
       activated: false,
+      longPressMs: numberAttribute(input.marker, attrs5.sessionLongPressMs),
+      hasMoved: false,
       effects: noOpEffectRunner
     };
     session.effects = createPointerSessionEffectRunner(session);
@@ -4302,6 +4384,16 @@
         for (const handler of globalHandlers) handler.cleanup(activeSession);
       }
     };
+  }
+  function scrollHorizontalDragContainer(container, clientX, clientY, elapsedMs) {
+    const rect = container.getBoundingClientRect();
+    const edge = Math.min(48, container.clientWidth / 3);
+    const right = rect.left + container.clientWidth;
+    if (edge <= 0 || clientY < rect.top || clientY > rect.top + rect.height || clientX < rect.left - edge || clientX > right + edge) return false;
+    const direction = clientX < rect.left + edge ? -Math.min(1, (rect.left + edge - clientX) / edge) : clientX > right - edge ? Math.min(1, (clientX - right + edge) / edge) : 0;
+    const before = container.scrollLeft;
+    container.scrollLeft = Math.max(0, Math.min(container.scrollWidth - container.clientWidth, before + direction * 0.48 * elapsedMs));
+    return container.scrollLeft !== before;
   }
   function hitTestClosest(root, clientX, clientY, selector2) {
     const doc = ownerDocumentFor(root);

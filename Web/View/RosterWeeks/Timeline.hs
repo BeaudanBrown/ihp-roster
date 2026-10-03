@@ -67,7 +67,7 @@ renderRosterDayTimelineMounted windowScope rosterDay body =
                 { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
                 , interactionShellIntentForms = rosterDayTimelineIntentForms timelineSurfaceScope
                 } [hsx|
-                    <div class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
+                    <div {...SurfaceInteraction.frontendSurfaceDragScrollContainerAttrs} class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
                         {body}
                     </div>
                 |]
@@ -227,6 +227,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
         |]
         cardAttrs = if editable && not timelineShiftTimingInvalid
             then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey
+                <> SurfaceInteraction.frontendSurfaceLongPressDragAttrs
                 <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey
                 <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing
             else []

@@ -10,6 +10,8 @@ module Application.Helper.FrontendContract.Interaction
     , SessionReadOnly
     , SessionThreshold
     , SessionTimeoutMs
+    , DragScrollContainer
+    , SessionLongPressMs
     , InteractionActive
     , DisposableLayer
     , ConflictPolicies
@@ -72,6 +74,8 @@ data SessionDisabled
 data SessionReadOnly
 data SessionThreshold
 data SessionTimeoutMs
+data DragScrollContainer
+data SessionLongPressMs
 data InteractionActive
 data DisposableLayer
 data Layer
@@ -124,6 +128,8 @@ type InteractionContract =
          , DomAttr SessionReadOnly
          , DomAttr SessionThreshold
          , DomAttr SessionTimeoutMs
+         , DomAttr DragScrollContainer
+         , DomAttr SessionLongPressMs
          , DomAttr InteractionActive
          , DomAttr DisposableLayer
          , DomAttr ConflictPolicies

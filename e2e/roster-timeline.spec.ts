@@ -1,6 +1,61 @@
 import { test, expect } from '@playwright/test';
-import { openRoster } from './support/roster';
-import { liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
+import { openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
+import { querySql } from './support/database';
+import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
+
+test('scrolls at drag edges and preserves native touch swipes', async ({ page, isMobile, context }) => {
+    resetCanonicalRosterAssignedShiftFixture();
+    await openRoster(page);
+    const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'").trim();
+    const url = new URL(page.url());
+    url.searchParams.set('rosterView', 'timeline');
+    url.searchParams.set('anchorDate', day);
+    url.searchParams.set('dayDate', day);
+    await page.goto(url.toString());
+    const attrs = InteractionDom.attributes;
+    const source = page.locator(`[${attrs.sourceKey}="existing:a1000000-0000-0000-0000-000000000071"]`);
+    await expect(source).toBeVisible();
+    const owner = page.locator(`[${attrs.dragScrollContainer}]`);
+    await owner.evaluate((element) => { element.scrollLeft = 300; });
+    await source.scrollIntoViewIfNeeded();
+    const box = (await owner.boundingBox())!;
+    const sourceBox = (await source.boundingBox())!;
+    const labelBox = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+    const point = { x: Math.max(labelBox.x + labelBox.width + 10, sourceBox.x + 10), y: sourceBox.y + sourceBox.height / 2 };
+    const edge = Math.min(box.x + box.width, page.viewportSize()!.width) - 4;
+    const root = page.locator('html');
+    const cdp = isMobile ? await context.newCDPSession(page) : null;
+    if (cdp) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+        await expect(root).toHaveAttribute(attrs.interactionActive, 'true');
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: edge, y: point.y }] });
+    } else {
+        await page.mouse.move(point.x, point.y);
+        await page.mouse.down();
+        await page.mouse.move(edge, point.y, { steps: 5 });
+        await expect(root).toHaveAttribute(attrs.interactionActive, 'true');
+    }
+    const startScroll = await owner.evaluate((element) => element.scrollLeft);
+    await expect.poll(() => owner.evaluate((element) => element.scrollLeft)).toBeGreaterThan(startScroll + 20);
+    await page.keyboard.press('Escape');
+    if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    else await page.mouse.up();
+    await expect(root).not.toHaveAttribute(attrs.interactionActive);
+    const stopped = await owner.evaluate((element) => element.scrollLeft);
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    expect(await owner.evaluate((element) => element.scrollLeft)).toBe(stopped);
+    if (cdp) {
+        await owner.evaluate((element) => { element.scrollLeft = 300; });
+        const beforeSwipe = await owner.evaluate((element) => element.scrollLeft);
+        const swipeStart = { x: edge - 10, y: point.y };
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [swipeStart] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: swipeStart.x - 100, y: point.y }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await expect.poll(() => owner.evaluate((element) => element.scrollLeft)).toBeGreaterThan(beforeSwipe);
+        await expect(root).not.toHaveAttribute(attrs.interactionActive);
+        await cdp.detach();
+    }
+});
 
 test('navigates the fixed-scale timeline and preserves its date across view switches', async ({ page }) => {
     await openRoster(page);

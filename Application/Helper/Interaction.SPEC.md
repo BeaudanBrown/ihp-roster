@@ -111,6 +111,17 @@ contextual-target effects must clean up on commit, cancel, Escape,
 contract/check time; runtime switches over generated closed unions use
 `assertNever`.
 
+Horizontal drag scrolling is opt-in on a typed scroll owner within the same
+mount. Only an activated session scrolls it; a stationary pointer near an edge
+continues scrolling and retests the target. Ending or cancelling the session
+stops its animation. Unmarked scroll owners remain native.
+
+Touch dragging is opt-in on a typed source with a server-owned long-press delay.
+Taps remain editor activations; movement before the delay cancels the pending
+session without preventing native scrolling. Once held, movement drives the drag.
+A second touch cancels rather than blocking pinch zoom. Pending timers and active
+scroll frames share ordinary session cleanup.
+
 Use standard HTMX forms, triggers, sync/disabled controls, and lifecycle events.
 Do not add feature fetch persistence, custom mutation transports, extensions, or
 custom elements without a separate typed contract and demonstrated reusable

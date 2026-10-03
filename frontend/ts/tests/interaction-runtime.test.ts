@@ -2,7 +2,7 @@ import { InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
-import { createPointerSessionController, hitTestClosest, readPointerSessionStart } from "../interaction/pointer-session";
+import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollHorizontalDragContainer } from "../interaction/pointer-session";
 import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, dispatchInteractionSessionStart } from "../interaction/session-state";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
@@ -431,6 +431,62 @@ test("generated pointer sessions start only from enabled mounted handles", () =>
     assertEqual(session?.startClientX, 10);
 });
 
+test("horizontal drag scrolling respects edges, vertical bounds and scroll limits", () => {
+    const owner = Object.assign(new MiniElement(), { scrollLeft: 100, scrollWidth: 1200, clientWidth: 300 });
+    owner.rect = { left: 10, top: 20, width: 300, height: 100 };
+    const scroll = (x: number, y = 50) => scrollHorizontalDragContainer(owner as unknown as HTMLElement, x, y, 16);
+    assertEqual(scroll(160), false);
+    assertEqual(scroll(309, 0), false);
+    assertEqual(scroll(400), false);
+    assertEqual(scroll(309), true);
+    assertEqual(owner.scrollLeft > 100, true);
+    assertEqual(scroll(11), true);
+    owner.scrollLeft = 0;
+    assertEqual(scroll(10), false);
+    owner.scrollLeft = 900;
+    assertEqual(scroll(310), false);
+});
+
+test("opted-in drag owners scroll with a stationary pointer and cancel their animation lifecycle", () => {
+    const requestDescriptor = Object.getOwnPropertyDescriptor(globalThis, "requestAnimationFrame");
+    const cancelDescriptor = Object.getOwnPropertyDescriptor(globalThis, "cancelAnimationFrame");
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextId = 0;
+    Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: (callback: FrameRequestCallback) => { frames.set(++nextId, callback); return nextId; } });
+    Object.defineProperty(globalThis, "cancelAnimationFrame", { configurable: true, value: (id: number) => frames.delete(id) });
+    try {
+        for (const termination of ["up", "cancel", "cleanup", "stop"]) {
+            const mount = new MiniElement({ [attrs.surface]: "roster" });
+            const owner = Object.assign(mount.append(new MiniElement({ [attrs.dragScrollContainer]: "true" })), { scrollLeft: 0, scrollWidth: 1200, clientWidth: 300 });
+            owner.rect = { left: 0, top: 0, width: 300, height: 100 };
+            const marker = owner.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source" }));
+            const phases: string[] = [];
+            const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
+            controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 250, 50));
+            assertEqual(frames.size, 0);
+            controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 299, 50));
+            assertEqual(frames.size, 1);
+            for (const time of [16, 32]) {
+                const [id, callback] = [...frames][0]!;
+                frames.delete(id);
+                callback(time);
+            }
+            assertEqual(owner.scrollLeft > 0, true);
+            assertEqual(phases.filter((phase) => phase === "preview").length, 3);
+            if (termination === "up") controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 299, 50));
+            if (termination === "cancel") controller.handlePointerCancel(pointerEventWithTarget("pointercancel", marker, 1, 299, 50));
+            if (termination === "cleanup") controller.handleExternalCleanup(new Event("htmx:beforeSwap"));
+            controller.stop();
+            assertEqual(frames.size, 0);
+        }
+    } finally {
+        if (requestDescriptor) Object.defineProperty(globalThis, "requestAnimationFrame", requestDescriptor);
+        else Reflect.deleteProperty(globalThis, "requestAnimationFrame");
+        if (cancelDescriptor) Object.defineProperty(globalThis, "cancelAnimationFrame", cancelDescriptor);
+        else Reflect.deleteProperty(globalThis, "cancelAnimationFrame");
+    }
+});
+
 test("pointer sessions emit start preview commit and clean disposable layers", () => {
     const phases: string[] = [];
     const deltas: string[] = [];
@@ -644,6 +700,62 @@ test("shift drag ignores staff create targets and highlights delete targets", ()
     controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 16, 0));
     assertEqual(deleteTarget.getAttribute("class"), null);
     assertEqual(observed.join(","), ",delete,delete,delete");
+});
+
+test("long-press opt-in preserves taps/swipes and activates only a held touch", async () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "5" }));
+    const phases: string[] = [];
+    const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
+    const down = () => pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch");
+    const tapStart = down();
+    controller.handlePointerDown(tapStart);
+    assertEqual(tapStart.defaultPrevented, false);
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 50, 50, "touch"));
+    const tap = eventWithTarget("click", marker);
+    controller.handleClick(tap);
+    assertEqual(tap.defaultPrevented, false);
+    controller.handlePointerDown(down());
+    const swipe = pointerEventWithTarget("pointermove", marker, 1, 80, 50, "touch");
+    controller.handlePointerMove(swipe);
+    assertEqual(swipe.defaultPrevented, false);
+    assertEqual(controller.currentSession(), null);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assertEqual(phases.includes("preview"), false);
+    controller.handlePointerDown(down());
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 50, 50, "touch"));
+    assertEqual(phases.includes("commit"), false);
+    controller.handlePointerDown(down());
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assertEqual(controller.currentSession()?.activated, true);
+    assertEqual(marker.capturedPointerId, 1);
+    const touchMove = new Event("touchmove", { cancelable: true });
+    controller.handleTouchMove(touchMove);
+    assertEqual(touchMove.defaultPrevented, true);
+    const contextMenu = new Event("contextmenu", { cancelable: true });
+    controller.handleContextMenu(contextMenu);
+    assertEqual(contextMenu.defaultPrevented, true);
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 70, 50, "touch"));
+    assertEqual(phases.filter((phase) => phase === "commit").length, 1);
+    const click = eventWithTarget("click", marker);
+    controller.handleClick(click);
+    assertEqual(click.defaultPrevented, true);
+    controller.stop();
+});
+
+test("a second touch cancels a held drag without suppressing native pinch gestures", async () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "5" }));
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    const pinch = new Event("touchmove", { cancelable: true });
+    Object.defineProperty(pinch, "touches", { value: [{}, {}] });
+    controller.handleTouchMove(pinch);
+    assertEqual(pinch.defaultPrevented, false);
+    assertEqual(controller.currentSession(), null);
+    controller.stop();
 });
 
 test("touch pointers do not start generic drag sessions", () => {
