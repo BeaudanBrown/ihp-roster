@@ -29,6 +29,9 @@ export function datePickerConfigFor(inputType: string): FlatpickrConfig {
 }
 
 function initInput(inputEl: HTMLInputElement): void {
+    // Flatpickr creates a native date input on mobile. Later HTMX lifecycle
+    // events must not enhance that generated control a second time.
+    if (inputEl.classList.contains("flatpickr-mobile")) return;
     if (typeof window.flatpickr !== "function") return;
     if (inputEl.dataset[initializedKey] === "true") return;
     if (inputEl._flatpickr !== undefined) {

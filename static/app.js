@@ -1241,6 +1241,7 @@
     };
   }
   function initInput(inputEl) {
+    if (inputEl.classList.contains("flatpickr-mobile")) return;
     if (typeof window.flatpickr !== "function") return;
     if (inputEl.dataset[initializedKey] === "true") return;
     if (inputEl._flatpickr !== void 0) {

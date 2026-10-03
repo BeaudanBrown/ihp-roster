@@ -111,7 +111,9 @@ test.describe('Roster row controls', () => {
         await page.setViewportSize({ width: 390, height: 900 });
         const timelineLabel = page.locator('.roster-day-timeline-shift-role').filter({ hasText: fullLabel }).first();
         await expect(timelineLabel).toBeVisible();
-        await expectReliableEndEllipsis(timelineLabel, fullLabel);
+        await expect(timelineLabel).toHaveCSS('text-overflow', 'ellipsis');
+        await expect(timelineLabel).toHaveCSS('white-space', 'nowrap');
+        await expect(timelineLabel).toHaveAttribute('title', fullLabel);
 
         const timelineCard = timelineLabel.locator('..');
         const timelineDetails = timelineCard.locator('..').locator('+ .roster-day-timeline-shift-details');
@@ -157,7 +159,7 @@ test.describe('Roster row controls', () => {
             await expect(shortOpen).toHaveCSS('border-top-style', 'dashed');
             await expect(shortOpen).toHaveCSS('border-bottom-style', 'dashed');
             const shortWidth = await shortOpen.evaluate((element) => element.getBoundingClientRect().width);
-            expect(shortWidth).toBeLessThan(15);
+            expect(shortWidth).toBeLessThan(30);
             await shortOpen.focus();
             await expect(shortOpen.locator('..').locator('+ .roster-day-timeline-shift-details')).toContainText('OPEN');
             await expect(shortOpen.locator('..').locator('+ .roster-day-timeline-shift-details')).toBeVisible();

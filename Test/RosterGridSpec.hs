@@ -1,6 +1,7 @@
 module Test.RosterGridSpec where
 
 import Application.VenueTime.Model (decodeRosterShiftTiming)
+import Web.RosterWeeks.TimelineScale
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
@@ -22,6 +23,42 @@ import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
 
 tests :: Spec
 tests = describe "Roster grid row grouping" do
+    it "uses a 23-hour elapsed timeline on the spring transition" do
+        case timelineScaleForDay (fromGregorian 2026 10 3) 360 345 [] of
+            Left failure -> expectationFailure (cs (tshow failure))
+            Right scale -> do
+                scale.scaleMinutes `shouldBe` 23 * 60
+                timelineClockLabel (timelineInstantAt scale (19 * 60)) `shouldBe` "01:00"
+                timelineClockLabel (timelineInstantAt scale (20 * 60)) `shouldBe` "03:00"
+
+    it "labels both occurrences on the 25-hour autumn timeline" do
+        case timelineScaleForDay (fromGregorian 2026 4 4) 360 345 [] of
+            Left failure -> expectationFailure (cs (tshow failure))
+            Right scale -> do
+                scale.scaleMinutes `shouldBe` 25 * 60
+                timelineClockLabel (timelineInstantAt scale (20 * 60)) `shouldBe` "02:00 (first)"
+                timelineClockLabel (timelineInstantAt scale (21 * 60)) `shouldBe` "02:00 (second)"
+                timelineClockLabel (timelineInstantAt scale (22 * 60)) `shouldBe` "03:00"
+
+    it "expands for saved boundaries and shrinks when they move inward" do
+        case timelineScaleForDay (fromGregorian 2026 10 5) 540 1020 [] of
+            Left failure -> expectationFailure (cs (tshow failure))
+            Right base -> do
+                let early = timelineInstantAt base (-90)
+                    late = timelineInstantAt base (base.scaleMinutes + 120)
+                case timelineScaleForDay (fromGregorian 2026 10 5) 540 1020 [(early, late)] of
+                    Left failure -> expectationFailure (cs (tshow failure))
+                    Right expanded -> do
+                        expanded.scaleStartsAt `shouldBe` early
+                        expanded.scaleEndsAt `shouldBe` late
+                        timelineOffsetMinutes expanded early `shouldBe` 0
+                timelineScaleForDay (fromGregorian 2026 10 5) 540 1020 [(base.scaleStartsAt, base.scaleEndsAt)] `shouldBe` Right base
+
+    it "advances display-only gap boundaries without inventing a saved clock" do
+        case timelineScaleForDay (fromGregorian 2026 10 3) 120 240 [] of
+            Left failure -> expectationFailure (cs (tshow failure))
+            Right scale -> timelineClockLabel scale.scaleStartsAt `shouldBe` "03:00"
+
     it "sorts day-column slots by start time" do
         let slotA = newRecord @RosterLane
             slotB = newRecord @RosterLane

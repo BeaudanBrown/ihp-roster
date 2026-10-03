@@ -312,14 +312,29 @@ into this mode.
 
 ## Day Timeline Rendering Contract
 
-The single-day timeline is selected on the normal roster week page via
-`rosterView=timeline&dayOffset=<0-6>`. The roster controls and staff side panel
-remain mounted; only the main roster frame swaps from week grid to the selected
-single-day timeline. The timeline keeps a contained `roster-day-timeline`
-FrontendSurface for its drag/drop refs and intent form.
+The visible Roster grid/Timeline switch selects a single-day timeline on the
+normal roster page through canonical `anchorDate`, `rosterView=timeline` and
+`dayDate` parameters. Day arrows and a date picker navigate it. Switching back
+to the grid retains the selected date as its anchor. The existing grid preference
+remains the default; no timeline preference is persisted.
 
-Time is rendered horizontally across the operational day, outer lanes are active
-slot definitions, and inner overlap tracks are computed for display only.
+The timeline keeps a contained `roster-day-timeline` FrontendSurface for its
+interaction refs. Its horizontal scroll owner sits outside the replaceable
+content fragment so ordinary live replacements retain scroll position. Named
+lane labels and the time header are sticky; scale is fixed at six rem per elapsed
+hour with no zoom or fit-to-viewport mode.
+
+`TimelineScale.hs` resolves configured display boundaries in Melbourne time,
+expands them to trustworthy saved instants and recomputes on each render, allowing
+automatic shrinking. Geometry uses elapsed minutes, not civil-clock subtraction:
+spring skips its missing hour and autumn labels both occurrences. Gap display
+edges advance to the next real minute; repeated edges include both occurrences.
+This display policy does not relax saved-shift boundary validation.
+
+Outer lanes are active named slot columns, and inner overlap tracks are computed
+for display only. Fixed-height cards use shift-type colours; Open shifts also
+have explicit text and dashed edges. Full details appear on hover or focus;
+editable cards use native buttons to launch the existing editor.
 Timeline drag/drop uses the same generic source/dropzone runtime as the roster
 grid: Haskell renders opaque `existing:<slot-id>` source keys and
 `time:<day-id>:<slot-definition-id>:<operational-minute>` target keys, while the

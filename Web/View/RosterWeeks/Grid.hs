@@ -206,6 +206,7 @@ rosterToolbarRenderModelFromGrid gridModel =
         { toolbarRosterWeek = gridModel.gridRosterWeek
         , toolbarCurrentRosterGroup = gridModel.gridCurrentRosterGroup
         , toolbarWeekStartDate = gridModel.gridWeekStartDate
+        , toolbarSelectedDate = gridModel.gridSelectedDate
         , toolbarCalendarRevision = gridModel.gridRosterCalendarRevision
         , toolbarViewCapabilities = gridModel.gridViewCapabilities
         , toolbarWagePrediction = gridModel.gridRosterWagePrediction
@@ -222,7 +223,7 @@ renderrosterGridToolbarLiveFragmentWithSwap :: (?context :: ControllerContext) =
 renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob toolbarModel =
     profileHtmlComponent "render.roster.toolbar" [hsx|
         <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-            {renderRosterGridHeader toolbarModel.toolbarRosterWeek toolbarModel.toolbarCalendarRevision toolbarModel.toolbarCurrentRosterGroup toolbarModel.toolbarWeekStartDate toolbarModel.toolbarViewCapabilities toolbarModel.toolbarWagePrediction toolbarModel.toolbarHasSidePanel toolbarModel.toolbarViewMode toolbarModel.toolbarTimelineTodayUrl}
+            {renderRosterGridHeader toolbarModel.toolbarRosterWeek toolbarModel.toolbarCalendarRevision toolbarModel.toolbarCurrentRosterGroup toolbarModel.toolbarWeekStartDate toolbarModel.toolbarSelectedDate toolbarModel.toolbarViewCapabilities toolbarModel.toolbarWagePrediction toolbarModel.toolbarHasSidePanel toolbarModel.toolbarViewMode toolbarModel.toolbarTimelineTodayUrl}
         </div>
     |]
 

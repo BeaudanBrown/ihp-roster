@@ -520,7 +520,7 @@ tests = aroundAll withDatabaseTestContext do
                 body <- (cs <$> responseBody response) :: IO Text
                 body `shouldSatisfy` Text.isInfixOf shiftSourceAttr
                 let scopedShiftHtml = Text.take 2000 (snd (Text.breakOn shiftSourceAttr body))
-                scopedShiftHtml `shouldSatisfy` Text.isInfixOf "02:30–02:30"
+                scopedShiftHtml `shouldSatisfy` Text.isInfixOf "02:30 (first)–02:30 (second)"
 
         it "defaults new shift dialog times from the venue time picker window" $ withContext do
             withCleanDb do

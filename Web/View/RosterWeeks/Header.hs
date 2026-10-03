@@ -34,8 +34,8 @@ rosterActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterActionRoute actionUrl =
     (defaultFrontendSurfaceActionRoute (actionUrl))
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowState -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
-renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowState -> Int -> RosterGroup -> Day -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
+renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate selectedDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarRootAttrs = dropzoneAttrs
@@ -45,12 +45,50 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
             , weekToolbarNavigation = renderRosterWeekControls currentRosterGroup weekStartDate gridViewMode
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
-            , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
+            , weekToolbarAuxiliary = renderRosterViewSwitch currentRosterGroup selectedDate gridViewMode <> renderRosterWeekWageSummary rosterWagePrediction
             }
         dropzoneAttrs = if hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
             then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDeleteShiftDropzoneRef "delete"
             else []
      in toolbarHtml
+
+renderRosterViewSwitch :: RosterGroup -> Day -> RosterGridViewMode -> Html
+renderRosterViewSwitch group selectedDate viewMode = [hsx|
+    <div class="roster-timeline-view-controls">
+        <div class="btn-group" role="group" aria-label="Roster view">
+            {viewLink "Roster grid" gridUrl (not isTimeline)}
+            {viewLink "Timeline" timelineUrl isTimeline}
+        </div>
+        {when isTimeline dateForm}
+    </div>
+|]
+  where
+    isTimeline = case viewMode of
+        RosterDayTimelineGridView _ -> True
+        RosterWeekGridView -> False
+    gridUrl = rosterWindowUrl selectedDate group.id
+    timelineUrl = rosterTimelineWindowUrl selectedDate group.id
+    navigationFields = RosterAction.navigateRosterWeekActionFields selectedDate (unpackId group.id)
+    navigation = RosterAction.navigateRosterWeekAction navigationFields
+    viewLink label url selected = renderFrontendSurfaceActionLink navigation
+        (rosterActionRoute url)
+            { actionRouteStandardUrl = Just url
+            , actionRouteExtraAttrs = [("class", if selected then "btn btn-primary btn-sm" else "btn btn-outline-secondary btn-sm"), ("aria-current", if selected then "page" else "false"), ("hx-select", "#" <> rosterWeekShellId)]
+            }
+        [hsx|{label :: Text}|]
+    dateForm = renderFrontendSurfaceActionForm navigation
+        (rosterActionRoute gridUrl)
+            { actionRouteStandardUrl = Just gridUrl
+            , actionRouteExtraAttrs = [("class", "roster-timeline-date-form"), ("hx-select", "#" <> rosterWeekShellId)]
+            }
+        [hsx|
+            <label class="roster-timeline-date-label">Timeline date
+                <input type="date" name={surfaceFieldNameFrom @Surface.AnchorDate navigationFields} value={tshow selectedDate} class="form-control form-control-sm" />
+            </label>
+            <input type="hidden" name="rosterView" value="timeline" />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterGroupId navigationFields} value={tshow group.id} />
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Go</button>
+        |]
 
 renderRosterSidePanelToggle :: Html
 renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs

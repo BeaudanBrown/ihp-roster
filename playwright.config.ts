@@ -25,6 +25,7 @@ const mobileTestFiles = [
     /.*feedback-voting\.spec\.ts/,
     /.*feedback-acceptance\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
+    /.*roster-timeline\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
     /.*timesheet-filters\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),

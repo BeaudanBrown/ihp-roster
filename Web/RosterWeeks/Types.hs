@@ -204,6 +204,7 @@ data RosterToolbarRenderModel = RosterToolbarRenderModel
     { toolbarRosterWeek         :: Maybe RosterWindowState
     , toolbarCurrentRosterGroup :: RosterGroup
     , toolbarWeekStartDate      :: Day
+    , toolbarSelectedDate       :: Day
     , toolbarCalendarRevision   :: Int
     , toolbarViewCapabilities   :: RosterViewCapabilities
     , toolbarWagePrediction     :: Maybe RosterWagePrediction
@@ -228,6 +229,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridSlotNames             :: [RosterWindowLane]
     , gridShiftTypes            :: [ShiftType]
     , gridWeekStartDate         :: Day
+    , gridSelectedDate          :: Day
     , gridRosterCalendarRevision :: Int
     , gridAllSlots              :: [RosterSlot]
     , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]

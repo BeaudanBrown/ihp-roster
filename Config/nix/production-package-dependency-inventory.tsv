@@ -41,7 +41,7 @@ Data.Char	base	Application/Helper/Telemetry.hs via Main
 Data.Coerce	base	Application/Helper/ControllerContext.hs via Main
 Data.Data	base	Application/Helper/Telemetry.hs via Main
 Data.Either	base	Application/Billing/Stripe.hs via Main
-Data.Fixed	base	Web/View/RosterWeeks/Timeline.hs via Main
+Data.Fixed	base	Web/View/Timesheets/Index.hs via Main
 Data.Foldable	base	Application/Helper/FrontendContract/Surface/Values.hs via Main
 Data.Function	base	Application/Helper/Audit.hs via Main
 Data.Functor	base	Web/Controller/Admin/Support.hs via Main

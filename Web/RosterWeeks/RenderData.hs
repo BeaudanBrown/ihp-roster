@@ -246,6 +246,7 @@ rosterToolbarRenderModelFromProjection projection =
         { toolbarRosterWeek = gridModel.gridRosterWeek
         , toolbarCurrentRosterGroup = gridModel.gridCurrentRosterGroup
         , toolbarWeekStartDate = gridModel.gridWeekStartDate
+        , toolbarSelectedDate = gridModel.gridSelectedDate
         , toolbarCalendarRevision = gridModel.gridRosterCalendarRevision
         , toolbarViewCapabilities = gridModel.gridViewCapabilities
         , toolbarWagePrediction = gridModel.gridRosterWagePrediction
@@ -272,6 +273,7 @@ rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowS
         , gridSlotNames = orderedSlotNames
         , gridShiftTypes = shiftTypes
         , gridWeekStartDate = weekStartDate
+        , gridSelectedDate = currentRosterSelectedDate weekStartDate
         , gridRosterCalendarRevision = rosterCalendarRevision
         , gridAllSlots = allSlots
         , gridSlotConflicts = slotConflicts
@@ -292,11 +294,18 @@ rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowS
         , gridTimelineTodayUrl = Nothing
         }
 
+currentRosterSelectedDate :: (?request :: Request) => Calendar.Day -> Calendar.Day
+currentRosterSelectedDate windowStart =
+    max windowStart (min (Calendar.addDays 6 windowStart) requested)
+  where
+    requested = fromMaybe windowStart (paramOrNothing @Calendar.Day "dayDate" <|> paramOrNothing @Calendar.Day "anchorDate")
+
 currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
 currentRosterGridViewMode windowStart =
     case (paramOrNothing @Text "rosterView", paramOrNothing @Calendar.Day "dayDate", paramOrNothing @Int "dayOffset") of
         (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart)))
         (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
+        (Just "timeline", Nothing, Nothing) -> RosterDayTimelineGridView (fromInteger (Calendar.diffDays (currentRosterSelectedDate windowStart) windowStart))
         _ -> RosterWeekGridView
   where
     clampDayOffset = max 0 . min 6
@@ -700,6 +709,7 @@ fetchRosterToolbarRenderModelFromSnapshot snapshot = do
         { toolbarRosterWeek = visibleRosterWeek
         , toolbarCurrentRosterGroup = snapshot.snapshotRosterGroup
         , toolbarWeekStartDate = snapshot.snapshotScope.rosterWindowStart
+        , toolbarSelectedDate = currentRosterSelectedDate snapshot.snapshotScope.rosterWindowStart
         , toolbarCalendarRevision = venueConfig.rosterCalendarRevision
         , toolbarViewCapabilities = buildRosterViewCapabilities visibleRosterWeek
         , toolbarWagePrediction
