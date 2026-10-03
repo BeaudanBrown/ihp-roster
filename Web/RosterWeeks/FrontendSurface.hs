@@ -30,7 +30,6 @@ module Web.RosterWeeks.FrontendSurface
     , rosterFrontendSurfaceIR
     , rosterDayTimelineDropzoneRef
     , rosterDayTimelineFrontendSurfaceIR
-    , rosterTimelineMoveShiftIntentForm
     , rosterDayTimelineSourceRef
     , rosterDayTimelineIntentForms
     , rosterDayTimelineSurfaceImpl
@@ -292,12 +291,6 @@ rosterDuplicateShiftIntentForm anchorDate rosterGroupId calendarRevision sourceI
         (SurfaceIntent.duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing calendarRevision startOccurrence endOccurrence)
         (rosterDragDropRequest (rosterDuplicateShiftUrl anchorDate rosterGroupId))
 
-rosterTimelineMoveShiftIntentForm :: Day -> Id RosterGroup -> Day -> Int -> Text -> Text -> Maybe Text -> FrontendSurfaceIntentForm
-rosterTimelineMoveShiftIntentForm anchorDate rosterGroupId operationalDate calendarRevision sourceItemKey targetDropzoneKey startOccurrence =
-    SurfaceIntent.moveRosterTimelineShiftIntentForm
-        (SurfaceIntent.moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing calendarRevision startOccurrence)
-        (rosterDragDropRequest (rosterTimelineMoveShiftUrl anchorDate rosterGroupId operationalDate))
-
 rosterIntentForms :: RosterWeekScopeValue -> Bool -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope _templateApplicationAvailable =
     [ SurfaceIntent.setRosterLayoutModeIntentForm
@@ -317,7 +310,7 @@ rosterIntentForms scope _templateApplicationAvailable =
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
     [ SurfaceIntent.moveRosterTimelineShiftIntentForm
-        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterDayTimelineCalendarRevision (Just ""))
+        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterDayTimelineCalendarRevision)
         (rosterDayTimelineMoveShiftRequest scope)
     ]
 

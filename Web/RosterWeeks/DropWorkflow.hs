@@ -103,11 +103,6 @@ data RosterDayDropBoundaryResolution
 
 data RosterTimelineDropBoundaryResolution
     = RosterTimelineDropInvalid !Text
-    | RosterTimelineDropBoundaryFailure
-        { timelineDropRepeatedEndpoints :: !(Bool, Bool)
-        , timelineDropSelections        :: !ShiftCopyOccurrenceSelections
-        , timelineDropBoundaryFailure   :: !BoundaryModelError
-        }
     | RosterTimelineDropBoundaryReady
         { timelineDropBoundaries :: !AuthoritativeBoundaries
         }
@@ -139,7 +134,7 @@ validateMoveRosterTimelineShiftIntent scope sourceToken targetToken = do
         (Just sourceSlotId, Just target) -> do
             validateRosterTimelineShiftDropTarget scope sourceSlotId target >>= \case
                 Left _ -> pure (Left invalidRosterSlotTimingMessage)
-                Right maybeResult -> pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
+                Right maybeResult -> pure (maybe (Left "The shift or target is unavailable. Review the refreshed timeline and try again.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open timeline time target.")
 
 resolveRosterDayDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterShiftIntent -> ShiftCopyOccurrenceSelections -> IO RosterDayDropBoundaryResolution
@@ -157,11 +152,11 @@ resolveRosterDayDropBoundaries intent selections = do
             Left failure     -> RosterDayDropBoundaryFailure endpoints failure
             Right copiedSlot -> RosterDayDropBoundaryReady copiedSlot
 
-resolveRosterTimelineDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterTimelineShiftIntent -> Text -> IO RosterTimelineDropBoundaryResolution
-resolveRosterTimelineDropBoundaries intent _ = do
+resolveRosterTimelineDropBoundaries :: MoveRosterTimelineShiftIntent -> RosterTimelineDropBoundaryResolution
+resolveRosterTimelineDropBoundaries intent =
     let startsAt = intent.timelineMoveStartsAt
         endsAt = addUTCTime (rosterShiftTimingElapsedSeconds intent.timelineSourceTiming) startsAt
-    pure $ case authoritativeBoundariesFromInstants intent.timelineSourceSlot.timezone startsAt endsAt Nothing Nothing of
+     in case authoritativeBoundariesFromInstants intent.timelineSourceSlot.timezone startsAt endsAt Nothing Nothing of
         Left _ -> RosterTimelineDropInvalid invalidRosterSlotTimingMessage
         Right boundaries
             | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->

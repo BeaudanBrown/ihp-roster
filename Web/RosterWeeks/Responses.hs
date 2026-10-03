@@ -4,6 +4,7 @@ module Web.RosterWeeks.Responses
     ( respondToRosterSlotMutation
     , respondToRosterSlotMove
     , respondToRosterTimelineSlotMove
+    , respondWithRosterTimelineMoveFailure
     , respondToRosterSlotUpdate
     , respondToRosterShiftEdit
     , respondWithRosterContent
@@ -24,6 +25,7 @@ module Web.RosterWeeks.Responses
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -92,6 +94,31 @@ respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTim
         mutationResult.liveMutationTouchedResources
         mountedProjections
         (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+
+-- A rejected drop has no shared mutation to publish. Refetch the actor's
+-- authoritative child without replacing its stable scroll owner.
+respondWithRosterTimelineMoveFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ResponseReceived
+respondWithRosterTimelineMoveFailure scope message | not isHtmxRequest = do
+    setErrorMessage message
+    redirectToPath (rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId)
+respondWithRosterTimelineMoveFailure scope message = do
+    maybeDay <- case currentRosterTimelineDate scope.rosterWindowStart of
+        Nothing -> pure Nothing
+        Just day | day >= scope.rosterWindowStart && day < scope.rosterWindowEnd -> query @RosterDay
+            |> filterWhere (#venueId, unpackId scope.rosterWindowVenueId)
+            |> filterWhere (#rosterGroupId, unpackId scope.rosterWindowRosterGroupId)
+            |> filterWhere (#operationalDate, day)
+            |> fetchOneOrNothing
+        _ -> pure Nothing
+    let feedback = renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (errorToast message)
+    case maybeDay of
+        Nothing -> respondWithRosterFragments scope [RosterProjectionGridFrame] feedback
+        Just day -> do
+            setHeader ("HX-Reswap", "none")
+            setActorLocalFragmentsRefresh
+                (RosterLive.rosterDayTimelineLiveScope (unpackId scope.rosterWindowVenueId) (unpackId scope.rosterWindowRosterGroupId) scope.rosterWindowStart scope.rosterWindowEnd scope.rosterWindowCalendarRevision (unpackId day.id))
+                [RosterLive.rosterDayTimelineContentLiveFragment (unpackId day.id)]
+            respondHtmlProfiled feedback
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ResponseReceived
 respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do

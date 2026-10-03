@@ -281,7 +281,6 @@ type instance IntentFieldSpecs MoveRosterTimelineShiftIntentOperation =
      , 'OptionalField Types1.DeltaX 'WireText
      , 'OptionalField Types1.DeltaY 'WireText
      , 'Field Types2.RosterCalendarRevision 'WireInt
-     , 'OptionalField Types2.TimelineStartOccurrence 'WireText
      ]
 
 moveRosterTimelineShiftIntentFields ::
@@ -297,9 +296,8 @@ moveRosterTimelineShiftIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Int ->
-    Maybe Text ->
     IntentFields MoveRosterTimelineShiftIntentOperation
-moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY rosterCalendarRevision timelineStartOccurrence =
+moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY rosterCalendarRevision =
     intentFields
         (surfaceField @Types1.SourceItemKey sourceItemKey)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
@@ -313,13 +311,12 @@ moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind 
             &: surfaceOptionalField @Types1.DeltaX deltaX
             &: surfaceOptionalField @Types1.DeltaY deltaY
             &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceOptionalField @Types2.TimelineStartOccurrence timelineStartOccurrence
             &: noSurfaceFields
         )
 
 moveRosterTimelineShiftIntentEvidence :: IntentEvidence MoveRosterTimelineShiftIntentOperation
 moveRosterTimelineShiftIntentEvidence =
-    intentEvidence (SurfaceIR.IntentIR "MoveRosterTimelineShift" "move-roster-timeline-shift" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TimelineStartOccurrence" "timelineStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [])
+    intentEvidence (SurfaceIR.IntentIR "MoveRosterTimelineShift" "move-roster-timeline-shift" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [])
 
 moveRosterTimelineShiftIntentForm :: IntentFields MoveRosterTimelineShiftIntentOperation -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 moveRosterTimelineShiftIntentForm =

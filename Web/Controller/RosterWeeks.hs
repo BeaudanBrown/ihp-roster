@@ -80,8 +80,7 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
-                                        rosterMoveShiftIntentForm,
-                                        rosterTimelineMoveShiftIntentForm)
+                                        rosterMoveShiftIntentForm)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
@@ -94,6 +93,7 @@ import Web.RosterWeeks.Responses (respondToRosterShiftEdit,
                                   respondToRosterSlotMutation,
                                   respondToRosterSlotUpdate,
                                   respondToRosterTimelineSlotMove,
+                                    respondWithRosterTimelineMoveFailure,
                                   respondWithRosterContentError,
                                   respondWithRosterContentForAuthorizedScope,
                                   respondWithRosterContentUpdate,
@@ -851,25 +851,17 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
         case RosterIntent.parseMoveRosterTimelineShiftIntentParams of
-            Left errors -> respondWithMoveRosterShiftFailure scope (rosterSurfaceRequestErrorMessage errors)
+            Left errors -> respondWithRosterTimelineMoveFailure scope (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 result <- validateMoveRosterTimelineShiftIntent scope sourceToken targetToken
                 case result of
-                    Left message -> respondWithMoveRosterShiftFailure scope message
+                    Left message -> respondWithRosterTimelineMoveFailure scope message
                     Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp scope
                     Right resultValue@MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex } -> do
-                        let startOccurrenceValue = fromMaybe "" (surfaceFieldValue @Surface.TimelineStartOccurrence fields)
-                        boundaryResolution <- resolveRosterTimelineDropBoundaries resultValue startOccurrenceValue
-                        let calendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision fields
-                        let intentForm = rosterTimelineMoveShiftIntentForm scope.rosterWindowStart rosterGroup.id timelineTargetRosterDay.operationalDate calendarRevision sourceToken targetToken Nothing
-                        let startOccurrenceField = surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields
-                        let occurrenceFields = (startOccurrenceField, startOccurrenceField)
-                        case boundaryResolution of
-                            RosterTimelineDropInvalid message -> respondWithMoveRosterShiftFailure scope message
-                            RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure ->
-                                respondWithRosterSlotCopyBoundaryFailure scope "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                        case resolveRosterTimelineDropBoundaries resultValue of
+                            RosterTimelineDropInvalid message -> respondWithRosterTimelineMoveFailure scope message
                             RosterTimelineDropBoundaryReady boundaries -> do
                                 let updatedSlot = timelineSourceSlot
                                         |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
@@ -879,7 +871,7 @@ instance Controller RosterWeeksController where
                                         |> applyRosterSlotBoundaries boundaries
                                 mutationResult <- moveRosterSlotMutation scope timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
                                 case mutationResult of
-                                    Left message -> respondWithMoveRosterShiftFailure scope message
+                                    Left message -> respondWithRosterTimelineMoveFailure scope message
                                     Right mutationResult -> do
                                         let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                                         respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged

@@ -4,7 +4,6 @@ module Web.RosterWeeks.Service
     , ensureRosterDayHasMinimumRows
     , fetchActiveStaffForCurrentVenue
     , rosterSlotCopyAmbiguousEndpoints
-    , resolveRosterTimelineTargetBoundaries
     , rosterSlotTimesheetSourceChanged
     , rosterWindowCopyAmbiguousEndpoints
     , RosterCopyError (..)
@@ -98,11 +97,6 @@ rosterSlotCopyAmbiguousEndpoints _venueConfig sourceDay targetDay slot = do
         let targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
          in civilBoundaryIsRepeated targetDate localTime.localTimeOfDay
     rosterIntegrityBoundaryError (RosterShiftTimingInvalid failure) = failure
-
-resolveRosterTimelineTargetBoundaries :: Text -> NominalDiffTime -> Day -> TimeOfDay -> Maybe RepeatedTimeOccurrence -> Either BoundaryModelError AuthoritativeBoundaries
-resolveRosterTimelineTargetBoundaries timezone duration targetDate targetStartTime targetStartOccurrence = do
-    startsAt <- resolveBoundaryInstant timezone targetDate targetStartTime targetStartOccurrence
-    authoritativeBoundariesFromInstants timezone startsAt (addUTCTime duration startsAt) Nothing Nothing
 
 data RosterSlotCopyPlan = RosterSlotCopyPlan
     { copiedSourceSlot :: !RosterSlot

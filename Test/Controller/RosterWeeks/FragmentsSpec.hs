@@ -1463,10 +1463,7 @@ tests = aroundAll withDatabaseTestContext do
                         , timelineMoveIsNoOp = False
                         , timelineSourceTiming = sourceTiming
                         }
-                directResolution <- withUserAndCurrentVenue manager venue.id do
-                    withCurrentControllerContext do
-                        resolveRosterTimelineDropBoundaries directIntent ""
-                case directResolution of
+                case resolveRosterTimelineDropBoundaries directIntent of
                     RosterTimelineDropBoundaryReady _ -> pure ()
                     _ -> expectationFailure "Expected the target instant to resolve its own occurrence"
                 let targetToken = "instant:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1775316600"
@@ -1526,7 +1523,6 @@ tests = aroundAll withDatabaseTestContext do
                         , ("dayOffset", dayOffset)
                         , ("sourceItemKey", cs sourceToken)
                         , ("targetDropzoneKey", cs targetDropzoneKey)
-                        , ("timelineStartOccurrence", "")
                         ]
 
                 noOpResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1619,7 +1615,7 @@ tests = aroundAll withDatabaseTestContext do
                                     , ("targetDropzoneKey", cs invalidTarget)
                                     ]
                     rejected `responseStatusShouldBe` status200
-                    rejected `responseBodyShouldContain` "Drag the shift onto an open timeline time target."
+                    rejected `responseBodyShouldContain` "The shift or target is unavailable. Review the refreshed timeline and try again."
                     unchanged <- fetch sourceSlot.id
                     unchanged.startsAt `shouldBe` sourceSlot.startsAt
                     unchanged.endsAt `shouldBe` sourceSlot.endsAt
@@ -1632,7 +1628,6 @@ tests = aroundAll withDatabaseTestContext do
                             , ("dayOffset", "1")
                             , ("sourceItemKey", cs sourceToken)
                             , ("targetDropzoneKey", cs targetToken)
-                            , ("timelineStartOccurrence", "")
                             ]
 
                 moveResponse `responseStatusShouldBe` status200

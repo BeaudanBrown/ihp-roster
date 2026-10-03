@@ -1,7 +1,79 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
 import { querySql, runSql, sqlString } from './support/database';
 import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
+
+async function requestTimelineRefresh(page: Page) {
+    await page.evaluate(({ configAttr, eventName }) => {
+        for (const owner of document.querySelectorAll(`[${configAttr}]`)) {
+            const config = JSON.parse(owner.getAttribute(configAttr)!);
+            const fragment = config.fragments?.find((candidate: { url: string }) => candidate.url.includes('/ShowRosterDayTimelineContentFragment'));
+            if (fragment && config.subscription) {
+                document.dispatchEvent(new CustomEvent(eventName, { detail: {
+                    scope: config.subscription.scope, scopeKey: config.scopeKey,
+                    fragments: [], localFragments: [fragment.fragmentKey], version: null,
+                } }));
+                return;
+            }
+        }
+        throw new Error('Expected timeline live fragment');
+    }, { configAttr: surfaceConfigDomAttr, eventName: liveFragmentsRefreshEvent });
+}
+
+test('defers passive refresh during drag and restores authority after a rejected drop', async ({ page }) => {
+    resetCanonicalRosterAssignedShiftFixture();
+    const slotId = 'a1000000-0000-0000-0000-000000000071';
+    const originalEnd = querySql(`SELECT ends_at::text FROM roster_slots WHERE id = '${slotId}'`);
+    try {
+        await openRoster(page);
+        const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
+        const url = new URL(page.url());
+        url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('anchorDate', day);
+        url.searchParams.set('dayDate', day);
+        await page.goto(url.toString());
+        const attrs = InteractionDom.attributes;
+        const source = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+        const owner = page.locator(`[${attrs.dragScrollContainer}]`);
+        await expect(source).toBeVisible();
+        const ownerNode = await owner.elementHandle();
+        const drag = async () => {
+            await owner.evaluate((element) => { element.scrollLeft = 300; });
+            await source.scrollIntoViewIfNeeded();
+            const box = (await source.boundingBox())!;
+            const label = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+            const x = Math.max(label.x + label.width + 20, box.x + 60);
+            const y = box.y + box.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+            await page.mouse.move(x + 24, y);
+            await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toBeVisible();
+        };
+        await drag();
+        runSql(`UPDATE roster_slots SET ends_at = ends_at + interval '15 minutes' WHERE id = '${slotId}'`);
+        const refreshed = page.waitForResponse((response) => response.url().includes('/ShowRosterDayTimelineContentFragment'));
+        await requestTimelineRefresh(page);
+        await expect(source).toHaveAttribute('aria-label', /09:00–17:00/);
+        await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await page.mouse.up();
+        expect((await refreshed).ok()).toBe(true);
+        await expect(source).toHaveAttribute('aria-label', /09:00–17:15/);
+        await drag();
+        const scrollBeforeFailure = await owner.evaluate((element) => element.scrollLeft);
+        runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id = '${slotId}'`);
+        const rejected = page.waitForResponse((response) => response.url().includes('/MoveRosterTimelineShift') && response.request().method() === 'POST');
+        await page.mouse.up();
+        expect((await rejected).ok()).toBe(true);
+        await expect(page.getByText('The shift or target is unavailable. Review the refreshed timeline and try again.', { exact: true })).toBeVisible();
+        await expect(source).toHaveCount(0);
+        await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toHaveCount(0);
+        expect(await ownerNode!.evaluate((element) => element.isConnected)).toBe(true);
+        expect(await owner.evaluate((element) => element.scrollLeft)).toBe(scrollBeforeFailure);
+    } finally {
+        runSql(`UPDATE roster_slots SET deleted_at = NULL, ends_at = ${sqlString(originalEnd)} WHERE id = '${slotId}'`);
+    }
+});
 
 test('saves the snapped preview while preserving grab offset and exact duration', async ({ page, isMobile, context }) => {
     resetCanonicalRosterAssignedShiftFixture();
@@ -141,20 +213,7 @@ test('navigates the fixed-scale timeline and preserves its date across view swit
     expect(after!.x).toBeCloseTo(before!.x, 0);
     const originalContent = await page.locator('.roster-day-timeline-shell').elementHandle();
     const refreshResponse = page.waitForResponse((response) => response.url().includes('/ShowRosterDayTimelineContentFragment'));
-    await page.evaluate(({ configAttr, eventName }) => {
-        for (const owner of document.querySelectorAll(`[${configAttr}]`)) {
-            const config = JSON.parse(owner.getAttribute(configAttr)!);
-            const fragment = config.fragments?.find((candidate: { url: string }) => candidate.url.includes('/ShowRosterDayTimelineContentFragment'));
-            if (fragment && config.subscription) {
-                document.dispatchEvent(new CustomEvent(eventName, { detail: {
-                    scope: config.subscription.scope, scopeKey: config.scopeKey,
-                    fragments: [], localFragments: [fragment.fragmentKey], version: null,
-                } }));
-                return;
-            }
-        }
-        throw new Error('Expected timeline live fragment');
-    }, { configAttr: surfaceConfigDomAttr, eventName: liveFragmentsRefreshEvent });
+    await requestTimelineRefresh(page);
     expect((await refreshResponse).ok()).toBe(true);
     await expect.poll(() => originalContent!.evaluate((element) => element.isConnected)).toBe(false);
     expect(await scrollOwner.evaluate((element) => element.scrollLeft)).toBe(600);

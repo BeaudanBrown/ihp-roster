@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Live
     , rosterDayRailLiveFragment
     , rosterDaySectionLiveFragment
     , rosterDayTimelineLiveScope
+    , rosterDayTimelineContentLiveFragment
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
@@ -24,6 +25,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Live (roster
                                                                           rosterDayRailLiveFragment,
                                                                           rosterDaySectionLiveFragment,
                                                                           rosterDayTimelineLiveScope,
+                                                                          rosterDayTimelineContentLiveFragment,
                                                                           rosterGridFrameLiveFragment,
                                                                           rosterGridToolbarLiveFragment,
                                                                           rosterRowLiveFragment,
