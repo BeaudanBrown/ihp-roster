@@ -7,10 +7,15 @@ module Web.RosterWeeks.TimelineScale
     , timelineClockLabel
     , timelineOperationalMinute
     , timelineSnapInstants
+    , timelineMoveChoices
+    , timelineCoordinate
     ) where
 
 import Application.Helper.TimeRules (normalizeWindowEndMinute,
-                                      rosterOperationalStartMinuteOfDay)
+                                      rosterOperationalStartMinuteOfDay,
+                                      authoritativeRosterIntervalIsOperationallyValid,
+                                      operationalDayForLocalTime)
+import Application.VenueTime.Model
 import Application.VenueTime
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
@@ -62,6 +67,22 @@ timelineSnapInstants scale =
     | tick <- [ceiling (utcTimeToPOSIXSeconds scale.scaleStartsAt / 300) .. floor (utcTimeToPOSIXSeconds scale.scaleEndsAt / 300)]
     ]
 
+-- Microsecond coordinates stay within JavaScript's exact integer range for a
+-- roster day. They are display geometry only; saved durations remain exact.
+timelineCoordinate :: TimelineScale -> UTCTime -> Int
+timelineCoordinate scale instant = round (diffUTCTime instant scale.scaleStartsAt * 1000000)
+
+timelineMoveChoices :: TimelineScale -> Day -> AuthoritativeBoundaries -> [(UTCTime, Text)]
+timelineMoveChoices scale day source =
+    [ (start, timelineClockLabel start <> "–" <> timelineClockLabel end)
+    | start <- timelineSnapInstants scale
+    , let end = addUTCTime (authoritativeElapsedSeconds source) start
+    , end <= scale.scaleEndsAt
+    , Right boundaries <- [authoritativeBoundariesFromInstants (authoritativeTimezone source) start end Nothing Nothing]
+    , operationalDayForLocalTime (authoritativeStartLocalTime boundaries) == day
+    , authoritativeRosterIntervalIsOperationallyValid boundaries
+    ]
+
 timelineOffsetMinutes :: TimelineScale -> UTCTime -> Double
 timelineOffsetMinutes scale instant = realToFrac (diffUTCTime instant scale.scaleStartsAt) / 60
 
@@ -69,10 +90,11 @@ timelineInstantAt :: TimelineScale -> Double -> UTCTime
 timelineInstantAt scale minutes = addUTCTime (realToFrac (minutes * 60)) scale.scaleStartsAt
 
 timelineClockLabel :: UTCTime -> Text
-timelineClockLabel instant = Text.pack (formatTime defaultTimeLocale "%H:%M" local.localTimeOfDay) <> suffix
+timelineClockLabel instant = Text.pack (formatTime defaultTimeLocale clockFormat local.localTimeOfDay) <> suffix
   where
     resolved = resolvedInstantFromUTC instant
     local = resolvedInstantLocalTime resolved
+    clockFormat = if local.localTimeOfDay.todSec == 0 then "%H:%M" else "%H:%M:%S%Q"
     suffix = case resolvedInstantOccurrence resolved of
         Nothing -> ""
         Just FirstOccurrence -> " (first)"

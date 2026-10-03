@@ -236,6 +236,17 @@
   var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
   var dragScrollContainerDomAttr = "data-bepis-drag-scroll-container";
   var sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms";
+  function isDragIntervalConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["rangeSize", "extent", "positions", "labels"], ["rangeSize", "extent", "positions", "labels"]) && (typeof value["rangeSize"] === "number" && Number.isInteger(value["rangeSize"])) && (typeof value["extent"] === "number" && Number.isInteger(value["extent"])) && (Array.isArray(value["positions"]) && value["positions"].every((item) => typeof item === "number" && Number.isInteger(item))) && (Array.isArray(value["labels"]) && value["labels"].every((item) => typeof item === "string"));
+  }
+  function parseDragIntervalConfig(value) {
+    if (isDragIntervalConfig(value)) return value;
+    throw new Error("Invalid DragIntervalConfig");
+  }
+  var dragIntervalConfigDomAttr = "data-bepis-drag-interval-config";
+  var dragPreviewLabelDomAttr = "data-bepis-drag-preview-label";
+  var dragAxisDomAttr = "data-bepis-drag-axis";
+  var dragPositionDomAttr = "data-bepis-drag-position";
   var interactionActiveDomAttr = "data-bepis-interaction-active";
   var disposableLayerDomAttr = "data-bepis-disposable-layer";
   var conflictPoliciesDomAttr = "data-bepis-conflict-policies";
@@ -260,7 +271,7 @@
   var deltaXFieldName = "deltaX";
   var deltaYFieldName = "deltaY";
   var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
@@ -4036,15 +4047,65 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelector === "function";
   }
 
-  // frontend/ts/interaction/pointer-session.ts
+  // frontend/ts/interaction/interval-drag.ts
   var attrs5 = InteractionDom.attributes;
+  function nearestIntervalChoice(config, position) {
+    let best = 0;
+    for (let index = 1; index < config.positions.length; index++) {
+      if (Math.abs(config.positions[index] - position) < Math.abs(config.positions[best] - position)) best = index;
+    }
+    return best;
+  }
+  function readIntervalDrag(marker, mount, targetSelector, startX) {
+    const raw = marker.getAttribute(attrs5.dragIntervalConfig);
+    if (raw === null) return void 0;
+    let config;
+    try {
+      config = parseDragIntervalConfig(JSON.parse(raw));
+      if (!Number.isSafeInteger(config.rangeSize) || config.rangeSize <= 0 || !Number.isSafeInteger(config.extent) || config.extent <= 0 || config.extent > config.rangeSize || config.positions.length !== config.labels.length || config.positions.some((position, index) => !Number.isSafeInteger(position) || position < 0 || position + config.extent > config.rangeSize || index > 0 && position <= config.positions[index - 1])) throw new Error();
+    } catch {
+      console.warn("Invalid interval drag configuration");
+      return null;
+    }
+    if (config.positions.length === 0) return null;
+    const grabOffset = startX - marker.getBoundingClientRect().left;
+    const axes = Array.from(mount.querySelectorAll(`[${attrs5.dragAxis}]`)).filter((axis) => axis.getAttribute(attrs5.dragAxis) === "true" && axis.closest(`[${attrs5.surface}]`) === mount).map((axis) => {
+      const targets = /* @__PURE__ */ new Map();
+      for (const target of axis.querySelectorAll(targetSelector)) {
+        if (target.closest(`[${attrs5.surface}]`) !== mount || target.closest(`[${attrs5.dragAxis}]`) !== axis) continue;
+        const rawPosition = target.getAttribute(attrs5.dragPosition);
+        if (rawPosition === null || rawPosition.trim() === "") continue;
+        const position = Number(rawPosition);
+        if (Number.isSafeInteger(position)) targets.set(position, target);
+      }
+      return { axis, targets };
+    });
+    return {
+      project(x, y) {
+        for (const { axis, targets } of axes) {
+          const rect = axis.getBoundingClientRect();
+          if (rect.width <= 0 || y < rect.top || y > rect.top + rect.height) continue;
+          const proposed = (x - grabOffset - rect.left) * config.rangeSize / rect.width;
+          const index = nearestIntervalChoice(config, proposed);
+          const position = config.positions[index];
+          const target = targets.get(position);
+          if (!target || target.isConnected === false) return null;
+          return { target, label: config.labels[index], left: rect.left + position * rect.width / config.rangeSize, width: config.extent * rect.width / config.rangeSize };
+        }
+        return null;
+      }
+    };
+  }
+
+  // frontend/ts/interaction/pointer-session.ts
+  var attrs6 = InteractionDom.attributes;
   var values = InteractionDom.values;
-  var sourceRefSelector = `[${attrs5.sourceRef}]`;
+  var sourceRefSelector = `[${attrs6.sourceRef}]`;
   var interactiveControlSelector = "button,a,input,select,textarea,[role=button],[role=link]";
-  var disposableLayerSelector = `[${attrs5.disposableLayer}]`;
+  var disposableLayerSelector = `[${attrs6.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
-  var activeSourceRefAttribute = attrs5.activeSourceRef;
+  var activeSourceRefAttribute = attrs6.activeSourceRef;
   var noOpEffectRunner = {
     activate: () => void 0,
     update: () => void 0,
@@ -4097,9 +4158,10 @@
       lastScrollFrameTime = null;
     };
     const startEdgeScrolling = (session) => {
-      const owner = session.marker.closest(`[${attrs5.dragScrollContainer}]`);
-      if (!owner || owner.getAttribute(attrs5.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
+      const owner = session.marker.closest(`[${attrs6.dragScrollContainer}]`);
+      if (!owner || owner.getAttribute(attrs6.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
       const container = owner;
+      let observedScrollLeft = container.scrollLeft;
       const frame = (time) => {
         scrollFrame = null;
         if (activeSession !== session || !session.activated) return;
@@ -4109,7 +4171,9 @@
         }
         const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
         lastScrollFrameTime = time;
-        if (scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed)) {
+        scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
+        if (container.scrollLeft !== observedScrollLeft) {
+          observedScrollLeft = container.scrollLeft;
           session.hasMoved = true;
           session.effects.update(session);
           runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
@@ -4124,7 +4188,7 @@
     };
     const scheduleTimeout = (session) => {
       clearTimeoutHandle();
-      const timeoutMs = numberAttribute(session.marker, attrs5.sessionTimeoutMs);
+      const timeoutMs = numberAttribute(session.marker, attrs6.sessionTimeoutMs);
       if (timeoutMs === null || timeoutMs <= 0) return;
       timeoutHandle = setTimeout(() => {
         if (activeSession === session) cancelSession(session, null);
@@ -4314,18 +4378,18 @@
     const pointerEvent = event;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
-    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs5.sessionLongPressMs) ?? 0) <= 0) return null;
+    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs6.sessionLongPressMs) ?? 0) <= 0) return null;
     if (isDisabled(marker)) return null;
     const interactiveControl = closestInteractiveControl(event.target);
     if (interactiveControl && interactiveControl !== marker) return null;
     const mount = closestInteractionMount3(marker);
     if (!mount) return null;
-    const surface = mount.getAttribute(attrs5.surface);
+    const surface = mount.getAttribute(attrs6.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
-    const sourceRef = marker.getAttribute(attrs5.sourceRef);
+    const sourceRef = marker.getAttribute(attrs6.sourceRef);
     const source = FrontendSurfaceInteractionRegistry[surface].sourceRefs.find((candidate) => candidate.ref === sourceRef);
     if (!source) return null;
-    const sourceKey = marker.getAttribute(attrs5.sourceKey);
+    const sourceKey = marker.getAttribute(attrs6.sourceKey);
     if (!sourceKey) return null;
     const compatibleDropzoneRefs = compatibleDropzoneRefsForSource(surface, source);
     const targetField = FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
@@ -4334,7 +4398,7 @@
   function buildPointerSession(input) {
     const startClientX = numberValue(input.event.clientX);
     const startClientY = numberValue(input.event.clientY);
-    const thresholdPx = numberAttribute(input.marker, attrs5.sessionThreshold) ?? input.fallbackThresholdPx;
+    const thresholdPx = numberAttribute(input.marker, attrs6.sessionThreshold) ?? input.fallbackThresholdPx;
     const session = {
       mount: input.mount,
       marker: input.marker,
@@ -4356,10 +4420,14 @@
       currentClientY: startClientY,
       thresholdPx: Math.max(0, thresholdPx),
       activated: false,
-      longPressMs: numberAttribute(input.marker, attrs5.sessionLongPressMs),
+      longPressMs: numberAttribute(input.marker, attrs6.sessionLongPressMs),
       hasMoved: false,
+      intervalDrag: void 0,
       effects: noOpEffectRunner
     };
+    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX);
+    if (interval === null) return null;
+    session.intervalDrag = interval;
     session.effects = createPointerSessionEffectRunner(session);
     return session;
   }
@@ -4444,7 +4512,7 @@
     return /mac|iphone|ipad|ipod/i.test(`${platform} ${userAgentDataPlatform}`);
   }
   function interactionSessionDefinitionFor(session) {
-    const family = session.mount.getAttribute(attrs5.surfaceFamily);
+    const family = session.mount.getAttribute(attrs6.surfaceFamily);
     if (!isFrontendSurfaceInteractionSurfaceName(family)) return null;
     return FrontendSurfaceInteractionRegistry[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
   }
@@ -4470,11 +4538,35 @@
   }
   function createCloneShadowEffect(effect) {
     let shadow = null;
+    let label = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
     const cleanup = () => {
       if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
       shadow = null;
+      label?.remove();
+      label = null;
+    };
+    const update = (session) => {
+      if (!shadow) return;
+      const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
+      if (session.intervalDrag) {
+        shadow.hidden = !projection;
+        if (label) label.hidden = !projection;
+        if (!projection) return;
+        const style = shadow.style;
+        style.width = `${projection.width}px`;
+        style.transform = `translate3d(${projection.left}px, ${session.currentClientY - grabOffsetY}px, 0)`;
+        if (label) {
+          label.textContent = projection.label;
+          const viewport = label.ownerDocument.documentElement;
+          const x = Math.max(4, Math.min(session.currentClientX + 12, viewport.clientWidth - label.offsetWidth - 4));
+          const y = Math.max(4, Math.min(session.currentClientY + 20, viewport.clientHeight - label.offsetHeight - 4));
+          label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        }
+      } else {
+        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+      }
     };
     return {
       activate(session) {
@@ -4491,12 +4583,15 @@
         applyShadowBaseStyle(proxy, rect);
         layer.appendChild(proxy);
         shadow = proxy;
-        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+        if (session.intervalDrag) {
+          label = layer.ownerDocument.createElement("div");
+          label.setAttribute(attrs6.dragPreviewLabel, values.enabled);
+          label.setAttribute("aria-hidden", "true");
+          layer.appendChild(label);
+        }
+        update(session);
       },
-      update(session) {
-        if (!shadow) return;
-        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
-      },
+      update,
       cleanup
     };
   }
@@ -4557,12 +4652,13 @@
     return fields;
   }
   function activeDropzone(session) {
+    if (session.intervalDrag) return session.intervalDrag.project(session.currentClientX, session.currentClientY)?.target ?? null;
     return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
   }
   function surfaceDropzoneSelectorForSession(session) {
     const compatibleRefs = session.compatibleDropzoneRefs;
-    if (compatibleRefs.length === 0) return `[${attrs5.dropzoneRef}]`;
-    return compatibleRefs.map((ref) => `[${attrs5.dropzoneRef}="${cssString(ref)}"]`).join(",");
+    if (compatibleRefs.length === 0) return `[${attrs6.dropzoneRef}]`;
+    return compatibleRefs.map((ref) => `[${attrs6.dropzoneRef}="${cssString(ref)}"]`).join(",");
   }
   function compatibleDropzoneRefsForSource(surface, source) {
     const explicitRefs = source.compatibleDropzones ?? [];
@@ -4571,22 +4667,22 @@
   }
   function targetDropzoneFieldForSession(session, target) {
     if (!target) return null;
-    const surface = session.mount.getAttribute(attrs5.surface);
+    const surface = session.mount.getAttribute(attrs6.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
-    const ref = target.getAttribute(attrs5.dropzoneRef);
+    const ref = target.getAttribute(attrs6.dropzoneRef);
     if (!ref) return null;
     return FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
   }
   function targetDropzoneKeyForTarget(target) {
     if (!target) return null;
-    return target.getAttribute(attrs5.dropzoneKey);
+    return target.getAttribute(attrs6.dropzoneKey);
   }
   function cssString(value) {
     return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
   }
   function disposableLayerByName(mount, layerName) {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) {
-      if (layer.getAttribute(attrs5.disposableLayer) === layerName) return layer;
+      if (layer.getAttribute(attrs6.disposableLayer) === layerName) return layer;
     }
     return null;
   }
@@ -4635,7 +4731,7 @@
     return isElementLike4(control) ? control : null;
   }
   function closestInteractionMount3(marker) {
-    const mount = marker.closest(`[${attrs5.surface}]`);
+    const mount = marker.closest(`[${attrs6.surface}]`);
     return isElementLike4(mount) ? mount : null;
   }
   function clearDisposableLayers(mount) {
@@ -4645,10 +4741,10 @@
     const root = session.mount.ownerDocument?.documentElement;
     if (!root) return;
     if (active) {
-      root.setAttribute(attrs5.interactionActive, values.enabled);
+      root.setAttribute(attrs6.interactionActive, values.enabled);
       root.setAttribute(activeSourceRefAttribute, session.sourceRef);
     } else {
-      root.removeAttribute(attrs5.interactionActive);
+      root.removeAttribute(attrs6.interactionActive);
       root.removeAttribute(activeSourceRefAttribute);
     }
   }
@@ -4682,7 +4778,7 @@
     else element.removeAttribute("class");
   }
   function isDisabled(marker) {
-    return marker.getAttribute(attrs5.sessionDisabled) === values.enabled || marker.getAttribute(attrs5.sessionReadOnly) === values.enabled;
+    return marker.getAttribute(attrs6.sessionDisabled) === values.enabled || marker.getAttribute(attrs6.sessionReadOnly) === values.enabled;
   }
   function isMatchingPointerEvent(event, session) {
     return numberValue(event.pointerId) === session.pointerId;

@@ -116,6 +116,7 @@ Application/Helper/FrontendContract/HorizontalScroll/Runtime.hs	production	runti
 Application/Helper/FrontendContract/Htmx.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/IR.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Interaction.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Interaction/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/LiveUpdate.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/LiveUpdateValues.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Naming.hs	production	runtime	Main	Reachable from Main

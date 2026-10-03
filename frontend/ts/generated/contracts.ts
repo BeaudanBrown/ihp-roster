@@ -592,6 +592,24 @@ export const dragScrollContainerDomAttr = "data-bepis-drag-scroll-container" as 
 
 export const sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms" as const;
 
+export type DragIntervalConfig = { rangeSize: number; extent: number; positions: ReadonlyArray<number>; labels: ReadonlyArray<string> };
+export function isDragIntervalConfig(value: unknown): value is DragIntervalConfig {
+    return isRecord(value) && hasExactKeys(value, ["rangeSize", "extent", "positions", "labels"], ["rangeSize", "extent", "positions", "labels"]) && (typeof value["rangeSize"] === "number" && Number.isInteger(value["rangeSize"])) && (typeof value["extent"] === "number" && Number.isInteger(value["extent"])) && (Array.isArray(value["positions"]) && value["positions"].every((item) => typeof item === "number" && Number.isInteger(item))) && (Array.isArray(value["labels"]) && value["labels"].every((item) => typeof item === "string"));
+}
+
+export function parseDragIntervalConfig(value: unknown): DragIntervalConfig {
+    if (isDragIntervalConfig(value)) return value;
+    throw new Error("Invalid DragIntervalConfig");
+}
+
+export const dragIntervalConfigDomAttr = "data-bepis-drag-interval-config" as const;
+
+export const dragPreviewLabelDomAttr = "data-bepis-drag-preview-label" as const;
+
+export const dragAxisDomAttr = "data-bepis-drag-axis" as const;
+
+export const dragPositionDomAttr = "data-bepis-drag-position" as const;
+
 export const interactionActiveDomAttr = "data-bepis-interaction-active" as const;
 
 export const disposableLayerDomAttr = "data-bepis-disposable-layer" as const;
@@ -647,6 +665,10 @@ export type InteractionDomAttributes = {
     sessionTimeoutMs: typeof sessionTimeoutMsDomAttr;
     dragScrollContainer: typeof dragScrollContainerDomAttr;
     sessionLongPressMs: typeof sessionLongPressMsDomAttr;
+    dragIntervalConfig: typeof dragIntervalConfigDomAttr;
+    dragPreviewLabel: typeof dragPreviewLabelDomAttr;
+    dragAxis: typeof dragAxisDomAttr;
+    dragPosition: typeof dragPositionDomAttr;
     interactionActive: typeof interactionActiveDomAttr;
     disposableLayer: typeof disposableLayerDomAttr;
     conflictPolicies: typeof conflictPoliciesDomAttr;
@@ -677,7 +699,7 @@ export type InteractionPointerFields = {
 };
 export type InteractionDom = { attributes: InteractionDomAttributes; values: InteractionDomValues; pointerFields: InteractionPointerFields };
 export const InteractionDom: InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName },
 };

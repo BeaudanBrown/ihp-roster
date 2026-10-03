@@ -111,6 +111,13 @@ contextual-target effects must clean up on commit, cancel, Escape,
 contract/check time; runtime switches over generated closed unions use
 `assertNever`.
 
+Interval dragging may attach a generated exact config to a source and typed
+axis/position markers to compatible targets. Haskell supplies every allowed
+position and preview label, including full-interval bounds. The browser preserves
+the grab offset, chooses the nearest allowed position, and uses that same opaque
+target for the disposable preview and committed intent. It never derives domain
+times or parses target keys. Malformed configuration refuses the gesture.
+
 Horizontal drag scrolling is opt-in on a typed scroll owner within the same
 mount. Only an activated session scrolls it; a stationary pointer near an edge
 continues scrolling and retests the target. Ending or cancelling the session

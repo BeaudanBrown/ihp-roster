@@ -1596,8 +1596,10 @@ tests = aroundAll withDatabaseTestContext do
                 timelineResponse `responseStatusShouldBe` status200
                 let shiftSourceAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> tshow sourceSlot.id <> "\""
                 timelineBody <- (cs <$> responseBody timelineResponse) :: IO Text
-                let (beforeShiftSource, fromShiftSource) = Text.breakOn shiftSourceAttr timelineBody
-                let scopedShiftHtml = Text.takeEnd 500 beforeShiftSource <> Text.take 2000 fromShiftSource
+                let (beforeShiftSource, _) = Text.breakOn shiftSourceAttr timelineBody
+                let positionMarker = "<div class=\"roster-day-timeline-shift-position\""
+                beforeShiftSource `shouldSatisfy` Text.isInfixOf positionMarker
+                let scopedShiftHtml = positionMarker <> Text.takeWhile (/= '>') (snd (Text.breakOnEnd positionMarker beforeShiftSource))
                 let exactWidthPercent = ((0.5 / 60) * 100 / 1440 :: Double)
                 scopedShiftHtml `shouldSatisfy` Text.isInfixOf "roster-day-timeline-shift-position"
                 cssPercentageAfter "width:" scopedShiftHtml

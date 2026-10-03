@@ -1,4 +1,5 @@
 import { InteractionDom } from "../generated/contracts";
+import { readIntervalDrag } from "../interaction/interval-drag";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
@@ -429,6 +430,50 @@ test("generated pointer sessions start only from enabled mounted handles", () =>
     assertEqual(session?.sessionKind, "drag");
     assertEqual(session?.pointerId, 7);
     assertEqual(session?.startClientX, 10);
+});
+
+test("interval projection preserves grab offset, clamps to allowed starts and shares opaque targets across lanes", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const config = { rangeSize: 1000, extent: 400, positions: [0, 250, 500], labels: ["early", "middle", "late"] };
+    const first = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
+    first.rect = { left: 100, top: 0, width: 1000, height: 100 };
+    const second = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
+    second.rect = { left: 100, top: 100, width: 1000, height: 100 };
+    for (const [lane, axis] of [first, second].entries()) {
+        for (const position of config.positions) axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+    }
+    const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
+    marker.rect = { left: 350, top: 10, width: 400, height: 50 };
+    const drag = readIntervalDrag(marker as unknown as Element, mount as unknown as Element, `[${attrs.dropzoneRef}]`, 400)!;
+    assertEqual(drag.project(400, 50)?.label, "middle");
+    assertEqual(drag.project(-500, 50)?.left, 100);
+    assertEqual(drag.project(2000, 50)?.left, 600);
+    assertEqual(drag.project(2000, 50)?.width, 400);
+    assertEqual(drag.project(400, 150)?.target.getAttribute(attrs.dropzoneKey), "1/250");
+    assertEqual(drag.project(400, 300), null);
+    first.rect.left = -150;
+    assertEqual(drag.project(400, 50)?.label, "late");
+    first.rect.left = 100;
+    const committed: string[] = [];
+    const controller = createPointerSessionController({ runtime: { emit: (payload) => {
+        if (payload.phase === "commit") committed.push(payload.fields?.targetDropzoneKey ?? "");
+        return { canceled: false };
+    } } });
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 400, 50));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 2000, 150));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 2000, 150));
+    assertEqual(committed.join(), "1/500");
+    controller.stop();
+});
+
+test("malformed interval boundaries refuse the gesture instead of using unsnapped hit testing", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const config = { rangeSize: 1000, extent: 400, positions: [0, 250, 500], labels: ["early", "middle", "late"] };
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source" }));
+    for (const invalid of [{ ...config, extent: 1001 }, { ...config, labels: [] }, { ...config, positions: [0, 250, 250] }, { ...config, positions: [0, 250, 900] }, { ...config, extra: true }]) {
+        marker.setAttribute(attrs.dragIntervalConfig, JSON.stringify(invalid));
+        assertEqual(readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 1, 10, 10)), null);
+    }
 });
 
 test("horizontal drag scrolling respects edges, vertical bounds and scroll limits", () => {

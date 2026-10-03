@@ -1,7 +1,63 @@
 import { test, expect } from '@playwright/test';
 import { openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
-import { querySql } from './support/database';
+import { querySql, runSql, sqlString } from './support/database';
 import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
+
+test('saves the snapped preview while preserving grab offset and exact duration', async ({ page, isMobile, context }) => {
+    resetCanonicalRosterAssignedShiftFixture();
+    const slotId = 'a1000000-0000-0000-0000-000000000071';
+    const original = JSON.parse(querySql(`SELECT json_build_object('start', starts_at, 'end', ends_at)::text FROM roster_slots WHERE id = '${slotId}'`)) as { start: string; end: string };
+    try {
+        runSql(`UPDATE roster_slots SET ends_at = starts_at + interval '8 hours 30.5 seconds' WHERE id = '${slotId}'`);
+        await openRoster(page);
+        const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
+        const url = new URL(page.url());
+        url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('anchorDate', day);
+        url.searchParams.set('dayDate', day);
+        await page.goto(url.toString());
+        const attrs = InteractionDom.attributes;
+        const source = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+        const owner = page.locator(`[${attrs.dragScrollContainer}]`);
+        await expect(source).toBeVisible();
+        await owner.evaluate((element) => { element.scrollLeft = 300; });
+        await source.scrollIntoViewIfNeeded();
+        const sourceBox = (await source.boundingBox())!;
+        const labelBox = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+        const point = { x: Math.max(labelBox.x + labelBox.width + 20, sourceBox.x + 60), y: sourceBox.y + sourceBox.height / 2 };
+        const initialScroll = await owner.evaluate((element) => element.scrollLeft);
+        const cdp = isMobile ? await context.newCDPSession(page) : null;
+        if (cdp) {
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+            await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x + 24, y: point.y }] });
+        } else {
+            await page.mouse.move(point.x, point.y);
+            await page.mouse.down();
+            await page.mouse.move(point.x + 24, point.y);
+        }
+        const preview = page.locator(`[${attrs.dragPreviewLabel}]`);
+        await expect(preview).toBeVisible();
+        await expect(preview).toHaveText('09:15–17:15:30.5');
+        await owner.evaluate((element) => { element.scrollLeft = 0; });
+        await expect(preview).toHaveText('06:00–14:00:30.5');
+        await owner.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+        await expect(preview).toHaveText('21:40–05:40:30.5');
+        await owner.evaluate((element, position) => { element.scrollLeft = position; }, initialScroll);
+        await expect(preview).toHaveText('09:15–17:15:30.5');
+        await page.screenshot({ path: test.info().outputPath('timeline-drag-preview.png') });
+        const saved = page.waitForResponse((response) => response.url().includes('/MoveRosterTimelineShift') && response.request().method() === 'POST');
+        if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else await page.mouse.up();
+        expect((await saved).ok()).toBe(true);
+        await expect(source).toHaveAttribute('aria-label', /09:15–17:15:30\.5/);
+        expect(querySql(`SELECT extract(epoch from (ends_at - starts_at))::text FROM roster_slots WHERE id = '${slotId}'`)).toBe('28830.500000');
+        await expect(preview).toHaveCount(0);
+        if (cdp) await cdp.detach();
+    } finally {
+        runSql(`UPDATE roster_slots SET starts_at = ${sqlString(original.start)}, ends_at = ${sqlString(original.end)} WHERE id = '${slotId}'`);
+    }
+});
 
 test('scrolls at drag edges and preserves native touch swipes', async ({ page, isMobile, context }) => {
     resetCanonicalRosterAssignedShiftFixture();

@@ -6,6 +6,7 @@ module Web.View.RosterWeeks.Timeline
     ) where
 
 import Application.Helper.Controller (hasManagementMode)
+import qualified Application.Helper.FrontendContract.Interaction.Runtime as Drag
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
@@ -18,7 +19,9 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     rosterShiftTimingBoundaries,
                                     authoritativeStartsAt,
-                                    authoritativeEndsAt)
+                                    authoritativeEndsAt,
+                                    authoritativeElapsedSeconds,
+                                    decodeRosterShiftTiming)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -159,7 +162,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
                 <span class="fw-semibold">{rosterWindowLaneName windowLane}</span>
                 <span class="text-muted small">{assignedShiftCount} shifts</span>
             </div>
-            <div class="roster-day-timeline-lane-body">
+            <div {...Drag.dragAxisAttrs} class="roster-day-timeline-lane-body">
                 <div class="roster-day-timeline-gridlines" aria-hidden="true">
                     {forEach (timelineHourTicks timelineWindow) (renderTimelineGridline timelineWindow)}
                 </div>
@@ -176,7 +179,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
 renderTimelineDropzone :: TimelineWindow -> Day -> (UTCTime, Text) -> Html
 renderTimelineDropzone timelineWindow day (instant, targetKey) =
     [hsx|
-        <div {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)} class="roster-day-timeline-dropzone"
+        <div {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)} {...(Drag.dragPositionAttrs (timelineCoordinate timelineWindow.timelineWindowScale instant))} class="roster-day-timeline-dropzone"
              style={timelineDropzoneStyle timelineWindow instant}
              data-roster-timeline-minute={tshow (timelineOperationalMinute day instant)}
              aria-label={"Move shift to " <> timelineClockLabel instant}>
@@ -225,9 +228,19 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
             </div>
             <div class="roster-day-timeline-shift-details" aria-hidden="true">{detailLabel}</div>
         |]
+        intervalAttrs = case decodeRosterShiftTiming timelineShiftSlot of
+            Left _ -> []
+            Right timing ->
+                let scale = timelineWindow.timelineWindowScale
+                    boundaries = rosterShiftTimingBoundaries timing
+                 in Drag.dragIntervalAttrs
+                    (timelineCoordinate scale scale.scaleEndsAt)
+                    (max 1 (round (authoritativeElapsedSeconds boundaries * 1000000)))
+                    [(timelineCoordinate scale instant, label) | (instant, label) <- timelineMoveChoices scale anchorDate boundaries]
         cardAttrs = if editable && not timelineShiftTimingInvalid
             then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey
                 <> SurfaceInteraction.frontendSurfaceLongPressDragAttrs
+                <> intervalAttrs
                 <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey
                 <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing
             else []

@@ -39,6 +39,22 @@
     transform-origin: top left;
 }
 
+[data-bepis-drag-preview-label] {
+    position: fixed;
+    z-index: 1101;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    max-width: calc(100vw - 0.5rem);
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--app-info);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface-raised);
+    color: var(--bs-body-color);
+    box-shadow: var(--app-shadow-sm);
+    font-size: 0.85rem;
+}
+
 .bepis-pointer-clone-shadow-copy {
     opacity: 0.96;
     border-color: var(--app-success-border);

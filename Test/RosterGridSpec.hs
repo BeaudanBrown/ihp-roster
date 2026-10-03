@@ -1,6 +1,6 @@
 module Test.RosterGridSpec where
 
-import Application.VenueTime.Model (decodeRosterShiftTiming)
+import Application.VenueTime.Model (decodeRosterShiftTiming, authoritativeBoundariesFromInstants)
 import Web.RosterWeeks.TimelineScale
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -74,6 +74,20 @@ tests = describe "Roster grid row grouping" do
                 length (nub repeated) `shouldBe` 2
                 map timelineClockLabel (timelineSnapInstants spring) `shouldNotContain` ["02:30"]
             _ -> expectationFailure "Expected valid transition scales"
+
+    it "offers only whole-interval timeline moves with exact second-precision labels" do
+        let day = fromGregorian 2026 10 5
+        case timelineScaleForDay day 540 1020 [] of
+            Left failure -> expectationFailure (cs (tshow failure))
+            Right scale -> do
+                let start = scale.scaleStartsAt
+                case authoritativeBoundariesFromInstants "Australia/Melbourne" start (addUTCTime 7230.5 start) Nothing Nothing of
+                    Left failure -> expectationFailure (cs (tshow failure))
+                    Right boundaries -> do
+                        let choices = timelineMoveChoices scale day boundaries
+                        fmap snd (headMay choices) `shouldBe` Just "09:00–11:00:30.5"
+                        fmap snd (lastMay choices) `shouldBe` Just "15:10–17:10:30.5"
+                        all (\(instant, _) -> instant >= scale.scaleStartsAt && addUTCTime 7230.5 instant <= scale.scaleEndsAt) choices `shouldBe` True
 
     it "sorts day-column slots by start time" do
         let slotA = newRecord @RosterLane

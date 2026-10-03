@@ -12,6 +12,14 @@ module Application.Helper.FrontendContract.Interaction
     , SessionTimeoutMs
     , DragScrollContainer
     , SessionLongPressMs
+    , DragIntervalConfig
+    , DragPreviewLabel
+    , DragAxis
+    , DragPosition
+    , RangeSize
+    , Extent
+    , Positions
+    , Labels
     , InteractionActive
     , DisposableLayer
     , ConflictPolicies
@@ -76,6 +84,14 @@ data SessionThreshold
 data SessionTimeoutMs
 data DragScrollContainer
 data SessionLongPressMs
+data DragIntervalConfig
+data DragPreviewLabel
+data DragAxis
+data DragPosition
+data RangeSize
+data Extent
+data Positions
+data Labels
 data InteractionActive
 data DisposableLayer
 data Layer
@@ -130,6 +146,16 @@ type InteractionContract =
          , DomAttr SessionTimeoutMs
          , DomAttr DragScrollContainer
          , DomAttr SessionLongPressMs
+         , BrowserInboundSchema (Record DragIntervalConfig
+            '[ Field RangeSize 'WireInt
+             , Field Extent 'WireInt
+             , Field Positions ('WireList 'WireInt)
+             , Field Labels ('WireList 'WireText)
+             ])
+         , DomAttr DragIntervalConfig
+         , DomAttr DragPreviewLabel
+         , DomAttr DragAxis
+         , DomAttr DragPosition
          , DomAttr InteractionActive
          , DomAttr DisposableLayer
          , DomAttr ConflictPolicies

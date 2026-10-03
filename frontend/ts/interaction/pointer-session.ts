@@ -2,6 +2,7 @@ import { FrontendSurfaceInteractionRegistry, InteractionDom, isFrontendSurfaceIn
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
+import { readIntervalDrag, type IntervalDrag } from "./interval-drag";
 import {
     dispatchInteractionSessionEnd,
     dispatchInteractionSessionStart,
@@ -77,6 +78,7 @@ export type ActivePointerSession = {
     activated: boolean;
     longPressMs: number | null;
     hasMoved: boolean;
+    intervalDrag: IntervalDrag | undefined;
     effects: PointerSessionEffectRunner;
 };
 
@@ -162,6 +164,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         if (!owner || owner.getAttribute(attrs.dragScrollContainer) !== values.enabled
             || closestInteractionMount(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
         const container = owner as HTMLElement;
+        let observedScrollLeft = container.scrollLeft;
         const frame = (time: number) => {
             scrollFrame = null;
             if (activeSession !== session || !session.activated) return;
@@ -171,7 +174,9 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             }
             const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
             lastScrollFrameTime = time;
-            if (scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed)) {
+            scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
+            if (container.scrollLeft !== observedScrollLeft) {
+                observedScrollLeft = container.scrollLeft;
                 session.hasMoved = true;
                 session.effects.update(session);
                 runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
@@ -426,7 +431,7 @@ type PointerSessionBuildInput = {
     fallbackThresholdPx: number;
 };
 
-function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSession {
+function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSession | null {
     const startClientX = numberValue(input.event.clientX);
     const startClientY = numberValue(input.event.clientY);
     const thresholdPx = numberAttribute(input.marker, attrs.sessionThreshold) ?? input.fallbackThresholdPx;
@@ -453,8 +458,12 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         activated: false,
         longPressMs: numberAttribute(input.marker, attrs.sessionLongPressMs),
         hasMoved: false,
+        intervalDrag: undefined,
         effects: noOpEffectRunner,
     };
+    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX);
+    if (interval === null) return null;
+    session.intervalDrag = interval;
     session.effects = createPointerSessionEffectRunner(session);
     return session;
 }
@@ -592,12 +601,37 @@ function createContextualEffectHandler(effect: InteractionSessionEffect): Contex
 
 function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kind: "clone-shadow" }>): GlobalEffectHandler {
     let shadow: Element | null = null;
+    let label: HTMLElement | null = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
 
     const cleanup = () => {
         if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
         shadow = null;
+        label?.remove();
+        label = null;
+    };
+
+    const update = (session: ActivePointerSession) => {
+        if (!shadow) return;
+        const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
+        if (session.intervalDrag) {
+            (shadow as HTMLElement).hidden = !projection;
+            if (label) label.hidden = !projection;
+            if (!projection) return;
+            const style = (shadow as HTMLElement).style;
+            style.width = `${projection.width}px`;
+            style.transform = `translate3d(${projection.left}px, ${session.currentClientY - grabOffsetY}px, 0)`;
+            if (label) {
+                label.textContent = projection.label;
+                const viewport = label.ownerDocument.documentElement;
+                const x = Math.max(4, Math.min(session.currentClientX + 12, viewport.clientWidth - label.offsetWidth - 4));
+                const y = Math.max(4, Math.min(session.currentClientY + 20, viewport.clientHeight - label.offsetHeight - 4));
+                label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+            }
+        } else {
+            moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+        }
     };
 
     return {
@@ -617,12 +651,15 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
             applyShadowBaseStyle(proxy, rect);
             layer.appendChild(proxy);
             shadow = proxy;
-            moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+            if (session.intervalDrag) {
+                label = layer.ownerDocument.createElement("div");
+                label.setAttribute(attrs.dragPreviewLabel, values.enabled);
+                label.setAttribute("aria-hidden", "true");
+                layer.appendChild(label);
+            }
+            update(session);
         },
-        update(session) {
-            if (!shadow) return;
-            moveShadow(shadow, session, grabOffsetX, grabOffsetY);
-        },
+        update,
         cleanup,
     };
 }
@@ -693,6 +730,7 @@ function pointerSessionFields(session: ActivePointerSession): Record<string, str
 }
 
 function activeDropzone(session: ActivePointerSession): Element | null {
+    if (session.intervalDrag) return session.intervalDrag.project(session.currentClientX, session.currentClientY)?.target ?? null;
     return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
 }
 
