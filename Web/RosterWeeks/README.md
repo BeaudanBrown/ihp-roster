@@ -312,11 +312,13 @@ into this mode.
 
 ## Day Timeline Rendering Contract
 
-The visible Roster grid/Timeline switch selects a single-day timeline on the
-normal roster page through canonical `anchorDate`, `rosterView=timeline` and
-`dayDate` parameters. Day arrows and a date picker navigate it. Switching back
-to the grid retains the selected date as its anchor. The existing grid preference
-remains the default; no timeline preference is persisted.
+Roster tools → Settings → Roster layout offers Timeline alongside Day rows
+and Day columns. Timeline selection uses canonical `anchorDate`,
+`rosterView=timeline` and `dayDate` parameters; day arrows and Today navigate it.
+Returning to a grid layout retains the selected date as its anchor. Only managers
+change the shared grid layout; other viewers can switch between Timeline and
+the venue's current grid layout. The existing grid preference remains the
+default; no timeline preference is persisted.
 
 The timeline belongs to the main roster FrontendSurface, with distinct typed
 shift/time interaction refs and a day-parameterized live content fragment.

@@ -18,8 +18,9 @@ async function ensureExportsSectionOpen(page: Page) {
     await expect(page.locator('[data-payroll-workbook-configuration] form').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
-export async function gotoExports(page: Page) {
-    await gotoWhenReady(page, '/Admin#exports', 'h1:has-text("Admin")');
+export async function gotoExports(page: Page, anchorDate?: string) {
+    const path = anchorDate ? `/Admin?anchorDate=${encodeURIComponent(anchorDate)}#exports` : '/Admin#exports';
+    await gotoWhenReady(page, path, 'h1:has-text("Admin")');
     await ensureExportsSectionOpen(page);
 }
 

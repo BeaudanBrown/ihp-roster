@@ -9,7 +9,9 @@ This document retains cross-module scheduling and state-transition rules.
 - `anchorDate` in the canonical URL is window-navigation authority.
   `ShowRosterWindowAction { anchorDate }` resolves the configured seven-day
   window containing that date; `RosterWeeksAction` resets from the current
-  Operational day. Offset-based roster and Timesheet URLs are unsupported;
+  Operational day in the venue timezone, including its 06:00 boundary, just like
+  Timesheets. Timeline Today, empty-group navigation and overview focus use the
+  same authority, never the UTC calendar date. Offset-based roster and Timesheet URLs are unsupported;
   do not add compatibility redirects or persist a last-viewed window.
 - Roster data is venue-scoped and may be roster-group-scoped. Missing weeks may
   be materialized only through authorized server behavior; reference browsing
@@ -156,6 +158,10 @@ The row-grid, day-column, and roster day timeline are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. The grid remains the default; switching views
 retains the selected operational date without a persisted view preference.
+View selection lives in Roster tools → Settings → Roster layout, not a second
+header switch or date form. Timeline has day arrows and Today. View navigation
+is available without management authority; changing the shared day-row/day-column
+preference still requires manager mode.
 
 The timeline uses elapsed instants at a fixed scale: DST gaps occupy no invented
 time and repeated clocks remain distinct. Configured hours are a minimum range;

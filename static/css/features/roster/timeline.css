@@ -1,15 +1,3 @@
-.roster-timeline-view-controls,
-.roster-timeline-date-form {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.roster-timeline-date-form input[type="date"] {
-    width: auto;
-}
-
 .roster-grid-frame.roster-grid-frame-timeline {
     display: block !important;
 }

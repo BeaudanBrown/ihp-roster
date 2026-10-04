@@ -224,7 +224,8 @@ instance Controller RosterWeeksController where
         markStaleRosterCalendarResponseForRefresh
 
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
-        today <- utctDay <$> getCurrentTime
+        venueConfig <- fetchVenueConfig
+        today <- currentOperationalDayForVenue venueConfig
         resolveAuthorizedRosterPageAnchor today >>= \case
             Nothing -> do
                 clearImpersonationReturnFallback
@@ -788,15 +789,23 @@ instance Controller RosterWeeksController where
             Right layoutMode -> do
                 venueConfig <- fetchVenueConfig
                 mutationResult <- setVenueRosterLayoutMode venueConfig layoutMode
-                if isHtmxRequest
-                    then respondWithRosterResourceInvalidation
-                        scope
-                        mutationResult.liveMutationTouchedResources
-                        rosterGridStructuralAndStaffPanelFragments
-                        (renderToastOob ToastBottomCenter (successToast "Venue roster layout saved."))
-                    else do
-                        setSuccessMessage "Venue roster layout saved."
-                        redirectToRosterWindow scope
+                case currentRosterTimelineDate scope.rosterWindowStart of
+                    Just selectedDate -> do
+                        let gridUrl = rosterWindowUrl selectedDate rosterGroup.id
+                        if isHtmxRequest
+                            then do
+                                setHeader ("HX-Redirect", cs gridUrl)
+                                renderPlain ""
+                            else redirectToPath gridUrl
+                    Nothing -> if isHtmxRequest
+                        then respondWithRosterResourceInvalidation
+                            scope
+                            mutationResult.liveMutationTouchedResources
+                            rosterGridStructuralAndStaffPanelFragments
+                            (renderToastOob ToastBottomCenter (successToast "Venue roster layout saved."))
+                        else do
+                            setSuccessMessage "Venue roster layout saved."
+                            redirectToRosterWindow scope
 
     action currentAction@MoveRosterShiftToSlotAction = runBepis currentAction BepisMutationAction do
         ensureManagerModeAccess
@@ -1292,7 +1301,8 @@ renderNoRosterGroupPage = do
     setTitle "Roster"
     noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
     noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
-    noRosterGroupAnchorDate <- utctDay <$> getCurrentTime
+    venueConfig <- fetchVenueConfig
+    noRosterGroupAnchorDate <- currentOperationalDayForVenue venueConfig
     let view = NoRosterGroupView { .. }
     if isHtmxRequest
         then respondHtmlProfiled (renderNoRosterGroupShell view)
@@ -1537,9 +1547,10 @@ rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate = do
     venueConfig <- fetchVenueConfig
     pure (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
 
-buildRosterTimelineTodayUrl :: (?context :: ControllerContext) => Id RosterGroup -> IO Text
+buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
 buildRosterTimelineTodayUrl rosterGroupId = do
-    today <- utctDay <$> getCurrentTime
+    venueConfig <- fetchVenueConfig
+    today <- currentOperationalDayForVenue venueConfig
     pure (rosterTimelineWindowUrl today rosterGroupId)
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => AuthorizedRosterScope -> IO ResponseReceived
@@ -1574,7 +1585,7 @@ passkeySetupPromptFromSession =
 
 renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueConfig -> Calendar.Day -> Id RosterGroup -> IO Markup.Html
 renderRosterWeekOverviewFragment venueConfig weekStartDate rosterGroupId = do
-    todayDate <- utctDay <$> getCurrentTime
+    todayDate <- currentOperationalDayForVenue venueConfig
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
     pure (renderWeekOverviewPanelFragment rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))

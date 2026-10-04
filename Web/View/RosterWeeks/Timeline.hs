@@ -143,7 +143,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
                  style={"--roster-timeline-track-count:" <> tshow trackCount <> ";"}>
             <div class="roster-day-timeline-lane-label">
                 <span class="fw-semibold">{rosterWindowLaneName windowLane}</span>
-                <span class="text-muted small">{assignedShiftCount} shifts</span>
+                <span class="text-muted small">{assignedShiftCount} {if assignedShiftCount == 1 then "shift" else "shifts" :: Text}</span>
                 {addShiftButton}
             </div>
             <div {...Drag.dragAxisAttrs} class="roster-day-timeline-lane-body">

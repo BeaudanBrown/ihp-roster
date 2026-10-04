@@ -10,7 +10,7 @@ import {
     shiftExportWeek,
 } from './support/exports';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
-import { runSql } from './support/database';
+import { querySql, runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -59,10 +59,14 @@ test.describe('Payroll export downloads', () => {
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
         await expect(page.locator('[data-export-history="true"]')).toHaveCount(0);
 
-        const currentWeek = await currentReportWeek(page);
+        const defaultWeek = await currentReportWeek(page);
         await shiftExportWeek(page, 'Previous');
         const resetWeek = await shiftExportWeek(page, 'Current');
-        expect(resetWeek).toEqual(currentWeek);
+        expect(resetWeek).toEqual(defaultWeek);
+        // Download the seeded period explicitly; the machine calendar is not fixture authority.
+        const fixtureAnchorDate = querySql("SELECT operational_date FROM timesheet_entries WHERE id = 'a1000000-0000-0000-0000-000000000091'");
+        await gotoExports(page, fixtureAnchorDate);
+        const currentWeek = await currentReportWeek(page);
         const fileName = `payroll-workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
 
         const generationRequests: string[] = [];
@@ -84,7 +88,7 @@ test.describe('Payroll export downloads', () => {
         const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download', true);
         expect(standardDownload.suggestedFilename()).toBe(fileName);
 
-        await gotoExports(page);
+        await gotoExports(page, fixtureAnchorDate);
         await standardCard.getByRole('button', { name: 'Filtered…' }).click();
         await expect(warningDialog).toBeVisible();
         await warningDialog.getByRole('button', { name: 'Continue anyway' }).click();
@@ -136,7 +140,7 @@ test.describe('Payroll export downloads', () => {
         expect(await readZipEntryText(filteredDownload, 'xl/worksheets/sheet1.xml'))
             .toEqual(await readZipEntryText(standardDownload, 'xl/worksheets/sheet1.xml'));
 
-        await gotoExports(page);
+        await gotoExports(page, fixtureAnchorDate);
         await page.getByRole('button', { name: 'Create new export' }).click();
         const addDialog = page.getByRole('dialog', { name: 'Add export' });
         await expect(addDialog).toBeVisible();
@@ -157,7 +161,7 @@ test.describe('Payroll export downloads', () => {
         await addDialog.getByRole('button', { name: 'Save' }).click();
         expect((await createSaveResponse).ok()).toBe(true);
         await page.reload();
-        await gotoExports(page);
+        await gotoExports(page, fixtureAnchorDate);
 
         const configurationRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Wages then Summary' });
         await expect(configurationRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
@@ -173,7 +177,7 @@ test.describe('Payroll export downloads', () => {
         expect(workbookXml).not.toContain('Hours Mon');
         expect(workbookXml).toContain('name="Data"');
 
-        await gotoExports(page);
+        await gotoExports(page, fixtureAnchorDate);
         await configurationRow.getByRole('button', { name: 'Edit' }).click();
         const editDialog = page.getByRole('dialog', { name: 'Edit export' });
         await expect(editDialog).toBeVisible();
@@ -187,7 +191,7 @@ test.describe('Payroll export downloads', () => {
         await editDialog.getByRole('button', { name: 'Save' }).click();
         expect((await editSaveResponse).ok()).toBe(true);
         await page.reload();
-        await gotoExports(page);
+        await gotoExports(page, fixtureAnchorDate);
 
         const editedRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Hours then Wages' });
         await expect(editedRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });

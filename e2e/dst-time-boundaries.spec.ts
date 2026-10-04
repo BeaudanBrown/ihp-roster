@@ -11,14 +11,6 @@ import {
 } from './support/roster';
 
 const dialogSelector = `#${dialogOverlayMountDomId}`;
-const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
-
-function weekOffsetFromCurrentMonday(targetMonday: string) {
-    const now = new Date();
-    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const currentMondayUtc = todayUtc - ((now.getUTCDay() + 6) % 7) * 24 * 60 * 60 * 1000;
-    return Math.round((Date.parse(`${targetMonday}T00:00:00Z`) - currentMondayUtc) / millisecondsPerWeek);
-}
 
 function saturdaySection(page: Page) {
     return rosterDaySections(page).nth(5);
@@ -61,10 +53,10 @@ async function submitRosterShift(page: Page) {
 }
 
 async function openFreshSaturdayShift(page: Page, targetMonday: string) {
-    await openRoster(page, {
-        weekOffset: weekOffsetFromCurrentMonday(targetMonday),
-        maxWeekAdvances: 0,
-    });
+    await openRoster(page, { maxWeekAdvances: 0 });
+    const target = new URL(page.url());
+    target.searchParams.set('anchorDate', targetMonday);
+    await page.goto(target.toString());
     await expect(saturdaySection(page)).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
     const newShiftLaunchers = saturdaySection(page).locator(
         '[data-roster-shift-launcher="true"][hx-get*="NewRosterSlotDialog"]',

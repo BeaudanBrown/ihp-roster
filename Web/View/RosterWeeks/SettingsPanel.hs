@@ -32,12 +32,13 @@ import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)
 import Application.RosterNotification (RosterNotificationPanelData (..))
-import Web.RosterWeeks.Dom (rosterEmailButtonId)
+import Web.RosterWeeks.Dom (rosterEmailButtonId, rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl,
                               rosterCopyWeekConfirmationUrl,
                               rosterManagerModePreferenceUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
+                              rosterTimelineWindowUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
                               rosterWindowUrl)
@@ -59,6 +60,9 @@ rosterWeekShellSyncRoute actionUrl =
 rosterSettingsFromStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> RosterSettingsRenderModel
 rosterSettingsFromStaffPanel panel = RosterSettingsRenderModel
     { settingsWeekStartDate = panel.staffPanelWeekStartDate
+    , settingsSelectedDate = panel.staffPanelSelectedDate
+    , settingsRosterLayoutMode = panel.staffPanelRosterLayoutMode
+    , settingsViewMode = panel.staffPanelViewMode
     , settingsRosterGroups = panel.staffPanelRosterGroups
     , settingsCurrentRosterGroup = panel.staffPanelCurrentRosterGroup
     , settingsViewCapabilities = panel.staffPanelViewCapabilities
@@ -69,8 +73,6 @@ rosterSettingsFromStaffPanel panel = RosterSettingsRenderModel
         { settingsRosterWeek = panel.staffPanelRosterWeek
         , settingsCalendarRevision = panel.staffPanelCalendarRevision
         , settingsAssignmentFilters = panel.staffPanelAssignmentFilters
-        , settingsRosterLayoutMode = panel.staffPanelRosterLayoutMode
-        , settingsViewMode = panel.staffPanelViewMode
         , settingsNotificationPanelData = panel.staffPanelNotificationPanelData
         }
     }
@@ -80,14 +82,14 @@ renderRosterSettingsPanel settings@RosterSettingsRenderModel { settingsWeekStart
     <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel roster-settings-stack">
         {when managerModeToggleVisible (renderRosterManagerModePreferenceForm settingsWeekStartDate settingsCurrentRosterGroup.id)}
         {when (length settingsRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher settingsWeekStartDate settingsRosterGroups settingsCurrentRosterGroup)}
-        {forEach settingsManagement (\management -> renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection settingsWeekStartDate settingsCurrentRosterGroup.id management.settingsRosterLayoutMode management.settingsViewMode))}
+        {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection settings.settingsSelectedDate settingsCurrentRosterGroup.id settings.settingsRosterLayoutMode settings.settingsViewMode)}
         {renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsViewCapabilities settingsRosterPayDisplayMode settingsShowRosterWarnings settingsHighlightOwnLiveShifts)}
         {forEach settingsManagement (renderRosterManagementSettings settings)}
     </div>
 |]
 
 renderRosterManagementSettings :: (?context :: ControllerContext) => RosterSettingsRenderModel -> RosterManagementSettings -> Html
-renderRosterManagementSettings RosterSettingsRenderModel { settingsWeekStartDate, settingsCurrentRosterGroup, settingsViewCapabilities } RosterManagementSettings { settingsRosterWeek, settingsCalendarRevision, settingsAssignmentFilters, settingsRosterLayoutMode, settingsViewMode, settingsNotificationPanelData } = [hsx|
+renderRosterManagementSettings RosterSettingsRenderModel { settingsWeekStartDate, settingsCurrentRosterGroup, settingsViewCapabilities, settingsRosterLayoutMode, settingsViewMode } RosterManagementSettings { settingsRosterWeek, settingsCalendarRevision, settingsAssignmentFilters, settingsNotificationPanelData } = [hsx|
     {when settingsViewCapabilities.canManageAssignmentFilter $
         renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsAssignmentFilters)}
     {when (settingsViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm settingsRosterWeek settingsViewCapabilities) $
@@ -179,16 +181,29 @@ renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
 |]
 
 renderRosterLayoutSection :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
-renderRosterLayoutSection anchorDate rosterGroupId _selectedLayoutMode (RosterDayTimelineGridView _) = [hsx|
-    <a class="btn btn-outline-secondary btn-sm w-100" href={rosterWindowUrl anchorDate rosterGroupId} data-turbolinks="false">Week grid</a>
-|]
-renderRosterLayoutSection _anchorDate _rosterGroupId selectedLayoutMode RosterWeekGridView = [hsx|
+renderRosterLayoutSection selectedDate rosterGroupId selectedLayoutMode viewMode = [hsx|
     <div class="btn-group w-100 roster-layout-mode-group" role="group" aria-label="Roster layout">
-        {forEach rosterLayoutModes (renderRosterLayoutModeOption selectedLayoutMode)}
+        {forEach rosterLayoutModes renderGridOption}
+        {viewLink "Timeline" (rosterTimelineWindowUrl selectedDate rosterGroupId) isTimeline}
     </div>
 |]
+  where
+    isTimeline = case viewMode of
+        RosterDayTimelineGridView _ -> True
+        RosterWeekGridView          -> False
+    renderGridOption layoutMode
+        | hasManagementMode = renderRosterLayoutModeOption (if isTimeline then Nothing else Just selectedLayoutMode) layoutMode
+        | layoutMode == selectedLayoutMode = viewLink (rosterLayoutModeLabel layoutMode) (rosterWindowUrl selectedDate rosterGroupId) (not isTimeline)
+        | otherwise = [hsx|<button type="button" class="btn btn-outline-secondary btn-sm" disabled>{rosterLayoutModeLabel layoutMode}</button>|]
+    navigation = RosterAction.navigateRosterWeekAction (RosterAction.navigateRosterWeekActionFields selectedDate (unpackId rosterGroupId))
+    viewLink label url selected = renderFrontendSurfaceActionLink navigation
+        (rosterWeekShellSyncRoute url)
+            { actionRouteStandardUrl = Just url
+            , actionRouteExtraAttrs = [("class", if selected then "btn btn-primary btn-sm" else "btn btn-outline-secondary btn-sm"), ("aria-current", if selected then "page" else "false"), ("hx-select", "#" <> rosterWeekShellId)]
+            }
+        [hsx|{label :: Text}|]
 
-renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> Html
+renderRosterLayoutModeOption :: Maybe RosterLayoutModeEnum -> RosterLayoutModeEnum -> Html
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
@@ -200,7 +215,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    name={surfaceFieldNameFrom @Surface.RosterLayoutMode fields}
                    id={inputId}
                    value={layoutValue}
-                   checked={selectedLayoutMode == layoutMode} />
+                   checked={selectedLayoutMode == Just layoutMode} />
         |]
      in [hsx|
         {inputHtml}

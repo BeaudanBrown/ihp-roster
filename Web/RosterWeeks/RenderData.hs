@@ -234,7 +234,6 @@ rosterToolbarRenderModelFromProjection projection =
         { toolbarRosterWeek = gridModel.gridRosterWeek
         , toolbarCurrentRosterGroup = gridModel.gridCurrentRosterGroup
         , toolbarWeekStartDate = gridModel.gridWeekStartDate
-        , toolbarSelectedDate = gridModel.gridSelectedDate
         , toolbarCalendarRevision = gridModel.gridRosterCalendarRevision
         , toolbarViewCapabilities = gridModel.gridViewCapabilities
         , toolbarWagePrediction = gridModel.gridRosterWagePrediction
@@ -350,6 +349,7 @@ rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWe
     RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , staffPanelWeekStartDate = weekStartDate
+        , staffPanelSelectedDate = currentRosterSelectedDate weekStartDate
         , staffPanelCalendarRevision = rosterCalendarRevision
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup
@@ -482,7 +482,7 @@ fetchRosterRenderDataForPlan renderPlan snapshot = do
                 panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesWithPayState RosterStaffPanelCurrentGroup panelPayConfigurationRequiredIds panelStaffMembers visibleSlots)
                 templateLibrary <- fetchRosterPanelTemplateLibrary currentRosterGroup
                 notificationPanelData <- fetchRosterPanelNotificationData snapshot.snapshotAuthorizedScope weekStartDate rosterDays
-                staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig scope maybeCurrentViewerStaff (personalRosterSettings scope rosterGroups currentRosterGroup rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts))
+                staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig scope maybeCurrentViewerStaff (personalRosterSettings venueConfig scope rosterGroups currentRosterGroup rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts))
                 pure (panelStaff, templateLibrary, notificationPanelData, staffSelfServicePanel)
             _ -> pure ([], Nothing, Nothing, Nothing)
     slotConflicts <-
@@ -513,10 +513,13 @@ fetchRosterPanelTemplateLibrary rosterGroup
     | not hasManagementMode = pure Nothing
     | otherwise = profileActionSpan "roster.template.fetch_library" (currentRosterTemplateActor >>= (`fetchRosterTemplateLibraryDirect` rosterGroup))
 
-personalRosterSettings :: (?context :: ControllerContext) => RosterWindowScope -> [RosterGroup] -> RosterGroup -> RosterPayDisplayMode -> Bool -> Bool -> RosterSettingsRenderModel
-personalRosterSettings scope rosterGroups currentRosterGroup rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts =
+personalRosterSettings :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> RosterWindowScope -> [RosterGroup] -> RosterGroup -> RosterPayDisplayMode -> Bool -> Bool -> RosterSettingsRenderModel
+personalRosterSettings venueConfig scope rosterGroups currentRosterGroup rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts =
     RosterSettingsRenderModel
         { settingsWeekStartDate = scope.rosterWindowStart
+        , settingsSelectedDate = currentRosterSelectedDate scope.rosterWindowStart
+        , settingsRosterLayoutMode = venueConfig.rosterLayoutMode
+        , settingsViewMode = currentRosterGridViewMode scope.rosterWindowStart
         , settingsRosterGroups = rosterGroups
         , settingsCurrentRosterGroup = currentRosterGroup
         , settingsViewCapabilities = buildRosterViewCapabilities Nothing
@@ -697,7 +700,6 @@ fetchRosterToolbarRenderModelFromSnapshot snapshot = do
         { toolbarRosterWeek = visibleRosterWeek
         , toolbarCurrentRosterGroup = snapshot.snapshotRosterGroup
         , toolbarWeekStartDate = snapshot.snapshotScope.rosterWindowStart
-        , toolbarSelectedDate = currentRosterSelectedDate snapshot.snapshotScope.rosterWindowStart
         , toolbarCalendarRevision = venueConfig.rosterCalendarRevision
         , toolbarViewCapabilities = buildRosterViewCapabilities visibleRosterWeek
         , toolbarWagePrediction
@@ -760,10 +762,11 @@ fetchVisibleRosterStaffPanelRenderModelFromSnapshot panelScope snapshot = do
                 allVenuePayConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds allVenueStaff
                 fetchRosterStaffPanelEntriesWithAssignedCounts panelScope allVenuePayConfigurationRequiredIds assignedShiftCounts allVenueStaff
     notificationPanelData <- fetchRosterPanelNotificationData snapshot.snapshotAuthorizedScope weekStartDate snapshot.snapshotWindowFacts.windowFactsDays
-    staffSelfServicePanel <- fetchRosterStaffSelfServicePanel venueConfig scope snapshot.snapshotCurrentStaff (personalRosterSettings scope rosterGroups currentRosterGroup (effectiveRosterPayDisplayMode userRosterPayDisplayMode) showRosterWarnings highlightOwnLiveShifts)
+    staffSelfServicePanel <- fetchRosterStaffSelfServicePanel venueConfig scope snapshot.snapshotCurrentStaff (personalRosterSettings venueConfig scope rosterGroups currentRosterGroup (effectiveRosterPayDisplayMode userRosterPayDisplayMode) showRosterWarnings highlightOwnLiveShifts)
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek
         , staffPanelWeekStartDate = weekStartDate
+        , staffPanelSelectedDate = currentRosterSelectedDate weekStartDate
         , staffPanelCalendarRevision = venueConfig.rosterCalendarRevision
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup

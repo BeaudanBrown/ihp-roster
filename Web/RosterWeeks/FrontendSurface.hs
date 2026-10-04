@@ -276,7 +276,7 @@ rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterLayoutModeRequest scope =
     FrontendSurfaceHtmxRequest
         { htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = rosterLayoutPreferenceUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId scope.rosterWeekCalendarRevision
+        , htmxRequestUrl = maybe Prelude.id withRosterTimelineContext scope.rosterWeekTimelineDate (rosterLayoutPreferenceUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId scope.rosterWeekCalendarRevision)
         , htmxRequestTarget = "#" <> rosterContentFragmentId
         , htmxRequestSwap = "none"
         }

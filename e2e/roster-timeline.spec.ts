@@ -1,8 +1,20 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openRoster, resetCanonicalRosterAssignedShiftFixture, fillRosterShiftDialogDefaults, saveRosterShiftDialog } from './support/roster';
+import { readFileSync } from 'node:fs';
+import { openRoster, openRosterSettings, resetCanonicalRosterAssignedShiftFixture, fillRosterShiftDialogDefaults, saveRosterShiftDialog } from './support/roster';
 import { querySql, runSql, sqlString } from './support/database';
 import { waitForLiveRecovery } from './support/runtime';
 import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr, toggleRootDomAttr } from '../frontend/ts/generated/contracts';
+
+async function openTimelineLayout(page: Page) {
+    await openRosterSettings(page);
+    await page.getByRole('group', { name: 'Roster layout', exact: true }).getByRole('link', { name: 'Timeline', exact: true }).click();
+    await expect(page.locator('.roster-day-timeline')).toBeVisible();
+    const closeTools = page.getByRole('button', { name: 'Close Roster tools', exact: true });
+    if (await closeTools.isVisible()) {
+        await closeTools.click();
+        await expect(page.locator('.app-side-panel-shelf-content')).toBeHidden();
+    }
+}
 
 async function requestTimelineRefresh(page: Page) {
     await page.evaluate(({ configAttr, eventName }) => {
@@ -381,21 +393,13 @@ test('scrolls at drag edges and preserves native touch swipes', async ({ page, i
 
 test('navigates the fixed-scale timeline and preserves its date across view switches', async ({ page }) => {
     await openRoster(page);
-    await page.getByRole('link', { name: 'Timeline', exact: true }).click();
+    const url = new URL(page.url());
+    url.searchParams.set('anchorDate', '2026-04-04');
+    await page.goto(url.toString());
+    await openTimelineLayout(page);
     const timeline = page.locator('.roster-day-timeline');
-    await expect(timeline).toBeVisible();
-    const dateInput = page.locator('.roster-timeline-date-form input[name="anchorDate"]');
-    const nativeDate = page.locator('.roster-timeline-date-form .flatpickr-mobile');
-    if (await nativeDate.isVisible()) {
-        await nativeDate.fill('2026-04-04');
-    } else {
-        await page.getByLabel('Timeline date', { exact: true }).click();
-        await page.locator('.flatpickr-calendar.open .cur-year').fill('2026');
-        await page.locator('.flatpickr-calendar.open .flatpickr-monthDropdown-months').selectOption('3');
-        await page.locator('.flatpickr-calendar.open [aria-label="April 4, 2026"]').click();
-    }
-    await page.getByRole('button', { name: 'Go', exact: true }).click();
-    await expect(dateInput).toHaveValue('2026-04-04');
+    await expect(page.locator('[data-week-toolbar] input[type="date"]')).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Roster view', exact: true })).toHaveCount(0);
     await expect(timeline).toHaveAttribute('aria-label', 'Saturday 04/04 roster timeline');
     await expect(page.getByText('02:00 (first)', { exact: true })).toHaveCount(1);
     await expect(page.getByText('02:00 (second)', { exact: true })).toHaveCount(1);
@@ -413,10 +417,54 @@ test('navigates the fixed-scale timeline and preserves its date across view swit
     expect(await scrollOwner.evaluate((element) => element.scrollLeft)).toBe(600);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: test.info().outputPath('timeline-fixed-scale.png'), fullPage: true });
-    await page.getByRole('link', { name: 'Roster grid', exact: true }).click();
-    await expect(page.locator('.roster-grid-frame')).not.toHaveAttribute('data-roster-layout', 'timeline');
-    await page.getByRole('link', { name: 'Timeline', exact: true }).click();
-    await expect(dateInput).toHaveValue('2026-04-04');
+    for (const layout of ['day_columns', 'day_rows']) {
+        await openRosterSettings(page);
+        await page.locator(`label[for="roster-layout-mode-${layout}"]`).click();
+        await expect(page.locator('.roster-grid-frame')).toHaveAttribute('data-roster-layout', layout);
+        await expect(page).toHaveURL(/anchorDate=2026-04-04/);
+        await openTimelineLayout(page);
+        await expect(timeline).toHaveAttribute('aria-label', 'Saturday 04/04 roster timeline');
+    }
     await page.getByRole('link', { name: 'Next day', exact: true }).click();
-    await expect(dateInput).toHaveValue('2026-04-05');
+    await expect(timeline).toHaveAttribute('aria-label', 'Sunday 05/04 roster timeline');
+});
+
+test('keeps populated lanes and layout choices usable without extra header controls', async ({ page, isMobile }, testInfo) => {
+    await openRoster(page);
+    if (!isMobile) await page.setViewportSize({ width: 1600, height: 1100 });
+    runSql(readFileSync('e2e/fixtures/roster-timeline-preview.sql', 'utf8'));
+    try {
+        const url = new URL(page.url());
+        url.searchParams.set('anchorDate', '2027-06-14');
+        await page.goto(url.toString());
+        await openTimelineLayout(page);
+        await expect(page.locator('.roster-day-timeline-lane')).toHaveCount(5);
+        await expect(page.locator('.roster-day-timeline-shift')).toHaveCount(12);
+        await expect(page.locator('.roster-day-timeline-shift.is-roster-shift-open')).toHaveCount(4);
+        await expect(page.locator('[data-week-toolbar] input[type="date"]')).toHaveCount(0);
+        await expect(page.getByRole('group', { name: 'Roster view', exact: true })).toHaveCount(0);
+        const owner = page.locator('.roster-day-timeline-scroller');
+        await owner.evaluate((element, scrollLeft) => { element.scrollLeft = scrollLeft; }, isMobile ? 192 : 0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        if (isMobile) {
+            await expect.poll(async () => page.getByRole('button', { name: 'Open Roster tools', exact: true }).evaluate((element) =>
+                Math.abs(element.getBoundingClientRect().bottom - window.innerHeight))).toBeLessThanOrEqual(1);
+        }
+        await page.screenshot({ path: testInfo.outputPath('timeline-populated.png'), fullPage: !isMobile });
+        await owner.evaluate((element) => { element.scrollLeft = 960; element.scrollTop = element.scrollHeight; });
+        await page.screenshot({ path: testInfo.outputPath('timeline-populated-later.png'), fullPage: !isMobile });
+        await openRosterSettings(page);
+        const choices = page.getByRole('group', { name: 'Roster layout', exact: true });
+        await expect(choices).toContainText('Day rows');
+        await expect(choices).toContainText('Day columns');
+        await expect(choices.getByRole('link', { name: 'Timeline', exact: true })).toHaveAttribute('aria-current', 'page');
+        await page.screenshot({ path: testInfo.outputPath('timeline-layout-options.png'), fullPage: !isMobile });
+    } finally {
+        runSql(`
+            UPDATE roster_slots SET deleted_at = NOW() WHERE id::text LIKE 'a6500000-%';
+            UPDATE roster_lanes SET deleted_at = NOW() WHERE id::text LIKE 'a6500000-%';
+            UPDATE staff SET is_active = FALSE WHERE id::text LIKE 'a6500000-%';
+            UPDATE shift_types SET is_active = FALSE WHERE id::text LIKE 'a6500000-%';
+        `);
+    }
 });

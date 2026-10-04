@@ -1,5 +1,6 @@
 module Test.VenueTimeSpec where
 
+import Application.Helper.TimeRules (currentOperationalDayForVenueOutcome)
 import Application.VenueTime
 import Application.VenueTime.Model
 import qualified Data.Map.Strict as Map
@@ -18,6 +19,18 @@ import Test.QuickCheck (NonNegative (..), Positive (..), property)
 tests :: Spec
 tests =
     describe "Melbourne civil-time authority" do
+        it "anchors Today to the venue operational day across UTC midnight and the 06:00 boundary" do
+            let config = newRecord @VenueConfig |> set #timezone "Australia/Melbourne"
+                utcAt day hour minute = UTCTime day (secondsToDiffTime (hour * 3600 + minute * 60))
+                sunday = fromGregorian 2026 10 4
+                monday = fromGregorian 2026 10 5
+            -- Melbourne Monday 05:59 still belongs to Sunday's hospitality day.
+            currentOperationalDayForVenueOutcome config (utcAt sunday 18 59) `shouldBe` Right sunday
+            currentOperationalDayForVenueOutcome config (utcAt sunday 19 0) `shouldBe` Right monday
+            -- Midnight UTC must not advance or reset the already-current Monday.
+            currentOperationalDayForVenueOutcome config (utcAt sunday 23 59) `shouldBe` Right monday
+            currentOperationalDayForVenueOutcome config (utcAt monday 0 0) `shouldBe` Right monday
+
         it "normal: resolves a unique Melbourne civil time automatically" do
             let civilTime =
                     MelbourneCivilTime

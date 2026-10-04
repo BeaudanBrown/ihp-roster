@@ -5,6 +5,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timeshee
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (noShiftCopyOccurrenceSelections,
@@ -72,6 +73,22 @@ import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..),
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
+        it "resets grid and timeline navigation to the venue operational day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Operational Today"
+                manager <- createUserRecord "operational-today@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentOperationalDayForVenue config
+                forEach [[], [("rosterView", "timeline")]] \params -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams RosterWeeksAction params
+                    responseStatus response `shouldBe` status302
+                    let location = fromMaybe "" (lookup "Location" (responseHeaders response))
+                    location `shouldSatisfy` ByteString.isInfixOf ("anchorDate=" <> cs (tshow today))
+                    when (not (null params)) $
+                        location `shouldSatisfy` ByteString.isInfixOf ("dayDate=" <> cs (tshow today))
+
         it "resolves projected grid and timeline creation without materializing before a valid save" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Projected staff drop"
@@ -1833,7 +1850,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "roster-manager-mode-toggle"
                 response `responseBodyShouldNotContain` "roster-shift-create-grid"
                 response `responseBodyShouldNotContain` "Templates"
-                response `responseBodyShouldNotContain` "Roster layout"
+                response `responseBodyShouldContain` "Roster layout"
+                response `responseBodyShouldContain` ">Timeline</a>"
+                response `responseBodyShouldNotContain` "id=\"roster-layout-mode-day_rows\""
 
                 settingsFragment <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterSettingsFragmentAction "2025-01-06")
@@ -1841,7 +1860,9 @@ tests = aroundAll withDatabaseTestContext do
                 settingsFragment `responseStatusShouldBe` status200
                 settingsFragment `responseBodyShouldContain` "Unavailability"
                 settingsFragment `responseBodyShouldContain` "roster-manager-mode-toggle"
-                settingsFragment `responseBodyShouldNotContain` "Roster layout"
+                settingsFragment `responseBodyShouldContain` "Roster layout"
+                settingsFragment `responseBodyShouldContain` ">Timeline</a>"
+                settingsFragment `responseBodyShouldNotContain` "id=\"roster-layout-mode-day_rows\""
 
                 deniedResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction AddRosterRowAction { rosterDayId = rosterDay.id }

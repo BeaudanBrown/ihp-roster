@@ -98,6 +98,9 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 -- Shared by both panel containers and their settings fragment responses.
 data RosterSettingsRenderModel = RosterSettingsRenderModel
     { settingsWeekStartDate          :: Day
+    , settingsSelectedDate           :: Day
+    , settingsRosterLayoutMode       :: RosterLayoutModeEnum
+    , settingsViewMode               :: RosterGridViewMode
     , settingsRosterGroups           :: [RosterGroup]
     , settingsCurrentRosterGroup     :: RosterGroup
     , settingsViewCapabilities       :: RosterViewCapabilities
@@ -111,14 +114,13 @@ data RosterManagementSettings = RosterManagementSettings
     { settingsRosterWeek            :: Maybe RosterWindowState
     , settingsCalendarRevision      :: Int
     , settingsAssignmentFilters     :: RosterAssignmentFilters
-    , settingsRosterLayoutMode      :: RosterLayoutModeEnum
-    , settingsViewMode              :: RosterGridViewMode
     , settingsNotificationPanelData :: Maybe RosterNotificationPanelData
     }
 
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek             :: Maybe RosterWindowState
     , staffPanelWeekStartDate          :: Day
+    , staffPanelSelectedDate           :: Day
     , staffPanelCalendarRevision       :: Int
     , staffPanelRosterGroups           :: [RosterGroup]
     , staffPanelCurrentRosterGroup     :: RosterGroup
@@ -204,7 +206,6 @@ data RosterToolbarRenderModel = RosterToolbarRenderModel
     { toolbarRosterWeek         :: Maybe RosterWindowState
     , toolbarCurrentRosterGroup :: RosterGroup
     , toolbarWeekStartDate      :: Day
-    , toolbarSelectedDate       :: Day
     , toolbarCalendarRevision   :: Int
     , toolbarViewCapabilities   :: RosterViewCapabilities
     , toolbarWagePrediction     :: Maybe RosterWagePrediction
