@@ -27,8 +27,10 @@ import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
 import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
 import Web.RosterWeeks.FrontendSurface (rosterDayTimelineDropzoneRef,
                                         rosterShiftGroupLinkedHighlight,
+                                        rosterExistingShiftDropzoneRef,
                                         rosterDayTimelineSourceRef)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
+import Web.RosterWeeks.Paths (rosterTimelineCreateDialogUrl, withRosterTimelineContext)
 import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
@@ -127,6 +129,14 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
         trackCount = max 1 (1 + foldl' max 0 (map timelineShiftTrack positionedShifts))
         assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
         dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
+        canFillPublishedOpen = hasManagementMode && rosterDay.publicationState == Published && not rosterDay.isClosed
+        addShiftButton = case listToMaybe dropzones of
+            Nothing -> mempty
+            Just (_, key) -> [hsx|
+                <button {...(rosterShiftDialogLauncherAttrs (rosterTimelineCreateDialogUrl rosterDay.operationalDate (Id rosterDay.rosterGroupId) calendarRevision key))}
+                        type="button" class="btn btn-sm btn-outline-secondary"
+                        aria-label={"Add shift in " <> rosterWindowLaneName windowLane}>Add shift</button>
+            |]
      in [hsx|
         <section class="roster-day-timeline-lane"
                  aria-label={rosterWindowLaneName windowLane}
@@ -134,35 +144,40 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
             <div class="roster-day-timeline-lane-label">
                 <span class="fw-semibold">{rosterWindowLaneName windowLane}</span>
                 <span class="text-muted small">{assignedShiftCount} shifts</span>
+                {addShiftButton}
             </div>
             <div {...Drag.dragAxisAttrs} class="roster-day-timeline-lane-body">
                 <div class="roster-day-timeline-gridlines" aria-hidden="true">
                     {forEach (timelineHourTicks timelineWindow) (renderTimelineGridline timelineWindow)}
                 </div>
                 <div class="roster-day-timeline-dropzones" aria-hidden={if editable then ("false" :: Text) else "true"}>
-                    {forEach dropzones (renderTimelineDropzone timelineWindow rosterDay.operationalDate)}
+                    {forEach dropzones (renderTimelineDropzone timelineWindow rosterDay calendarRevision)}
                 </div>
                 <div class="roster-day-timeline-shifts">
-                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById rosterDay.operationalDate calendarRevision)}
+                    {forEach positionedShifts (renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shiftTypeById rosterDay.operationalDate calendarRevision)}
                 </div>
             </div>
         </section>
     |]
 
-renderTimelineDropzone :: TimelineWindow -> Day -> (UTCTime, Text) -> Html
-renderTimelineDropzone timelineWindow day (instant, targetKey) =
-    [hsx|
-        <div {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)} {...(Drag.dragPositionAttrs (timelineCoordinate timelineWindow.timelineWindowScale instant))} class="roster-day-timeline-dropzone"
-             style={timelineDropzoneStyle timelineWindow instant}
-             data-roster-timeline-minute={tshow (timelineOperationalMinute day instant)}
-             aria-label={"Move shift to " <> timelineClockLabel instant}>
-        </div>
+renderTimelineDropzone :: TimelineWindow -> RosterDay -> Int -> (UTCTime, Text) -> Html
+renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
+    let label = "Add shift at " <> timelineClockLabel instant
+     in [hsx|
+        <button {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)}
+                {...(Drag.dragPositionAttrs (timelineCoordinate timelineWindow.timelineWindowScale instant))}
+                {...(rosterShiftDialogLauncherAttrs (rosterTimelineCreateDialogUrl day.operationalDate (Id day.rosterGroupId) revision targetKey))}
+                type="button" tabindex="-1" class="roster-day-timeline-dropzone"
+                style={timelineDropzoneStyle timelineWindow instant}
+                data-roster-timeline-minute={tshow (timelineOperationalMinute day.operationalDate instant)}
+                aria-label={label} title={label}>
+        </button>
     |]
 
-renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
-renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =
+renderTimelineShift :: TimelineWindow -> Bool -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
+renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =
     let isOpen = rosterShiftIsOpen timelineShiftSlot
-        canLaunch = editable || (isOpen && hasManagementMode)
+        canLaunch = editable || (isOpen && canFillPublishedOpen)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftType = timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById)
         shiftTypeLabel = maybe "Shift" (.name) shiftType
@@ -192,7 +207,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
             else mempty
         launcherAttrs =
             if canLaunch
-                then rosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision))
+                then rosterShiftDialogLauncherAttrs (withRosterTimelineContext anchorDate (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)))
                 else []
         card = [hsx|
             <div class="roster-day-timeline-shift-position"
@@ -210,7 +225,10 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
                     (timelineCoordinate scale scale.scaleEndsAt)
                     (max 1 (round (authoritativeElapsedSeconds boundaries * 1000000)))
                     [(timelineCoordinate scale instant, label) | (instant, label) <- timelineMoveChoices scale anchorDate boundaries]
-        cardAttrs = if editable && not timelineShiftTimingInvalid
+        staffDropAttrs = if canLaunch && not timelineShiftTimingInvalid
+            then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterExistingShiftDropzoneRef groupKey
+            else []
+        cardAttrs = staffDropAttrs <> if editable && not timelineShiftTimingInvalid
             then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey
                 <> SurfaceInteraction.frontendSurfaceLongPressDragAttrs
                 <> intervalAttrs
@@ -269,7 +287,7 @@ placeInTrack trackIndex (trackEnd:rest) startMin endMin
 timelineDropzones :: TimelineWindow -> RosterDay -> RosterLane -> [(UTCTime, Text)]
 timelineDropzones timelineWindow rosterDay slotDefinition =
     [ (instant, "instant:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":" <> tshow (floor (utcTimeToPOSIXSeconds instant) :: Integer))
-    | instant <- timelineSnapInstants timelineWindow.timelineWindowScale
+    | instant <- timelineCreateInstants timelineWindow.timelineWindowScale rosterDay.operationalDate
     ]
 
 timelineHourTicks :: TimelineWindow -> [Int]

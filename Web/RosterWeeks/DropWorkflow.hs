@@ -8,6 +8,8 @@ module Web.RosterWeeks.DropWorkflow
     , RosterStaffDropIntent (..)
     , RosterTimelineDropBoundaryResolution (..)
     , TimelineShiftDropTarget (..)
+    , RosterTimelineCreateTarget (..)
+    , validateRosterTimelineCreateTarget
     , firstAvailableRosterDayPlacement
     , parseRosterDropSourceToken
     , parseRosterShiftDropDestinationToken
@@ -23,14 +25,14 @@ module Web.RosterWeeks.DropWorkflow
 
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules
-import Application.RosterShiftAssignment (rosterShiftAssignment)
+import Application.RosterShiftAssignment (rosterShiftAssignment, rosterShiftIsOpen)
 import Application.VenueTime.Model
 import Control.Monad (guard)
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Web.RosterWeeks.TimelineScale (TimelineScale (..), timelineScaleForDay)
+import Web.RosterWeeks.TimelineScale (TimelineScale (..), timelineScaleForDay, timelineCreateInstants)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
@@ -81,6 +83,13 @@ data TimelineShiftDropTarget = TimelineShiftDropTarget
     }
     deriving (Eq, Show)
 
+data RosterTimelineCreateTarget = RosterTimelineCreateTarget
+    { timelineCreateDay :: !RosterDay
+    , timelineCreateLane :: !RosterLane
+    , timelineCreateRowIndex :: !Int
+    , timelineCreateStartsAt :: !UTCTime
+    }
+
 data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     { timelineSourceSlot           :: !RosterSlot
     , timelineSourceRosterDay      :: !RosterDay
@@ -118,6 +127,7 @@ data RosterStaffDropIntent
         , staffDropRosterDay      :: !RosterDay
         , staffDropSlotDefinition :: !RosterLane
         , staffDropRowIndex       :: !Int
+        , staffDropStartsAt       :: !(Maybe UTCTime)
         }
 
 validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
@@ -196,6 +206,19 @@ validateRosterStaffDropIntent scope sourceToken targetToken = do
         (Just staffId, _, Just createTarget) -> do
             maybeResult <- validateRosterStaffCreateShiftDropTarget scope staffId createTarget
             pure (maybe (Left "Drop staff onto an open add-shift target in this roster week.") Right maybeResult)
+        (Just staffId, _, _) | isJust (parseTimelineShiftDropTargetToken targetToken) -> do
+            maybeStaff <- fetchActiveStaffForCurrentVenue staffId
+            staffEligible <- staffIsEligibleForRosterGroup staffId scope.rosterWindowRosterGroupId
+            target <- validateRosterTimelineCreateTarget scope targetToken
+            pure $ case (maybeStaff, staffEligible, target) of
+                (Just staff, True, Right placement) -> Right RosterStaffCreateShiftDropIntent
+                    { staffDropStaff = staff
+                    , staffDropRosterDay = placement.timelineCreateDay
+                    , staffDropSlotDefinition = placement.timelineCreateLane
+                    , staffDropRowIndex = placement.timelineCreateRowIndex
+                    , staffDropStartsAt = Just placement.timelineCreateStartsAt
+                    }
+                _ -> Left "Drop eligible staff onto an available timeline time."
         _ -> pure (Left "Drag a staff member onto a shift or add-shift target.")
 
 validateRosterStaffExistingShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Id Staff -> Id RosterSlot -> IO (Maybe RosterStaffDropIntent)
@@ -209,7 +232,8 @@ validateRosterStaffExistingShiftDropTarget scope staffId rosterSlotId = do
             pure do
                 _ <- either (const Nothing) Just (decodeRosterShiftTiming rosterSlot)
                 guard (rosterDayMatchesScope scope rosterDay)
-                guard (rosterDayIsEditable rosterDay)
+                guard (not rosterDay.isClosed)
+                guard (rosterDay.publicationState == Draft || (rosterDay.publicationState == Published && rosterShiftIsOpen rosterSlot))
                 guard staffEligible
                 pure RosterStaffExistingShiftDropIntent { staffDropStaff = staff, staffDropSlot = rosterSlot, staffDropRosterDay = rosterDay }
         _ -> pure Nothing
@@ -232,8 +256,35 @@ validateRosterStaffCreateShiftDropTarget scope staffId dropTarget = do
                 guard (rosterDayIsEditable targetRosterDay)
                 guard staffEligible
                 (slotDefinition, rowIndex) <- maybeResolvedTarget
-                pure RosterStaffCreateShiftDropIntent { staffDropStaff = staff, staffDropRosterDay = targetRosterDay, staffDropSlotDefinition = slotDefinition, staffDropRowIndex = rowIndex }
+                pure RosterStaffCreateShiftDropIntent { staffDropStaff = staff, staffDropRosterDay = targetRosterDay, staffDropSlotDefinition = slotDefinition, staffDropRowIndex = rowIndex, staffDropStartsAt = Nothing }
         _ -> pure Nothing
+
+-- Resolve projected days/lanes without materializing them. Only the eventual
+-- CreateRosterSlot submission may persist this placement.
+validateRosterTimelineCreateTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Text -> IO (Either Text RosterTimelineCreateTarget)
+validateRosterTimelineCreateTarget scope token = do
+    result <- case parseTimelineShiftDropTargetToken token of
+        Nothing -> pure Nothing
+        Just target -> do
+            window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+            case rosterWindowTarget scope.rosterWindowVenueId scope.rosterWindowRosterGroupId window target.timelineTargetRosterDayId of
+                Just (day, lanes) | rosterDayMatchesScope scope day && rosterDayIsEditable day -> do
+                    venueConfig <- fetchVenueConfig
+                    slots <- query @RosterSlot
+                        |> filterWhere (#rosterDayId, unpackId day.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetch
+                    let intervals = mapMaybe (either (const Nothing) (Just . rosterShiftTimingBoundaries) . decodeRosterShiftTiming) slots
+                    pure do
+                        lane <- find (\lane -> lane.id == target.timelineTargetSlotDefinitionId && isNothing lane.deletedAt) lanes
+                        scale <- either (const Nothing) Just (timelineScaleForDay day.operationalDate
+                            venueConfig.timePickerStartMinuteOfDay venueConfig.timePickerFinalSelectableMinuteOfDay
+                            [(authoritativeStartsAt bounds, authoritativeEndsAt bounds) | bounds <- intervals])
+                        guard (target.timelineTargetStartsAt `elem` timelineCreateInstants scale day.operationalDate)
+                        (_, rowIndex) <- firstAvailableRosterDayPlacement day [lane] slots
+                        pure (RosterTimelineCreateTarget day lane rowIndex target.timelineTargetStartsAt)
+                _ -> pure Nothing
+    pure (maybe (Left "Choose an available time in an editable timeline lane.") Right result)
 
 validateRosterShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Bool -> Id RosterSlot -> RosterShiftDropTarget -> IO (Maybe MoveRosterShiftIntent)
 validateRosterShiftDropTarget scope allowSemanticDayNoOp sourceSlotId dropTarget = do

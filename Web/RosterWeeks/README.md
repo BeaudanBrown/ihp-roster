@@ -332,6 +332,16 @@ spring skips its missing hour and autumn labels both occurrences. Gap display
 edges advance to the next real minute; repeated edges include both occurrences.
 This display policy does not relax saved-shift boundary validation.
 
+Empty-space buttons use the same opaque five-minute instant targets to open the
+existing shift editor with lane/start (and, for staff drops, the person) prefilled.
+Each lane has a keyboard-accessible Add shift alternative. Projected days and lanes
+remain read-only until a valid save. Repeated starts preserve their occurrence.
+Staff drops on existing cards save immediately, preserving lane and interval;
+published cards accept only authorized Open-to-Staff filling. Dialog submissions
+retain timeline context for actor refreshes. A touch hold activates staff dragging;
+the mobile tools shelf then closes through the generic interaction bus so the
+underlying timeline is no longer inert. Taps and swipes do not close the shelf.
+
 Outer lanes are active named slot columns, and inner overlap tracks are computed
 for display only. Fixed-height cards use shift-type colours; Open shifts also
 have explicit text and dashed edges. Full details appear on hover or focus;

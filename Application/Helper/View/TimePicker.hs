@@ -181,7 +181,7 @@ defaultTimePickerConfig fieldName currentValue rangeStart rangeEnd disabled =
 
 renderTimePickerField :: TimePickerConfig -> Html
 renderTimePickerField config@TimePickerConfig { timePickerStepMinutes }
-    | timePickerStepMinutes == 1 = renderNativeMinuteTimeField config
+    | timePickerStepMinutes `elem` [1, 5] = renderNativeMinuteTimeField config
     | otherwise = renderModalTimePickerField config
 
 renderModalTimePickerField :: TimePickerConfig -> Html
@@ -199,11 +199,11 @@ renderModalTimePickerField config@TimePickerConfig { timePickerFieldName, timePi
 |]
 
 renderNativeMinuteTimeField :: TimePickerConfig -> Html
-renderNativeMinuteTimeField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerKeyboardEnabled, timePickerAutofocus, timePickerInvalid, timePickerInputClasses, timePickerFieldClasses, timePickerAriaLabel } = [hsx|
+renderNativeMinuteTimeField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerKeyboardEnabled, timePickerAutofocus, timePickerInvalid, timePickerInputClasses, timePickerFieldClasses, timePickerAriaLabel, timePickerStepMinutes } = [hsx|
     <div {...timePickerFieldAttrs (browserConfigFor config)}
          class={classes (("time-picker-field", True) : ("time-picker-field-native", True) : map (\className -> (className, True)) timePickerFieldClasses)}>
         <input type="time"
-               step="60"
+               step={tshow (timePickerStepMinutes * 60)}
                name={timePickerFieldName}
                value={timePickerCurrentValue}
                disabled={timePickerDisabled}
@@ -218,7 +218,7 @@ renderNativeMinuteTimeField config@TimePickerConfig { timePickerFieldName, timeP
 browserConfigFor :: TimePickerConfig -> TimePickerBrowserConfig
 browserConfigFor TimePickerConfig { timePickerRangeStart, timePickerRangeEnd, timePickerStepMinutes, timePickerEmptyLabel }
     | null fieldOptions = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config must resolve at least one option"
-    | timePickerStepMinutes `notElem` [1, 15] = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config step must be 1 or 15 minutes"
+    | timePickerStepMinutes `notElem` [1, 5, 15] = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config step must be 1, 5 or 15 minutes"
     | timePickerStepMinutes == 15 && any (`notElem` canonicalValues) fieldOptions = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config must use canonical quarter-hour option values"
     | otherwise = TimePickerBrowserConfig
         { browserTimePickerRangeStart = timePickerRangeStart

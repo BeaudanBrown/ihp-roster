@@ -50,7 +50,7 @@ test("generated interaction registry contains only runtime-consumed interaction 
         "delete-shift-dropzone",
         "timeline-time-dropzone",
     ]);
-    assertDeepEqual(roster.sourceRefs[1]?.compatibleDropzones, ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]);
+    assertDeepEqual(roster.sourceRefs[1]?.compatibleDropzones, ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone", "timeline-time-dropzone"]);
     assertDeepEqual(roster.activationRefs.map((activation) => activation.ref), ["roster-layout-mode-activation"]);
     assertDeepEqual(roster.sessionKinds.map((session) => session.kind), ["drag"]);
     assertDeepEqual(Object.keys(roster).sort(), ["activationRefs", "dropzoneRefs", "sessionKinds", "sourceRefs"]);

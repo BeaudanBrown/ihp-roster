@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
+import { openRoster, resetCanonicalRosterAssignedShiftFixture, fillRosterShiftDialogDefaults, saveRosterShiftDialog } from './support/roster';
 import { querySql, runSql, sqlString } from './support/database';
 import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
 
@@ -19,6 +19,128 @@ async function requestTimelineRefresh(page: Page) {
         throw new Error('Expected timeline live fragment');
     }, { configAttr: surfaceConfigDomAttr, eventName: liveFragmentsRefreshEvent });
 }
+
+async function openCanonicalTimeline(page: Page) {
+    resetCanonicalRosterAssignedShiftFixture();
+    await openRoster(page);
+    const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
+    const url = new URL(page.url());
+    url.searchParams.set('rosterView', 'timeline');
+    url.searchParams.set('anchorDate', day);
+    url.searchParams.set('dayDate', day);
+    await page.goto(url.toString());
+}
+
+test('opens snapped empty-space creation and a keyboard alternative without writing drafts', async ({ page }) => {
+    await openCanonicalTimeline(page);
+    const count = () => querySql("SELECT count(*) FROM roster_slots WHERE roster_day_id = 'a1000000-0000-0000-0000-000000000061'");
+    const before = count();
+    const target = page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="425"]').first();
+    await target.click();
+    const dialog = page.getByRole('dialog', { name: 'Add shift' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('input[name="startTime"]')).toHaveValue('07:05');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toContainText('Choose an end time.');
+    expect(count()).toBe(before);
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(count()).toBe(before);
+    const add = page.getByRole('button', { name: 'Add shift in Early', exact: true });
+    await add.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.locator('.roster-day-timeline-scroller').evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    await page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="1715"]').first().click();
+    await expect(dialog.locator('input[name="startTime"]')).toHaveValue('04:35');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(count()).toBe(before);
+});
+
+test('saves a five-minute shift into a projected timeline lane and refreshes the actor', async ({ page, isMobile }) => {
+    await openRoster(page, { weekOffset: isMobile ? 161 : 160, ensureEditable: false });
+    const url = new URL(page.url());
+    const date = url.searchParams.get('anchorDate')!;
+    const group = url.searchParams.get('rosterGroupId')!;
+    const dayCount = () => querySql(`SELECT count(*) FROM roster_days WHERE roster_group_id = ${sqlString(group)} AND operational_date = ${sqlString(date)}`);
+    expect(dayCount()).toBe('0');
+    url.searchParams.set('rosterView', 'timeline');
+    url.searchParams.set('dayDate', date);
+    await page.goto(url.toString());
+    await page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="425"]').first().click();
+    const dialog = page.getByRole('dialog', { name: 'Add shift' });
+    await expect(dialog).toBeVisible();
+    expect(dayCount()).toBe('0');
+    await dialog.locator('select[name="staffId"]').selectOption('open');
+    await fillRosterShiftDialogDefaults(page);
+    await expect(dialog.locator('input[name="startTime"]')).toHaveValue('07:05');
+    await saveRosterShiftDialog(page);
+    expect(dayCount()).toBe('1');
+    await expect(page.locator('.roster-day-timeline-shift-time')).toHaveText('07:05–17:00');
+    expect(querySql(`SELECT to_char(slot.starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots slot JOIN roster_days day ON day.id = slot.roster_day_id WHERE day.roster_group_id = ${sqlString(group)} AND day.operational_date = ${sqlString(date)}`)).toBe('07:05');
+});
+
+test('drops staff into empty time and replaces a shift immediately, including touch from the shelf', async ({ page, isMobile, context }) => {
+    await openCanonicalTimeline(page);
+    const attrs = InteractionDom.attributes;
+    const staffId = 'a1000000-0000-0000-0000-000000000033';
+    const slotId = 'a1000000-0000-0000-0000-000000000071';
+    const source = page.locator(`[${attrs.sourceKey}="staff:${staffId}"]`);
+    const cdp = isMobile ? await context.newCDPSession(page) : null;
+    const owner = page.locator('.roster-day-timeline-scroller');
+    async function dropStaff(target: ReturnType<Page['locator']>) {
+        const open = page.getByRole('button', { name: 'Open Roster tools' });
+        if (await open.isVisible()) await open.click();
+        await page.getByRole('tab', { name: 'Staff', exact: true }).click();
+        await source.scrollIntoViewIfNeeded();
+        const targetBox = (await target.boundingBox())!;
+        const label = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+        const viewport = (await owner.boundingBox())!;
+        const end = { x: Math.max(label.x + label.width + 4, Math.min(targetBox.x + Math.min(targetBox.width / 2, 30), viewport.x + viewport.width - 12)), y: targetBox.y + targetBox.height / 2 };
+        const box = (await source.boundingBox())!;
+        const start = { x: box.x + 60, y: box.y + box.height / 2 };
+        const response = page.waitForResponse((result) => result.url().includes('/DropRosterStaff'));
+        if (cdp) {
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+            await page.waitForTimeout(520);
+            await expect(page.getByRole('button', { name: 'Open Roster tools' })).toBeVisible();
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] });
+            await expect(target).toHaveClass(/bepis-dropzone-highlight/);
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } else {
+            await page.mouse.move(start.x, start.y);
+            await page.mouse.down();
+            await page.mouse.move(end.x, end.y, { steps: 10 });
+            await expect(target).toHaveClass(/bepis-dropzone-highlight/);
+            await page.mouse.up();
+        }
+        expect((await response).ok()).toBe(true);
+    }
+    try {
+        const countBefore = querySql('SELECT count(*) FROM roster_slots');
+        await dropStaff(page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="425"]').first());
+        const dialog = page.getByRole('dialog', { name: 'Add shift' });
+        await expect(dialog).toBeVisible();
+        await expect(dialog.locator('input[name="startTime"]')).toHaveValue('07:05');
+        await expect(dialog.locator('select[name="staffId"]')).toHaveValue(staffId);
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        expect(querySql('SELECT count(*) FROM roster_slots')).toBe(countBefore);
+        await owner.evaluate((element) => { element.scrollLeft = 240; });
+        const card = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+        const interval = () => querySql(`SELECT json_build_array(starts_at, ends_at, roster_lane_id, row_index)::text FROM roster_slots WHERE id = '${slotId}'`);
+        const before = interval();
+        await dropStaff(card);
+        await expect.poll(() => querySql(`SELECT staff_id FROM roster_slots WHERE id = '${slotId}'`)).toBe(staffId);
+        expect(interval()).toBe(before);
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        const label = querySql(`SELECT coalesce(preferred_name, first_name || ' ' || last_name) FROM staff WHERE id = '${staffId}'`);
+        await expect(card.locator('.roster-day-timeline-shift-staff')).toHaveText(label);
+        await page.screenshot({ path: test.info().outputPath('timeline-staff-assigned.png') });
+    } finally {
+        await cdp?.detach();
+    }
+});
 
 test('defers passive refresh during drag and restores authority after a rejected drop', async ({ page }) => {
     resetCanonicalRosterAssignedShiftFixture();

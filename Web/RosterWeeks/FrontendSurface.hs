@@ -55,6 +55,7 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterTimelineMoveShiftUrl,
+                              withRosterTimelineContext,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
@@ -289,7 +290,7 @@ rosterDuplicateShiftRequest scope =
 
 rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =
-    rosterDragDropRequest (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)
+    rosterDragDropRequest (maybe (\url -> url) withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId))
 
 rosterDragDropRequest :: Text -> FrontendSurfaceHtmxRequest
 rosterDragDropRequest requestUrl =

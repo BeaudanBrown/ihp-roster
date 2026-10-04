@@ -942,20 +942,23 @@ instance Controller RosterWeeksController where
                     Left message -> respondWithMoveRosterShiftFailure scope message
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay } -> do
                         window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
-                        let materializeOnSave = any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays
+                        let publishedFill = staffDropRosterDay.publicationState == Published
+                            materializeOnSave = not publishedFill && any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays
                             updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
-                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot False materializeOnSave
+                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot publishedFill materializeOnSave
                         case mutationResult of
                             Left message -> respondWithMoveRosterShiftFailure scope message
                             Right mutationResult -> do
                                 let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                                 respondToRosterSlotMutation scope staffDropRosterDay updatedSlot.rowIndex materializeOnSave mutationResult $
                                     if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
-                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropSlotDefinition, staffDropRowIndex } -> do
+                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropSlotDefinition, staffDropRowIndex, staffDropStartsAt } -> do
                         payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]
                         if coerce staffDropStaff.id `Set.member` payInvalidStaffIds
                             then respondWithMoveRosterShiftFailure scope "Resolve pay configuration for the selected staff member before adding a roster shift."
-                            else respondWithRosterShiftCreateDialogOob scope staffDropRosterDay staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
+                            else do
+                                let values = maybe emptyRosterShiftDialogValues rosterTimelineCreateDialogValues staffDropStartsAt
+                                respondWithRosterShiftCreateDialogOob scope staffDropRosterDay staffDropSlotDefinition staffDropRowIndex values { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction = runBepis currentAction BepisMutationAction do
         ensureManagerModeAccess
@@ -1031,6 +1034,16 @@ instance Controller RosterWeeksController where
                     else do
                         setSuccessMessage "Own Published-shift highlight preference saved."
                         redirectToRosterWindow scope
+
+    action currentAction@NewRosterTimelineShiftDialogAction { timelineTargetKey } = runBepis currentAction BepisDialogAction do
+        ensureManagerModeAccess
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
+        validateRosterTimelineCreateTarget scope timelineTargetKey >>= \case
+            Left message -> respondWithRosterToast message "app-toast-error"
+            Right target -> renderRosterShiftDialogForCreate scope target.timelineCreateDay target.timelineCreateLane target.timelineCreateRowIndex
+                (rosterTimelineCreateDialogValues target.timelineCreateStartsAt)
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerModeAccess
@@ -1190,8 +1203,9 @@ ensureRosterDayIsDraftForEdit scope rosterDay =
                 redirectToRosterWindow scope
 
 respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ResponseReceived
-respondWithMoveRosterShiftFailure scope message =
-    if isHtmxRequest
+respondWithMoveRosterShiftFailure scope message
+    | isJust (currentRosterTimelineDate scope.rosterWindowStart) = respondWithRosterTimelineMoveFailure scope message
+    | otherwise = if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
             respondHtmlProfiled (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (errorToast message))

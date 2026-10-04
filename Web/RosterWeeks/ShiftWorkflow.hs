@@ -12,6 +12,7 @@ module Web.RosterWeeks.ShiftWorkflow
     , editRosterShift
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
+    , rosterTimelineCreateDialogValues
     , fetchCurrentVenueRosterShiftTypesForDialog
     , fetchRosterSlotDefinitionForDialog
     , fetchRosterSlotEditContext
@@ -28,8 +29,10 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
-import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
+import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..),
+                               resolvedInstantFromUTC, resolvedInstantLocalTime, resolvedInstantOccurrence)
 import Application.VenueTime.Model
+import Web.RosterWeeks.RenderData (currentRosterTimelineDate)
 import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
@@ -82,7 +85,8 @@ createRosterShift scope rosterDay slotDefinition rowIndex materializedWindow sub
         |> filterWhere (#rowIndex, rowIndex)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchOneOrNothing
-    validation <- validateRosterShiftDialogSubmission scope.rosterWindowRosterGroupId rosterDay existingSlot submission
+    let timelineCreation = isJust (currentRosterTimelineDate scope.rosterWindowStart)
+    validation <- validateRosterShiftDialogSubmissionWithInterval (if timelineCreation then Just 5 else Nothing) scope.rosterWindowRosterGroupId rosterDay existingSlot submission
     case validation of
         Left values -> pure (Left values)
         Right valid -> do
@@ -183,9 +187,10 @@ rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = 
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-        , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
+        , rosterShiftDialogTimePickerStep = rosterDialogInterval venueConfig (if isJust (currentRosterTimelineDate scope.rosterWindowStart) then Just 5 else Nothing)
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = False
+        , rosterShiftDialogTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
@@ -208,8 +213,19 @@ rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = rosterDay.publicationState == Published
+        , rosterShiftDialogTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
+        }
+
+rosterTimelineCreateDialogValues :: UTCTime -> RosterShiftDialogValues
+rosterTimelineCreateDialogValues instant =
+    let resolved = resolvedInstantFromUTC instant
+        occurrence = resolvedInstantOccurrence resolved
+     in emptyRosterShiftDialogValues
+        { rosterShiftStartTime = timeOfDayToStorageValue (resolvedInstantLocalTime resolved).localTimeOfDay
+        , rosterShiftStartOccurrence = occurrence
+        , rosterShiftStartIsRepeated = isJust occurrence
         }
 
 defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues
@@ -289,7 +305,16 @@ validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
         _ -> pure (Left values)
 
 validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
-validateRosterShiftDialogSubmission rosterGroupId rosterDay maybeExistingSlot submission = do
+validateRosterShiftDialogSubmission = validateRosterShiftDialogSubmissionWithInterval Nothing
+
+-- Timeline creation offers five-minute starts; its existing editor must accept
+-- and expose that precision. Grid creation/editing retain their venue policy.
+rosterDialogInterval :: VenueConfig -> Maybe Int -> Int
+rosterDialogInterval venueConfig override =
+    maybe (venueShiftTimeIntervalMinutes venueConfig) (min (venueShiftTimeIntervalMinutes venueConfig)) override
+
+validateRosterShiftDialogSubmissionWithInterval :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Int -> Id RosterGroup -> RosterDay -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
+validateRosterShiftDialogSubmissionWithInterval intervalOverride rosterGroupId rosterDay maybeExistingSlot submission = do
     venueConfig <- fetchVenueConfig
     let rosterDate = rosterDay.operationalDate
     let staffParam = submission.submittedRosterShiftStaffId
@@ -338,10 +363,11 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay maybeExistingSlot su
             | otherwise = Nothing
     let existingStartTime = maybeExistingSlot >>= rosterSlotStartTime
     let existingEndTime = maybeExistingSlot >>= rosterSlotEndTime
-    let intervalError time maybeExisting =
-            if venueShiftTimeAllows venueConfig time || Just time == maybeExisting
+    let interval = rosterDialogInterval venueConfig intervalOverride
+        intervalError time maybeExisting =
+            if isTimeOnMinuteInterval interval time || Just time == maybeExisting
                 then Nothing
-                else Just (venueShiftTimeValidationMessage venueConfig <> ".")
+                else Just (if interval == 1 then "Choose a whole-minute time." else "Choose a time on a " <> tshow interval <> "-minute increment.")
     let startError
             | isNothing (normalizeOptionalText startParam) = Just "Choose a start time."
             | isNothing parsedStartTime = Just "Choose a valid start time."

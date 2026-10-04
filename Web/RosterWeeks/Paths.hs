@@ -12,6 +12,8 @@ module Web.RosterWeeks.Paths
     , rosterLayoutPreferenceUrl
     , rosterMoveShiftUrl
     , rosterTimelineMoveShiftUrl
+    , rosterTimelineCreateDialogUrl
+    , withRosterTimelineContext
     , rosterTemplateApplicationUrl
     , rosterDuplicateShiftUrl
     , rosterDropStaffUrl
@@ -222,6 +224,16 @@ rosterLayoutPreferenceUrl anchorDate rosterGroupId calendarRevision =
 rosterMoveShiftUrl :: Day -> Id RosterGroup -> Text
 rosterMoveShiftUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo MoveRosterShiftToSlotAction) (rosterWindowActionQuery anchorDate rosterGroupId)
+
+withRosterTimelineContext :: Day -> Text -> Text
+withRosterTimelineContext day url =
+    appendQueryParams url [("rosterView", "timeline"), ("dayDate", formatDayParam day)]
+
+rosterTimelineCreateDialogUrl :: Day -> Id RosterGroup -> Int -> Text -> Text
+rosterTimelineCreateDialogUrl day rosterGroupId revision targetKey =
+    withRosterTimelineContext day $
+        appendQueryParams (pathTo (NewRosterTimelineShiftDialogAction targetKey))
+            (rosterWindowActionQuery day rosterGroupId <> [("rosterCalendarRevision", tshow revision)])
 
 rosterTimelineMoveShiftUrl :: Day -> Id RosterGroup -> Day -> Text
 rosterTimelineMoveShiftUrl anchorDate rosterGroupId operationalDate =

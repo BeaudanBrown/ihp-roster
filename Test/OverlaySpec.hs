@@ -328,6 +328,7 @@ autofocusRosterDialog values assignmentOnly = RosterShiftDialogData
     , rosterShiftDialogPayInvalidStaffIds = mempty, rosterShiftDialogShiftTypes = []
     , rosterShiftDialogTimePickerStart = "00:00", rosterShiftDialogTimePickerEnd = "23:45", rosterShiftDialogTimePickerStep = 15
     , rosterShiftDialogValues = values, rosterShiftDialogAssignmentOnly = assignmentOnly
+    , rosterShiftDialogTimelineDate = Nothing
     , rosterShiftDialogAnchorDate = fromGregorian 2026 9 21, rosterShiftDialogCalendarRevision = 0
     }
 

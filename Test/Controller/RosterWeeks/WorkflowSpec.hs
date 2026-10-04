@@ -22,6 +22,7 @@ import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -56,6 +57,7 @@ import Web.RosterWeeks.Service (RosterCopyError (..), RosterCopyFault (..),
                                 copyRosterWindowByDatesWithFault,
                                 rosterSlotHasValidStartEnd,
                                 withRosterCopyTransaction)
+import Web.RosterWeeks.TimelineScale (timelineScaleForDay, timelineInstantAt)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
                                       RosterShiftEditCompletion (..),
                                       applyValidatedRosterShift,
@@ -70,7 +72,7 @@ import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..),
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
-        it "resolves a projected staff drop without materializing the week" $ withContext do
+        it "resolves projected grid and timeline creation without materializing before a valid save" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Projected staff drop"
                 manager <- createUserRecord "projected-staff-drop@example.com" "staff" True
@@ -103,7 +105,36 @@ tests = aroundAll withDatabaseTestContext do
                         , ("anchorDate", cs (tshow scope.rosterWindowStart))
                         , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
                         ]
+                let Right scale = timelineScaleForDay scope.rosterWindowStart 540 1020 []
+                    epoch = floor (utcTimeToPOSIXSeconds (timelineInstantAt scale 5)) :: Integer
+                    timelineToken = "instant:" <> tshow requestedDayId <> ":" <> tshow targetLane.id <> ":" <> tshow epoch
+                    timelineParams =
+                        [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                        , ("anchorDate", cs (tshow scope.rosterWindowStart))
+                        , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
+                        , ("rosterView", "timeline")
+                        , ("dayDate", cs (tshow scope.rosterWindowStart))
+                        ]
+                timelineDialog <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (NewRosterTimelineShiftDialogAction timelineToken) timelineParams
+                timelineStaffDialog <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction (timelineParams <>
+                            [("sourceItemKey", cs sourceToken), ("targetDropzoneKey", cs timelineToken)])
+                timelineDialog `responseStatusShouldBe` status200
+                timelineDialog `responseBodyShouldContain` "value=\"09:05\""
+                timelineDialog `responseBodyShouldContain` "rosterView=timeline"
+                timelineStaffDialog `responseBodyShouldContain` "value=\"09:05\""
+                timelineStaffDialog `responseBodyShouldContain` ("value=\"" <> cs (tshow staff.id) <> "\" selected")
+                forM_ ["malformed", "instant:" <> tshow requestedDayId <> ":" <> tshow targetLane.id <> ":" <> tshow (epoch + 1)] \badToken -> do
+                    rejected <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams (NewRosterTimelineShiftDialogAction badToken) timelineParams
+                    rejected `responseBodyShouldContain` "Choose an available time"
                 dayCountAfterDialogs <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
+                laneCountAfterDialogs <- query @RosterLane |> fetchCount
+                slotCountAfterDialogs <- query @RosterSlot |> fetchCount
+                laneCountAfterDialogs `shouldBe` 0
+                slotCountAfterDialogs `shouldBe` 0
                 invalidCreateResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
@@ -127,10 +158,14 @@ tests = aroundAll withDatabaseTestContext do
                             , ("anchorDate", cs (tshow scope.rosterWindowStart))
                             , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
                             , ("staffId", "open")
-                            , ("startTime", "09:00")
+                            , ("rosterView", "timeline")
+                            , ("dayDate", cs (tshow scope.rosterWindowStart))
+                            , ("startTime", "09:05")
                             , ("endTime", "17:00")
                             , ("shiftTypeId", cs (tshow shiftType.id))
                             ]
+                savedSlot <- query @RosterSlot |> fetchOne
+                savedSlot.startsAt `shouldBe` Just (timelineInstantAt scale 5)
                 materializedDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> orderByAsc #operationalDate
@@ -145,7 +180,7 @@ tests = aroundAll withDatabaseTestContext do
                 dayCountAfterInvalidSave `shouldBe` 0
                 createResponse `responseStatusShouldBe` status200
                 let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createResponse)
-                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
                 length materializedDays `shouldBe` 7
                 map (.rowCount) materializedDays `shouldBe` replicate 7 2
 

@@ -341,6 +341,7 @@ data RosterWeeksController
     | UpdateRosterWageEstimatePreferenceAction
     | ToggleRosterManagerModeAction
     | UpdateRosterOwnLiveShiftHighlightPreferenceAction
+    | NewRosterTimelineShiftDialogAction { timelineTargetKey :: !Text }
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }

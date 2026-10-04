@@ -292,6 +292,7 @@ renderRosterStaffPanelEntryRow :: Day -> Id RosterGroup -> Text -> Text -> Roste
 renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
     let staffKey = "staff:" <> tshow entry.staff.id
         attributes = SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterStaffDragSourceRef staffKey
+            <> SurfaceInteraction.frontendSurfaceLongPressDragAttrs
             <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterStaffLinkedHighlight staffKey
             <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
                 (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow currentRosterGroupId)]))

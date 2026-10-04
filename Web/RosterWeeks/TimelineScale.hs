@@ -7,12 +7,14 @@ module Web.RosterWeeks.TimelineScale
     , timelineClockLabel
     , timelineOperationalMinute
     , timelineSnapInstants
+    , timelineCreateInstants
     , timelineMoveChoices
     , timelineCoordinate
     ) where
 
 import Application.Helper.TimeRules (normalizeWindowEndMinute,
                                       rosterOperationalStartMinuteOfDay,
+                                      rosterOperationalFinalSelectableMinute,
                                       authoritativeRosterIntervalIsOperationallyValid,
                                       operationalDayForLocalTime)
 import Application.VenueTime.Model
@@ -65,6 +67,16 @@ timelineSnapInstants :: TimelineScale -> [UTCTime]
 timelineSnapInstants scale =
     [ posixSecondsToUTCTime (fromInteger (tick * 300))
     | tick <- [ceiling (utcTimeToPOSIXSeconds scale.scaleStartsAt / 300) .. floor (utcTimeToPOSIXSeconds scale.scaleEndsAt / 300)]
+    ]
+
+-- New shifts need a selectable start and room for a later end in the editor.
+timelineCreateInstants :: TimelineScale -> Day -> [UTCTime]
+timelineCreateInstants scale day =
+    [ instant
+    | instant <- timelineSnapInstants scale
+    , let minute = timelineOperationalMinute day instant
+    , minute >= rosterOperationalStartMinuteOfDay
+    , minute < rosterOperationalFinalSelectableMinute
     ]
 
 -- Microsecond coordinates stay within JavaScript's exact integer range for a

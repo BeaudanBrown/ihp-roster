@@ -1172,7 +1172,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source", "timeline-shift-drag-source"]
         map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
             `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
-                       , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]
+                       , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone", "timeline-time-dropzone"]
                        , ["timeline-time-dropzone"]
                        ]
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone", "timeline-time-dropzone"]

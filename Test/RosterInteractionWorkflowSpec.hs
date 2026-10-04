@@ -2,6 +2,7 @@ module Test.RosterInteractionWorkflowSpec where
 
 import Application.RosterShiftAssignment
 import Application.VenueTime.Model
+import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
@@ -17,10 +18,22 @@ import Test.Hspec
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Service (rosterSlotBlocksPublish)
 import Web.RosterWeeks.ShiftWorkflow
+import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..))
 
 tests :: Spec
 tests = do
     describe "roster interaction workflow tokens" do
+        it "prefills timeline creation with the exact repeated occurrence, not an invented end" do
+            let first = rosterTimelineCreateDialogValues (posixSecondsToUTCTime 1775316600)
+                second = rosterTimelineCreateDialogValues (posixSecondsToUTCTime 1775320200)
+            first.rosterShiftStartTime `shouldBe` "02:30"
+            second.rosterShiftStartTime `shouldBe` "02:30"
+            first.rosterShiftStartOccurrence `shouldBe` Just FirstOccurrence
+            second.rosterShiftStartOccurrence `shouldBe` Just SecondOccurrence
+            first.rosterShiftStartIsRepeated `shouldBe` True
+            first.rosterShiftEndTime `shouldBe` ""
+            first.rosterShiftSelectedAssignment `shouldBe` Nothing
+
         it "rejects malformed and wrong-kind opaque source tokens" do
             parseRosterDropSourceToken "" `shouldBe` Nothing
             parseRosterDropSourceToken "existing:not-a-uuid" `shouldBe` Nothing

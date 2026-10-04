@@ -841,6 +841,7 @@ type RosterInteractionBundle =
                  , 'CompatibleDropzone ExistingShiftDropzone
                  , 'CompatibleDropzone ShiftSlotDropzone
                  , 'CompatibleDropzone StaffCreateDropzone
+                 , 'CompatibleDropzone TimelineTimeDropzone
                  ]
             , DropzoneRef ShiftSlotDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef StaffCreateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]

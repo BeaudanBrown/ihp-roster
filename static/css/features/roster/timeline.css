@@ -140,6 +140,9 @@
 }
 
 .roster-day-timeline-dropzone {
+    padding: 0;
+    border: 0;
+    background: transparent;
     position: absolute;
     top: 0;
     bottom: 0;
@@ -202,10 +205,6 @@
 
 .roster-day-timeline-shift.is-roster-shift-draggable {
     cursor: grab;
-}
-
-html[data-bepis-interaction-active="true"] .roster-day-timeline-shift {
-    pointer-events: none;
 }
 
 .roster-day-timeline-shift.is-roster-shift-draggable:active {

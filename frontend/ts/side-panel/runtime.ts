@@ -11,6 +11,7 @@ import {
 import { detailRoot, detailTarget, onAppPageReady } from "../shared/lifecycle";
 import { dialogDismissedDetail } from "../dialog-overlays/lifecycle";
 import { setPageOverlay } from "../shared/page-overlay";
+import { defaultInteractionRuntime } from "../interaction/runtime";
 import {
     closestOwnedSurfaceRole,
     closestSurfaceMount,
@@ -428,6 +429,16 @@ function installResponsiveShelves(): void {
         changeVisibility(shelf, false);
         if (returnFocus && shelf.bar.isConnected) shelf.bar.focus({ preventScroll: true });
     }
+
+    // An activated pointer gesture needs the underlying board, not the mobile
+    // shelf's inert background. Waiting for preview preserves taps and swipes;
+    // the pointer owner has already captured its source and drawn its preview.
+    defaultInteractionRuntime.bus.observe((event) => {
+        const detail = event.detail;
+        if (!active || !detail || detail.phase !== "preview" || !(detail.marker instanceof Element)) return;
+        if (!active.content.contains(detail.marker) || closestSurfaceMount(detail.marker) !== active.resolved.mount) return;
+        close(active, false);
+    });
 
     function hasDialog(): boolean {
         return document.querySelector(`[${dialogMountDomAttr}], .modal.show, .offcanvas.show, .offcanvas.showing`) !== null;

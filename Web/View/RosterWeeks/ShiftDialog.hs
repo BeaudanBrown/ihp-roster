@@ -27,7 +27,7 @@ import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl)
+import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl, withRosterTimelineContext)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
 
@@ -76,6 +76,7 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogAssignmentOnly    :: !Bool
     , rosterShiftDialogAnchorDate        :: !Day
     , rosterShiftDialogCalendarRevision  :: !Int
+    , rosterShiftDialogTimelineDate      :: !(Maybe Day)
     }
 
 
@@ -150,10 +151,10 @@ rosterAppShellActionRoute actionUrl anchorDate calendarRevision =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision, rosterShiftDialogTimelineDate } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
-        (rosterAppShellActionRoute (rosterShiftFormUrl rosterShiftDialogMode) rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision)
+        (rosterAppShellActionRoute (maybe (\url -> url) withRosterTimelineContext rosterShiftDialogTimelineDate (rosterShiftFormUrl rosterShiftDialogMode)) rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision)
             { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
                 , ("data-roster-live-open-fill", if rosterShiftDialogAssignmentOnly then "true" else "false")

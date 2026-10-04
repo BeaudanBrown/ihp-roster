@@ -55,6 +55,12 @@ test("time picker compact typing preserves the latest valid interval selection",
     assertEqual(compactTimePickerValue("1217", 1, "00:00", "23:45"), "12:17");
 });
 
+test("time picker compact typing supports five-minute native controls", () => {
+    assertEqual(compactTimePickerValue("0705", 5, "06:00", "05:45"), "07:05");
+    assertEqual(compactTimePickerValue("0706", 5, "06:00", "05:45"), null);
+    assertEqual(compactTimePickerValue("0235", 5, "06:00", "05:45"), "02:35");
+});
+
 test("time picker rejects malformed payloads instead of supplying fallback data or copy", () => {
     assertThrows(
         () => parseTimePickerConfiguration(JSON.stringify({ ...overnightConfig, extra: true })),

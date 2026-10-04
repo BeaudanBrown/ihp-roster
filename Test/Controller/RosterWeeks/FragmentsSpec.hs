@@ -1881,6 +1881,38 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` "Drop staff onto an editable shift in this roster week."
                  ) `Exception.finally` restoreConstraint
 
+        it "fills a Published Open shift by staff drop without changing its interval or lane" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Published timeline filling"
+                manager <- createUserRecord "timeline-published-fill@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                lane <- fetchSlotNameRecord venue "Early"
+                staff <- createStaffRecord venue Nothing "Fictional" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                day <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord day lane Nothing 0
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <>
+                                [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
+                                , ("rosterView", "timeline")
+                                , ("dayDate", cs (tshow day.operationalDate))
+                                , ("sourceItemKey", cs ("staff:" <> tshow staff.id))
+                                , ("targetDropzoneKey", cs ("existing:" <> tshow slot.id))
+                                ]
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Staff assigned."
+                updated <- fetch slot.id
+                updated.staffId `shouldBe` Just (unpackId staff.id)
+                updated.startsAt `shouldBe` slot.startsAt
+                updated.endsAt `shouldBe` slot.endsAt
+                updated.rosterLaneId `shouldBe` slot.rosterLaneId
+                updated.rowIndex `shouldBe` slot.rowIndex
+                let trigger = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                trigger `shouldSatisfy` maybe False (Text.isInfixOf "roster-day-timeline-content")
+                trigger `shouldSatisfy` maybe False (Text.isInfixOf "roster-staff-panel")
+
         it "rejects dragged staff assignment on Published roster windows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

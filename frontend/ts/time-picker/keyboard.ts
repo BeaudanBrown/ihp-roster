@@ -8,7 +8,7 @@ export function compactTimePickerValue(
     rangeStart: string,
     rangeEnd: string,
 ): string | null {
-    if (!/^\d{1,4}$/.test(digits) || (stepMinutes !== 1 && stepMinutes !== 15)) return null;
+    if (!/^\d{1,4}$/.test(digits) || (stepMinutes !== 1 && stepMinutes !== 5 && stepMinutes !== 15)) return null;
 
     if (digits.length <= 2) {
         const hour = Number(digits);
