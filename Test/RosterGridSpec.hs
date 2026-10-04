@@ -1,10 +1,10 @@
 module Test.RosterGridSpec where
 
-import Application.VenueTime.Model (decodeRosterShiftTiming, authoritativeBoundariesFromInstants)
-import Web.RosterWeeks.TimelineScale
+import Application.VenueTime.Model (authoritativeBoundariesFromInstants,
+                                    decodeRosterShiftTiming)
 import Data.Time.Calendar (addDays, fromGregorian)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude (newRecord, unpackId)
@@ -18,6 +18,7 @@ import Web.RosterWeeks.DateRange (RosterWindowDay (..), laneForOperationalDate,
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                    rosterMutationProjectionFragments)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
+import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
                                   rowsForDay)

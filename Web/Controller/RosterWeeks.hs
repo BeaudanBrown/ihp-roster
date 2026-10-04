@@ -93,7 +93,6 @@ import Web.RosterWeeks.Responses (respondToRosterShiftEdit,
                                   respondToRosterSlotMutation,
                                   respondToRosterSlotUpdate,
                                   respondToRosterTimelineSlotMove,
-                                    respondWithRosterTimelineMoveFailure,
                                   respondWithRosterContentError,
                                   respondWithRosterContentForAuthorizedScope,
                                   respondWithRosterContentUpdate,
@@ -102,6 +101,7 @@ import Web.RosterWeeks.Responses (respondToRosterShiftEdit,
                                   respondWithRosterFragmentsUpdate,
                                   respondWithRosterOwnHighlightPreferenceUpdate,
                                   respondWithRosterResourceInvalidation,
+                                  respondWithRosterTimelineMoveFailure,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.ShiftWorkflow

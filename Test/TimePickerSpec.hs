@@ -7,12 +7,12 @@ import Config
 import Control.Exception (evaluate)
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import IHP.HSX.Markup (Html)
-import qualified IHP.HSX.Markup as HtmlRenderer
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do

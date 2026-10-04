@@ -12,21 +12,21 @@ module Web.RosterWeeks.TimelineScale
     , timelineCoordinate
     ) where
 
-import Application.Helper.TimeRules (normalizeWindowEndMinute,
-                                      rosterOperationalStartMinuteOfDay,
-                                      rosterOperationalFinalSelectableMinute,
-                                      authoritativeRosterIntervalIsOperationallyValid,
-                                      operationalDayForLocalTime)
-import Application.VenueTime.Model
+import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
+                                     normalizeWindowEndMinute,
+                                     operationalDayForLocalTime,
+                                     rosterOperationalFinalSelectableMinute,
+                                     rosterOperationalStartMinuteOfDay)
 import Application.VenueTime
+import Application.VenueTime.Model
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import IHP.Prelude
 
 data TimelineScale = TimelineScale
     { scaleStartsAt :: !UTCTime
-    , scaleEndsAt :: !UTCTime
-    , scaleMinutes :: !Double
+    , scaleEndsAt   :: !UTCTime
+    , scaleMinutes  :: !Double
     } deriving (Eq, Show)
 
 timelineScaleForDay :: Day -> Int -> Int -> [(UTCTime, UTCTime)] -> Either VenueTimeError TimelineScale
@@ -108,8 +108,8 @@ timelineClockLabel instant = Text.pack (formatTime defaultTimeLocale clockFormat
     local = resolvedInstantLocalTime resolved
     clockFormat = if local.localTimeOfDay.todSec == 0 then "%H:%M" else "%H:%M:%S%Q"
     suffix = case resolvedInstantOccurrence resolved of
-        Nothing -> ""
-        Just FirstOccurrence -> " (first)"
+        Nothing               -> ""
+        Just FirstOccurrence  -> " (first)"
         Just SecondOccurrence -> " (second)"
 
 timelineOperationalMinute :: Day -> UTCTime -> Int

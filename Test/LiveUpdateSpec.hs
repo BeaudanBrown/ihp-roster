@@ -254,11 +254,9 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "33333333-3333-3333-3333-333333333333"
         let staffId = "44444444-4444-4444-4444-444444444444"
-        let rosterDayId = "22222222-2222-2222-2222-222222222222"
         let cases =
                 [ (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "windowStartDate" Aeson..= ("2025-01-20" :: Text), "windowEndDate" Aeson..= ("2025-01-27" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]), "timesheets:" <> venueId <> ":2025-01-20:2025-01-27:1")
                 , (Wire.SurfaceScope "roster" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "windowStartDate" Aeson..= ("2024-12-30" :: Text), "windowEndDate" Aeson..= ("2025-01-06" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]), "roster:" <> venueId <> ":" <> rosterGroupId <> ":2024-12-30:2025-01-06:1")
-                , (Wire.SurfaceScope "roster-day-timeline" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "windowStartDate" Aeson..= ("2025-01-13" :: Text), "windowEndDate" Aeson..= ("2025-01-20" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int), "rosterDayId" Aeson..= rosterDayId]), "roster-day-timeline:" <> venueId <> ":" <> rosterGroupId <> ":2025-01-13:2025-01-20:1:" <> rosterDayId)
                 , (Wire.SurfaceScope "leave-requests" (Aeson.object ["venueId" Aeson..= venueId]), "leave-requests:" <> venueId)
                 , (Wire.SurfaceScope "billing" (Aeson.object ["venueId" Aeson..= venueId]), "billing:" <> venueId)
                 , (Wire.SurfaceScope "support" (Aeson.object []), "support")

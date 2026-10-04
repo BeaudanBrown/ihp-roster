@@ -30,7 +30,6 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (OpenAssignment,
                                           copyRosterShiftAssignment,
                                           rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
-import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Control.Monad (void)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)

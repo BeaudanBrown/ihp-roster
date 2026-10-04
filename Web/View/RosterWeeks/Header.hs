@@ -65,7 +65,7 @@ renderRosterViewSwitch group selectedDate viewMode = [hsx|
   where
     isTimeline = case viewMode of
         RosterDayTimelineGridView _ -> True
-        RosterWeekGridView -> False
+        RosterWeekGridView          -> False
     gridUrl = rosterWindowUrl selectedDate group.id
     timelineUrl = rosterTimelineWindowUrl selectedDate group.id
     navigationFields = RosterAction.navigateRosterWeekActionFields selectedDate (unpackId group.id)

@@ -152,9 +152,29 @@ never abort or disappear: the affected shift receives a generic critical
 `Conflict details unavailable` warning, while telemetry records only the bounded
 error classification.
 
-The row-grid, day-column, and direct timeline URL are projections over the same
+The row-grid, day-column, and roster day timeline are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
-redefines persisted `row_index`. Roster wage estimates use the same canonical
+redefines persisted `row_index`. The grid remains the default; switching views
+retains the selected operational date without a persisted view preference.
+
+The timeline uses elapsed instants at a fixed scale: DST gaps occupy no invented
+time and repeated clocks remain distinct. Configured hours are a minimum range;
+saved intervals may expand it, and removing those intervals may shrink it again.
+Five-minute moves preserve exact elapsed duration and assignment, clamp the whole
+interval, and save immediately. Last-successful-save-wins is intentional, not a
+revision-based stale-editor protocol; current authorization, publication and
+assignment checks still apply under the existing mutation locks.
+
+Empty-space selection and staff drops open the existing editor without
+materializing projected dates or lanes until a valid save. Timeline creation
+accepts five-minute times even when the ordinary editor uses quarter-hours.
+Staff drops on existing shifts preserve lane/time and save immediately; published
+rosters permit only the existing authorized Open-to-Staff fill. Timeline and
+staff interactions share the roster scope, while day-content refreshes preserve
+the timeline scroll owner. Touch scrolling remains native until a long press
+activates dragging; keyboard creation/editing remains available without dragging.
+
+Roster wage estimates use the same canonical
 unsealed boundary as a Timesheet roster-prefill candidate; roster-only shifts contribute
 neither totals nor errors. The independently persisted roster pay display mode defaults
 to Hidden. Total only shows the window summary and calculation warnings; Daily + total

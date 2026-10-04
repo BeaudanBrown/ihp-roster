@@ -27,7 +27,8 @@ import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl, withRosterTimelineContext)
+import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl,
+                              withRosterTimelineContext)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
 

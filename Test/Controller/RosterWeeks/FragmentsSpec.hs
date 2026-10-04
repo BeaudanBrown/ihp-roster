@@ -44,9 +44,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -56,8 +56,8 @@ import qualified Text.Read as TextRead
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
-                            rosterDaySectionDomId, rosterGridFrameFragmentId, rosterRowDomIdText,
-                            rosterStaffPanelFragmentId)
+                            rosterDaySectionDomId, rosterGridFrameFragmentId,
+                            rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
                                      RosterTimelineDropBoundaryResolution (..),
                                      resolveRosterTimelineDropBoundaries)
@@ -847,7 +847,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineText `shouldContain` ">OPEN<"
                 timelineText `shouldContain` ">0 shifts<"
                 timelineText `shouldContain` "roster-day-timeline-shift is-roster-shift-open roster-shift-launcher"
-                timelineText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
+                timelineText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1&amp;rosterView=timeline&amp;dayDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
                 timelineText `shouldNotContain` "data-bepis-source-ref=\"timeline-shift-drag-source\""
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do

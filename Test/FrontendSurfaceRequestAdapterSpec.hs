@@ -52,6 +52,7 @@ import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types (AwardLevel, RosterDay, RosterGroup,
                         RosterLayoutModeEnum (..), VenueRoleEnum (..))
+import qualified IHP.HSX.Markup as HtmlRenderer
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -61,7 +62,6 @@ import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
-import qualified IHP.HSX.Markup as HtmlRenderer
 import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),

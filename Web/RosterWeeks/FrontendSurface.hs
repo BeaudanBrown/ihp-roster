@@ -54,8 +54,8 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
+                              rosterSettingsFragmentUrl,
                               rosterTimelineMoveShiftUrl,
-                              withRosterTimelineContext,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
@@ -65,8 +65,8 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterWeekRowFragmentUrl,
                               rosterWeekSlotsGridFragmentUrl,
                               rosterWeekStaffPanelFragmentUrl,
-                              rosterSettingsFragmentUrl,
-                              rosterWeekWageRailFragmentUrl)
+                              rosterWeekWageRailFragmentUrl,
+                              withRosterTimelineContext)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..),
                               RosterRenderIndexes (..))
 

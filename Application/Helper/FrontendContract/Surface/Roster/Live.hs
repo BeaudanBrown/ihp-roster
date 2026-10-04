@@ -27,9 +27,9 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Live (roster
                                                                           rosterGridFrameLiveFragment,
                                                                           rosterGridToolbarLiveFragment,
                                                                           rosterRowLiveFragment,
+                                                                          rosterSettingsContentLiveFragment,
                                                                           rosterSlotsGridLiveFragment,
                                                                           rosterStaffPanelLiveFragment,
-                                                                          rosterSettingsContentLiveFragment,
                                                                           rosterTemplateLibraryLiveFragment,
                                                                           rosterWageRailLiveFragment,
                                                                           rosterWeekLiveScope)

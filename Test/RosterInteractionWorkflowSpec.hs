@@ -1,13 +1,13 @@
 module Test.RosterInteractionWorkflowSpec where
 
 import Application.RosterShiftAssignment
-import Application.VenueTime.Model
 import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types

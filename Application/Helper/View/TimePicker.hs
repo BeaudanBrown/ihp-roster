@@ -11,7 +11,8 @@ module Application.Helper.View.TimePicker
     , timeOfDayToStorageValue
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.TimePicker.Runtime
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTime,
                                      rosterOperationalStartTime)

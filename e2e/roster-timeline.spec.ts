@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { openRoster, resetCanonicalRosterAssignedShiftFixture, fillRosterShiftDialogDefaults, saveRosterShiftDialog } from './support/roster';
 import { querySql, runSql, sqlString } from './support/database';
-import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr } from '../frontend/ts/generated/contracts';
+import { waitForLiveRecovery } from './support/runtime';
+import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr, toggleRootDomAttr } from '../frontend/ts/generated/contracts';
 
 async function requestTimelineRefresh(page: Page) {
     await page.evaluate(({ configAttr, eventName }) => {
@@ -20,8 +21,17 @@ async function requestTimelineRefresh(page: Page) {
     }, { configAttr: surfaceConfigDomAttr, eventName: liveFragmentsRefreshEvent });
 }
 
+function resetTimelineShiftInterval() {
+    runSql(`UPDATE roster_slots AS slot
+        SET starts_at = (day.operational_date + TIME '09:00') AT TIME ZONE slot.timezone,
+            ends_at = (day.operational_date + TIME '17:00') AT TIME ZONE slot.timezone
+        FROM roster_days AS day
+        WHERE slot.id = 'a1000000-0000-0000-0000-000000000071' AND day.id = slot.roster_day_id`);
+}
+
 async function openCanonicalTimeline(page: Page) {
     resetCanonicalRosterAssignedShiftFixture();
+    resetTimelineShiftInterval();
     await openRoster(page);
     const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
     const url = new URL(page.url());
@@ -58,8 +68,9 @@ test('opens snapped empty-space creation and a keyboard alternative without writ
     expect(count()).toBe(before);
 });
 
-test('saves a five-minute shift into a projected timeline lane and refreshes the actor', async ({ page, isMobile }) => {
-    await openRoster(page, { weekOffset: isMobile ? 161 : 160, ensureEditable: false });
+test('saves a five-minute shift into a projected timeline lane and refreshes the actor', async ({ page }, testInfo) => {
+    const weekOffset = 160 + testInfo.config.projects.findIndex((project) => project.name === testInfo.project.name);
+    await openRoster(page, { weekOffset, ensureEditable: false });
     const url = new URL(page.url());
     const date = url.searchParams.get('anchorDate')!;
     const group = url.searchParams.get('rosterGroupId')!;
@@ -139,6 +150,67 @@ test('drops staff into empty time and replaces a shift immediately, including to
         await page.screenshot({ path: test.info().outputPath('timeline-staff-assigned.png') });
     } finally {
         await cdp?.detach();
+    }
+});
+
+test('keeps two timeline viewers authoritative while retaining last-save-wins and publication guards', async ({ page, browser }) => {
+    await openCanonicalTimeline(page);
+    const viewerContext = await browser.newContext();
+    const workerContext = await browser.newContext();
+    const viewer = await viewerContext.newPage();
+    const worker = await workerContext.newPage();
+    const card = (target: Page) => target.locator('.roster-day-timeline-shift').first();
+    const clock = (target: Page) => card(target).locator('.roster-day-timeline-shift-time');
+    async function edit(target: Page, start: string, end: string) {
+        await card(target).focus();
+        await target.keyboard.press('Enter');
+        await expect(target.getByRole('dialog', { name: 'Edit shift' })).toBeVisible();
+        await target.locator('input[name="startTime"]').evaluate((input, value) => { (input as HTMLInputElement).value = value; }, start);
+        await target.locator('input[name="endTime"]').evaluate((input, value) => { (input as HTMLInputElement).value = value; }, end);
+    }
+    try {
+        await openRoster(viewer);
+        const timelineUrl = page.url();
+        await viewer.goto(timelineUrl);
+        await waitForLiveRecovery(page);
+        await waitForLiveRecovery(viewer);
+        await page.locator('.roster-day-timeline-scroller').evaluate((element) => { element.scrollLeft = 240; element.setAttribute('data-test-scroll-owner', 'actor'); });
+        await viewer.locator('.roster-day-timeline-scroller').evaluate((element) => { element.scrollLeft = 240; element.setAttribute('data-test-scroll-owner', 'passive'); });
+        await edit(page, '09:15', '17:15');
+        await edit(viewer, '09:30', '17:30');
+        await saveRosterShiftDialog(page);
+        await expect(clock(page)).toHaveText('09:15–17:15');
+        await expect(clock(viewer)).toHaveText('09:15–17:15');
+        await expect(viewer.locator('input[name="startTime"]')).toHaveValue('09:30');
+        await saveRosterShiftDialog(viewer);
+        await expect(clock(page)).toHaveText('09:30–17:30');
+        await expect(clock(viewer)).toHaveText('09:30–17:30');
+        await expect(page.locator('.roster-day-timeline-scroller')).toHaveAttribute('data-test-scroll-owner', 'actor');
+        await expect(viewer.locator('.roster-day-timeline-scroller')).toHaveAttribute('data-test-scroll-owner', 'passive');
+        await edit(viewer, '09:45', '17:45');
+        const publish = page.getByRole('switch', { name: 'Published', exact: true });
+        const publishToggle = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
+        await publishToggle.click();
+        await expect(publish).toBeChecked();
+        await expect(card(page)).not.toHaveAttribute(InteractionDom.attributes.sourceRef, /.+/);
+        await expect(card(viewer)).not.toHaveAttribute(InteractionDom.attributes.sourceRef, /.+/);
+        const rejected = viewer.waitForResponse((response) => response.url().includes('/UpdateRosterSlot') && response.request().method() === 'POST');
+        await viewer.getByRole('button', { name: 'Save', exact: true }).click();
+        await rejected;
+        await expect(viewer.getByText('Published roster windows are read-only. Return it to Draft to make changes.', { exact: true })).toBeVisible();
+        expect(querySql("SELECT to_char(starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots WHERE id = 'a1000000-0000-0000-0000-000000000071'")).toBe('09:30');
+        await openRoster(worker, { email: 'e2e-worker@example.com', ensureDraft: false, ensureEditable: false });
+        await worker.goto(timelineUrl);
+        await waitForLiveRecovery(worker);
+        await expect(clock(worker)).toHaveText('09:30–17:30');
+        await expect(worker.locator('.roster-day-timeline-dropzone')).toHaveCount(0);
+        await publishToggle.click();
+        await expect(publish).not.toBeChecked();
+        await expect(worker.locator('.roster-day-timeline-shift')).toHaveCount(0);
+    } finally {
+        await viewerContext.close();
+        await workerContext.close();
+        resetTimelineShiftInterval();
     }
 });
 

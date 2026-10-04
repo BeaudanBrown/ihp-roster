@@ -25,14 +25,14 @@ module Web.RosterWeeks.DropWorkflow
 
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules
-import Application.RosterShiftAssignment (rosterShiftAssignment, rosterShiftIsOpen)
+import Application.RosterShiftAssignment (rosterShiftAssignment,
+                                          rosterShiftIsOpen)
 import Application.VenueTime.Model
 import Control.Monad (guard)
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Web.RosterWeeks.TimelineScale (TimelineScale (..), timelineScaleForDay, timelineCreateInstants)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
@@ -42,6 +42,9 @@ import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
                                 fetchActiveStaffForCurrentVenue,
                                 rosterSlotCopyAmbiguousEndpoints)
+import Web.RosterWeeks.TimelineScale (TimelineScale (..),
+                                      timelineCreateInstants,
+                                      timelineScaleForDay)
 
 data RosterDropSource
     = ExistingRosterShiftSource !(Id RosterSlot)
@@ -77,15 +80,15 @@ data RosterShiftDropTarget
     deriving (Eq, Show)
 
 data TimelineShiftDropTarget = TimelineShiftDropTarget
-    { timelineTargetRosterDayId       :: !(Id RosterDay)
-    , timelineTargetSlotDefinitionId  :: !(Id RosterLane)
-    , timelineTargetStartsAt          :: !UTCTime
+    { timelineTargetRosterDayId      :: !(Id RosterDay)
+    , timelineTargetSlotDefinitionId :: !(Id RosterLane)
+    , timelineTargetStartsAt         :: !UTCTime
     }
     deriving (Eq, Show)
 
 data RosterTimelineCreateTarget = RosterTimelineCreateTarget
-    { timelineCreateDay :: !RosterDay
-    , timelineCreateLane :: !RosterLane
+    { timelineCreateDay      :: !RosterDay
+    , timelineCreateLane     :: !RosterLane
     , timelineCreateRowIndex :: !Int
     , timelineCreateStartsAt :: !UTCTime
     }

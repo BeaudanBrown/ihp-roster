@@ -63,9 +63,9 @@ import qualified Application.Helper.FrontendContract.Interaction as Interaction
 import Application.Helper.FrontendContract.Naming (deriveDomAttributeTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
-import IHP.Prelude
-import IHP.HSX.MarkupQQ (hsx)
 import IHP.HSX.Markup (Html)
+import IHP.HSX.MarkupQQ (hsx)
+import IHP.Prelude
 
 frontendSurfaceSourceRefAttribute :: Text
 frontendSurfaceSourceRefAttribute = deriveDomAttributeTypeName @Interaction.SourceRef

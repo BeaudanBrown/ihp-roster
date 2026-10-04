@@ -57,12 +57,12 @@ import Web.RosterWeeks.Service (RosterCopyError (..), RosterCopyFault (..),
                                 copyRosterWindowByDatesWithFault,
                                 rosterSlotHasValidStartEnd,
                                 withRosterCopyTransaction)
-import Web.RosterWeeks.TimelineScale (timelineScaleForDay, timelineInstantAt)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
                                       RosterShiftEditCompletion (..),
                                       applyValidatedRosterShift,
                                       editRosterShift,
                                       validateRosterShiftDialogSubmission)
+import Web.RosterWeeks.TimelineScale (timelineInstantAt, timelineScaleForDay)
 import Web.Routes
 import Web.Timesheets.Projection (fetchTimesheetRosterPrefillForRosterSlot)
 import Web.Types

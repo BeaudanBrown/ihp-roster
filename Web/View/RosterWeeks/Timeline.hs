@@ -14,26 +14,26 @@ import Application.RosterShiftAssignment (rosterShiftIsOpen,
 import Application.VenueTime (VenueTimeError)
 import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     ValidatedRosterShiftTiming,
-                                    rosterShiftTimingBoundaries,
-                                    authoritativeStartsAt,
-                                    authoritativeEndsAt,
                                     authoritativeElapsedSeconds,
-                                    decodeRosterShiftTiming)
+                                    authoritativeEndsAt, authoritativeStartsAt,
+                                    decodeRosterShiftTiming,
+                                    rosterShiftTimingBoundaries)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import qualified Data.UUID as UUID
-import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
-                                  laneForOperationalDate, rosterWindowLaneName)
+import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate,
+                                  rosterWindowLaneName)
 import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
 import Web.RosterWeeks.FrontendSurface (rosterDayTimelineDropzoneRef,
-                                        rosterShiftGroupLinkedHighlight,
+                                        rosterDayTimelineSourceRef,
                                         rosterExistingShiftDropzoneRef,
-                                        rosterDayTimelineSourceRef)
+                                        rosterShiftGroupLinkedHighlight)
+import Web.RosterWeeks.Paths (rosterTimelineCreateDialogUrl,
+                              withRosterTimelineContext)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
-import Web.RosterWeeks.Paths (rosterTimelineCreateDialogUrl, withRosterTimelineContext)
 import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
                                         rosterShiftDialogLauncherAttrs,
@@ -87,7 +87,7 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
     |]
 
 data TimelineWindow = TimelineWindow
-    { timelineWindowScale :: !TimelineScale
+    { timelineWindowScale     :: !TimelineScale
     , timelineWindowEndMinute :: !Int
     }
 

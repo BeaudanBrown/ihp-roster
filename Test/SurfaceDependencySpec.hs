@@ -25,8 +25,8 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
-import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.UUID (UUID, fromWords)

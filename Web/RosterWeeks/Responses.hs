@@ -48,8 +48,8 @@ import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
                                         authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterDayTimelineContentMountedFragment,
                                         rosterCandidateMountedFragments,
+                                        rosterDayTimelineContentMountedFragment,
                                         rosterMountedFragmentForProjection,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,

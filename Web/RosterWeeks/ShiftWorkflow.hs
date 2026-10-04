@@ -22,7 +22,8 @@ module Web.RosterWeeks.ShiftWorkflow
     , validateRosterShiftDialogSubmission
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
@@ -30,9 +31,9 @@ import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..),
-                               resolvedInstantFromUTC, resolvedInstantLocalTime, resolvedInstantOccurrence)
+                              resolvedInstantFromUTC, resolvedInstantLocalTime,
+                              resolvedInstantOccurrence)
 import Application.VenueTime.Model
-import Web.RosterWeeks.RenderData (currentRosterTimelineDate)
 import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
@@ -45,7 +46,9 @@ import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
                                   rosterWindowTarget)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Mutations (RosterSlotMutationResult (..),
-                                  saveRosterSlotMutation, updateRosterSlotMutation)
+                                  saveRosterSlotMutation,
+                                  updateRosterSlotMutation)
+import Web.RosterWeeks.RenderData (currentRosterTimelineDate)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
 import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
