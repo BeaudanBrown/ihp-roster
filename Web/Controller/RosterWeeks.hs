@@ -1270,17 +1270,6 @@ authorizeRequestedRosterAnchor anchorDate = do
     let scope = rosterWindowScopeForAnchor authorizationContext.authorizationVenueConfig rosterGroup.id anchorDate
     authorizeRosterScopeWithContext authorizationContext scope
 
-resolveRosterPageGroup :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (RosterGroup, Bool))
-resolveRosterPageGroup = do
-    requestedRosterGroupId <- parseOptionalRosterGroupIdParam
-    rosterGroups <- fetchViewableRosterGroups
-    pure $ case requestedRosterGroupId of
-        Nothing -> (\rosterGroup -> (rosterGroup, True)) <$> listToMaybe rosterGroups
-        Just rosterGroupId ->
-            case find ((== rosterGroupId) . (.id)) rosterGroups of
-                Just rosterGroup -> Just (rosterGroup, True)
-                Nothing          -> (\rosterGroup -> (rosterGroup, False)) <$> listToMaybe rosterGroups
-
 resolveRequestedRosterGroup :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup = do
     requestedRosterGroupId <- parseOptionalRosterGroupIdParam

@@ -2,24 +2,15 @@
 
 module Web.View.Timesheets.Edit where
 
-import Application.Helper.FrontendContract.AppShell (AnchorDateField,
-                                                     DeleteTimesheetEntryOverlay,
+import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
                                                      EditTimesheetEntryDialog,
                                                      OpenTimesheetDeleteConfirmationDialog,
-                                                     RosterCalendarRevisionField,
-                                                     StaffFilterIdField,
                                                      UpdateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
-                                                           surfaceField,
-                                                           surfaceFieldsText,
-                                                           surfaceOptionalField,
-                                                           (&:))
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Filters (TimesheetViewFilters)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParamsWithFilters,

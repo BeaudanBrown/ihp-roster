@@ -11,7 +11,6 @@ module Web.Timesheets.Paths
     , timesheetToolbarFragmentUrl
     , timesheetWindowStateQueryParams
     , timesheetWindowStateQueryParamsWithFilters
-    , timesheetWindowUrl
     , timesheetWindowUrlWithFilters
     , withTimesheetFilters
     ) where
@@ -26,10 +25,6 @@ import IHP.Router.UrlGenerator (pathTo)
 import Web.Routes ()
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Types
-
-timesheetWindowUrl :: Day -> Maybe UUID -> Text
-timesheetWindowUrl anchorDate staffFilterId =
-    timesheetWindowUrlWithFilters anchorDate (TimesheetViewFilters (maybeToList staffFilterId) [] [])
 
 timesheetWindowUrlWithFilters :: Day -> TimesheetViewFilters -> Text
 timesheetWindowUrlWithFilters anchorDate filters =

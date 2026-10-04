@@ -1,9 +1,7 @@
 module Web.RosterWeeks.StaffOptions
     ( buildRosterStaffOptionStates
     , fetchAssignedRosterWeekStaff
-    , fetchRosterStaffPanelEntries
     , fetchRosterShiftDialogStaff
-    , fetchRosterStaffPanelEntriesForScope
     , fetchRosterStaffPanelEntriesWithAssignedCounts
     , fetchRosterStaffPanelEntriesWithPayState
     , fetchStaffPayConfigurationRequiredIds
@@ -30,15 +28,6 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWindow,
                                            fetchRosterShiftPreferencesForWindow)
 import Web.RosterWeeks.Types
-
-fetchRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntries =
-    fetchRosterStaffPanelEntriesForScope RosterStaffPanelCurrentGroup
-
-fetchRosterStaffPanelEntriesForScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
-    payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds (staffForPanelScope panelScope staffMembers)
-    fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots
 
 fetchRosterStaffPanelEntriesWithPayState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Set.Set UUID.UUID -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
 fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots =

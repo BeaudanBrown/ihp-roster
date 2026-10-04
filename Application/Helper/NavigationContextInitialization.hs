@@ -6,6 +6,7 @@ module Application.Helper.NavigationContextInitialization
     , navigationContextInitializationMiddleware
     ) where
 
+import Application.Error.Runtime (throwExternalRuntime)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar)
 import qualified Control.Exception as Exception
 import qualified Data.Vault.Lazy as Vault
@@ -56,6 +57,6 @@ ensureNavigationContextInitialized request =
                     putMVar initialized result
                     case result of
                         Right () -> atomicWriteIORef stateRef NavigationInitializationReady
-                        Left exception -> Exception.throwIO exception
+                        Left exception -> throwExternalRuntime exception
                 WaitForInitialization initialized ->
-                    restore (readMVar initialized) >>= either Exception.throwIO pure
+                    restore (readMVar initialized) >>= either throwExternalRuntime pure

@@ -8,7 +8,6 @@ module Application.PublicHolidays.Client
     , decodeDataVicYear
     ) where
 
-import IHP.Prelude
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
@@ -17,8 +16,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Traversable (traverse)
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import IHP.Prelude
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (getGlobalManager)
 import Network.HTTP.Simple (setRequestQueryString)
@@ -26,11 +24,11 @@ import Network.HTTP.Types.Status (statusCode)
 import qualified System.Environment as Environment
 
 data DataVicDate = DataVicDate
-    { date :: !Day
-    , name :: !Text
-    , sourceId :: !(Maybe Text)
+    { date        :: !Day
+    , name        :: !Text
+    , sourceId    :: !(Maybe Text)
     , description :: !(Maybe Text)
-    , sourceUrl :: !Text
+    , sourceUrl   :: !Text
     } deriving (Eq, Show)
 
 -- No requests, credentials, provider bodies or exception text in errors.
@@ -95,7 +93,7 @@ fetchDataVicYearsWith send key years
         case response >>= \(status, body) ->
                 if status /= 200 then Left (DataVicHttpStatus status)
                 else decodeDataVicYear year body of
-            Left err -> pure (Left err)
+            Left err    -> pure (Left err)
             Right dates -> fmap ((year, dates) :) <$> go remaining
 
 fetchDataVicYears :: [Integer] -> IO (Either DataVicClientError [(Integer, [DataVicDate])])
@@ -150,4 +148,4 @@ decodeDataVicYear year body = do
             }
     nonBlank value = case Text.strip <$> value of
         Just text | not (Text.null text) -> Just text
-        _ -> Nothing
+        _                                -> Nothing

@@ -38,5 +38,5 @@ requestLivePublicationVersion resources = do
     publications <- readIORef (lookupRequestVault requestLivePublicationsKey ?context)
     pure $ maximumMaybe [publication.version | publication <- publications, publication.resources == resources]
   where
-    maximumMaybe []     = Nothing
-    maximumMaybe values = Just (maximum values)
+    maximumMaybe []               = Nothing
+    maximumMaybe (value : values) = Just (foldr max value values)

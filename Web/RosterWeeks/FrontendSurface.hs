@@ -49,6 +49,7 @@ import Application.Helper.Url (appendQueryParams)
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID as UUID
 import Generated.Types
+import qualified Prelude
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
@@ -290,7 +291,7 @@ rosterDuplicateShiftRequest scope =
 
 rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =
-    rosterDragDropRequest (maybe (\url -> url) withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId))
+    rosterDragDropRequest (maybe Prelude.id withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId))
 
 rosterDragDropRequest :: Text -> FrontendSurfaceHtmxRequest
 rosterDragDropRequest requestUrl =

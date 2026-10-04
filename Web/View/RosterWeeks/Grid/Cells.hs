@@ -5,7 +5,6 @@ module Web.View.RosterWeeks.Grid.Cells
     , ReadOnlyExistingSlotCell (..)
     , RosterSlotCellTarget (..)
     , rosterShiftDialogLauncherAttrs
-    , findShiftTypeForSlot
     , renderBlockCells
     , renderDayColumnCreateCard
     , renderDayColumnRosterSlotCard
@@ -475,11 +474,6 @@ renderShiftTypeOptionLabel shiftType =
     if shiftType.isActive
         then shiftType.name
         else shiftType.name <> " (inactive)"
-
-findShiftTypeForSlot :: [ShiftType] -> Maybe UUID -> Maybe ShiftType
-findShiftTypeForSlot _ Nothing = Nothing
-findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId) =
-    find (\shiftType -> coerce shiftType.id == selectedShiftTypeId) shiftTypes
 
 shiftTypeBadgeColourKey :: Maybe ShiftType -> Text
 shiftTypeBadgeColourKey =

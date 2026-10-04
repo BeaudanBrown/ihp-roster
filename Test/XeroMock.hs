@@ -440,7 +440,7 @@ assertJsonMatchesSchema :: OpenApiSpec -> Aeson.Value -> Aeson.Value -> Expectat
 assertJsonMatchesSchema spec schema value =
     case validateJsonSchema spec [] schema value of
         Left message -> expectationFailure (cs message)
-        Right () -> pure ()
+        Right ()     -> pure ()
 
 validateJsonSchema :: OpenApiSpec -> [Text] -> Aeson.Value -> Aeson.Value -> Either Text ()
 validateJsonSchema spec path (Aeson.Object schema) value
@@ -533,17 +533,17 @@ validateJsonSchema spec path (Aeson.Object schema) value
             _ -> Right ()
     mismatch expected = Left (atPath path ("expected " <> expected <> ", got " <> jsonValueType value))
     isObject Aeson.Object {} = True
-    isObject _ = False
+    isObject _               = False
     isArray Aeson.Array {} = True
-    isArray _ = False
+    isArray _              = False
     isString Aeson.String {} = True
-    isString _ = False
+    isString _               = False
     isNumber Aeson.Number {} = True
-    isNumber _ = False
+    isNumber _               = False
     isIntegerNumber (Aeson.Number number) = fromInteger (round number) == number
-    isIntegerNumber _ = False
+    isIntegerNumber _                     = False
     isBoolean Aeson.Bool {} = True
-    isBoolean _ = False
+    isBoolean _             = False
 validateJsonSchema _ path _ _ = Left (atPath path "OpenAPI schema node is not an object")
 
 resolveLocalSchemaRef :: OpenApiSpec -> Text -> Maybe Aeson.Value
@@ -554,16 +554,16 @@ resolveLocalSchemaRef spec ref = do
     unescapePointer = Text.replace "~1" "/" . Text.replace "~0" "~"
 
 atPath :: [Text] -> Text -> Text
-atPath [] message = message
+atPath [] message   = message
 atPath path message = Text.intercalate "." path <> ": " <> message
 
 jsonValueType :: Aeson.Value -> Text
 jsonValueType Aeson.Object {} = "object"
-jsonValueType Aeson.Array {} = "array"
+jsonValueType Aeson.Array {}  = "array"
 jsonValueType Aeson.String {} = "string"
 jsonValueType Aeson.Number {} = "number"
-jsonValueType Aeson.Bool {} = "boolean"
-jsonValueType Aeson.Null = "null"
+jsonValueType Aeson.Bool {}   = "boolean"
+jsonValueType Aeson.Null      = "null"
 
 assertOperationOrSpecContains :: OpenApiSpec -> XeroEndpointContract -> Text -> Expectation
 assertOperationOrSpecContains spec contract expected =
@@ -1015,10 +1015,6 @@ payRunsFixture =
 timesheetsFixture :: Aeson.Value
 timesheetsFixture =
     Aeson.object ["Timesheets" Aeson..= [timesheetObjectFixture]]
-
-timesheetFixture :: Aeson.Value
-timesheetFixture =
-    Aeson.object ["Timesheet" Aeson..= timesheetObjectFixture]
 
 timesheetsV2Fixture :: Aeson.Value
 timesheetsV2Fixture =
