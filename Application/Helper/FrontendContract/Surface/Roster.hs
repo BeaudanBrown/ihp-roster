@@ -8,7 +8,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterDayColumns
     , RosterDay
     , RosterDayId
-    , RosterDayTimeline
     , RosterDayTimelineContent
     , RosterDayRail
     , RosterDaySection
@@ -22,7 +21,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterStaffPanel
     , RosterSettingsContent
     , RosterSurface
-    , RosterDayTimelineSurface
+    , TimelineShiftDragSource
+    , TimelineTimeDropzone
     , RosterWeekShell
     , RosterWageRail
     , RosterWeek
@@ -239,7 +239,8 @@ instance InputValue RosterStaffScopeValue where
     inputValue RosterStaffAllVenue     = "all"
 
 data Roster
-data RosterDayTimeline
+data TimelineShiftDragSource
+data TimelineTimeDropzone
 
 data RosterWeek
 data RosterWeekStructure
@@ -541,6 +542,7 @@ type RosterFragmentBundle =
          , 'Contains RosterWageRail
          , 'Contains RosterSlotsGrid
          , 'Contains RosterDaySection
+         , 'Contains RosterDayTimelineContent
          ]
      , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
@@ -993,19 +995,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
-
-type RosterDayTimelineScopeBundle =
-    '[ Scope RosterDayTimeline
-        '[ Field VenueId 'WireUUID
-         , Field RosterGroupId 'WireUUID
-         , Field WindowStartDate 'WireDay
-         , Field WindowEndDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field RosterDayId 'WireUUID
-         ]
-        '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
-     ]
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle ])
 
 type RosterDayTimelineFragmentBundle =
     '[ Fragment RosterDayTimelineContent
@@ -1025,22 +1015,9 @@ type RosterDayTimelineActionBundle =
      ]
 
 type RosterDayTimelineInteractionBundle =
-    DragDropInteractionWithExtraFields
-        MoveRosterTimelineShift
-        RosterDayTimelineContent
-        '[ Field RosterCalendarRevision 'WireInt
+    Concat
+        '[ '[ DragSourceRefFor TimelineShiftDragSource MoveRosterTimelineShift '[TimelineTimeDropzone] '[]
+            , DragDropzoneRefFor TimelineTimeDropzone
+            ]
+         , DragDropIntentWithExtraFields MoveRosterTimelineShift RosterDayTimelineContent '[ Field RosterCalendarRevision 'WireInt ]
          ]
-
-type RosterDayTimelineLinkedHighlightBundle =
-    '[ BrowserRole ShiftGroupHighlightSourceRole
-     , BrowserRole ShiftGroupHighlightMemberRole
-     , LinkedHighlight ShiftGroupHighlight ShiftGroupHighlightSourceRole ShiftGroupHighlightMemberRole
-        '[ 'ActivateOnHover
-         , 'ActivateOnFocus
-         , 'ActivateOnKeyboard
-         ]
-        '[ 'HighlightMatchingMember ]
-     ]
-
-type RosterDayTimelineSurface =
-    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle, RosterDayTimelineLinkedHighlightBundle ])

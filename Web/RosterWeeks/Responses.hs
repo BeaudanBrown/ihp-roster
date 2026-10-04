@@ -26,6 +26,7 @@ module Web.RosterWeeks.Responses
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Roster.Resource (matchRosterDayResource)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -47,6 +48,7 @@ import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
                                         authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        rosterDayTimelineContentMountedFragment,
                                         rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
                                         rosterMountedFragmentPlanFromRenderData,
@@ -116,7 +118,7 @@ respondWithRosterTimelineMoveFailure scope message = do
         Just day -> do
             setHeader ("HX-Reswap", "none")
             setActorLocalFragmentsRefresh
-                (RosterLive.rosterDayTimelineLiveScope (unpackId scope.rosterWindowVenueId) (unpackId scope.rosterWindowRosterGroupId) scope.rosterWindowStart scope.rosterWindowEnd scope.rosterWindowCalendarRevision (unpackId day.id))
+                (RosterLive.rosterWeekLiveScope (unpackId scope.rosterWindowVenueId) (unpackId scope.rosterWindowRosterGroupId) scope.rosterWindowStart scope.rosterWindowEnd scope.rosterWindowCalendarRevision)
                 [RosterLive.rosterDayTimelineContentLiveFragment (unpackId day.id)]
             respondHtmlProfiled feedback
 
@@ -189,7 +191,12 @@ respondWithRosterActorInvalidation windowScope fragments extraHtml = do
 respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterResourceInvalidation windowScope touchedResources fragments extraHtml = do
     let scope = rosterFrontendScopeValue windowScope
-    let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments)
+    let timelineFragments =
+            [ rosterDayTimelineContentMountedFragment scope (Id dayId)
+            | isJust scope.rosterWeekTimelineDate
+            , dayId <- mapMaybe matchRosterDayResource (Set.toList touchedResources)
+            ]
+    let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments) <> timelineFragments
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml

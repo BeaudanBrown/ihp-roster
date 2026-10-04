@@ -352,8 +352,8 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
         (surfaceResourceValue @RosterSurface.RosterSurface @RosterSurface.RosterTemplateLibrary).resourceName `shouldBe` "roster-template-library"
         (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
-        (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
-        (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
+        (surfaceSourceRefValue @RosterSurface.RosterSurface @RosterSurface.TimelineShiftDragSource).sourceRefName `shouldBe` "timeline-shift-drag-source"
+        (surfaceDropzoneRefValue @RosterSurface.RosterSurface @RosterSurface.TimelineTimeDropzone).dropzoneRefName `shouldBe` "timeline-time-dropzone"
         let intentFields =
                 surfaceField @SurfaceFixture.SourceItemKey "source"
                     &: surfaceField @SurfaceFixture.TargetDropzoneKey "target"
@@ -854,7 +854,6 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
             `shouldBe` [ "timesheets"
                        , "roster"
-                       , "roster-day-timeline"
                        , "leave-requests"
                        , "self-service-leave"
                        , "billing"
@@ -1122,6 +1121,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-template-library"
                        , "roster-day-section"
                        , "roster-row"
+                       , "roster-day-timeline-content"
                        ]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "roster-row")
@@ -1159,21 +1159,23 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "move-roster-shift-to-slot"
                        , "duplicate-roster-shift-to-day"
                        , "drop-roster-staff"
+                       , "move-roster-timeline-shift"
                        ]
         ( surface.surfaceHtmxActions
             |> find (\action -> action.htmxActionName == "navigate-roster-week")
             |> maybe [] (.htmxActionOptions)
             )
             `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "move-roster-timeline-shift"]
         map (.sessionName) surface.surfaceSessions `shouldBe` ["drag"]
         map (.sessionLayers) surface.surfaceSessions `shouldBe` [["drag-preview"]]
-        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
+        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source", "timeline-shift-drag-source"]
         map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
             `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
                        , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]
+                       , ["timeline-time-dropzone"]
                        ]
-        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
+        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone", "timeline-time-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserRoles
             `shouldBe` [ "data-bepis-roster-staff-panel-sort-root"
@@ -1266,8 +1268,8 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [["clone-shadow", "dropzone-highlight"]]
         map (map interactionEffectClassNames . (.sessionEffects)) surface.surfaceSessions
             `shouldBe` [[["bepis-pointer-clone-shadow"], ["bepis-dropzone-highlight"]]]
-        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], []]
-        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], [], []]
+        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], [], []]
         surface.surfacePolicies `shouldBe` []
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
@@ -1277,7 +1279,6 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterContentDomToken"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterWeekShellDomToken"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"

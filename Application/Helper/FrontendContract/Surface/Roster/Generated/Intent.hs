@@ -266,7 +266,7 @@ parseMoveRosterShiftToSlotIntentParams =
 
 data MoveRosterTimelineShiftIntentOperation
 
-type instance IntentSurface MoveRosterTimelineShiftIntentOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily)
+type instance IntentSurface MoveRosterTimelineShiftIntentOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance IntentMarker MoveRosterTimelineShiftIntentOperation = Types2.MoveRosterTimelineShift
 type instance IntentFieldSpecs MoveRosterTimelineShiftIntentOperation =
     '[ 'Field Types1.SourceItemKey 'WireText

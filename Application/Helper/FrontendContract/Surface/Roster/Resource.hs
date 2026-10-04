@@ -1,5 +1,6 @@
 module Application.Helper.FrontendContract.Surface.Roster.Resource
-    ( matchRosterEndTimesConfigResource
+    ( matchRosterDayResource
+    , matchRosterEndTimesConfigResource
     , matchRosterLayoutConfigResource
     , matchRosterTemplateLibraryResource
     , matchRosterWeekBoundaryConfigResource
@@ -33,6 +34,9 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (ro
 import qualified Application.Helper.FrontendContract.Surface.Roster.Generated.Resource as Generated
 import qualified Data.UUID as UUID
 import IHP.Prelude
+
+matchRosterDayResource :: SurfaceResourceValue -> Maybe UUID.UUID
+matchRosterDayResource = fmap fst . Generated.matchRosterDayResource
 
 matchRosterTemplateLibraryResource :: SurfaceResourceValue -> Maybe UUID.UUID
 matchRosterTemplateLibraryResource = fmap fst . Generated.matchRosterTemplateLibraryResource

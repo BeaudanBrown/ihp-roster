@@ -64,9 +64,7 @@ import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureInt
 import qualified IHP.HSX.Markup as HtmlRenderer
 import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
-import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
-                                        RosterWeekScopeValue (..),
-                                        rosterDayTimelineIntentForms,
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterIntentForms)
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
@@ -377,7 +375,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("roster", "move-roster-shift-to-slot")
                 , ("roster", "duplicate-roster-shift-to-day")
                 , ("roster", "drop-roster-staff")
-                , ("roster-day-timeline", "move-roster-timeline-shift")
+                , ("roster", "move-roster-timeline-shift")
                 ]
         List.sort
             [ actionIdentity registration
@@ -524,7 +522,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
     it "pins complete Roster Intent bundles and DOM-owned form metadata from independent literals" do
         let venueId = fixtureMemberId "00000000-0000-0000-0000-000000000111"
         let rosterGroupId = Id (fixtureMemberId "00000000-0000-0000-0000-000000000222") :: Id RosterGroup
-        let rosterDayId = Id (fixtureMemberId "00000000-0000-0000-0000-000000000333") :: Id RosterDay
         let rosterScope =
                 RosterWeekScopeValue
                     { rosterWeekVenueId = venueId
@@ -532,16 +529,9 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     , rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1
                     , rosterWeekTimelineDate = Nothing
                     }
-        let timelineScope =
-                RosterDayTimelineScopeValue
-                    { rosterDayTimelineVenueId = venueId
-                    , rosterDayTimelineGroupId = rosterGroupId
-                    , rosterDayTimelineWindowStart = testAnchorForOffset 3, rosterDayTimelineWindowEnd = addDays 7 (testAnchorForOffset 3), rosterDayTimelineCalendarRevision = 1
-                    , rosterDayTimelineOperationalDate = addDays 2 (testAnchorForOffset 3)
-                    , rosterDayTimelineDayId = rosterDayId
-                    }
+        let timelineScope = rosterScope { rosterWeekTimelineDate = Just (addDays 2 (testAnchorForOffset 3)) }
         let rosterForms = rosterIntentForms rosterScope True
-        let timelineForms = rosterDayTimelineIntentForms timelineScope
+        let timelineForms = filter ((== "move-roster-timeline-shift") . intentFormName) (rosterIntentForms timelineScope True)
         map intentFormName rosterForms
             `shouldBe`
                 [ "set-roster-layout-mode"

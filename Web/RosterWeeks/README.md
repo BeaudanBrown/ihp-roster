@@ -190,9 +190,9 @@ linked-highlight runtime owns hover, focus, keyboard/pin activation,
 
 Editable roster shift launchers also carry generated shift-group source/member
 roles so their existing hover/focus appearance uses the same generic runtime.
-The contained day-timeline Surface declares its own shift-group roles; it does
-not reach through its mount boundary to reuse outer-roster elements. Views and
-tests consume generated role names rather than raw staff/slot ID attributes or
+The day timeline shares the roster Surface and its shift-group roles, keeping
+staff and shift interactions in one authorized mount. Views and tests consume
+generated role names rather than raw staff/slot ID attributes or
 feature-specific highlight selectors. Staff pins are presentation-only and
 never decorate requests or alter wage authority, scope, or totals. Replacing
 the roster mount resets the transient pin.
@@ -318,9 +318,10 @@ normal roster page through canonical `anchorDate`, `rosterView=timeline` and
 to the grid retains the selected date as its anchor. The existing grid preference
 remains the default; no timeline preference is persisted.
 
-The timeline keeps a contained `roster-day-timeline` FrontendSurface for its
-interaction refs. Its horizontal scroll owner sits outside the replaceable
-content fragment so ordinary live replacements retain scroll position. Named
+The timeline belongs to the main roster FrontendSurface, with distinct typed
+shift/time interaction refs and a day-parameterized live content fragment.
+Only the selected day is registered in timeline mode. Its horizontal scroll
+owner sits outside that fragment so ordinary live replacements retain scroll position. Named
 lane labels and the time header are sticky; scale is fixed at six rem per elapsed
 hour with no zoom or fit-to-viewport mode.
 

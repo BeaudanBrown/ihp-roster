@@ -179,7 +179,7 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.fixtureRosterGroupId (rosterWeek.fixtureWindowStart) (addDays 7 (rosterWeek.fixtureWindowStart)) 1
                         let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.fixtureRosterGroupId, rosterWeekWindowStart = rosterWeek.fixtureWindowStart, rosterWeekWindowEnd = addDays 7 (rosterWeek.fixtureWindowStart), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
-                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
+                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedDaysByDate = mempty, rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
                         let subscription =
                                 SurfaceSubscription
                                     { subscriptionScope = scope
@@ -207,7 +207,7 @@ tests = aroundAll withDatabaseTestContext do
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
                 let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
-                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedHasTemplateLibrary = False }
+                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedDaysByDate = mempty, rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedHasTemplateLibrary = False }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
@@ -471,9 +471,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-session-long-press-ms=\"450\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"540\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
-                response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
-                response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
-                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                response `responseBodyShouldContain` ("data-bepis-roster-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
+                response `responseBodyShouldContain` ("data-bepis-roster-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"timeline-time-dropzone\""
                 response `responseBodyShouldContain` "--roster-timeline-track-count:2;"
                 response `responseBodyShouldContain` "roster-day-timeline-gridlines"
                 response `responseBodyShouldContain` "roster-day-timeline-shift-details"
@@ -519,7 +519,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                let shiftSourceAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> tshow timelineSlot.id <> "\""
+                let shiftSourceAttr = "data-bepis-roster-shift-group-highlight-source=\"existing:" <> tshow timelineSlot.id <> "\""
                 body <- (cs <$> responseBody response) :: IO Text
                 body `shouldSatisfy` Text.isInfixOf shiftSourceAttr
                 let scopedShiftHtml = Text.take 2000 (snd (Text.breakOn shiftSourceAttr body))
@@ -1590,7 +1590,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 timelineResponse `responseStatusShouldBe` status200
-                let shiftSourceAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> tshow sourceSlot.id <> "\""
+                let shiftSourceAttr = "data-bepis-roster-shift-group-highlight-source=\"existing:" <> tshow sourceSlot.id <> "\""
                 timelineBody <- (cs <$> responseBody timelineResponse) :: IO Text
                 let (beforeShiftSource, _) = Text.breakOn shiftSourceAttr timelineBody
                 let positionMarker = "<div class=\"roster-day-timeline-shift-position\""

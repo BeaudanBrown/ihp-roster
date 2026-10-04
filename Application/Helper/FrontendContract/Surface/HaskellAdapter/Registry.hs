@@ -43,7 +43,6 @@ import IHP.Prelude (Text)
 type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
      , RosterAdapterFamily
-     , RosterDayTimelineAdapterFamily
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
@@ -77,7 +76,6 @@ registeredSurfaceActorOnlyFragments =
 type RegisteredSurfaceScopeAdapterHomes =
     '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
-     , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
@@ -114,7 +112,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
-     , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDayTimelineContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSidePanelContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
@@ -168,7 +166,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
-     , SurfaceResourceAdapterHome RosterDayTimelineAdapterFamily Roster.TimePickerConfig
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.TimePickerConfig
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsSection
@@ -246,7 +244,7 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field modal launcher consumes canonical route context and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.DeleteRosterTemplate
         (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route id and canonical query context")
-    , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
@@ -327,7 +325,7 @@ registeredSurfaceIntentAdapterRegistrations =
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
-    , surfaceOperationLocalIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
     ]
 
 allRequestAdapterOperations :: SurfaceRequestAdapterOperations

@@ -9,9 +9,6 @@ import Application.Helper.Controller (hasManagementMode)
 import qualified Application.Helper.FrontendContract.Interaction.Runtime as Drag
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
-                                                            renderFrontendSurfaceInteractionShell,
-                                                            renderFrontendSurfaceMount)
 import Application.RosterShiftAssignment (rosterShiftIsOpen,
                                           rosterShiftIsStaffAssigned)
 import Application.VenueTime (VenueTimeError)
@@ -27,15 +24,10 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
                                   laneForOperationalDate, rosterWindowLaneName)
-import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId,
-                            rosterWeekShellId)
-import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
-                                        rosterDayTimelineDropzoneRef,
-                                        rosterDayTimelineFrontendSurfaceIR,
-                                        rosterDayTimelineIntentForms,
-                                        rosterDayTimelineShiftGroupLinkedHighlight,
-                                        rosterDayTimelineSourceRef,
-                                        rosterDayTimelineSurfaceImpl)
+import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
+import Web.RosterWeeks.FrontendSurface (rosterDayTimelineDropzoneRef,
+                                        rosterShiftGroupLinkedHighlight,
+                                        rosterDayTimelineSourceRef)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types
@@ -50,30 +42,11 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel gridModel@RosterGridRenderModel { gridRosterWeek = Just _ } rosterDay =
-    renderRosterDayTimelineMounted gridModel.gridWindowScope rosterDay (renderRosterDayTimelineContent Nothing gridModel rosterDay)
-
-renderRosterDayTimelineMounted :: RosterWindowScope -> RosterDay -> Html -> Html
-renderRosterDayTimelineMounted windowScope rosterDay body =
-    let timelineSurfaceScope = RosterDayTimelineScopeValue
-            { rosterDayTimelineVenueId = unpackId windowScope.rosterWindowVenueId
-            , rosterDayTimelineGroupId = windowScope.rosterWindowRosterGroupId
-            , rosterDayTimelineWindowStart = windowScope.rosterWindowStart
-            , rosterDayTimelineWindowEnd = windowScope.rosterWindowEnd
-            , rosterDayTimelineCalendarRevision = windowScope.rosterWindowCalendarRevision
-            , rosterDayTimelineOperationalDate = rosterDay.operationalDate
-            , rosterDayTimelineDayId = rosterDay.id
-            }
-        timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
-     in renderFrontendSurfaceMount timelineSurface $
-            renderFrontendSurfaceInteractionShell timelineSurface rosterDayTimelineFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
-                { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
-                , interactionShellIntentForms = rosterDayTimelineIntentForms timelineSurfaceScope
-                } [hsx|
-                    <div {...SurfaceInteraction.frontendSurfaceDragScrollContainerAttrs} class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
-                        {body}
-                    </div>
-                |]
+renderRosterDayTimelinePanel gridModel@RosterGridRenderModel { gridRosterWeek = Just _ } rosterDay = [hsx|
+    <div {...SurfaceInteraction.frontendSurfaceDragScrollContainerAttrs} class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
+        {renderRosterDayTimelineContent Nothing gridModel rosterDay}
+    </div>
+|]
 
 data TimelineShift = TimelineShift
     { timelineShiftSlot          :: !RosterSlot
@@ -241,8 +214,8 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
             then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey
                 <> SurfaceInteraction.frontendSurfaceLongPressDragAttrs
                 <> intervalAttrs
-                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey
-                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing
+                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterShiftGroupLinkedHighlight groupKey
+                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs rosterShiftGroupLinkedHighlight groupKey Nothing
             else []
      in card
 

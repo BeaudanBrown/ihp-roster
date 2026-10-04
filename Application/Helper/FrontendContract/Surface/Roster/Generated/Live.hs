@@ -8,7 +8,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , matchRosterDayRailLiveFragment
     , matchRosterDaySectionLiveFragment
     , matchRosterDayTimelineContentLiveFragment
-    , matchRosterDayTimelineLiveScope
     , matchRosterGridFrameLiveFragment
     , matchRosterGridToolbarLiveFragment
     , matchRosterRowLiveFragment
@@ -23,7 +22,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , rosterDayRailLiveFragment
     , rosterDaySectionLiveFragment
     , rosterDayTimelineContentLiveFragment
-    , rosterDayTimelineLiveScope
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
@@ -111,7 +109,7 @@ rosterDayTimelineContentLiveFragment ::
     SurfaceFragmentKey
 rosterDayTimelineContentLiveFragment rosterDayId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDayTimelineContent
         ( surfaceField @Types1.RosterDayId rosterDayId
             &: noSurfaceFields
@@ -120,35 +118,8 @@ rosterDayTimelineContentLiveFragment rosterDayId =
 matchRosterDayTimelineContentLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
 matchRosterDayTimelineContentLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDayTimelineContent
-
-rosterDayTimelineLiveScope ::
-    UUID.UUID ->
-    UUID.UUID ->
-    Day ->
-    Day ->
-    Int ->
-    UUID.UUID ->
-    SurfaceScope
-rosterDayTimelineLiveScope venueId rosterGroupId windowStartDate windowEndDate rosterCalendarRevision rosterDayId =
-    frontendSurfaceScope
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
-        @Types1.RosterDayTimeline
-        ( surfaceField @Types1.VenueId venueId
-            &: surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WindowStartDate windowStartDate
-            &: surfaceField @Types1.WindowEndDate windowEndDate
-            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceField @Types1.RosterDayId rosterDayId
-            &: noSurfaceFields
-        )
-
-matchRosterDayTimelineLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Day, (Day, (Int, (UUID.UUID, ()))))))
-matchRosterDayTimelineLiveScope =
-    matchFrontendSurfaceScope
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
-        @Types1.RosterDayTimeline
 
 rosterGridFrameLiveFragment :: SurfaceFragmentKey
 rosterGridFrameLiveFragment =

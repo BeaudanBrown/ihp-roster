@@ -253,7 +253,7 @@ timePickerConfigResource ::
     SurfaceResourceValue
 timePickerConfigResource venueId =
     frontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.TimePickerConfig
         ( surfaceField @Types1.VenueId venueId
             &: noSurfaceFields
@@ -262,5 +262,5 @@ timePickerConfigResource venueId =
 matchTimePickerConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
 matchTimePickerConfigResource =
     matchFrontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.TimePickerConfig

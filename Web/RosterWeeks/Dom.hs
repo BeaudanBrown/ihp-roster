@@ -69,7 +69,7 @@ rosterContentFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surfac
 
 rosterDayTimelineContentFragmentId :: Id RosterDay -> Text
 rosterDayTimelineContentFragmentId rosterDayId =
-    surfaceFragmentTargetId @Surface.RosterDayTimelineSurface @Surface.RosterDayTimelineContent
+    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDayTimelineContent
         (surfaceField @Surface.RosterDayId (unpackId rosterDayId) &: noSurfaceFields)
 
 rosterGridToolbarFragmentId :: Text
