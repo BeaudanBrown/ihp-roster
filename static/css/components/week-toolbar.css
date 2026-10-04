@@ -61,6 +61,24 @@
     justify-content: flex-end;
 }
 
+.app-week-toolbar-roster .app-week-toolbar-aux {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* The roster view switch and wage summary need their intrinsic width. Wrap
+   sections instead of letting a compressed grid cell cover the tools panel. */
+@media (min-width: 992px) {
+    .app-week-toolbar-roster {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .app-week-toolbar-roster .app-week-toolbar-section {
+        flex: 1 0 auto;
+    }
+}
+
 @media (max-width: 991.98px) {
     .app-week-toolbar {
         min-height: auto;

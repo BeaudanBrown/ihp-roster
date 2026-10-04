@@ -354,7 +354,7 @@ tests = do
             let secondDayId = Id secondDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 3
             let scope = rosterSurfaceScope scopeValue
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [firstDayId, secondDayId], rosterMountedDaysByDate = mempty, rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [firstDayId, secondDayId], rosterMountedDaysByDate = mempty, rosterMountedRows = [(firstDayId, 0), (firstDayId, 1)], rosterMountedHasTemplateLibrary = False }
             let candidates = rosterCandidateMountedFragments scopeValue plan
 
             passiveFragmentKeys (Set.singleton (rosterDayResource firstDayUuid)) scope candidates

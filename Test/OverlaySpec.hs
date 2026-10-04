@@ -243,6 +243,19 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-dismissal-guard=\"true\""
                 html `shouldSatisfy` Text.isInfixOf "Discard unsaved changes?"
 
+        it "retains rejected Timesheet clock text instead of restoring stored values" $ withContext do
+            withCurrentControllerContext do
+                let inputs = autofocusTimesheetModel.timesheetFormInputs
+                    model = autofocusTimesheetModel
+                        { timesheetFormInputs = inputs
+                            { submittedClocks = Just (TimesheetClockDraft "" "17:15" "" "13:00") }
+                        }
+                    html = renderText (renderTimesheetForm model)
+                html `shouldSatisfy` Text.isInfixOf "name=\"startTime\" value=\"\""
+                html `shouldSatisfy` Text.isInfixOf "name=\"endTime\" value=\"17:15\""
+                html `shouldSatisfy` Text.isInfixOf "name=\"breakStartTime\" value=\"\""
+                html `shouldSatisfy` Text.isInfixOf "name=\"breakEndTime\" value=\"13:00\""
+
         it "opts keyboard dialogs into one generated content focus region" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderKeyboardDialogOverlay dialogConfig)
@@ -309,6 +322,7 @@ autofocusTimesheetModel = TimesheetFormRenderModel
         { timesheetEntry = (newRecord @TimesheetEntry)
             { startsAt = UTCTime day 0, endsAt = UTCTime day (8 * 3600)
             , timezone = "Australia/Melbourne", operationalDate = day }
+        , submittedClocks = Nothing
         , staffMembers = [], shiftTypes = [], calendarRevision = 0
                                 , viewFilters = emptyTimesheetViewFilters
         , currentViewerStaffId = Nothing, pickerStart = "00:00", pickerEnd = "23:45", pickerStep = 15, viewerIsManager = False

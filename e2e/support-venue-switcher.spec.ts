@@ -69,7 +69,7 @@ test.describe('Super-admin venue and user switchers', () => {
         await expect(fallbackToast).toContainText('That page is not available for the resulting account. Showing its Roster instead.');
     });
 
-    test('passkey overlay keeps context and requires the blocked switch to be repeated', async ({ page }) => {
+    test('support switching follows deployment passkey enforcement without replaying a blocked switch', async ({ page }) => {
         clearE2EUserPasskeys('e2e-super-admin@example.com');
         await enableVirtualPasskeyAuthenticator(page);
         await loginAsWithFreshBrowserSession(page, 'e2e-super-admin@example.com', 'test-password-123');
@@ -84,6 +84,23 @@ test.describe('Super-admin venue and user switchers', () => {
         await clearCurrentSessionPasskeyVerification(page);
         const rosterUrl = page.url();
         const userSwitcher = page.locator('#support-impersonation-user');
+        if (process.env.IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH === 'false') {
+            // The development shell intentionally waives founder enforcement.
+            // Run this test with the flag=true to exercise the guarded branch.
+            const challenges: string[] = [];
+            page.on('request', (request) => {
+                if (new URL(request.url()).pathname.includes('PasskeyStepUpAuthentication')) challenges.push(request.url());
+            });
+            const transitioned = page.waitForResponse((response) =>
+                new URL(response.url()).pathname === new URL(rosterUrl).pathname && response.request().method() === 'GET');
+            await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+            await (await transitioned).finished();
+            await expect(page.getByRole('link', { name: 'profile', exact: true })).toBeVisible();
+            await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+            await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
+            expect(challenges).toEqual([]);
+            return;
+        }
         const finishStepUpResponse = page.waitForResponse(
             (response) => new URL(response.url()).pathname === '/FinishPasskeyStepUpAuthentication',
             { timeout: E2E_TIMEOUT.passkey },

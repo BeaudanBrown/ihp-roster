@@ -20,13 +20,14 @@ export function resetTimesheetDisplayPreferences(emails: string | string[]) {
     `);
 }
 
-export async function chooseBlankTimesheet(page: Page, preferredStaffName = 'E2E Manager') {
+export async function chooseBlankTimesheet(page: Page, preferredStaffId = 'a0000000-0000-0000-0000-000000000101') {
     const createForm = page.locator('#timesheet-entry-create-form');
-    const blankChoice = page.getByRole('link', { name: 'Use blank timesheet' }).first();
+    const blankChoice = page.getByRole('link', { name: 'Blank timesheet', exact: true }).first();
     await Promise.race([
         createForm.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }),
         blankChoice.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }).then(async () => {
-            const preferredChoice = page.locator('article', { hasText: preferredStaffName }).getByRole('link', { name: 'Use blank timesheet' }).first();
+            const preferredChoice = page.getByRole('link', { name: 'Blank timesheet', exact: true })
+                .and(page.locator(`[href*="staffFilterId=${preferredStaffId}"]`)).first();
             await (await preferredChoice.count() ? preferredChoice : blankChoice).click();
         }),
     ]);

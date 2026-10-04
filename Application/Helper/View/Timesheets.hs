@@ -3,6 +3,7 @@
 
 module Application.Helper.View.Timesheets
     ( TimesheetDismissalGuardMode (..)
+    , TimesheetClockDraft (..)
     , TimesheetFormInputs (..)
     , TimesheetFormOrigin (..)
     , TimesheetFormPresentation (..)
@@ -61,8 +62,16 @@ data TimesheetFormOrigin
     | RosteredTimesheetEntryForm
     deriving (Eq, Show)
 
+data TimesheetClockDraft = TimesheetClockDraft
+    { draftStartTime      :: Text
+    , draftEndTime        :: Text
+    , draftBreakStartTime :: Text
+    , draftBreakEndTime   :: Text
+    }
+
 data TimesheetFormInputs = TimesheetFormInputs
     { timesheetEntry       :: TimesheetEntry
+    , submittedClocks      :: Maybe TimesheetClockDraft
     , staffMembers         :: [Staff]
     , shiftTypes           :: [ShiftType]
     , calendarRevision     :: Int
@@ -177,7 +186,7 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
     {renderTimesheetManagerNoteField (autofocusField == Just "managerNote") inputs}
 |]
     where
-        timeValues@TimesheetTimeRenderValues { .. } = timesheetTimeRenderValues timesheetEntry
+        timeValues@TimesheetTimeRenderValues { .. } = timesheetTimeRenderValues timesheetEntry submittedClocks
         keyboardEnabled = timesheetFormKeyboardEnabled formMode
         dateValueIso = tshow timesheetEntry.operationalDate :: Text
         autofocusField = timesheetAutofocusField model
@@ -217,8 +226,8 @@ timesheetAutofocusField TimesheetFormRenderModel
         , ("managerNote", viewerIsManager)
         ], eligible]
 
-timesheetTimeRenderValues :: TimesheetEntry -> TimesheetTimeRenderValues
-timesheetTimeRenderValues timesheetEntry =
+timesheetTimeRenderValues :: TimesheetEntry -> Maybe TimesheetClockDraft -> TimesheetTimeRenderValues
+timesheetTimeRenderValues timesheetEntry submittedClocks =
     let recoveredStartLocalTime = recoverStoredInstantLocalTime timesheetEntry.timezone (Just timesheetEntry.startsAt)
         recoveredEndLocalTime = recoverStoredInstantLocalTime timesheetEntry.timezone (Just timesheetEntry.endsAt)
         recoveredBreakStartLocalTime = recoverStoredInstantLocalTime timesheetEntry.timezone timesheetEntry.breakStartsAt
@@ -233,10 +242,10 @@ timesheetTimeRenderValues timesheetEntry =
             , endOccurrence = recoverStoredInstantOccurrence timesheetEntry.timezone (Just timesheetEntry.endsAt)
             , breakStartOccurrence = recoverStoredInstantOccurrence timesheetEntry.timezone timesheetEntry.breakStartsAt
             , breakEndOccurrence = recoverStoredInstantOccurrence timesheetEntry.timezone timesheetEntry.breakEndsAt
-            , startTimeValue = recoveredTimeValue recoveredStartLocalTime
-            , endTimeValue = recoveredTimeValue recoveredEndLocalTime
-            , breakStartTimeValue = recoveredTimeValue recoveredBreakStartLocalTime
-            , breakEndTimeValue = recoveredTimeValue recoveredBreakEndLocalTime
+            , startTimeValue = maybe (recoveredTimeValue recoveredStartLocalTime) (.draftStartTime) submittedClocks
+            , endTimeValue = maybe (recoveredTimeValue recoveredEndLocalTime) (.draftEndTime) submittedClocks
+            , breakStartTimeValue = maybe (recoveredTimeValue recoveredBreakStartLocalTime) (.draftBreakStartTime) submittedClocks
+            , breakEndTimeValue = maybe (recoveredTimeValue recoveredBreakEndLocalTime) (.draftBreakEndTime) submittedClocks
             }
 
 timesheetFormKeyboardEnabled :: OverlayFormMode -> Bool

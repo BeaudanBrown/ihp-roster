@@ -31,8 +31,12 @@ async function clickToggleAndWait(page: Page, button: Locator, actionPath: strin
 test.describe('Roster settings toggle labels', () => {
     test.describe.configure({ retries: 0, timeout: E2E_TIMEOUT.test });
 
-    test('keeps visible labels, accessibility state, and the selected tab synchronized', async ({ page }) => {
+    test('keeps visible labels, accessibility state, and the selected tab synchronized', async ({ page }, testInfo) => {
         seedEnabledRosterDisplayPreferences();
+        // Exercise the layout transition with wages visible: toolbar overflow
+        // must not cover the adjacent Staff tab used to restore the tools pane.
+        runSql(`UPDATE venue_config SET roster_layout_mode = 'day_columns'
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';`);
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
         await openRosterSettings(page);
 
@@ -84,6 +88,7 @@ test.describe('Roster settings toggle labels', () => {
         await page.reload();
         await openRosterSettings(page);
         await expect(payMode).toHaveValue('roster_pay_daily');
+        await page.screenshot({ path: testInfo.outputPath('toolbar-wages-visible.png') });
     });
 
     test('returns unsaved optimistic switch state to server state on the next authoritative render', async ({ page }) => {

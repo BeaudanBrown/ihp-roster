@@ -53,11 +53,7 @@ export async function registerFirstPasskeyForCurrentUser(page: Page) {
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
-    await gotoWhenReady(page, '/Support', '#support-impersonation-user');
-    if (!(await passkeyRegistrationButton(page).isVisible().catch(() => false))) {
-        await page.getByRole('link', { name: 'Create passkey' }).click();
-        await expect(page.locator(`[${passkeyRegistrationDomAttr}]`)).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    }
+    await gotoWhenReady(page, '/PasskeySetup', `[${passkeyRegistrationDomAttr}]`);
     await registerFirstPasskeyFromVisibleControl(page);
     await gotoWhenReady(page, '/Support', '#support-impersonation-user');
     await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
@@ -89,7 +85,9 @@ export async function openProfileSecuritySection(page: Page) {
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
         await securityToggle.click();
     }
-    await expect(page.locator('#profile-security-collapse')).toBeVisible();
+    const sectionId = await securityToggle.getAttribute('aria-controls');
+    expect(sectionId).toBeTruthy();
+    await expect(page.locator(`[id="${sectionId}"]`)).toBeVisible();
 }
 
 async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {

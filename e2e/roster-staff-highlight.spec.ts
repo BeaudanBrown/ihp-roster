@@ -240,11 +240,11 @@ test.describe('Roster staff shift highlight', () => {
                 SET roster_layout_mode = 'day_rows', updated_at = NOW()
                 WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
 
-                INSERT INTO user_preferences (user_id, roster_layout_mode, show_wage_estimates)
-                VALUES ('a0000000-0000-0000-0000-000000000003', 'day_columns', TRUE)
+                INSERT INTO user_preferences (user_id, roster_layout_mode, roster_pay_display_mode)
+                VALUES ('a0000000-0000-0000-0000-000000000003', 'day_columns', 'roster_pay_daily')
                 ON CONFLICT (user_id) DO UPDATE SET
                     roster_layout_mode = 'day_columns',
-                    show_wage_estimates = TRUE,
+                    roster_pay_display_mode = 'roster_pay_daily',
                     updated_at = NOW();
 
                 UPDATE staff_pay_versions

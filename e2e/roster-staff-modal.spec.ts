@@ -192,7 +192,9 @@ test.describe('Roster Staff Modal', () => {
             { action: formAction ?? '' },
         );
 
-        expect(validationResponse).toContain('Edit Staff Member');
+        expect(validationResponse).toContain('id="staff-profile-details"');
+        expect(validationResponse).toContain('id="staff-edit-form"');
+        expect(validationResponse).not.toContain(`id="${dialogOverlayMountDomId}"`);
         expect(validationResponse).toContain('This field cannot be empty');
         expect(validationResponse).not.toContain('Roster App');
 
@@ -202,13 +204,12 @@ test.describe('Roster Staff Modal', () => {
             const url = new URL(response.url());
             return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'profile';
         });
-        const preferencesRefreshPromise = page.waitForResponse((response) => {
-            const url = new URL(response.url());
-            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'preferences';
+        await modalMount.locator('#staff-profile-preferences').evaluate((element) => {
+            element.setAttribute('data-e2e-preference-owner', 'unchanged');
         });
         await modalMount.getByRole('button', { name: 'Save' }).click();
-        const [profileRefresh, preferencesRefresh] = await Promise.all([profileRefreshPromise, preferencesRefreshPromise]);
-        await Promise.all([profileRefresh.finished(), preferencesRefresh.finished()]);
+        await (await profileRefreshPromise).finished();
+        await expect(modalMount.locator('#staff-profile-preferences')).toHaveAttribute('data-e2e-preference-owner', 'unchanged');
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();

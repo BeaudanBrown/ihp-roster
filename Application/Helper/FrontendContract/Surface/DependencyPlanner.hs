@@ -53,7 +53,9 @@ promoteSiblingFragments :: [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> [Surf
 promoteSiblingFragments mountedFragmentKeys affectedFragmentKeys =
     coalescedAffected <> nearestPromotions
   where
-    coalescedAffected = coalesceSurfaceFragmentKeys affectedFragmentKeys
+    -- Covered descendants are not independent siblings: counting their rows
+    -- can incorrectly promote an already-selected day to the whole grid.
+    coalescedAffected = normalizeContainedFragmentKeys affectedFragmentKeys
     promotionCandidates =
         [ candidate
         | candidate <- coalesceSurfaceFragmentKeys mountedFragmentKeys

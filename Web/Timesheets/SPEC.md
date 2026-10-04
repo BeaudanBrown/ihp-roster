@@ -30,7 +30,9 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 - Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require the
   relevant first/second occurrence, including equal repeated-clock intervals.
 - Input precision and picker range follow venue configuration. Existing values
-  outside the current picker range remain valid and displayable.
+  outside the current picker range remain valid and displayable. Validation
+  rerenders preserve submitted clock fields, including cleared values, rather
+  than silently restoring stored/default times.
 - Corrupt persisted timing remains visible with a repair indicator instead of
   crashing the page. Standard edit dialogs recover only independently trusted
   clocks and leave untrustworthy values blank; a complete valid replacement

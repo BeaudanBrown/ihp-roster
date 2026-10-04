@@ -22,6 +22,7 @@ module Web.Timesheets.Projection
     , renderTimesheetWeekProjectionFragment
     , timesheetDayRenderModelFromProjection
     , timesheetFormInputsFor
+    , submittedTimesheetFormInputsFor
     , timesheetFormReferencesFor
     , timesheetIndexView
     , parseApproveTimesheetEntryState
@@ -44,7 +45,8 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetWageDisplayMode)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds,
                                               fetchLinkedActiveVenueStaff)
-import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
+import Application.Helper.View.Timesheets (TimesheetClockDraft (..),
+                                           TimesheetFormInputs (..))
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -323,6 +325,7 @@ timesheetFormInputsFor :: TimesheetFormContext -> TimesheetEntry -> TimesheetFor
 timesheetFormInputsFor context timesheetEntry =
     TimesheetFormInputs
         { timesheetEntry
+        , submittedClocks = Nothing
         , staffMembers = context.formStaffMembers
         , shiftTypes = context.formShiftTypes
         , calendarRevision = context.formVenueConfig.rosterCalendarRevision
@@ -332,6 +335,18 @@ timesheetFormInputsFor context timesheetEntry =
         , pickerEnd = venueTimePickerFinalSelectableTimeText context.formVenueConfig
         , pickerStep = venueShiftTimeIntervalMinutes context.formVenueConfig
         , viewerIsManager = context.formViewerIsManager
+        }
+
+-- A rejected submission must not silently restore saved/default clocks.
+submittedTimesheetFormInputsFor :: (?request :: Request) => TimesheetFormContext -> TimesheetEntry -> TimesheetFormInputs
+submittedTimesheetFormInputsFor context entry =
+    (timesheetFormInputsFor context entry)
+        { submittedClocks = Just TimesheetClockDraft
+            { draftStartTime = fromMaybe "" (paramOrNothing @Text "startTime")
+            , draftEndTime = fromMaybe "" (paramOrNothing @Text "endTime")
+            , draftBreakStartTime = fromMaybe "" (paramOrNothing @Text "breakStartTime")
+            , draftBreakEndTime = fromMaybe "" (paramOrNothing @Text "breakEndTime")
+            }
         }
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]

@@ -224,7 +224,7 @@ createOrdinaryTimesheetEntry context = do
             let timesheetEntryRecord = applyTimesheetRosterGroupClassification classification submittedEntry
             timesheetEntryRecord |> ifValid \case
                 Left timesheetEntry -> do
-                    let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
+                    let timesheetFormInputs = submittedTimesheetFormInputsFor formContext timesheetEntry
                     pure (TimesheetCreateInvalid NewTimesheetRenderModel { .. })
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
@@ -237,7 +237,7 @@ editOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContex
 editOrdinaryTimesheetEntry context existingEntry = do
     formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) (listToMaybe context.timesheetFilters.filterStaffIds)
     prepareTimesheetEdit formContext.formVenueConfig formContext.formCurrentViewerStaffId existingEntry >>= \case
-        Left timesheetEntry -> pure (TimesheetEditInvalid (timesheetFormInputsFor formContext timesheetEntry))
+        Left timesheetEntry -> pure (TimesheetEditInvalid (submittedTimesheetFormInputsFor formContext timesheetEntry))
         Right intent -> TimesheetEditCompleted <$> updateTimesheetEntryMutation context.timesheetScope intent
 
 data TimesheetRosterPrefillFormOutcome
@@ -299,7 +299,7 @@ createRosterPrefillTimesheetEntry context rosterSlotId = do
                                 else rosterPrefillEntry
                     timesheetEntry |> ifValid \case
                         Left invalidEntry -> do
-                            let timesheetFormInputs = timesheetFormInputsFor formContext invalidEntry
+                            let timesheetFormInputs = submittedTimesheetFormInputsFor formContext invalidEntry
                             pure (RosterPrefillInvalid RosterPrefillTimesheetRenderModel { .. })
                         Right validEntry ->
                             if validEntry.operationalDate /= rosterPrefill.prefillOperationalDate

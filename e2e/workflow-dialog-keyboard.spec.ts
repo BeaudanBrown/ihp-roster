@@ -107,6 +107,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await submitTimesheetDialogWithEnter(page, form);
 
         const invalidField = dialogMount.locator('#timesheet-entry-create-form').locator(`[${timePickerTriggerDomAttr}]`).nth(invalidIndex);
+        await expect(dialogMount.locator(`input[name="${invalidIndex === 0 ? 'startTime' : 'endTime'}"]`)).toHaveValue('');
         await expect(invalidField).toHaveAttribute('aria-invalid', 'true');
         await expect(dialogMount.locator('[autofocus]')).toHaveCount(1);
         await expect(invalidField).toHaveAttribute('autofocus', 'autofocus');
