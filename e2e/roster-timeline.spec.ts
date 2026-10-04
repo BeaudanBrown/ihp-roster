@@ -114,7 +114,7 @@ test('drops staff into empty time and replaces a shift immediately, including to
         const response = page.waitForResponse((result) => result.url().includes('/DropRosterStaff'));
         if (cdp) {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
-            await page.waitForTimeout(520);
+            await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
             await expect(page.getByRole('button', { name: 'Open Roster tools' })).toBeVisible();
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] });
             await expect(target).toHaveClass(/bepis-dropzone-highlight/);

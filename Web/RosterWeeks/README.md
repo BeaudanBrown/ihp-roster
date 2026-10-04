@@ -348,8 +348,9 @@ have explicit text and dashed edges. Full details appear on hover or focus;
 editable cards use native buttons to launch the existing editor.
 Timeline drag/drop uses the same generic source/dropzone runtime as the roster
 grid: Haskell renders opaque `existing:<slot-id>` source keys and
-`time:<day-id>:<slot-definition-id>:<operational-minute>` target keys, while the
-controller owns all parsing, validation, row-index placement, and mutation.
+`instant:<day-id>:<slot-definition-id>:<epoch-seconds>` target keys. Epoch-second
+instants distinguish repeated local clocks across DST transitions; the controller
+owns all parsing, validation, row-index placement, and mutation.
 
 
 ## Related Docs
