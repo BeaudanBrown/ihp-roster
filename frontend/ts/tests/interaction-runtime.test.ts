@@ -1,4 +1,4 @@
-import { InteractionDom } from "../generated/contracts";
+import { InteractionDom, nativeContextMenuDisabledDomAttr } from "../generated/contracts";
 import { readIntervalDrag } from "../interaction/interval-drag";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
@@ -829,6 +829,28 @@ test("long-press opt-in preserves taps/swipes and activates only a held touch", 
     controller.handleClick(click);
     assertEqual(click.defaultPrevented, true);
     controller.stop();
+});
+
+test("marked interaction regions suppress menus without a drag, including replacement children", () => {
+    const root = new MiniElement();
+    const region = root.append(new MiniElement({ [nativeContextMenuDisabledDomAttr]: "true" }));
+    const outside = root.append(new MiniElement());
+    const malformed = root.append(new MiniElement({ [nativeContextMenuDisabledDomAttr]: "false" }));
+    const controller = createPointerSessionController();
+    try {
+        for (const target of [region, region.append(new MiniElement()), region.append(new MiniElement())]) {
+            const menu = eventWithTarget("contextmenu", target);
+            controller.handleContextMenu(menu);
+            assertEqual(menu.defaultPrevented, true);
+        }
+        for (const target of [outside, malformed]) {
+            const menu = eventWithTarget("contextmenu", target);
+            controller.handleContextMenu(menu);
+            assertEqual(menu.defaultPrevented, false);
+        }
+    } finally {
+        controller.stop();
+    }
 });
 
 test("native context menus cannot interrupt a pending opted-in touch hold", () => {

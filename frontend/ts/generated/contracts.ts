@@ -577,6 +577,8 @@ export const sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms" as const;
 
 export const dragScrollContainerDomAttr = "data-bepis-drag-scroll-container" as const;
 
+export const nativeContextMenuDisabledDomAttr = "data-bepis-native-context-menu-disabled" as const;
+
 export const sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms" as const;
 
 export type DragIntervalConfig = { rangeSize: number; extent: number; positions: ReadonlyArray<number>; labels: ReadonlyArray<string> };
@@ -653,6 +655,7 @@ export type InteractionDomAttributes = {
     sessionThreshold: typeof sessionThresholdDomAttr;
     sessionTimeoutMs: typeof sessionTimeoutMsDomAttr;
     dragScrollContainer: typeof dragScrollContainerDomAttr;
+    nativeContextMenuDisabled: typeof nativeContextMenuDisabledDomAttr;
     sessionLongPressMs: typeof sessionLongPressMsDomAttr;
     dragIntervalConfig: typeof dragIntervalConfigDomAttr;
     dragPreviewLabel: typeof dragPreviewLabelDomAttr;
@@ -688,7 +691,7 @@ export type InteractionPointerFields = {
 };
 export type InteractionDom = { attributes: InteractionDomAttributes; values: InteractionDomValues; pointerFields: InteractionPointerFields };
 export const InteractionDom: InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName },
 };

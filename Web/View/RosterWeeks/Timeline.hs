@@ -46,7 +46,7 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } 
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
 renderRosterDayTimelinePanel gridModel@RosterGridRenderModel { gridRosterWeek = Just _ } rosterDay = [hsx|
-    <div {...SurfaceInteraction.frontendSurfaceDragScrollContainerAttrs} class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
+    <div {...SurfaceInteraction.frontendSurfaceDragScrollContainerAttrs} {...Drag.nativeContextMenuDisabledAttrs} class="roster-day-timeline-scroller" tabindex="0" aria-label="Scroll roster timeline">
         {renderRosterDayTimelineContent Nothing gridModel rosterDay}
     </div>
 |]

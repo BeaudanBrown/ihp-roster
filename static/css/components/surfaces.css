@@ -32,7 +32,9 @@
 /* Reserve native long-press selection/callouts before the drag timer fires.
    Do not disable touch-action: ordinary swipes and pinch zoom remain native. */
 [data-bepis-session-long-press-ms],
-[data-bepis-session-long-press-ms] * {
+[data-bepis-session-long-press-ms] *,
+[data-bepis-native-context-menu-disabled="true"],
+[data-bepis-native-context-menu-disabled="true"] * {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;

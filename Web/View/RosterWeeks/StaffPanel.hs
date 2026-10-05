@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionHtmxControl)
+import qualified Application.Helper.FrontendContract.Interaction.Runtime as Drag
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
@@ -193,7 +194,7 @@ rosterStaffPanelColumns =
 
 renderRosterStaffPanelTable :: [Staff] -> Day -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelTable panelStaffMembers anchorDate currentRosterGroupId renderedPanelStaff = [hsx|
-    <div class="app-side-panel-table-list roster-staff-panel-list">
+    <div class="app-side-panel-table-list roster-staff-panel-list" {...Drag.nativeContextMenuDisabledAttrs}>
         <table class="app-side-panel-table roster-staff-table" {...rosterStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head roster-staff-table-head">
                 <tr>{forEach rosterStaffPanelColumns renderRosterStaffPanelHeaderCell}</tr>

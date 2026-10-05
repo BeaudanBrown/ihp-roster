@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Interaction
     , SessionThreshold
     , SessionTimeoutMs
     , DragScrollContainer
+    , NativeContextMenuDisabled
     , SessionLongPressMs
     , DragIntervalConfig
     , DragPreviewLabel
@@ -84,6 +85,7 @@ data SessionReadOnly
 data SessionThreshold
 data SessionTimeoutMs
 data DragScrollContainer
+data NativeContextMenuDisabled
 data SessionLongPressMs
 data DragIntervalConfig
 data DragPreviewLabel
@@ -147,6 +149,7 @@ type InteractionContract =
          , DomAttr SessionThreshold
          , DomAttr SessionTimeoutMs
          , DomAttr DragScrollContainer
+         , DomAttr NativeContextMenuDisabled
          , DomAttr SessionLongPressMs
          , BrowserInboundSchema (Record DragIntervalConfig
             '[ Field RangeSize 'WireInt

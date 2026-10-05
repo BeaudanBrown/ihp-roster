@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Interaction.Runtime
     ( dragIntervalAttrs
     , dragAxisAttrs
     , dragPositionAttrs
+    , nativeContextMenuDisabledAttrs
     ) where
 
 import qualified Application.Helper.FrontendContract.Interaction as Contract
@@ -27,6 +28,11 @@ dragIntervalAttrs range extent choices =
             &: noFields
         )
     encode = TextEncoding.decodeUtf8 . LBS.toStrict . Aeson.encode
+
+-- | Reserve browser context menus for an explicitly marked interaction region,
+-- including its background and subsequently replaced descendants.
+nativeContextMenuDisabledAttrs :: [(Text, Text)]
+nativeContextMenuDisabledAttrs = [(domAttrValue @Contract.NativeContextMenuDisabled, "true")]
 
 dragAxisAttrs :: [(Text, Text)]
 dragAxisAttrs = [(domAttrValue @Contract.DragAxis, "true")]

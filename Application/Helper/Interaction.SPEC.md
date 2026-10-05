@@ -139,7 +139,13 @@ source-scoped one-second grace period also suppresses delayed context-menu event
 without retaining the drag or allowing another save. New pointer/keyboard input,
 DOM cleanup and runtime disposal clear that protection. Other targets remain
 native. This does not set `touch-action: none` or suppress ordinary mouse and
-keyboard context menus.
+keyboard context menus outside explicitly reserved regions.
+
+A server-rendered `NativeContextMenuDisabled` region reserves all browser context
+menus within its bounds, independently of pointer-session timing or descendant
+replacement. Roster opts in only its timeline scroll owner and staff list.
+Generic capture-phase handling consumes the generated attribute; no browser
+sniffing or blanket document policy. Swipes, taps and pinch zoom remain native.
 
 Use standard HTMX forms, triggers, sync/disabled controls, and lifecycle events.
 Do not add feature fetch persistence, custom mutation transports, extensions, or

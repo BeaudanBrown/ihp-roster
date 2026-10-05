@@ -229,6 +229,7 @@
   var sessionThresholdDomAttr = "data-bepis-session-threshold";
   var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
   var dragScrollContainerDomAttr = "data-bepis-drag-scroll-container";
+  var nativeContextMenuDisabledDomAttr = "data-bepis-native-context-menu-disabled";
   var sessionLongPressMsDomAttr = "data-bepis-session-long-press-ms";
   function isDragIntervalConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["rangeSize", "extent", "positions", "labels"], ["rangeSize", "extent", "positions", "labels"]) && (typeof value["rangeSize"] === "number" && Number.isInteger(value["rangeSize"])) && (typeof value["extent"] === "number" && Number.isInteger(value["extent"])) && (Array.isArray(value["positions"]) && value["positions"].every((item) => typeof item === "number" && Number.isInteger(item))) && (Array.isArray(value["labels"]) && value["labels"].every((item) => typeof item === "string"));
@@ -266,7 +267,7 @@
   var deltaXFieldName = "deltaX";
   var deltaYFieldName = "deltaY";
   var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
@@ -4131,7 +4132,7 @@
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
     root.addEventListener("touchmove", controller.handleTouchMove, { passive: false });
-    root.addEventListener("contextmenu", controller.handleContextMenu);
+    root.addEventListener("contextmenu", controller.handleContextMenu, true);
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
@@ -4145,7 +4146,7 @@
       root.removeEventListener("pointerup", controller.handlePointerUp);
       root.removeEventListener("pointercancel", controller.handlePointerCancel);
       root.removeEventListener("touchmove", controller.handleTouchMove);
-      root.removeEventListener("contextmenu", controller.handleContextMenu);
+      root.removeEventListener("contextmenu", controller.handleContextMenu, true);
       root.removeEventListener("keydown", controller.handleKeyDown);
       root.removeEventListener("keyup", controller.handleKeyUp);
       root.removeEventListener("click", controller.handleClick, true);
@@ -4358,6 +4359,11 @@
         if (activeSession.activated && event.cancelable) event.preventDefault();
       },
       handleContextMenu(event) {
+        const region = isElementLike4(event.target) ? event.target.closest(`[${nativeContextMenuDisabledDomAttr}]`) : null;
+        if (region?.getAttribute(nativeContextMenuDisabledDomAttr) === values.enabled) {
+          if (event.cancelable) event.preventDefault();
+          return;
+        }
         const delayedTouchMenu = delayedTouchMenuMarker !== null && delayedTouchMenuMarker.isConnected !== false && closestSurfaceSourceRef(event.target) === delayedTouchMenuMarker;
         if ((activeSession?.pointerType === "touch" || delayedTouchMenu) && event.cancelable) event.preventDefault();
       },

@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionRegistry, InteractionDom, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionRegistry, InteractionDom, nativeContextMenuDisabledDomAttr, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
@@ -118,7 +118,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
     root.addEventListener("touchmove", controller.handleTouchMove, { passive: false });
-    root.addEventListener("contextmenu", controller.handleContextMenu);
+    root.addEventListener("contextmenu", controller.handleContextMenu, true);
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
@@ -133,7 +133,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("pointerup", controller.handlePointerUp);
         root.removeEventListener("pointercancel", controller.handlePointerCancel);
         root.removeEventListener("touchmove", controller.handleTouchMove);
-        root.removeEventListener("contextmenu", controller.handleContextMenu);
+        root.removeEventListener("contextmenu", controller.handleContextMenu, true);
         root.removeEventListener("keydown", controller.handleKeyDown);
         root.removeEventListener("keyup", controller.handleKeyUp);
         root.removeEventListener("click", controller.handleClick, true);
@@ -364,6 +364,12 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             if (activeSession.activated && event.cancelable) event.preventDefault();
         },
         handleContextMenu(event: Event) {
+            const region = isElementLike(event.target)
+                ? event.target.closest(`[${nativeContextMenuDisabledDomAttr}]`) : null;
+            if (region?.getAttribute(nativeContextMenuDisabledDomAttr) === values.enabled) {
+                if (event.cancelable) event.preventDefault();
+                return;
+            }
             // Native long-press thresholds vary by browser/device and can beat
             // the app's activation timer. Reserve the gesture while pending too.
             const delayedTouchMenu = delayedTouchMenuMarker !== null

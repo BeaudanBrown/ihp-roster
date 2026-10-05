@@ -495,6 +495,13 @@ test('offers responsive and explicit vertical orientation with stable live scrol
 test('reserves native long-press menus before and after activation on shift and staff sources', async ({ page }) => {
     await openCanonicalTimeline(page, 'vertical');
     const attrs = InteractionDom.attributes;
+    const owner = page.locator('.roster-day-timeline-scroller');
+    expect(await owner.evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(false);
+    const previousContent = await page.locator('.roster-day-timeline-shell').elementHandle();
+    await requestTimelineRefresh(page);
+    await expect.poll(() => previousContent!.evaluate(element => element.isConnected)).toBe(false);
+    expect(await page.locator('.roster-day-timeline-lane-body').first().evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(false);
+    expect(await page.locator('.roster-staff-panel-list').evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(false);
     for (const key of ['existing:a1000000-0000-0000-0000-000000000071', 'staff:a1000000-0000-0000-0000-000000000033']) {
         if (key.startsWith('staff:')) {
             const open = page.getByRole('button', { name: 'Open Roster tools' });
@@ -566,6 +573,11 @@ test('moves vertically with exact duration and touch hold, scrolls downward and 
         expect((await saved).ok()).toBe(true);
         await expect(source).toHaveAttribute('aria-label', /09:15–17:15:30\.5/);
         expect(querySql(`SELECT extract(epoch from (ends_at - starts_at))::text FROM roster_slots WHERE id = '${slotId}'`)).toBe('28830.500000');
+        // A saved move replaces the card; region protection must not depend on
+        // the old source node or an active/recent pointer session.
+        await page.keyboard.press('Escape');
+        expect(await source.evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(false);
+        expect(await owner.evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(false);
         const second = await begin();
         const box = (await owner.boundingBox())!;
         const initialScroll = await owner.evaluate(element => element.scrollTop);
