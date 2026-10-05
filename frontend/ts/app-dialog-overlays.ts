@@ -13,6 +13,7 @@ import {
     dialogSubmitDomAttr,
     navigationLoadingConfigDomAttr,
     navigationLoadingDomAttr,
+    requestLoadingDomAttr,
     pageReadyEvent,
     parseDialogDismissalGuardConfig,
     parseDialogSubmitConfig,
@@ -105,14 +106,14 @@ export function parseNavigationLoadingConfiguration(raw: string): NavigationLoad
     return config;
 }
 
-function navigationLoadingConfiguration(form: HTMLFormElement): NavigationLoadingConfig | null {
-    const rawConfig = form.getAttribute(navigationLoadingConfigDomAttr);
+function loadingConfiguration(form: HTMLFormElement, attribute: typeof navigationLoadingConfigDomAttr | typeof requestLoadingDomAttr = navigationLoadingConfigDomAttr): NavigationLoadingConfig | null {
+    const rawConfig = form.getAttribute(attribute);
     try {
-        if (rawConfig === null) throw new Error(`Missing ${navigationLoadingConfigDomAttr}`);
+        if (rawConfig === null) throw new Error(`Missing ${attribute}`);
         return parseNavigationLoadingConfiguration(rawConfig);
     } catch (error) {
-        console.error?.("Invalid generated navigation loading configuration", {
-            code: "invalid-navigation-loading-config",
+        console.error?.("Invalid generated loading configuration", {
+            code: "invalid-loading-config",
             message: error instanceof Error ? error.message : String(error),
         });
         return null;
@@ -202,6 +203,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     let activeGuardFormId: string | null = null;
     let beforeUnloadInstalled = false;
     let previousModal: HTMLElement | null = null;
+    let pendingRequest: { xhr: XMLHttpRequest; dialog: HTMLElement; finish: () => void } | null = null;
 
     function handleBeforeUnload(event: BeforeUnloadEvent): void {
         const activeDialog = getActiveDialog();
@@ -352,9 +354,9 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         previousModal = dialog;
     }
 
-    function showNavigationLoadingDialog(config: NavigationLoadingConfig): void {
+    function showLoadingDialog(config: NavigationLoadingConfig): HTMLElement | null {
         const mountEl = getMount();
-        if (mountEl === null) return;
+        if (mountEl === null) return null;
 
         const dialogEl = document.createElement("div");
         dialogEl.className = "modal fade show d-block";
@@ -399,6 +401,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         reconcileDialogDismissal(mountEl);
         syncDialogState();
         dialogEl.focus({ preventScroll: true });
+        return dialogEl;
     }
 
     // A discarded confirmation may have lost its original control. This is
@@ -610,8 +613,8 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (event.defaultPrevented) return;
         const submittedForm = event.target;
         if (submittedForm instanceof HTMLFormElement && submittedForm.matches(navigationLoadingSelector)) {
-            const navigationConfig = navigationLoadingConfiguration(submittedForm);
-            if (navigationConfig !== null) showNavigationLoadingDialog(navigationConfig);
+            const navigationConfig = loadingConfiguration(submittedForm);
+            if (navigationConfig !== null) showLoadingDialog(navigationConfig);
         }
 
         const activeDialog = getActiveDialog();
@@ -642,6 +645,38 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
         showDialogSubmitLoading(activeDialog, config);
     }, true);
+
+    document.addEventListener("htmx:beforeRequest", function (event) {
+        const form = detailTarget(event, "elt");
+        if (pendingRequest !== null && form instanceof HTMLFormElement && form.hasAttribute(requestLoadingDomAttr)) {
+            event.preventDefault();
+        }
+    });
+
+    // beforeSend only runs once cancellation/validation has allowed the request.
+    document.addEventListener("htmx:beforeSend", function (event) {
+        const form = detailTarget(event, "elt");
+        const xhr = detailTarget(event, "xhr");
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute(requestLoadingDomAttr) || !(xhr instanceof XMLHttpRequest)) return;
+        const config = loadingConfiguration(form, requestLoadingDomAttr);
+        if (config === null) return;
+        const dialog = showLoadingDialog(config);
+        if (dialog === null) return;
+        const finish = (): void => {
+            if (pendingRequest?.xhr !== xhr) return;
+            pendingRequest = null;
+            xhr.removeEventListener("loadend", finish);
+            // A response may replace the spinner with an editor/error dialog.
+            // Never dismiss that new server-owned dialog.
+            if (getMount()?.contains(dialog)) clearDialog(dialog);
+        };
+        pendingRequest = { xhr, dialog, finish };
+        xhr.addEventListener("loadend", finish, { once: true });
+    });
+
+    document.addEventListener("htmx:afterRequest", function (event) {
+        if (pendingRequest !== null && detailTarget(event, "xhr") === pendingRequest.xhr) pendingRequest.finish();
+    });
 
     document.addEventListener("htmx:beforeOnLoad", function (event) {
         const activeDialog = getActiveDialog();

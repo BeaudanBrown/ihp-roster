@@ -492,6 +492,60 @@ test('offers responsive and explicit vertical orientation with stable live scrol
     }
 });
 
+for (const outcome of ['success', 'http-error', 'network-error'] as const) {
+    test(`blocks actions while a drop is saving and unlocks after ${outcome}`, async ({ page }) => {
+        await openCanonicalTimeline(page, 'vertical');
+        let release!: () => void;
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        let requests = 0;
+        await page.route('**/MoveRosterTimelineShift?*', async route => {
+            requests++;
+            await pending;
+            if (outcome === 'success') await route.continue();
+            else if (outcome === 'http-error') await route.fulfill({ status: 500, body: '' });
+            else await route.abort('failed');
+        });
+        const attrs = InteractionDom.attributes;
+        const source = page.locator(`[${attrs.sourceKey}="existing:a1000000-0000-0000-0000-000000000071"]`);
+        try {
+            await source.scrollIntoViewIfNeeded();
+            const point = await source.evaluate(element => {
+                const box = element.getBoundingClientRect();
+                const x = box.x + box.width / 2;
+                const y = box.y + box.height / 2;
+                for (const [type, clientY] of [['pointerdown', y], ['pointermove', y + box.height / 32], ['pointerup', y + box.height / 32]] as const) {
+                    element.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse', pointerId: 91, button: 0, clientX: x, clientY }));
+                }
+                // Native pointerup is followed by click; consume the drag's
+                // click suppression just as the real browser does.
+                element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                return { x, y };
+            });
+            const loading = page.getByRole('dialog', { name: 'Saving…', exact: true });
+            await expect(loading).toBeVisible();
+            await page.mouse.click(point.x, point.y);
+            await page.keyboard.press('Escape');
+            await page.keyboard.press('Tab');
+            await page.keyboard.press('Enter');
+            await expect(loading).toBeVisible();
+            expect(await loading.evaluate(element => element.contains(document.activeElement))).toBe(true);
+            await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+            expect(requests).toBe(1);
+            release();
+            await expect(loading).toHaveCount(0);
+            if (outcome === 'success') await expect(source).toHaveAttribute('aria-label', /09:15–17:15/);
+            else await expect(source).toHaveAttribute('aria-label', /09:00–17:00/);
+            await source.click();
+            await expect(page.getByRole('dialog', { name: 'Edit shift', exact: true })).toBeVisible();
+            expect(requests).toBe(1);
+        } finally {
+            release();
+            await page.unrouteAll({ behavior: 'wait' });
+            resetTimelineShiftInterval();
+        }
+    });
+}
+
 test('reserves native long-press menus before and after activation on shift and staff sources', async ({ page }) => {
     await openCanonicalTimeline(page, 'vertical');
     const attrs = InteractionDom.attributes;

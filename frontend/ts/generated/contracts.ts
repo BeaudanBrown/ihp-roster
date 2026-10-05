@@ -489,6 +489,8 @@ export const dialogPointerDismissBlurDomAttr = "data-bepis-dialog-pointer-dismis
 
 export const navigationLoadingDomAttr = "data-bepis-navigation-loading" as const;
 
+export const requestLoadingDomAttr = "data-bepis-request-loading" as const;
+
 export const navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config" as const;
 
 export const toastMountDomAttr = "data-bepis-toast-mount" as const;

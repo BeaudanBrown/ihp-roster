@@ -55,6 +55,7 @@ import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAtt
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import Application.Helper.FrontendContract.Overlay.Runtime (requestLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Live as Live
@@ -77,9 +78,9 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
+import qualified IHP.HSX.Markup as Markup
 import IHP.ViewPrelude
 import System.IO.Unsafe (unsafePerformIO)
-import qualified IHP.HSX.Markup as Markup
 
 data SurfaceImpl spec = SurfaceImpl
     { surfaceImplName        :: !Text
@@ -395,6 +396,7 @@ renderFrontendSurfaceInteractionIntentForm _surface config mountId intentForm =
             , ("hx-target", intentForm.intentFormSubmit.htmxRequestTarget)
             , ("hx-swap", intentForm.intentFormSubmit.htmxRequestSwap)
             ] <> maybeAttr "hx-sync" config.interactionShellHtmxSync
+              <> maybe [] (uncurry requestLoadingAttrs) intentForm.intentFormRequestLoading
 
 renderFrontendSurfaceInteractionIntentInput :: (SurfaceIR.FieldIR, Text) -> Markup.Html
 renderFrontendSurfaceInteractionIntentInput (field, value) =
@@ -601,6 +603,7 @@ renderFrontendSurfaceIntentFormWithOptionalId maybeFormId intent body =
             , ("hx-swap", intent.intentFormSubmit.htmxRequestSwap)
             , (interactionDomAttribute @Interaction.IntentForm, intent.intentFormName)
             ] <> maybeAttr "id" maybeFormId
+              <> maybe [] (uncurry requestLoadingAttrs) intent.intentFormRequestLoading
 
 renderHiddenField :: (Text, Text) -> Markup.Html
 renderHiddenField (fieldName, fieldValue) =

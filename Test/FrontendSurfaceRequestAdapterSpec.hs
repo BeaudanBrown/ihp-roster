@@ -557,7 +557,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         let layoutHtml = fromMaybe (error "missing rendered Roster layout Intent form") (listToMaybe renderedForms)
         layoutHtml
             `shouldSatisfy` Text.isInfixOf "name=\"rosterLayoutMode\" value=\"day_rows\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
+        layoutHtml `shouldSatisfy` (not . Text.isInfixOf "data-bepis-request-loading")
         forM_ (drop 1 renderedForms) \dragHtml -> do
+            dragHtml `shouldSatisfy` Text.isInfixOf "data-bepis-request-loading=\""
+            dragHtml `shouldSatisfy` Text.isInfixOf "Please wait while your change is saved."
             forM_ ["sourceItemKey", "targetDropzoneKey"] \fieldName ->
                 dragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "required")
             forM_ rosterOptionalDragFieldNames \fieldName ->

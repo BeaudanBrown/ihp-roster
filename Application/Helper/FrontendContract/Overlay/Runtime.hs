@@ -14,6 +14,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogPointerDismissBlurAttrs
     , dialogSubmitAttrs
     , navigationLoadingAttrs
+    , requestLoadingAttrs
     , toastCloseAttrs
     , toastMountAttrs
     ) where
@@ -30,26 +31,26 @@ import qualified Data.Text.Encoding as TextEncoding
 import IHP.Prelude
 
 data OverlayDom = OverlayDom
-    { overlayDialogMountId               :: !Text
-    , overlayToastMountId                :: !Text
-    , overlayDialogDismissedEventName    :: !Text
-    , overlayDialogMountAttribute        :: !Text
-    , overlayDialogConfirmationAttribute :: !Text
-    , overlayDialogBackdropAttribute     :: !Text
-    , overlayDialogCloseAttribute        :: !Text
-    , overlayDialogSubmitAttribute       :: !Text
-    , overlayDialogSubmitConfigAttribute :: !Text
-    , overlayDialogDismissalGuardAttribute :: !Text
+    { overlayDialogMountId                       :: !Text
+    , overlayToastMountId                        :: !Text
+    , overlayDialogDismissedEventName            :: !Text
+    , overlayDialogMountAttribute                :: !Text
+    , overlayDialogConfirmationAttribute         :: !Text
+    , overlayDialogBackdropAttribute             :: !Text
+    , overlayDialogCloseAttribute                :: !Text
+    , overlayDialogSubmitAttribute               :: !Text
+    , overlayDialogSubmitConfigAttribute         :: !Text
+    , overlayDialogDismissalGuardAttribute       :: !Text
     , overlayDialogDismissalGuardConfigAttribute :: !Text
-    , overlayDialogBlockingAttribute     :: !Text
-    , overlayDialogKeyboardAttribute     :: !Text
-    , overlayDialogFocusRegionAttribute  :: !Text
-    , overlayDialogPointerDismissBlurAttribute :: !Text
-    , overlayNavigationLoadingAttribute  :: !Text
-    , overlayNavigationConfigAttribute   :: !Text
-    , overlayToastMountAttribute         :: !Text
-    , overlayToastCloseAttribute         :: !Text
-    , overlayToastConfigAttribute        :: !Text
+    , overlayDialogBlockingAttribute             :: !Text
+    , overlayDialogKeyboardAttribute             :: !Text
+    , overlayDialogFocusRegionAttribute          :: !Text
+    , overlayDialogPointerDismissBlurAttribute   :: !Text
+    , overlayNavigationLoadingAttribute          :: !Text
+    , overlayNavigationConfigAttribute           :: !Text
+    , overlayToastMountAttribute                 :: !Text
+    , overlayToastCloseAttribute                 :: !Text
+    , overlayToastConfigAttribute                :: !Text
     }
     deriving (Eq, Show)
 
@@ -117,6 +118,11 @@ dialogDismissalGuardAttrs :: DialogDismissalGuardConfigValue -> [(Text, Text)]
 dialogDismissalGuardAttrs config =
     roleAttrs canonicalOverlayDom.overlayDialogDismissalGuardAttribute
         <> [(canonicalOverlayDom.overlayDialogDismissalGuardConfigAttribute, dialogDismissalGuardConfigJson config)]
+
+-- | Opt an HTMX request into a blocking dialog for its request lifetime.
+requestLoadingAttrs :: Text -> Text -> [(Text, Text)]
+requestLoadingAttrs title message =
+    [(domAttrValue @Contract.RequestLoading, navigationLoadingConfigJson title message)]
 
 navigationLoadingAttrs :: Text -> Text -> [(Text, Text)]
 navigationLoadingAttrs loadingTitle loadingMessage =

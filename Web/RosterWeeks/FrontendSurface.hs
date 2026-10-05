@@ -263,20 +263,22 @@ rosterIntentForms scope _templateApplicationAvailable =
     [ SurfaceIntent.setRosterLayoutModeIntentForm
         (SurfaceIntent.setRosterLayoutModeIntentFields DayRows)
         (rosterLayoutModeRequest scope)
-    , SurfaceIntent.moveRosterShiftToSlotIntentForm
+    , savingDrop $ SurfaceIntent.moveRosterShiftToSlotIntentForm
         (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision (Just "") (Just ""))
         (rosterMoveShiftRequest scope)
-    , SurfaceIntent.duplicateRosterShiftToDayIntentForm
+    , savingDrop $ SurfaceIntent.duplicateRosterShiftToDayIntentForm
         (SurfaceIntent.duplicateRosterShiftToDayIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision (Just "") (Just ""))
         (rosterDuplicateShiftRequest scope)
-    , SurfaceIntent.dropRosterStaffIntentForm
+    , savingDrop $ SurfaceIntent.dropRosterStaffIntentForm
         (SurfaceIntent.dropRosterStaffIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision)
         (rosterDropStaffRequest scope)
-    ] <> [ SurfaceIntent.moveRosterTimelineShiftIntentForm
+    ] <> [ savingDrop $ SurfaceIntent.moveRosterTimelineShiftIntentForm
             (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision)
             (rosterDragDropRequest (withTimelineOrientation scope.rosterWeekTimelineOrientation (rosterTimelineMoveShiftUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId dayDate)))
          | dayDate <- maybeToList scope.rosterWeekTimelineDate
          ]
+  where
+    savingDrop = withIntentRequestLoading "Saving…" "Please wait while your change is saved."
 
 rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterLayoutModeRequest scope =

@@ -127,6 +127,22 @@ mount. Only an activated session scrolls it; a stationary pointer near an edge
 continues scrolling and retests the target. Ending or cancelling the session
 stops its animation. Unmarked scroll owners remain native.
 
+### Blocking committed requests
+
+Intent forms may opt into `withIntentRequestLoading` with Haskell-owned title
+and message. The generated `RequestLoading` DOM marker carries the shared
+`NavigationLoadingConfig` copy shape. The generic dialog runtime shows a
+non-dismissible, focus-contained loading modal on HTMX `beforeSend`, after
+validation/cancellation has allowed the request. It blocks repeat marked
+requests and releases on completion, HTTP/network error, timeout, or abort;
+XHR `loadend` remains a fallback when the original form is detached. A new
+server-rendered response dialog is never cleared with the old loading modal.
+Roster shift moves, copies, staff drops and timeline moves opt in; layout
+preference changes do not. This feedback does not replace server authorization
+or introduce optimistic mutation authority.
+
+### Touch activation
+
 Touch dragging is opt-in on a typed source with a server-owned long-press delay.
 Taps remain editor activations. Before the delay, deliberate movement beyond
 the touch hold tolerance cancels without preventing native scrolling. The hold

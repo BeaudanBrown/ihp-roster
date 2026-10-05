@@ -23,6 +23,8 @@ module Application.Helper.FrontendContract.Surface.Request.Runtime
     , intentFormFields
     , intentFormName
     , intentFormSubmit
+    , intentFormRequestLoading
+    , withIntentRequestLoading
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -63,9 +65,14 @@ frontendSurfaceIntentForm fields request =
         { intentFormName = intent.intentName
         , intentFormSubmit = request
         , intentFormFields = resolveIntentFields intent.intentFields (surfaceFieldsText fields)
+        , intentFormRequestLoading = Nothing
         }
   where
     intent = reflectIntentPrimitive @(SurfaceIntentPrimitive spec marker)
+
+withIntentRequestLoading :: Text -> Text -> FrontendSurfaceIntentForm -> FrontendSurfaceIntentForm
+withIntentRequestLoading title message form =
+    form { intentFormRequestLoading = Just (title, message) }
 
 resolveIntentFields :: [SurfaceIR.FieldIR] -> [(Text, Text)] -> [(SurfaceIR.FieldIR, Text)]
 resolveIntentFields declaredFields values =

@@ -48,9 +48,10 @@ data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
     deriving (Eq, Show)
 
 data FrontendSurfaceIntentForm = FrontendSurfaceIntentForm
-    { intentFormName   :: !Text
-    , intentFormSubmit :: !FrontendSurfaceHtmxRequest
-    , intentFormFields :: ![(SurfaceIR.FieldIR, Text)]
+    { intentFormName           :: !Text
+    , intentFormSubmit         :: !FrontendSurfaceHtmxRequest
+    , intentFormFields         :: ![(SurfaceIR.FieldIR, Text)]
+    , intentFormRequestLoading :: !(Maybe (Text, Text))
     }
     deriving (Eq, Show)
 
@@ -96,6 +97,7 @@ frontendSurfaceIntentFormFromEvidence (IntentEvidence intent) fields intentFormS
     FrontendSurfaceIntentForm
         { intentFormName = intent.intentName
         , intentFormSubmit
+        , intentFormRequestLoading = Nothing
         , intentFormFields =
             [ (field, value)
             | field <- intent.intentFields

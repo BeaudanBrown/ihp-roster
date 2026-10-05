@@ -195,6 +195,7 @@
   var dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region";
   var dialogPointerDismissBlurDomAttr = "data-bepis-dialog-pointer-dismiss-blur";
   var navigationLoadingDomAttr = "data-bepis-navigation-loading";
+  var requestLoadingDomAttr = "data-bepis-request-loading";
   var navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config";
   var toastMountDomAttr = "data-bepis-toast-mount";
   var toastCloseDomAttr = "data-bepis-toast-close";
@@ -5622,14 +5623,14 @@
     }
     return config;
   }
-  function navigationLoadingConfiguration(form) {
-    const rawConfig = form.getAttribute(navigationLoadingConfigDomAttr);
+  function loadingConfiguration(form, attribute = navigationLoadingConfigDomAttr) {
+    const rawConfig = form.getAttribute(attribute);
     try {
-      if (rawConfig === null) throw new Error(`Missing ${navigationLoadingConfigDomAttr}`);
+      if (rawConfig === null) throw new Error(`Missing ${attribute}`);
       return parseNavigationLoadingConfiguration(rawConfig);
     } catch (error) {
-      console.error?.("Invalid generated navigation loading configuration", {
-        code: "invalid-navigation-loading-config",
+      console.error?.("Invalid generated loading configuration", {
+        code: "invalid-loading-config",
         message: error instanceof Error ? error.message : String(error)
       });
       return null;
@@ -5707,6 +5708,7 @@
     let activeGuardFormId = null;
     let beforeUnloadInstalled = false;
     let previousModal = null;
+    let pendingRequest = null;
     function handleBeforeUnload(event) {
       const activeDialog = getActiveDialog();
       const guard = activeDialog === null ? void 0 : dismissalGuards.get(activeDialog);
@@ -5832,9 +5834,9 @@
       }
       previousModal = dialog;
     }
-    function showNavigationLoadingDialog(config) {
+    function showLoadingDialog(config) {
       const mountEl = getMount();
-      if (mountEl === null) return;
+      if (mountEl === null) return null;
       const dialogEl = document.createElement("div");
       dialogEl.className = "modal fade show d-block";
       dialogEl.setAttribute(dialogMountDomAttr, "true");
@@ -5876,6 +5878,7 @@
       reconcileDialogDismissal(mountEl);
       syncDialogState();
       dialogEl.focus({ preventScroll: true });
+      return dialogEl;
     }
     function restoreKeyboardDialogFocus(dialog) {
       if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
@@ -6058,8 +6061,8 @@
       if (event.defaultPrevented) return;
       const submittedForm = event.target;
       if (submittedForm instanceof HTMLFormElement && submittedForm.matches(navigationLoadingSelector)) {
-        const navigationConfig = navigationLoadingConfiguration(submittedForm);
-        if (navigationConfig !== null) showNavigationLoadingDialog(navigationConfig);
+        const navigationConfig = loadingConfiguration(submittedForm);
+        if (navigationConfig !== null) showLoadingDialog(navigationConfig);
       }
       const activeDialog = getActiveDialog();
       if (activeDialog === null) return;
@@ -6085,6 +6088,32 @@
       submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
       showDialogSubmitLoading(activeDialog, config);
     }, true);
+    document.addEventListener("htmx:beforeRequest", function(event) {
+      const form = detailTarget(event, "elt");
+      if (pendingRequest !== null && form instanceof HTMLFormElement && form.hasAttribute(requestLoadingDomAttr)) {
+        event.preventDefault();
+      }
+    });
+    document.addEventListener("htmx:beforeSend", function(event) {
+      const form = detailTarget(event, "elt");
+      const xhr = detailTarget(event, "xhr");
+      if (!(form instanceof HTMLFormElement) || !form.hasAttribute(requestLoadingDomAttr) || !(xhr instanceof XMLHttpRequest)) return;
+      const config = loadingConfiguration(form, requestLoadingDomAttr);
+      if (config === null) return;
+      const dialog = showLoadingDialog(config);
+      if (dialog === null) return;
+      const finish = () => {
+        if (pendingRequest?.xhr !== xhr) return;
+        pendingRequest = null;
+        xhr.removeEventListener("loadend", finish);
+        if (getMount()?.contains(dialog)) clearDialog(dialog);
+      };
+      pendingRequest = { xhr, dialog, finish };
+      xhr.addEventListener("loadend", finish, { once: true });
+    });
+    document.addEventListener("htmx:afterRequest", function(event) {
+      if (pendingRequest !== null && detailTarget(event, "xhr") === pendingRequest.xhr) pendingRequest.finish();
+    });
     document.addEventListener("htmx:beforeOnLoad", function(event) {
       const activeDialog = getActiveDialog();
       if (activeDialog === null) return;
