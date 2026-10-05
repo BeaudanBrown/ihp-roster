@@ -236,6 +236,20 @@ data AdminController
     | ProfileLiveInvalidateLeaveRequestsAction
     deriving (Eq, Show, Data)
 
+data DaysheetDesignerController
+    = DaysheetDesignerAction
+    | ShowDesignerIndexBodyAction
+    | ShowDesignerFieldAction { definitionFieldId :: Maybe Text, containerId :: Maybe Text }
+    | ShowDesignerFieldBodyAction { definitionFieldId :: Maybe Text, containerId :: Maybe Text }
+    | ShowDesignerListAction { definitionListId :: Maybe Text }
+    | ShowDesignerListBodyAction { definitionListId :: Maybe Text }
+    | SaveDesignerFieldAction
+    | SaveDesignerListAction
+    | RemoveDesignerFieldAction
+    | RemoveDesignerListAction
+    | PublishDesignerDraftAction
+    deriving (Eq, Show, Data)
+
 data DaysheetsController
     = DaysheetsAction
     | CreateDaysheetAction

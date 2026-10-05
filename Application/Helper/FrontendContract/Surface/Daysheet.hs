@@ -25,6 +25,7 @@ data EnteredSelection
 data EnteredDate
 data EnteredClock
 data CreateDaysheet
+data OpenDaysheetDesigner
 data ViewDaysheetDate
 data SaveDaysheetText
 data SaveDaysheetNumber
@@ -70,6 +71,7 @@ type DaysheetSurface = Surface Daysheet
      , BrowserRole DaysheetPendingNotice
      , SettledFormGate DaysheetPendingGate DaysheetFinalAction DaysheetPendingNotice
      , Action ViewDaysheetDate '[OptionalField OperationalDate 'WireDay] '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
+     , Action OpenDaysheetDesigner '[] '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
      , Action CreateDaysheet '[Field OperationalDate 'WireDay] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap]
      , Action SaveDaysheetText '[Field ExpectedRevision 'WireInt, OptionalField EnteredText 'WireText] SaveOptions
      , Action SaveDaysheetNumber '[Field ExpectedRevision 'WireInt, OptionalField EnteredNumber ('WireDomain DaysheetNumericEntry)] SaveOptions

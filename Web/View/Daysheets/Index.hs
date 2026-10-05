@@ -2,6 +2,7 @@ module Web.View.Daysheets.Index
     ( IndexView (..), EntryFeedback (..), renderDaysheetBody ) where
 
 import qualified Application.Daysheet.Contract as D
+import Application.Helper.ControllerContext (currentVenueMembershipOrNothing)
 import Application.Daysheet.DailyStorage (DailyState (..))
 import Application.Daysheet.EntryLayout
 import qualified Application.Daysheet.Evaluation as E
@@ -29,7 +30,7 @@ instance View IndexView where
         Just entry -> renderDaysheetBody entry rowKeys feedback
         Nothing -> renderAppPage AppPageConfig
             { appPageTitle = "Daysheets", appPageDescription = Nothing
-            , appPageActions = mempty, appPageHelpTopic = Nothing, appPageWidthClass = ""
+            , appPageActions = designerLink, appPageHelpTopic = Nothing, appPageWidthClass = ""
             , appPageBody = [hsx|{dateNavigation operationalDate False}<p>No Daysheet exists for this Operational date.</p>{create}|]
             }
       where
@@ -52,6 +53,7 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
         , appPageHelpTopic = Nothing, appPageWidthClass = ""
         , appPageBody = [hsx|
             <div class="app-page-stack">
+                {designerLink}
                 {dateNavigation record.operationalDate (isJust feedback)}
                 <p>Changes save when a field changes or you leave it. Amounts are AUD; enter percentages such as 1.6 for 1.6%.</p>
                 <noscript><p>JavaScript is off. Use Save for each changed field before submitting.</p></noscript>
@@ -134,6 +136,14 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
             in renderFrontendSurfaceActionForm (Action.openDaysheetRowDeletionAction Action.openDaysheetRowDeletionActionFields) route
                 [hsx|<button type="submit" class="btn btn-sm btn-outline-danger" disabled={isJust feedback}>Delete row…</button>|]
         _ -> mempty
+
+designerLink :: (?context :: ControllerContext) => Html
+designerLink = case currentVenueMembershipOrNothing of
+    Just member | member.venueRole `elem` [VenueAdmin, VenueOwner] ->
+        renderFrontendSurfaceActionForm (Action.openDaysheetDesignerAction Action.openDaysheetDesignerActionFields)
+            ((defaultFrontendSurfaceActionRoute (pathTo DaysheetDesignerAction)) { actionRouteExtraAttrs = finalActionAttrs })
+            [hsx|<button class="btn btn-outline-secondary" type="submit">Configure Daysheets</button>|]
+    _ -> mempty
 
 dateNavigation :: Day -> Bool -> Html
 dateNavigation date blocked = renderFrontendSurfaceActionForm (Action.viewDaysheetDateAction fields)

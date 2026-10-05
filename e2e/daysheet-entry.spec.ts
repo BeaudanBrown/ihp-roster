@@ -77,6 +77,7 @@ test.describe('Single-page Daysheet entry', () => {
         await expect(page.getByRole('alert').filter({ hasText: /whole/i })).toBeVisible();
         await expect(count).toHaveValue('1.5');
         await expect(page.getByRole('button', { name: 'Submit saved Daysheet', exact: true })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Configure Daysheets', exact: true })).toBeDisabled();
         await expect(page.getByRole('button', { name: 'Open date', exact: true })).toBeDisabled();
         await page.getByRole('link', { name: 'Keep saved value', exact: true }).click();
         await expect(count).toHaveValue('');

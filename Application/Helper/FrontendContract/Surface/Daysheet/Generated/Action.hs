@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , ConfirmDaysheetRowDeletionActionOperation
     , CreateDaysheetActionOperation
     , KeepSavedDaysheetCellActionOperation
+    , OpenDaysheetDesignerActionOperation
     , OpenDaysheetRowDeletionActionOperation
     , SaveDaysheetBooleanActionOperation
     , SaveDaysheetClockActionOperation
@@ -28,6 +29,8 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , createDaysheetActionFields
     , keepSavedDaysheetCellAction
     , keepSavedDaysheetCellActionFields
+    , openDaysheetDesignerAction
+    , openDaysheetDesignerActionFields
     , openDaysheetRowDeletionAction
     , openDaysheetRowDeletionActionFields
     , parseAddDaysheetRowActionParams
@@ -198,6 +201,25 @@ keepSavedDaysheetCellActionEvidence =
 keepSavedDaysheetCellAction :: ActionFields KeepSavedDaysheetCellActionOperation -> FrontendSurfaceAction
 keepSavedDaysheetCellAction =
     frontendSurfaceActionFromEvidence keepSavedDaysheetCellActionEvidence
+
+data OpenDaysheetDesignerActionOperation
+
+type instance ActionSurface OpenDaysheetDesignerActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
+type instance ActionMarker OpenDaysheetDesignerActionOperation = Types2.OpenDaysheetDesigner
+type instance ActionFieldSpecs OpenDaysheetDesignerActionOperation =
+    '[]
+
+openDaysheetDesignerActionFields :: ActionFields OpenDaysheetDesignerActionOperation
+openDaysheetDesignerActionFields =
+    noActionFields
+
+openDaysheetDesignerActionEvidence :: ActionEvidence OpenDaysheetDesignerActionOperation
+openDaysheetDesignerActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenDaysheetDesigner" "open-daysheet-designer" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" []))])
+
+openDaysheetDesignerAction :: ActionFields OpenDaysheetDesignerActionOperation -> FrontendSurfaceAction
+openDaysheetDesignerAction =
+    frontendSurfaceActionFromEvidence openDaysheetDesignerActionEvidence
 
 data OpenDaysheetRowDeletionActionOperation
 

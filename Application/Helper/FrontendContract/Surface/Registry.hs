@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.Surface.Admin (AdminExportsSurface,
                                                           AdminXeroSurface)
 import Application.Helper.FrontendContract.Surface.Billing (BillingSurface)
 import Application.Helper.FrontendContract.Surface.Daysheet (DaysheetSurface)
+import Application.Helper.FrontendContract.Surface.DaysheetDesigner (DaysheetDesignerSurface)
 import Application.Helper.FrontendContract.Surface.Feedback (FeedbackSurface, FeedbackModerationSurface)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveRequestsSurface)
 import Application.Helper.FrontendContract.Surface.Profile (ProfileSurface,
@@ -33,6 +34,7 @@ type RegisteredFrontendSurfaces =
      , SelfServiceLeaveSurface
      , BillingSurface
      , DaysheetSurface
+     , DaysheetDesignerSurface
      , SupportSurface
      , FeedbackSurface
      , FeedbackModerationSurface

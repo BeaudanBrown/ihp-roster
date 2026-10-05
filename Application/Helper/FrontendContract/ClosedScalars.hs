@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.ClosedScalars
     ( ClosedScalarContract
     ) where
 
+import Application.Daysheet.Designer.Controls (FieldKind, ListKind)
 import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
@@ -21,7 +22,9 @@ data AppClosedScalars
 
 type ClosedScalarContract =
     Global AppClosedScalars
-        '[ ServerSchema (ClosedScalar RosterLayoutModeEnum)
+        '[ ServerSchema (ClosedScalar FieldKind)
+         , ServerSchema (ClosedScalar ListKind)
+         , ServerSchema (ClosedScalar RosterLayoutModeEnum)
          , ServerSchema (ClosedScalar RosterPayDisplayMode)
          , BrowserInboundSchema (ClosedScalar WageDisplayModeEnum)
          , BrowserInboundSchema (ClosedScalar RosterImageExportStyle)

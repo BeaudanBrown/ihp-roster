@@ -35,6 +35,8 @@ instance AutoRoute E2ETestController where
 instance AutoRoute AdminController
 -- Daysheet handlers enforce read versus mutation methods with controlled 405
 -- responses; IHP's automatic unexpected-method exception otherwise becomes 500.
+instance AutoRoute DaysheetDesignerController where
+    allowedMethodsForAction _ = [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE, CONNECT]
 instance AutoRoute DaysheetsController where
     allowedMethodsForAction _ = [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE, CONNECT]
 instance AutoRoute FeedbackController where

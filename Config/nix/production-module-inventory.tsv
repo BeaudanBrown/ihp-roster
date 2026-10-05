@@ -33,6 +33,8 @@ Application/Daysheet/DailyError.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyStorage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Designer/Controls.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Designer/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EmailContract.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Entry.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EntryLayout.hs	production	runtime	Main	Reachable from Main
@@ -188,6 +190,13 @@ Application/Helper/FrontendContract/Surface/Daysheet/Generated/Resource.hs	produ
 Application/Helper/FrontendContract/Surface/Daysheet/HaskellAdapter.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Daysheet/Live.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Daysheet/Resource.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Action.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Action.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Live.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Resource.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/HaskellAdapter.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Resource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DependencyPlanner.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Diagnostics.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Dto.hs	production	runtime	Main	Reachable from Main
@@ -522,6 +531,7 @@ Web/Controller/Admin/Xero/StaffMappings.hs	production	runtime	Main	Reachable fro
 Web/Controller/Admin/Xero/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Auth.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Billing.hs	production	runtime	Main	Reachable from Main
+Web/Controller/DaysheetDesigner.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Daysheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/E2ETest.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Exports.hs	production	runtime	Main	Reachable from Main
@@ -645,6 +655,7 @@ Web/View/Admin/Xero/TimesheetPreparation/StaffMappings.hs	production	runtime	Mai
 Web/View/Billing/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Cell.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Deletion.hs	production	runtime	Main	Reachable from Main
+Web/View/Daysheets/Designer.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Card.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Edit.hs	production	runtime	Main	Reachable from Main

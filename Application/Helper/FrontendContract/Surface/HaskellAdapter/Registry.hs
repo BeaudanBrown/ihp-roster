@@ -24,6 +24,8 @@ import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
 import Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Daysheet as Daysheet
 import Application.Helper.FrontendContract.Surface.Daysheet.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Designer
+import Application.Helper.FrontendContract.Surface.DaysheetDesigner.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
 import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (SurfaceAdapterKind (..))
@@ -50,6 +52,7 @@ type RegisteredSurfaceAdapterFamilies =
      , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
      , DaysheetAdapterFamily
+     , DaysheetDesignerAdapterFamily
      , SupportAdapterFamily
      , FeedbackAdapterFamily
      , FeedbackModerationAdapterFamily
@@ -85,6 +88,7 @@ type RegisteredSurfaceScopeAdapterHomes =
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
      , SurfaceScopeAdapterHome DaysheetAdapterFamily Daysheet.DaysheetScope
+     , SurfaceScopeAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerScope
      , SurfaceScopeAdapterHome FeedbackAdapterFamily Feedback.FeedbackVenue
      , SurfaceScopeAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackPlatform
      , SurfaceScopeAdapterHome SupportAdapterFamily Support.SupportPlatform
@@ -101,7 +105,10 @@ type RegisteredSurfaceScopeAdapterHomes =
      ]
 
 type RegisteredSurfaceFragmentAdapterHomes =
-    '[ SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
+    '[ SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerIndex
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerFieldEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
+     , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
@@ -160,7 +167,8 @@ type RegisteredSurfaceFragmentAdapterHomes =
      ]
 
 type RegisteredSurfaceResourceAdapterHomes =
-    '[ SurfaceResourceAdapterHome DaysheetAdapterFamily Daysheet.DaysheetData
+    '[ SurfaceResourceAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerConfiguration
+     , SurfaceResourceAdapterHome DaysheetAdapterFamily Daysheet.DaysheetData
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
@@ -268,7 +276,14 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.DeleteSelfServiceLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerField allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerList allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerField allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerList allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.PublishDesignerDraft allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ViewDaysheetDate allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetDesigner
+        (requestAdapterOperationsWithoutParser "Navigation to the admin designer has no request payload; its controller rechecks venue-admin authority")
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.CreateDaysheet allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetText allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetNumber allRequestAdapterOperations

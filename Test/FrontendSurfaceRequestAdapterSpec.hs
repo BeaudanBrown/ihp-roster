@@ -354,16 +354,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 102
+        length actionDeclarations `shouldBe` 108
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 97
+        length generatedActionOperations `shouldBe` 103
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 97
+            `shouldBe` 103
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 97
+            `shouldBe` 103
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 62
+            `shouldBe` 67
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -418,6 +418,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("feedback-moderation", "open-feedback-archive-confirmation")
                 , ("staff", "open-staff-leave-delete-confirmation")
                 , ("staff", "delete-staff-leave-request")
+                , ("daysheet", "open-daysheet-designer")
                 , ("daysheet", "keep-saved-daysheet-cell")
                 , ("daysheet", "submit-daysheet")
                 , ("daysheet", "open-daysheet-row-deletion")
@@ -458,6 +459,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     `shouldBe`
                         [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Feedback.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"

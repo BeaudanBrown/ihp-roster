@@ -24,6 +24,15 @@ values can be repaired one at a time, including explicitly clearing removed
 fields. Retirement requires explicit dependency choices and takes effect only
 on publication; no historical capture is rewritten.
 
+`Web.Controller.DaysheetDesigner` and `Web.View.Daysheets.Designer` own the
+admin/owner field/list forms and explicit publication page. Generated
+`Surface.DaysheetDesigner` requests carry finite Haskell-owned control kinds and
+exact revisions, never replacement definition JSON. Each editor mounts one
+editable form, preserves submitted values on rejection, and offers explicit
+discard. Saved changes and durable configuration invalidation commit together;
+clean observers refetch while dirty editors retain their input. Navigation from
+daily entry uses its existing pending-edit gate.
+
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved

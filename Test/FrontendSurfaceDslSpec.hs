@@ -886,6 +886,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "self-service-leave"
                        , "billing"
                        , "daysheet"
+                       , "daysheet-designer"
                        , "support"
                        , "feedback"
                        , "feedback-moderation"
