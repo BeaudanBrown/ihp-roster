@@ -91,7 +91,7 @@ frontendSurfaceDragScrollContainerAttrs =
 -- | Touch activation is explicit; unmarked sources remain mouse/pen only.
 frontendSurfaceLongPressDragAttrs :: [(Text, Text)]
 frontendSurfaceLongPressDragAttrs =
-    [(deriveDomAttributeTypeName @Interaction.SessionLongPressMs, "450")]
+    [(deriveDomAttributeTypeName @Interaction.SessionLongPressMs, "200")]
 
 renderFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
 renderFrontendSurfaceSourceRef ref key body =

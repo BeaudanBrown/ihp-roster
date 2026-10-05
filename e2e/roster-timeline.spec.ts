@@ -510,6 +510,7 @@ test('reserves native long-press menus before and after activation on shift and 
         }
         const source = page.locator(`[${attrs.sourceKey}="${key}"]`);
         await source.scrollIntoViewIfNeeded();
+        await expect(source).toHaveAttribute(attrs.sessionLongPressMs, '200');
         await expect(source).toHaveCSS('user-select', 'none');
         expect(await source.evaluate(element => getComputedStyle(element).touchAction)).not.toBe('none');
         const pending = await source.evaluate((element, activeAttr) => {
