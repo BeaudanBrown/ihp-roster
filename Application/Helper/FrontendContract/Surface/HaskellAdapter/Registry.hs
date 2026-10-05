@@ -107,6 +107,7 @@ type RegisteredSurfaceScopeAdapterHomes =
 type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerIndex
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerFieldEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerChoiceEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReportEditor
@@ -281,6 +282,9 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.DeleteSelfServiceLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerField allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerChoice allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerChoice allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.MoveDesignerChoice allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerList allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerField allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerList allRequestAdapterOperations

@@ -19,6 +19,10 @@ data Edit
     | ChangeField FieldId Text FieldType FieldSource
     | RemoveField FieldId
     | MoveField FieldId Int
+    | AddChoice FieldId Int Choice
+    | RenameChoice FieldId ChoiceId Text
+    | RemoveChoice FieldId ChoiceId
+    | MoveChoice FieldId ChoiceId Int
     | AddList Int RecordList
     | ChangeList ListId Text ListMode
     | RemoveList ListId
@@ -40,7 +44,8 @@ data Edit
 data LayoutTarget = EntryLayout | ReportLayout ReportId deriving (Eq, Show)
 data EditError
     = MissingField FieldId | MissingList ListId | MissingReport ReportId
-    | MissingSection SectionId | InvalidPosition | InvalidExpressionLocation
+    | MissingSection SectionId | MissingChoice ChoiceId | ExpectedChoiceField FieldId
+    | InvalidPosition | InvalidExpressionLocation
     | RejectedDefinition ContractError
     deriving (Eq, Show)
 
@@ -59,6 +64,10 @@ applyEdit edit definition = do
             (updateBy fieldId key (MissingField key) (\field -> Right field { fieldLabel = label, fieldType = kind, fieldSource = source })) definition
         RemoveField key -> inFieldContainer key (removeBy fieldId key (MissingField key)) definition
         MoveField key index -> inFieldContainer key (moveBy fieldId key (MissingField key) index) definition
+        AddChoice key index choice -> choicesAt key (insertAt index choice) definition
+        RenameChoice key choice label -> choicesAt key (updateBy choiceId choice (MissingChoice choice) (\value -> Right value { choiceLabel = label })) definition
+        RemoveChoice key choice -> choicesAt key (removeBy choiceId choice (MissingChoice choice)) definition
+        MoveChoice key choice index -> choicesAt key (moveBy choiceId choice (MissingChoice choice) index) definition
         AddList index source -> lists (insertAt index source)
         ChangeList key label mode -> lists (updateBy listId key (MissingList key) (\source -> Right source { listLabel = label, listMode = mode }))
         RemoveList key -> lists (removeBy listId key (MissingList key))
@@ -118,6 +127,11 @@ replaceCalculationPart key location replacement definition = do
 permittedCalculationParts :: FieldId -> [ExpressionSlot] -> [Expression] -> Definition -> [Expression]
 permittedCalculationParts key location candidates definition =
     [candidate | candidate <- candidates, Right _ <- [replaceCalculationPart key location candidate definition]]
+
+choicesAt :: FieldId -> ([Choice] -> Either EditError [Choice]) -> Definition -> Either EditError Definition
+choicesAt key change = inFieldContainer key (updateBy fieldId key (MissingField key) (\field -> case fieldType field of
+    ChoiceType choices -> (\next -> field { fieldType = ChoiceType next }) <$> change choices
+    _ -> Left (ExpectedChoiceField key)))
 
 fieldContainer :: FieldId -> Definition -> Either EditError (Maybe ListId)
 fieldContainer key definition

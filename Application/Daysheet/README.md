@@ -49,6 +49,10 @@ conditions. Report targets are a closed supported selection, not recipient
 addresses or a second calculation model. Read-only index mutations use semantic
 actor refresh; editor saves navigate back to the index after acknowledging the
 saved form. Passive observers refetch authorized fragments independently.
+Choice options have individual add/rename/remove/move controls: renames and
+moves preserve option IDs; removing the last option or a formula-referenced
+option fails canonical validation. Earlier captures retain their original
+choice labels and order.
 
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;

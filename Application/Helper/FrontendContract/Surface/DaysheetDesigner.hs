@@ -13,6 +13,12 @@ data DesignerIndex
 data DesignerIndexTarget
 data DesignerFieldEditor
 data DesignerFieldEditorTarget
+data DesignerChoiceEditor
+data DesignerChoiceEditorTarget
+data DefinitionChoiceId
+data SaveDesignerChoice
+data RemoveDesignerChoice
+data MoveDesignerChoice
 data DesignerListEditor
 data DesignerListEditorTarget
 data DesignerReferenceEditor
@@ -72,6 +78,7 @@ data DesignerPendingGate
 type DesignerConfigurationResource = Resource DesignerConfiguration '[Field VenueId 'WireUUID]
 type Revisions = '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt]
 type FieldEditorParams = '[OptionalField DefinitionFieldId 'WireUUID, OptionalField ContainerId 'WireUUID]
+type ChoiceEditorParams = '[Field DefinitionFieldId 'WireUUID, OptionalField DefinitionChoiceId 'WireUUID]
 type ListEditorParams = '[OptionalField DefinitionListId 'WireUUID]
 type ReferenceEditorParams = '[Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID, Field DefinitionFieldId 'WireUUID]
 type ReportEditorParams = '[OptionalField DefinitionReportId 'WireUUID]
@@ -86,6 +93,9 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerFieldEditor FieldEditorParams
          '[ 'MountTarget DesignerFieldEditorTarget FieldEditorParams, 'Eager, 'Live
+          , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
+     , Fragment DesignerChoiceEditor ChoiceEditorParams
+         '[ 'MountTarget DesignerChoiceEditorTarget ChoiceEditorParams, 'Eager, 'Live
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerListEditor ListEditorParams
          '[ 'MountTarget DesignerListEditorTarget ListEditorParams, 'Eager, 'Live
@@ -107,6 +117,12 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
           , OptionalField DefinitionFieldId 'WireUUID, OptionalField ContainerId 'WireUUID
           , Field Label 'WireText, Field ValueKind ('WireClosed Controls.FieldKind)
           , OptionalField ReferenceListId 'WireUUID, OptionalField InitialChoice 'WireText] SaveOptions
+     , Action SaveDesignerChoice
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID, OptionalField DefinitionChoiceId 'WireUUID, Field Label 'WireText] SaveOptions
+     , Action RemoveDesignerChoice
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID, Field DefinitionChoiceId 'WireUUID] SaveOptions
+     , Action MoveDesignerChoice
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID, Field DefinitionChoiceId 'WireUUID, Field ToPosition 'WireInt] SaveOptions
      , Action SaveDesignerList
          '[ Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt
           , OptionalField DefinitionListId 'WireUUID, Field Label 'WireText

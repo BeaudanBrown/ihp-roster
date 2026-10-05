@@ -21,6 +21,7 @@ import Web.View.Prelude hiding (referenceRecordId)
 data DesignerPage
     = DesignerIndexPage
     | DesignerFieldPage (ActionFields Action.SaveDesignerFieldActionOperation)
+    | DesignerChoicePage (ActionFields Action.SaveDesignerChoiceActionOperation)
     | DesignerListPage (ActionFields Action.SaveDesignerListActionOperation)
     | DesignerReferencePage (ActionFields Action.SaveDesignerReferenceValueActionOperation)
     | DesignerReportPage (ActionFields Action.SaveDesignerReportActionOperation)
@@ -45,6 +46,9 @@ designerSurface venue page = mkSurfaceImplFromValues @Surface.DaysheetDesignerSu
             params = surfaceOptionalField @Surface.DefinitionFieldId key &: surfaceOptionalField @Surface.ContainerId parent &: noSurfaceFields
             in frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor params params
                 (pathTo (ShowDesignerFieldBodyAction (tshow <$> key) (tshow <$> parent))) FrontendSurfaceDirtyForm
+        DesignerChoicePage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerChoiceEditor
+            (choiceParams fields) (choiceParams fields) (pathTo (ShowDesignerChoiceBodyAction (surfaceFieldValue @Surface.DefinitionFieldId fields)
+                (tshow <$> surfaceFieldValue @Surface.DefinitionChoiceId fields))) FrontendSurfaceDirtyForm
         DesignerReportPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor
             (reportParams fields) (reportParams fields) (pathTo (ShowDesignerReportBodyAction (tshow <$> surfaceFieldValue @Surface.DefinitionReportId fields))) FrontendSurfaceDirtyForm
         DesignerSectionPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor
@@ -69,6 +73,7 @@ renderDesigner venue state page problem = case page of
     DesignerFieldPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor
         (surfaceOptionalField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
             &: surfaceOptionalField @Surface.ContainerId (surfaceFieldValue @Surface.ContainerId fields) &: noSurfaceFields) impl content
+    DesignerChoicePage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerChoiceEditor (choiceParams fields) impl content
     DesignerReportPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor (reportParams fields) impl content
     DesignerSectionPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor (sectionParams fields) impl content
     DesignerBlockPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerBlockEditor (blockParams fields) impl content
@@ -122,6 +127,7 @@ renderDesigner venue state page problem = case page of
             </section>
         |]
         DesignerFieldPage fields -> fieldForm fields
+        DesignerChoicePage fields -> choiceForm fields
         DesignerListPage fields -> listForm fields
         DesignerReferencePage fields -> referenceForm fields
         DesignerReportPage fields -> Layout.reportForm fields problem
@@ -194,7 +200,25 @@ renderDesigner venue state page problem = case page of
         fields = Action.removeDesignerFieldActionFields base revision key
         remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerFieldAction fields)
             (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerFieldAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove field</button>|]
-        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span>{moveControls MoveFieldItem Nothing Nothing Nothing source index count}{remove}</div>|]
+        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span>{moveControls MoveFieldItem Nothing Nothing Nothing source index count}{remove}</div>{choiceControls field}|]
+    choiceControls field = case D.fieldType field of
+        D.ChoiceType choices -> let D.FieldId key = D.fieldId field in [hsx|
+            <div role="group" aria-label={"Choice options: " <> D.fieldLabel field} class="mb-3"><details><summary>Choice options</summary>
+                <ol>{forEach (zip [0 ..] choices) (choiceSummary key (length choices))}</ol>
+                <a class="btn btn-sm btn-outline-primary" href={ShowDesignerChoiceAction key Nothing}>Add option</a>
+            </details></div>
+        |]
+        _ -> mempty
+    choiceSummary field count (index, choice) = let
+        D.ChoiceId key = D.choiceId choice
+        move delta caption = let fields = Action.moveDesignerChoiceActionFields base revision field key (index + delta)
+            in renderFrontendSurfaceActionFormWithHiddenFields (Action.moveDesignerChoiceAction fields) (defaultFrontendSurfaceActionRoute (pathTo MoveDesignerChoiceAction))
+                [hsx|<button class="btn btn-sm btn-outline-secondary" type="submit" disabled={index + delta < 0 || index + delta >= count}>{caption :: Text}</button>|]
+        fields = Action.removeDesignerChoiceActionFields base revision field key
+        remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerChoiceAction fields) (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerChoiceAction))
+            [hsx|<button class="btn btn-sm btn-outline-danger" type="submit" disabled={count == 1}>Remove option</button>|]
+        in [hsx|<li class="mb-2 text-break"><a href={ShowDesignerChoiceAction field (Just (tshow key))}>{D.choiceLabel choice}</a>
+            <div class="d-flex flex-wrap gap-1">{move (-1) "Move option earlier"}{move 1 "Move option later"}{remove}</div></li>|]
     listSummary (index, source) = let
         D.ListId key = D.listId source
         fields = Action.removeDesignerListActionFields base revision key
@@ -287,6 +311,17 @@ renderDesigner venue state page problem = case page of
             <p class="form-text">Renaming keeps the field identity and any existing calculation. Changes that break dependent fields or layouts are rejected.</p>
             {buttons}
         |]
+    choiceForm fields = let
+        name = surfaceFieldNameFrom @Surface.Label fields
+        in renderFrontendSurfaceActionForm (Action.saveDesignerChoiceAction fields) (defaultFrontendSurfaceActionRoute (pathTo SaveDesignerChoiceAction)) [hsx|
+            {hidden (surfaceFieldNameFrom @Surface.ExpectedBase fields) (tshow (surfaceFieldValue @Surface.ExpectedBase fields))}
+            {hidden (surfaceFieldNameFrom @Surface.ExpectedDraft fields) (maybe "" tshow (surfaceFieldValue @Surface.ExpectedDraft fields))}
+            {hidden (surfaceFieldNameFrom @Surface.DefinitionFieldId fields) (tshow (surfaceFieldValue @Surface.DefinitionFieldId fields))}
+            {hidden (surfaceFieldNameFrom @Surface.DefinitionChoiceId fields) (maybe "" tshow (surfaceFieldValue @Surface.DefinitionChoiceId fields))}
+            <div class="mb-3"><label class="form-label" for={name}>Option name</label><input class="form-control" id={name} name={name} value={surfaceFieldValue @Surface.Label fields} required="required" aria-invalid={invalidValue}/></div>
+            <p class="form-text">Renaming keeps this option's identity. Existing Daysheets retain the names and options they captured.</p>
+            {buttons}
+        |]
     listForm fields = let
         name = surfaceFieldNameFrom @Surface.Label fields
         kindName = surfaceFieldNameFrom @Surface.CollectionKind fields
@@ -304,6 +339,10 @@ renderDesigner venue state page problem = case page of
             {buttons}
         |]
     buttons = [hsx|<div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save draft</button><a class="btn btn-outline-secondary" href={DaysheetDesignerAction}>Discard edit and return</a></div>|]
+
+choiceParams :: ActionFields Action.SaveDesignerChoiceActionOperation -> SurfaceFields Surface.ChoiceEditorParams
+choiceParams fields = surfaceField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
+    &: surfaceOptionalField @Surface.DefinitionChoiceId (surfaceFieldValue @Surface.DefinitionChoiceId fields) &: noSurfaceFields
 
 reportParams :: ActionFields Action.SaveDesignerReportActionOperation -> SurfaceFields Surface.ReportEditorParams
 reportParams fields = surfaceOptionalField @Surface.DefinitionReportId (surfaceFieldValue @Surface.DefinitionReportId fields) &: noSurfaceFields

@@ -45,11 +45,50 @@ instance Controller DaysheetDesignerController where
     action current@ShowDesignerIndexBodyAction = runBepis current BepisFragmentAction (showIndex True)
     action current@ShowDesignerFieldAction { definitionFieldId, containerId } = runBepis current BepisPageAction (showField False definitionFieldId containerId)
     action current@ShowDesignerFieldBodyAction { definitionFieldId, containerId } = runBepis current BepisFragmentAction (showField True definitionFieldId containerId)
+    action current@ShowDesignerChoiceAction { choiceFieldId, definitionChoiceId } = runBepis current BepisPageAction (showChoice False choiceFieldId definitionChoiceId)
+    action current@ShowDesignerChoiceBodyAction { choiceFieldId, definitionChoiceId } = runBepis current BepisFragmentAction (showChoice True choiceFieldId definitionChoiceId)
     action current@ShowDesignerListAction { definitionListId } = runBepis current BepisPageAction (showList False definitionListId)
     action current@ShowDesignerListBodyAction { definitionListId } = runBepis current BepisFragmentAction (showList True definitionListId)
 
     action current@ShowDesignerReferenceAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisPageAction (showReference False referenceSourceId referenceRecordId referenceFieldId)
     action current@ShowDesignerReferenceBodyAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisFragmentAction (showReference True referenceSourceId referenceRecordId referenceFieldId)
+
+    action current@SaveDesignerChoiceAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerChoiceActionParams
+        let key = D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
+            label = surfaceFieldValue @Surface.Label fields
+            choices = [choice | field <- D.rootFields state.designerDefinition <> concatMap D.listFields (D.recordLists state.designerDefinition), D.fieldId field == key, D.ChoiceType values <- [D.fieldType field], choice <- values]
+        change <- case surfaceFieldValue @Surface.DefinitionChoiceId fields of
+            Just identity -> pure (Designer.RenameChoice key (D.ChoiceId identity) label)
+            Nothing -> do
+                identity <- D.ChoiceId <$> UUIDv4.nextRandom
+                pure (Designer.AddChoice key (length choices) (D.Choice identity label))
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+        finish member state (DesignerChoicePage fields) result
+
+    action current@RemoveDesignerChoiceAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRemoveDesignerChoiceActionParams
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (Designer.RemoveChoice (D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)) (D.ChoiceId (surfaceFieldValue @Surface.DefinitionChoiceId fields)))
+        finish member state DesignerIndexPage result
+
+    action current@MoveDesignerChoiceAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseMoveDesignerChoiceActionParams
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (Designer.MoveChoice (D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)) (D.ChoiceId (surfaceFieldValue @Surface.DefinitionChoiceId fields)) (surfaceFieldValue @Surface.ToPosition fields))
+        finish member state DesignerIndexPage result
 
     action current@AddDesignerReferenceAction = runBepis current BepisMutationAction do
         ensureWrite
@@ -294,6 +333,21 @@ showField fragment rawKey rawParent = do
         fields = Action.saveDesignerFieldActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision)
             key parent (maybe "" D.fieldLabel field) (fieldKind valueType) reference Nothing
     display fragment member state (DesignerFieldPage fields) Nothing
+
+showChoice :: DesignerRequest => Bool -> UUID -> Maybe Text -> IO ResponseReceived
+showChoice fragment key rawChoice = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    choice <- parseKey rawChoice
+    field <- findField state.designerDefinition (D.FieldId key)
+    choices <- case D.fieldType field of
+        D.ChoiceType values -> pure values
+        _ -> deny status400 "This field does not have choice options."
+    previous <- traverse (\identity -> maybe (deny status404 "This choice no longer exists.") pure (find ((== D.ChoiceId identity) . D.choiceId) choices)) choice
+    let fields = Action.saveDesignerChoiceActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision)
+            key choice (maybe "" D.choiceLabel previous)
+    display fragment member state (DesignerChoicePage fields) Nothing
 
 showList :: DesignerRequest => Bool -> Maybe Text -> IO ResponseReceived
 showList fragment rawKey = do

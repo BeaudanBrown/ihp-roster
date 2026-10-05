@@ -7,6 +7,7 @@ import qualified Application.Daysheet.Evaluation as E
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Data.Data (toConstr)
+import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Hspec
@@ -35,7 +36,7 @@ tests = aroundAll withDatabaseTestContext do
         it "round-trips optional editor identities through the real router" $ withContext do
             let uuid = UUID.fromWords 0 0 0 1
                 key = Just (tshow uuid)
-            forM_ [ShowDesignerFieldAction Nothing Nothing, ShowDesignerFieldAction key Nothing, ShowDesignerFieldBodyAction key key, ShowDesignerListAction key, ShowDesignerReportAction key, ShowDesignerSectionAction key key, ShowDesignerBlockAction key uuid (Just "0") "table" key] \action -> do
+            forM_ [ShowDesignerFieldAction Nothing Nothing, ShowDesignerFieldAction key Nothing, ShowDesignerFieldBodyAction key key, ShowDesignerListAction key, ShowDesignerReportAction key, ShowDesignerSectionAction key key, ShowDesignerBlockAction key uuid (Just "0") "table" key, ShowDesignerChoiceAction uuid key, ShowDesignerChoiceBodyAction uuid Nothing] \action -> do
                 let query = parseQuery (cs (Text.dropWhile (/= '?') (pathTo action)))
                 either (const Nothing) Just (Router.applyAction @DaysheetDesignerController (toConstr action) query) `shouldBe` Just action
 
@@ -160,12 +161,50 @@ tests = aroundAll withDatabaseTestContext do
                     [D.Report (D.ReportId reportId) "Closing report" [D.Section (D.SectionId sectionId) "Receipts summary"
                         [D.TableBlock (Fixture.list 20) [Fixture.field 7, Fixture.field 8] (Just (Fixture.field 7)) [(Fixture.field 8, D.Descending)]]] [D.FormattedReport, D.ExcelDownload]]
 
+        it "adds, renames and reorders choice options with exact revisions and immutable earlier captures" $ withContext do
+            withCleanDb do
+                (venue, user, member) <- setup
+                Right _ <- Storage.saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+                let post action params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams action params
+                added <- post SaveDesignerFieldAction [("expectedBase", "0"), ("expectedDraft", "0"), ("label", "Category"), ("valueKind", "choice"), ("initialChoice", "Sale")]
+                lookup "X-Bepis-Form-Saved" (responseHeaders added) `shouldBe` Just "true"
+                Right initial <- Storage.readDesignerState member
+                Just field <- pure (find ((== "Category") . D.fieldLabel) (D.rootFields initial.designerDefinition))
+                let D.FieldId fieldId = D.fieldId field
+                D.ChoiceType [D.Choice (D.ChoiceId first) _] <- pure (D.fieldType field)
+                Right original <- Storage.publishDraft member 0 1
+                Right captured <- Storage.captureDefinition member (fromGregorian 2026 10 1)
+                option <- post SaveDesignerChoiceAction [("expectedBase", "1"), ("definitionFieldId", cs (tshow fieldId)), ("label", "Expense")]
+                lookup "X-Bepis-Form-Saved" (responseHeaders option) `shouldBe` Just "true"
+                Right options <- Storage.readDesignerState member
+                [D.Choice _ _, D.Choice (D.ChoiceId second) _] <- pure [choice | value <- D.rootFields options.designerDefinition, D.fieldId value == D.fieldId field, D.ChoiceType choices <- [D.fieldType value], choice <- choices]
+                let base = [("expectedBase", "1"), ("definitionFieldId", cs (tshow fieldId))]
+                renamed <- post SaveDesignerChoiceAction (base <> [("expectedDraft", "0"), ("definitionChoiceId", cs (tshow first)), ("label", "Customer payment")])
+                lookup "X-Bepis-Form-Saved" (responseHeaders renamed) `shouldBe` Just "true"
+                moved <- post MoveDesignerChoiceAction (base <> [("expectedDraft", "1"), ("definitionChoiceId", cs (tshow second)), ("toPosition", "0")])
+                lookup "HX-Trigger" (responseHeaders moved) `shouldSatisfy` isJust
+                Right final <- Storage.readDesignerState member
+                D.fieldType <$> find ((== D.fieldId field) . D.fieldId) (D.rootFields final.designerDefinition)
+                    `shouldBe` Just (D.ChoiceType [D.Choice (D.ChoiceId second) "Expense", D.Choice (D.ChoiceId first) "Customer payment"])
+                before <- query @LiveInvalidationEvent |> fetchCount
+                stale <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams SaveDesignerChoiceAction
+                    (base <> [("expectedDraft", "0"), ("definitionChoiceId", cs (tshow first)), ("label", "Unsaved option spelling")])
+                stale `responseBodyShouldContain` "Unsaved option spelling"
+                lookup "X-Bepis-Form-Saved" (responseHeaders stale) `shouldBe` Nothing
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
+                Right published <- Storage.publishDraft member 1 2
+                published.id `shouldNotBe` original.id
+                retained <- fetch captured.id
+                retained.definitionVersionId `shouldBe` unpackId original.id
+                unchanged <- fetch original.id
+                unchanged.definition `shouldBe` original.definition
+
         it "denies managers and workers on pages, fragments and direct mutations" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
                 forM_ [Manager, Worker] \role -> do
                     _ <- member |> set #venueRole role |> updateRecord
-                    forM_ [DaysheetDesignerAction, ShowDesignerIndexBodyAction, ShowDesignerFieldBodyAction Nothing Nothing, ShowDesignerReportBodyAction Nothing, ShowDesignerSectionBodyAction Nothing Nothing] \action -> do
+                    forM_ [DaysheetDesignerAction, ShowDesignerIndexBodyAction, ShowDesignerFieldBodyAction Nothing Nothing, ShowDesignerReportBodyAction Nothing, ShowDesignerSectionBodyAction Nothing Nothing, ShowDesignerChoiceBodyAction (UUID.fromWords 0 0 0 1) Nothing] \action -> do
                         response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action []
                         responseStatus response `shouldSatisfy` (/= status200)
                     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
@@ -177,6 +216,10 @@ tests = aroundAll withDatabaseTestContext do
                     report <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                         callActionWithParams SaveDesignerReportAction [("expectedBase", "0"), ("label", "Forged report"), ("targets", "formatted")]
                     responseStatus report `shouldSatisfy` (/= status200)
+                    forM_ [SaveDesignerChoiceAction, RemoveDesignerChoiceAction, MoveDesignerChoiceAction] \action -> do
+                        choice <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams action
+                            [("expectedBase", "0"), ("definitionFieldId", "00000000-0000-0000-0000-000000000001"), ("definitionChoiceId", "00000000-0000-0000-0000-000000000002"), ("label", "Forged option"), ("toPosition", "0")]
+                        responseStatus choice `shouldSatisfy` (/= status200)
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects malformed IDs, unknown control kinds and GET mutations" $ withContext do

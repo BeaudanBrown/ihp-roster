@@ -4,6 +4,7 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Live
     ( designerBlockEditorLiveFragment
+    , designerChoiceEditorLiveFragment
     , designerFieldEditorLiveFragment
     , designerIndexLiveFragment
     , designerListEditorLiveFragment
@@ -12,6 +13,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , designerReportEditorLiveFragment
     , designerSectionEditorLiveFragment
     , matchDesignerBlockEditorLiveFragment
+    , matchDesignerChoiceEditorLiveFragment
     , matchDesignerFieldEditorLiveFragment
     , matchDesignerIndexLiveFragment
     , matchDesignerListEditorLiveFragment
@@ -62,6 +64,25 @@ matchDesignerBlockEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
         @Types2.DesignerBlockEditor
+
+designerChoiceEditorLiveFragment ::
+    UUID.UUID ->
+    Maybe UUID.UUID ->
+    SurfaceFragmentKey
+designerChoiceEditorLiveFragment definitionFieldId definitionChoiceId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+        @Types2.DesignerChoiceEditor
+        ( surfaceField @Types2.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types2.DefinitionChoiceId definitionChoiceId
+            &: noSurfaceFields
+        )
+
+matchDesignerChoiceEditorLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (Maybe UUID.UUID, ()))
+matchDesignerChoiceEditorLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+        @Types2.DesignerChoiceEditor
 
 designerFieldEditorLiveFragment ::
     Maybe UUID.UUID ->

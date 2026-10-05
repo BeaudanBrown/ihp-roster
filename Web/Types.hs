@@ -254,6 +254,11 @@ data DaysheetDesignerController
     | ShowDesignerSectionBodyAction { layoutReportId :: Maybe Text, layoutSectionId :: Maybe Text }
     | ShowDesignerBlockAction { layoutReportId :: Maybe Text, blockSectionId :: UUID, layoutBlockIndex :: Maybe Text, layoutContentKind :: Text, layoutSourceId :: Maybe Text }
     | ShowDesignerBlockBodyAction { layoutReportId :: Maybe Text, blockSectionId :: UUID, layoutBlockIndex :: Maybe Text, layoutContentKind :: Text, layoutSourceId :: Maybe Text }
+    | ShowDesignerChoiceAction { choiceFieldId :: UUID, definitionChoiceId :: Maybe Text }
+    | ShowDesignerChoiceBodyAction { choiceFieldId :: UUID, definitionChoiceId :: Maybe Text }
+    | SaveDesignerChoiceAction
+    | RemoveDesignerChoiceAction
+    | MoveDesignerChoiceAction
     | MoveDesignerItemAction
     | SaveDesignerReportAction
     | SaveDesignerSectionAction

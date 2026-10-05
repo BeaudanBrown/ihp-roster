@@ -12,7 +12,7 @@ import qualified Web.Daysheets.LayoutEditing as Layout
 import Control.Monad (forM_)
 import qualified Application.Daysheet.Number as Number
 import Application.Daysheet.Validation (validateDefinition)
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.List (find)
 import qualified Data.UUID as UUID
 import Test.Hspec
@@ -80,6 +80,24 @@ tests = describe "Daysheet designer edits" do
         map fieldId (rootFields reordered) `shouldBe` map Fixture.field [2, 3, 1]
         map fieldLabel (rootFields reordered) `shouldBe` ["Count", "Selected band", "Closing notes"]
         map fieldLabel (rootFields Fixture.definition) `shouldBe` ["Comments", "Count", "Selected band"]
+
+    it "authors stable choice options while protecting dependent constants and nonempty domains" do
+        let key = Fixture.field 99
+            first = Choice (ChoiceId (UUID.fromWords 0 0 0 501)) "Sale"
+            second = Choice (ChoiceId (UUID.fromWords 0 0 0 502)) "Expense"
+        Right initial <- pure (applyEdit (AddField Nothing 0 (Field key "Category" (ChoiceType [first]) Entered)) Fixture.definition)
+        Right added <- pure (applyEdit (AddChoice key 1 second) initial)
+        Right renamed <- pure (applyEdit (RenameChoice key (choiceId second) "Supplier payment") added)
+        Right moved <- pure (applyEdit (MoveChoice key (choiceId second) 0) renamed)
+        fieldType <$> find ((== key) . fieldId) (rootFields moved) `shouldBe` Just (ChoiceType [second { choiceLabel = "Supplier payment" }, first])
+        fieldType <$> find ((== key) . fieldId) (rootFields initial) `shouldBe` Just (ChoiceType [first])
+        applyEdit (RemoveChoice key (choiceId first)) initial `shouldSatisfy` isLeft
+        applyEdit (MoveChoice key (choiceId first) 9) moved `shouldBe` Left InvalidPosition
+        applyEdit (AddChoice (Fixture.field 1) 0 second) initial `shouldBe` Left (ExpectedChoiceField (Fixture.field 1))
+        let condition = Binary Equal (ReadField (FieldPath Root [key])) (Constant (ChoiceLiteral (choiceId first)))
+        Right dependent <- pure (applyEdit (AddField Nothing 1 (Field (Fixture.field 98) "Is sale" BooleanType (Calculated condition))) moved)
+        applyEdit (RemoveChoice key (choiceId first)) dependent `shouldSatisfy` isLeft
+        applyEdit (RemoveChoice key (choiceId second)) dependent `shouldSatisfy` isRight
 
     it "keeps row-field moves within their existing list" do
         Right moved <- pure (applyEdit (MoveField (Fixture.field 5) 2) Fixture.definition)

@@ -68,6 +68,39 @@ test.describe('Daysheet designer controls', () => {
         await expect(receipts.getByText('Spare terminal', { exact: true })).toHaveCount(0);
     });
 
+    test('authors, renames and orders choice options without replacing their identities', async ({ page, daysheet }) => {
+        await openDaysheet(page, daysheet);
+        await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+        await page.getByRole('link', { name: 'Add root field', exact: true }).click();
+        await page.getByLabel('Field name', { exact: true }).fill('Payment category');
+        await page.getByLabel('Field type', { exact: true }).selectOption('choice');
+        await page.getByLabel('First option (new choice fields only)', { exact: true }).fill('Sale');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        const options = page.getByRole('group', { name: 'Choice options: Payment category', exact: true });
+        await options.getByText('Choice options', { exact: true }).click();
+        await options.getByRole('link', { name: 'Add option', exact: true }).click();
+        await page.getByLabel('Option name', { exact: true }).fill('Expense');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await options.getByText('Choice options', { exact: true }).click();
+        const originalLink = await options.getByRole('link', { name: 'Expense', exact: true }).getAttribute('href');
+        if (!originalLink) throw new Error('Expected an option edit URL.');
+        await options.getByRole('link', { name: 'Expense', exact: true }).click();
+        await page.getByLabel('Option name', { exact: true }).fill('Supplier payment');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await options.getByText('Choice options', { exact: true }).click();
+        await expect(options.getByRole('link', { name: 'Supplier payment', exact: true })).toHaveAttribute('href', originalLink);
+        await options.getByRole('link', { name: 'Supplier payment', exact: true }).locator('..').getByRole('button', { name: 'Move option earlier', exact: true }).click();
+        await expect(options.getByRole('list', { includeHidden: true }).getByRole('link', { includeHidden: true })).toHaveText(['Supplier payment', 'Sale']);
+        await options.getByText('Choice options', { exact: true }).click();
+        await options.getByRole('link', { name: 'Sale', exact: true }).locator('..').getByRole('button', { name: 'Remove option', exact: true }).click();
+        await expect(options.getByRole('link', { name: 'Sale', exact: true, includeHidden: true })).toHaveCount(0);
+        await options.getByText('Choice options', { exact: true }).click();
+        await expect(options.getByRole('button', { name: 'Remove option', exact: true })).toBeDisabled();
+        await expectNoHorizontalViewportOverflow(page);
+        await page.getByRole('button', { name: 'Publish draft', exact: true }).click();
+        await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
+    });
+
     test('authors independent report and entry layouts with ordered tables and advisory checks', async ({ page, daysheet }) => {
         await openDaysheet(page, daysheet);
         const capturedUrl = page.url();
