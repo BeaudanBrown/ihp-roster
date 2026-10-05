@@ -10,6 +10,12 @@ and unavailable-result laws. `Evaluation` accepts a validated immutable saved
 snapshot, rejects calculated overrides and foreign references, and evaluates
 fields/advisories with a shared per-field-batch work budget.
 
+`Designer` owns server-side structural edits and nested calculation replacement.
+It preserves identities and uses whole-definition validation both to filter
+proposed formula choices and to reject forged or dependency-breaking edits.
+Its edit algebra is not a browser payload; browser controls require generated
+commands, and persistence must retain authority and draft-revision checks.
+
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
