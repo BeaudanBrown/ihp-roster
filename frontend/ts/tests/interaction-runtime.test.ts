@@ -831,6 +831,51 @@ test("long-press opt-in preserves taps/swipes and activates only a held touch", 
     controller.stop();
 });
 
+test("touch holds tolerate visible finger wobble at normal and zoomed-out scale without saving on release", async () => {
+    for (const [scale, visibleWobble] of [[1, 6], [0.42, 3]]) {
+        const mount = new MiniElement({ [attrs.surface]: "roster" });
+        const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "5" }));
+        const doc = { elementFromPoint: () => null, defaultView: { visualViewport: { scale } } };
+        marker.ownerDocument = doc;
+        const phases: string[] = [];
+        const controller = createPointerSessionController({ runtime: { emit: payload => { phases.push(payload.phase); return { canceled: false }; } } });
+        try {
+            const x = 50 + visibleWobble / scale;
+            controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+            const wobble = pointerEventWithTarget("pointermove", marker, 1, x, 50, "touch");
+            controller.handlePointerMove(wobble);
+            assertEqual(wobble.defaultPrevented, false);
+            assertEqual(controller.currentSession() !== null, true);
+            await new Promise(resolve => setTimeout(resolve, 15));
+            assertEqual(controller.currentSession()?.activated, true);
+            controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, x, 50, "touch"));
+            assertEqual(phases.includes("commit"), false);
+        } finally {
+            controller.stop();
+        }
+    }
+});
+
+test("scaled touch swipes stay native while mouse activation retains its original precision", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "450" }));
+    const doc = { elementFromPoint: () => null, defaultView: { visualViewport: { scale: 0.42 } } };
+    marker.ownerDocument = doc;
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    try {
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+        const swipe = pointerEventWithTarget("pointermove", marker, 1, 50 + 14 / 0.42, 50, "touch");
+        controller.handlePointerMove(swipe);
+        assertEqual(controller.currentSession(), null);
+        assertEqual(swipe.defaultPrevented, false);
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 2, 50, 50, "mouse"));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 2, 55, 50, "mouse"));
+        assertEqual(controller.currentSession()?.activated, true);
+    } finally {
+        controller.stop();
+    }
+});
+
 test("marked interaction regions suppress menus without a drag, including replacement children", () => {
     const root = new MiniElement();
     const region = root.append(new MiniElement({ [nativeContextMenuDisabledDomAttr]: "true" }));

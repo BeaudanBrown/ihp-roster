@@ -535,6 +535,50 @@ test('reserves native long-press menus before and after activation on shift and 
     expect(await page.getByRole('heading', { name: 'Roster', exact: true }).evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(true);
 });
 
+test('keeps a zoomed-out touch hold despite finger wobble and rebases the grab before moving', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Exercises a mobile visual viewport scaled like desktop-site mode');
+    await page.setViewportSize({ width: 412, height: 839 });
+    await openCanonicalTimeline(page, 'vertical');
+    await page.locator('meta[name="viewport"]').evaluate(element => element.setAttribute('content', 'width=980'));
+    await expect.poll(() => page.evaluate(() => window.visualViewport!.scale)).toBeLessThan(0.5);
+    const attrs = InteractionDom.attributes;
+    const slotId = 'a1000000-0000-0000-0000-000000000071';
+    const source = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+    const preview = page.locator(`[${attrs.dragPreviewLabel}]`);
+    const interval = () => querySql(`SELECT json_build_array(starts_at, ends_at)::text FROM roster_slots WHERE id = '${slotId}'`);
+    const original = interval();
+    async function begin() {
+        const point = await source.evaluate(element => {
+            const box = element.getBoundingClientRect();
+            const x = box.x + box.width / 2;
+            const y = box.y + 30;
+            const settledY = y + 3 / window.visualViewport!.scale;
+            element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 88, button: 0, clientX: x, clientY: y }));
+            element.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 88, clientX: x, clientY: settledY }));
+            return { x, y: settledY, quarterHour: box.height / 32 };
+        });
+        await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
+        await expect(preview).toHaveText('09:00–17:00');
+        return point;
+    }
+    try {
+        const first = await begin();
+        await source.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 88, clientX: first.x, clientY: first.y });
+        await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+        expect(interval()).toBe(original);
+        const second = await begin();
+        const point = { pointerType: 'touch', pointerId: 88, clientX: second.x, clientY: second.y + second.quarterHour };
+        await source.dispatchEvent('pointermove', point);
+        await expect(preview).toHaveText('09:15–17:15');
+        const saved = page.waitForResponse(response => response.url().includes('/MoveRosterTimelineShift') && response.request().method() === 'POST');
+        await source.dispatchEvent('pointerup', point);
+        expect((await saved).ok()).toBe(true);
+        await expect(source).toHaveAttribute('aria-label', /09:15–17:15/);
+    } finally {
+        resetTimelineShiftInterval();
+    }
+});
+
 test('moves vertically with exact duration and touch hold, scrolls downward and cancels on viewport changes', async ({ page, isMobile, context }) => {
     await openCanonicalTimeline(page, 'vertical');
     const slotId = 'a1000000-0000-0000-0000-000000000071';

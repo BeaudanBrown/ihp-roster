@@ -75,6 +75,7 @@ export type ActivePointerSession = {
     currentClientX: number;
     currentClientY: number;
     thresholdPx: number;
+    holdThresholdPx: number;
     activated: boolean;
     longPressMs: number | null;
     hasMoved: boolean;
@@ -100,6 +101,7 @@ const interactiveControlSelector = "button,a,input,select,textarea,[role=button]
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
 const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
+const minimumTouchHoldTolerancePx = 10;
 const activeSourceRefAttribute = attrs.activeSourceRef;
 const noOpEffectRunner: PointerSessionEffectRunner = {
     activate: () => undefined,
@@ -263,7 +265,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         session.currentClientX = numberValue(event.clientX);
         session.currentClientY = numberValue(event.clientY);
         if (!session.activated && session.pointerType === "touch") {
-            if (movementDistance(session) >= session.thresholdPx) cancelSession(session, event);
+            if (movementDistance(session) >= session.holdThresholdPx) cancelSession(session, event);
             return;
         }
         if (!session.activated && movementDistance(session) < session.thresholdPx) return;
@@ -326,6 +328,16 @@ export function createPointerSessionController(options: PointerSessionOptions = 
                 longPressHandle = setTimeout(() => {
                     longPressHandle = null;
                     if (activeSession !== start) return;
+                    // Finger settling during the hold is not an intended move.
+                    // Rebase both movement detection and interval grab geometry.
+                    start.startClientX = start.currentClientX;
+                    start.startClientY = start.currentClientY;
+                    const interval = readIntervalDrag(start.marker, start.mount, surfaceDropzoneSelectorForSession(start), start.startClientX, start.startClientY);
+                    if (interval === null) {
+                        cancelSession(start, null);
+                        return;
+                    }
+                    start.intervalDrag = interval;
                     start.activated = true;
                     capturePointer(start.marker, start.pointerId);
                     setDocumentInteractionActive(start, true);
@@ -468,7 +480,11 @@ type PointerSessionBuildInput = {
 function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSession | null {
     const startClientX = numberValue(input.event.clientX);
     const startClientY = numberValue(input.event.clientY);
-    const thresholdPx = numberAttribute(input.marker, attrs.sessionThreshold) ?? input.fallbackThresholdPx;
+    const thresholdPx = Math.max(0, numberAttribute(input.marker, attrs.sessionThreshold) ?? input.fallbackThresholdPx);
+    const viewportScale = input.marker.ownerDocument?.defaultView?.visualViewport?.scale ?? 1;
+    // clientX/Y are layout pixels; touch slop is measured in visible CSS pixels.
+    // Desktop-site zoom-out must not amplify normal finger jitter.
+    const scale = input.event.pointerType === "touch" && Number.isFinite(viewportScale) && viewportScale > 0 ? viewportScale : 1;
     const session: ActivePointerSession = {
         mount: input.mount,
         marker: input.marker,
@@ -488,7 +504,8 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         startClientY,
         currentClientX: startClientX,
         currentClientY: startClientY,
-        thresholdPx: Math.max(0, thresholdPx),
+        thresholdPx: thresholdPx / scale,
+        holdThresholdPx: Math.max(minimumTouchHoldTolerancePx, thresholdPx) / scale,
         activated: false,
         longPressMs: numberAttribute(input.marker, attrs.sessionLongPressMs),
         hasMoved: false,

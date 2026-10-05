@@ -4117,6 +4117,7 @@
   var disposableLayerSelector = `[${attrs6.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
+  var minimumTouchHoldTolerancePx = 10;
   var activeSourceRefAttribute = attrs6.activeSourceRef;
   var noOpEffectRunner = {
     activate: () => void 0,
@@ -4263,7 +4264,7 @@
       session.currentClientX = numberValue(event.clientX);
       session.currentClientY = numberValue(event.clientY);
       if (!session.activated && session.pointerType === "touch") {
-        if (movementDistance(session) >= session.thresholdPx) cancelSession(session, event);
+        if (movementDistance(session) >= session.holdThresholdPx) cancelSession(session, event);
         return;
       }
       if (!session.activated && movementDistance(session) < session.thresholdPx) return;
@@ -4321,6 +4322,14 @@
           longPressHandle = setTimeout(() => {
             longPressHandle = null;
             if (activeSession !== start) return;
+            start.startClientX = start.currentClientX;
+            start.startClientY = start.currentClientY;
+            const interval = readIntervalDrag(start.marker, start.mount, surfaceDropzoneSelectorForSession(start), start.startClientX, start.startClientY);
+            if (interval === null) {
+              cancelSession(start, null);
+              return;
+            }
+            start.intervalDrag = interval;
             start.activated = true;
             capturePointer(start.marker, start.pointerId);
             setDocumentInteractionActive(start, true);
@@ -4436,7 +4445,9 @@
   function buildPointerSession(input) {
     const startClientX = numberValue(input.event.clientX);
     const startClientY = numberValue(input.event.clientY);
-    const thresholdPx = numberAttribute(input.marker, attrs6.sessionThreshold) ?? input.fallbackThresholdPx;
+    const thresholdPx = Math.max(0, numberAttribute(input.marker, attrs6.sessionThreshold) ?? input.fallbackThresholdPx);
+    const viewportScale = input.marker.ownerDocument?.defaultView?.visualViewport?.scale ?? 1;
+    const scale = input.event.pointerType === "touch" && Number.isFinite(viewportScale) && viewportScale > 0 ? viewportScale : 1;
     const session = {
       mount: input.mount,
       marker: input.marker,
@@ -4456,7 +4467,8 @@
       startClientY,
       currentClientX: startClientX,
       currentClientY: startClientY,
-      thresholdPx: Math.max(0, thresholdPx),
+      thresholdPx: thresholdPx / scale,
+      holdThresholdPx: Math.max(minimumTouchHoldTolerancePx, thresholdPx) / scale,
       activated: false,
       longPressMs: numberAttribute(input.marker, attrs6.sessionLongPressMs),
       hasMoved: false,

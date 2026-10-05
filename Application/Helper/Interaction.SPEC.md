@@ -128,8 +128,14 @@ continues scrolling and retests the target. Ending or cancelling the session
 stops its animation. Unmarked scroll owners remain native.
 
 Touch dragging is opt-in on a typed source with a server-owned long-press delay.
-Taps remain editor activations; movement before the delay cancels the pending
-session without preventing native scrolling. Once held, movement drives the drag.
+Taps remain editor activations. Before the delay, deliberate movement beyond
+the touch hold tolerance cancels without preventing native scrolling. The hold
+tolerates ten visible CSS pixels (or a larger declared movement threshold),
+converted through the visual viewport scale; mouse/pen precision is unchanged.
+At activation, movement origin and interval grab offset rebase to the settled
+finger so pre-hold wobble cannot move a shift or cause a stationary release to
+save. Once held, movement drives the drag using the declared threshold in visible
+CSS pixels.
 A second touch cancels rather than blocking pinch zoom. Pending timers and active
 scroll frames share ordinary session cleanup. Opted-in sources suppress native
 text selection and WebKit touch callouts before activation; pending and active
