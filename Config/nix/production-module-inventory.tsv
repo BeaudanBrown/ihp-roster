@@ -32,6 +32,7 @@ Application/Daysheet/Daily/Types.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyError.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyStorage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Designer.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EmailContract.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Entry.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EntryLayout.hs	production	runtime	Main	Reachable from Main

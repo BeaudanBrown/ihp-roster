@@ -14,7 +14,10 @@ fields/advisories with a shared per-field-batch work budget.
 It preserves identities and uses whole-definition validation both to filter
 proposed formula choices and to reject forged or dependency-breaking edits.
 Its edit algebra is not a browser payload; browser controls require generated
-commands, and persistence must retain authority and draft-revision checks.
+commands. `Storage.readDesignerState` reads the draft or published definition
+without creating records; `Storage.editDraft` applies edits under fresh venue
+admin/owner authority and exact draft/base-revision checks. Ordinary edits never
+silently rebase a stale draft after live reference changes.
 
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;

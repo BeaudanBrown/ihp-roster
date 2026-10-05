@@ -4,9 +4,11 @@
 -- ordinary venue authority cannot be synthesized from a platform user role.
 module Application.Daysheet.Storage
     ( saveDraft, publishDraft, captureDefinition, withDefinitionCapture, retireCurrentReferences, updateCurrentReferences
+    , DesignerState (..), readDesignerState, editDraft
     ) where
 
 import qualified Application.Daysheet.Contract as D
+import qualified Application.Daysheet.Designer as Designer
 import Application.Daysheet.DefinitionCodec
 import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
@@ -56,10 +58,62 @@ liveReferences (Just config) = case config.publishedVersionId of
     Nothing -> pure (ReferenceData [])
     Just _ -> checked StoredDocumentInvalid (decodeReferenceData config.referenceData)
 
+-- A read is observational: an unpublished venue has an empty valid definition,
+-- but neither its configuration nor its draft is created until an explicit edit.
+-- Keep a stale draft's base separate from the live configuration revision; no
+-- ordinary edit silently rebases it after live reference changes.
+data DesignerState = DesignerState
+    { designerDefinition :: D.Definition
+    , designerReferences :: ReferenceData
+    , designerBaseRevision :: Integer
+    , designerCurrentRevision :: Integer
+    , designerDraftRevision :: Maybe Integer
+    , designerPublishedVersionId :: Maybe UUID
+    } deriving (Eq, Show)
+
+readDesignerState :: (?modelContext :: ModelContext) => VenueMembership -> IO (AppResult DesignerState)
+readDesignerState member = withAuthority member [VenueAdmin, VenueOwner] (designerState member)
+
+designerState :: (?modelContext :: ModelContext) => VenueMembership -> StoreM DesignerState
+designerState member = do
+    config <- configuration member
+    saved <- draft member
+    let currentRevision = maybe 0 (.revision) config
+        published = config >>= (.publishedVersionId)
+    (definition, references, base) <- case saved of
+        Just value -> do
+            definition <- checked StoredDocumentInvalid (decodeDefinition value.definition)
+            references <- checked StoredDocumentInvalid (decodeReferenceData value.referenceData)
+            pure (definition, references, value.baseRevision)
+        Nothing -> case config of
+            Just value | isJust value.publishedVersionId -> do
+                version <- publication member value
+                definition <- checked StoredDocumentInvalid (decodeDefinition version.definition)
+                references <- liveReferences config
+                pure (definition, references, currentRevision)
+            _ -> pure (D.Definition 2 [] [] [] [], ReferenceData [], currentRevision)
+    pure DesignerState
+        { designerDefinition = definition, designerReferences = references
+        , designerBaseRevision = base, designerCurrentRevision = currentRevision
+        , designerDraftRevision = (.revision) <$> saved, designerPublishedVersionId = published
+        }
+
+editDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> Designer.Edit -> IO (AppResult DaysheetDefinitionDraft)
+editDraft member expectedBase expectedDraft edit = withAuthority member [VenueAdmin, VenueOwner] do
+    state <- designerState member
+    unless (state.designerBaseRevision == expectedBase && state.designerCurrentRevision == expectedBase
+        && state.designerDraftRevision == expectedDraft) (failure RevisionConflict)
+    changed <- checked InvalidDefinitionDocument (Designer.applyEdit edit state.designerDefinition)
+    saveDraftLocked member expectedBase expectedDraft changed state.designerReferences
+
 -- Staging permits old reference values incompatible with the new definition;
 -- only publication demands their correction. Saving never touches live data.
 saveDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> IO (AppResult DaysheetDefinitionDraft)
-saveDraft member expectedBase expectedDraft definition references = withAuthority member [VenueAdmin, VenueOwner] do
+saveDraft member expectedBase expectedDraft definition references = withAuthority member [VenueAdmin, VenueOwner] $
+    saveDraftLocked member expectedBase expectedDraft definition references
+
+saveDraftLocked :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> StoreM DaysheetDefinitionDraft
+saveDraftLocked member expectedBase expectedDraft definition references = do
     config <- configuration member
     saved <- draft member
     unless (maybe 0 (.revision) config == expectedBase && fmap (.revision) saved == expectedDraft) (failure RevisionConflict)

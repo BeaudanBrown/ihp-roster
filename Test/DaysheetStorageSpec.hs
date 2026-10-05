@@ -1,6 +1,7 @@
 module Test.DaysheetStorageSpec where
 
 import qualified Application.Daysheet.Contract as D
+import qualified Application.Daysheet.Designer as Designer
 import Application.Daysheet.DefinitionCodec
 import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
@@ -18,6 +19,48 @@ import Test.Support
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Daysheet persistence lifecycle" do
+        it "reads an empty designer without creation and atomically stages explicit edits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Designer"
+                user <- createUserRecord "daysheet-designer@example.test" "admin" True
+                member <- createVenueMembershipRecord venue user VenueOwner
+                Right empty <- readDesignerState member
+                empty.designerDefinition `shouldBe` D.Definition 2 [] [] [] []
+                empty.designerDraftRevision `shouldBe` Nothing
+                query @DaysheetConfiguration |> fetchCount >>= (`shouldBe` 0)
+                query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
+                let key = D.FieldId (unpackId user.id)
+                    field = D.Field key "Notes" D.TextType D.Entered
+                Right created <- editDraft member 0 Nothing (Designer.AddField Nothing 0 field)
+                created.revision `shouldBe` 0
+                Right _ <- editDraft member 0 (Just 0) (Designer.ChangeField key "Closing notes" D.TextType D.Entered)
+                errorSuffix <$> editDraft member 0 (Just 0) (Designer.RemoveField key) `shouldReturn` Just "revision-conflict"
+                Right staged <- readDesignerState member
+                staged.designerDraftRevision `shouldBe` Just 1
+                map D.fieldLabel (D.rootFields staged.designerDefinition) `shouldBe` ["Closing notes"]
+                query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 0)
+
+        it "starts a new editable draft from publication without modifying that version" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Designer publication"
+                user <- createUserRecord "daysheet-designer-published@example.test" "admin" True
+                member <- createVenueMembershipRecord venue user VenueAdmin
+                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
+                Right version <- publishDraft member 0 0
+                Right current <- readDesignerState member
+                current.designerDefinition `shouldBe` Fixture.definition
+                current.designerReferences `shouldBe` Fixture.references
+                current.designerDraftRevision `shouldBe` Nothing
+                current.designerBaseRevision `shouldBe` 1
+                current.designerPublishedVersionId `shouldBe` Just (unpackId version.id)
+                Right _ <- editDraft member 1 Nothing (Designer.ChangeList Fixture.areaList "Work areas" D.VenueReference)
+                unchanged <- fetch version.id
+                unchanged.definition `shouldBe` version.definition
+                errorSuffix <$> editDraft member 1 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "invalid-definition-document"
+                Right retained <- readDesignerState member
+                retained.designerDraftRevision `shouldBe` Just 0
+                retained.designerReferences `shouldBe` Fixture.references
+
         it "publishes staged corrections only for future captures" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"
@@ -86,6 +129,11 @@ tests = aroundAll withDatabaseTestContext do
                 errorSuffix <$> updateCurrentReferences member 2 (ReferenceData []) `shouldReturn` Just "reference-removal-requires-retirement"
                 saved <- query @DaysheetDefinitionDraft |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 saved.baseRevision `shouldBe` 1
+                Right staleState <- readDesignerState member
+                staleState.designerBaseRevision `shouldBe` 1
+                staleState.designerCurrentRevision `shouldBe` 2
+                errorSuffix <$> editDraft member 1 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> editDraft member 2 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
         it "rejects stale saves and preserves the second editor's unsaved input" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"
@@ -106,9 +154,14 @@ tests = aroundAll withDatabaseTestContext do
                 worker <- createVenueMembershipRecord venue user Worker
                 blocked <- saveDraft worker 0 Nothing Fixture.definition Fixture.references
                 errorSuffix blocked `shouldBe` Just "access-denied"
+                errorSuffix <$> readDesignerState worker `shouldReturn` Just "access-denied"
+                errorSuffix <$> editDraft worker 0 Nothing (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "access-denied"
+                manager <- worker |> set #venueRole Manager |> updateRecord
+                errorSuffix <$> readDesignerState manager `shouldReturn` Just "access-denied"
                 admin <- createVenueMembershipRecord other user VenueAdmin
                 forged <- saveDraft (admin |> set #venueId (unpackId venue.id)) 0 Nothing Fixture.definition Fixture.references
                 errorSuffix forged `shouldBe` Just "access-denied"
+                errorSuffix <$> readDesignerState (admin |> set #venueId (unpackId venue.id)) `shouldReturn` Just "access-denied"
                 _ <- worker |> set #venueRole VenueAdmin |> updateRecord
                 _ <- worker |> set #isActive False |> updateRecord
                 inactive <- saveDraft worker 0 Nothing Fixture.definition Fixture.references
