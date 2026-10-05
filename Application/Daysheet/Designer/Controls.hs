@@ -4,7 +4,7 @@ module Application.Daysheet.Designer.Controls
     ( FieldKind (..), ListKind (..), fieldKind, fieldKindLabel, fieldKindType
     , listKind, listKindLabel, listKindMode
     , BlockKind (..), blockKind, blockKindLabel, ReportTargets (..), reportOutputs, reportTargets
-    , DesignerMoveKind (..)
+    , DesignerMoveKind (..), CalculationGroup (..), calculationGroupLabel
     ) where
 
 import Prelude
@@ -20,6 +20,19 @@ data ListKind = VenueList | DailyList | Checklist deriving (Eq, Show, Enum, Boun
 data BlockKind = InstructionsContent | FieldContent | TableContent | AdvisoryContent | RowAdvisoryContent
     deriving (Eq, Show, Enum, Bounded)
 data ReportTargets = FormattedOnly | ExcelOnly | FormattedAndExcel deriving (Eq, Show, Enum, Bounded)
+
+data CalculationGroup = FieldParts | ValueParts | OperationParts | ListParts
+    deriving (Eq, Show, Enum, Bounded)
+instance InputValue CalculationGroup where
+    inputValue FieldParts = "fields"
+    inputValue ValueParts = "values"
+    inputValue OperationParts = "operations"
+    inputValue ListParts = "lists"
+calculationGroupLabel :: CalculationGroup -> Text
+calculationGroupLabel FieldParts = "Read a field"
+calculationGroupLabel ValueParts = "Constant values"
+calculationGroupLabel OperationParts = "Operations and conditions"
+calculationGroupLabel ListParts = "List totals and counts"
 
 data DesignerMoveKind = MoveFieldItem | MoveListItem | MoveReportItem | MoveSectionItem | MoveBlockItem | MoveColumnItem | MoveSortItem
     deriving (Eq, Show, Enum, Bounded)

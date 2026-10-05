@@ -3,6 +3,7 @@ module Application.Daysheet.Validation
     , binaryType
     , unaryType
     , expressionType
+    , expressionTypeInScope
     , validateFields
     , validateDefinition
     ) where
@@ -107,14 +108,20 @@ literalType literal = case literal of
 -- | Enclosing row and aggregate item are lexical scopes, not caller-provided
 -- record IDs. A fold cannot contain another fold in v1.
 expressionType :: Definition -> Maybe ListId -> Expression -> Either ContractError FieldType
-expressionType definition current expression = do
+expressionType definition current = expressionTypeInScope definition current Nothing
+
+-- The designer obtains these lexical scopes from a saved calculation location.
+-- This exposes the same inference rules for a focused node; complete definition
+-- validation still gates every edit and never accepts caller-supplied row IDs.
+expressionTypeInScope :: Definition -> Maybe ListId -> Maybe ListId -> Expression -> Either ContractError FieldType
+expressionTypeInScope definition current itemScope expression = do
     _ <- checkBudget 1 expression
     case current of
         Nothing -> Right ()
         Just key -> do
             owner <- findList definition key
             if listMode owner == VenueReference then referenceOnly expression else Right ()
-    infer Nothing expression
+    infer itemScope expression
   where
     -- Reusable venue records cannot depend on a particular daily form.
     referenceOnly expr = do

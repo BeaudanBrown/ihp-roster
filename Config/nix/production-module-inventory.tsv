@@ -33,6 +33,7 @@ Application/Daysheet/DailyError.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyStorage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Designer/Calculation.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Designer/Controls.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer/ReferenceEntry.hs	production	runtime	Main	Reachable from Main

@@ -54,6 +54,13 @@ moves preserve option IDs; removing the last option or a formula-referenced
 option fails canonical validation. Earlier captures retain their original
 choice labels and order.
 
+`Designer.Calculation` prepares compatible, cycle-safe calculation choices from
+server-owned primitives using the canonical validator. Focused lexical scopes
+come from the saved expression location: aggregate `Item` never replaces the
+enclosing `Current` row. Reference traversal is bounded and uses canonical type
+inference; menu choices carry internal edits, not browser expression documents.
+Their snapshot validity never replaces under-lock revision/authority checks.
+
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved

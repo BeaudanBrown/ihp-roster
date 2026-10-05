@@ -3,7 +3,8 @@ module Test.DaysheetDesignerSpec (tests) where
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Designer
-import Application.Daysheet.Designer.Controls (BlockKind (..), DesignerMoveKind (..))
+import Application.Daysheet.Designer.Controls (BlockKind (..), DesignerMoveKind (..), CalculationGroup (..))
+import qualified Application.Daysheet.Designer.Calculation as Calculation
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.Action as Action
 import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
 import Application.Daysheet.References (ReferenceValue (..))
@@ -11,7 +12,7 @@ import Application.Daysheet.Storage (DesignerState (..))
 import qualified Web.Daysheets.LayoutEditing as Layout
 import Control.Monad (forM_)
 import qualified Application.Daysheet.Number as Number
-import Application.Daysheet.Validation (validateDefinition)
+import Application.Daysheet.Validation (validateDefinition, expressionTypeInScope)
 import Data.Either (isLeft, isRight)
 import Data.List (find)
 import qualified Data.UUID as UUID
@@ -138,6 +139,65 @@ tests = describe "Daysheet designer edits" do
         entryLayout moved `shouldBe` [Section section "Entry" [second, first]]
         applyEdit (ChangeBlock EntryLayout section 0 (TableBlock (Fixture.list 20) [Fixture.field 999] Nothing [])) moved `shouldSatisfy` isLeft
         applyEdit (RemoveBlock EntryLayout section 2) moved `shouldBe` Left InvalidPosition
+
+    it "derives nested calculation scopes from the saved location without replacing the enclosing row" do
+        let selected = Binary Equal (ReadField (FieldPath Item [Fixture.field 4])) (Constant (TextLiteral "Band A"))
+            expression = Fold Sum (Fixture.list 30) (Just selected) (ReadField (FieldPath Root [Fixture.field 2]))
+        Right configured <- pure (replaceCalculationPart (Fixture.field 6) [] expression Fixture.definition)
+        Right focus <- pure (calculationFocus (Fixture.field 6) [FoldFilter, BinaryLeft] configured)
+        calculationCurrent focus `shouldBe` Just (Fixture.list 40)
+        calculationItem focus `shouldBe` Just (Fixture.list 30)
+        calculationExpression focus `shouldBe` Just (ReadField (FieldPath Item [Fixture.field 4]))
+        expressionTypeInScope configured (calculationCurrent focus) (calculationItem focus) (ReadField (FieldPath Current [Fixture.field 5]))
+            `shouldBe` Right (ReferenceType (Fixture.list 30))
+        expressionTypeInScope configured (calculationCurrent focus) (calculationItem focus) (ReadField (FieldPath Item [Fixture.field 4])) `shouldBe` Right TextType
+        calculationFocus (Fixture.field 1) [BinaryLeft] configured `shouldBe` Left InvalidExpressionLocation
+        calculationFocus (Fixture.field 6) (replicate 33 FoldValue) configured `shouldBe` Left InvalidExpressionLocation
+        map fst (calculationChildren expression) `shouldBe` [FoldFilter, FoldValue]
+
+    it "guides reference traversal without offering incompatible or cyclic field leaves" do
+        Right root <- pure (Calculation.calculationMenu FieldParts (Fixture.field 1) [] Nothing Fixture.definition)
+        Calculation.calculationMenuOptions root `shouldBe` []
+        map Calculation.calculationLinkPath (Calculation.calculationMenuLinks root) `shouldBe` [FieldPath Root [Fixture.field 3]]
+        Right linked <- pure (Calculation.calculationMenu FieldParts (Fixture.field 1) [] (Just (FieldPath Root [Fixture.field 3])) Fixture.definition)
+        map Calculation.calculationOptionLabel (Calculation.calculationMenuOptions linked) `shouldBe` ["Bands — Band"]
+        forM_ (Calculation.calculationMenuOptions linked) \option -> applyEdit (Calculation.calculationOptionEdit option) Fixture.definition `shouldSatisfy` isRight
+        Calculation.calculationMenu FieldParts (Fixture.field 1) [] (Just (FieldPath Root [Fixture.field 2])) Fixture.definition `shouldSatisfy` isLeft
+
+    it "offers only scope-safe aggregates and paired checklist references" do
+        Right venue <- pure (applyEdit (AddField (Just (Fixture.list 10)) 0 (Field (Fixture.field 90) "Terminal count" WholeType Entered)) Fixture.definition)
+        Right menu <- pure (Calculation.calculationMenu ListParts (Fixture.field 90) [] Nothing venue)
+        map Calculation.calculationOptionLabel (Calculation.calculationMenuOptions menu) `shouldBe`
+            ["Sum — Terminals — Whole number", "Count rows — Terminals"]
+        Right checklist <- pure (Calculation.calculationMenu FieldParts (Fixture.field 7) [] Nothing Fixture.definition)
+        map Calculation.calculationOptionLabel (Calculation.calculationMenuOptions checklist) `shouldContain` ["Paired reference — this checklist row"]
+        let aggregate = Fold Sum (Fixture.list 30) Nothing (Constant (WholeLiteral 0))
+        Right nested <- pure (replaceCalculationPart (Fixture.field 2) [] aggregate Fixture.definition)
+        Right forbidden <- pure (Calculation.calculationMenu ListParts (Fixture.field 2) [FoldValue] Nothing nested)
+        Calculation.calculationMenuOptions forbidden `shouldBe` []
+
+    it "constructs exact fee unwinding and explicit AUD rounding through public guided parts" do
+        let gross = Fixture.field 95
+            rate = Fixture.field 96
+            net = Fixture.field 97
+            choose group location label definition = do
+                menu <- Calculation.calculationMenu group net location Nothing definition
+                option <- maybe (Left InvalidExpressionLocation) Right (find ((== label) . Calculation.calculationOptionLabel) (Calculation.calculationMenuOptions menu))
+                applyEdit (Calculation.calculationOptionEdit option) definition
+        Right withGross <- pure (applyEdit (AddField Nothing 0 (Field gross "Gross" MoneyType Entered)) Fixture.definition)
+        Right withRate <- pure (applyEdit (AddField Nothing 1 (Field rate "Rate" PercentageType Entered)) withGross)
+        Right initial <- pure (applyEdit (AddField Nothing 2 (Field net "Net" MoneyType Entered)) withRate)
+        Right divided <- pure (choose OperationParts [] "Divide — Money (AUD) / Decimal number" initial)
+        Right numerator <- pure (choose FieldParts [BinaryLeft] "Whole Daysheet — Gross" divided)
+        Right denominator <- pure (choose OperationParts [BinaryRight] "Add — Decimal number / Decimal number" numerator)
+        Right ratio <- pure (choose OperationParts [BinaryRight, BinaryRight] "Percentage as decimal ratio — Percentage" denominator)
+        Right linked <- pure (choose FieldParts [BinaryRight, BinaryRight, UnaryInput] "Whole Daysheet — Rate" ratio)
+        Right rounded <- pure (choose OperationParts [] "Round AUD to cents — Money (AUD)" linked)
+        Right one <- pure (Number.number 1 1)
+        let expected = Unary RoundCents (Binary Divide (ReadField (FieldPath Root [gross]))
+                (Binary Add (Constant (DecimalLiteral one)) (Unary PercentageRatio (ReadField (FieldPath Root [rate])))))
+        fieldSource <$> find ((== net) . fieldId) (rootFields rounded) `shouldBe` Just (Calculated expected)
+        validateDefinition rounded `shouldBe` Right ()
 
     it "offers only compatible and cycle-safe field expressions using canonical validation" do
         let count = reference Root (Fixture.field 2)

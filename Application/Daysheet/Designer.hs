@@ -3,12 +3,14 @@
 -- retain draft revision checks, and call this same validated edit interface.
 module Application.Daysheet.Designer
     ( Edit (..), LayoutTarget (..), EditError (..), ExpressionSlot (..)
+    , CalculationFocus (..), calculationFocus, calculationChildren
     , applyEdit, replaceCalculationPart, permittedCalculationParts
     ) where
 
 import Prelude
 import Application.Daysheet.Contract
-import Application.Daysheet.Validation (ContractError, validateDefinition)
+import Application.Daysheet.Validation (ContractError (IncompatibleTypes), expressionType, validateDefinition)
+import IHP.ModelSupport (InputValue (..))
 import Data.Bifunctor (first)
 import Data.List (find)
 import Data.Text (Text)
@@ -56,6 +58,60 @@ data ExpressionSlot
     | FoldFilter | FoldValue
     deriving (Eq, Show, Enum, Bounded)
 
+instance InputValue ExpressionSlot where
+    inputValue UnaryInput = "unary-input"
+    inputValue BinaryLeft = "left"
+    inputValue BinaryRight = "right"
+    inputValue Condition = "condition"
+    inputValue WhenTrue = "when-true"
+    inputValue WhenFalse = "when-false"
+    inputValue FoldFilter = "filter"
+    inputValue FoldValue = "value"
+
+-- Lexical context belongs to the saved expression, never to a submitted row or
+-- list identity. During a fold Current stays outside; only Item changes.
+data CalculationFocus = CalculationFocus
+    { calculationField :: Field
+    , calculationCurrent :: Maybe ListId
+    , calculationItem :: Maybe ListId
+    , calculationExpression :: Maybe Expression
+    } deriving (Eq, Show)
+
+calculationChildren :: Expression -> [(ExpressionSlot, Expression)]
+calculationChildren expression = case expression of
+    Unary _ input -> [(UnaryInput, input)]
+    Binary _ left right -> [(BinaryLeft, left), (BinaryRight, right)]
+    If condition yes no -> [(Condition, condition), (WhenTrue, yes), (WhenFalse, no)]
+    Fold _ _ predicate value -> maybe [] (\condition -> [(FoldFilter, condition)]) predicate <> [(FoldValue, value)]
+    _ -> []
+
+calculationFocus :: FieldId -> [ExpressionSlot] -> Definition -> Either EditError CalculationFocus
+calculationFocus key location definition = do
+    (current, field) <- calculationOwner key definition
+    if length location > maxExpressionDepth limits then Left InvalidExpressionLocation else Right ()
+    (item, expression) <- case (fieldSource field, location) of
+        (Entered, []) -> Right (Nothing, Nothing)
+        (Calculated expression, _) -> do
+            (scope, selected) <- descend Nothing location expression
+            pure (scope, Just selected)
+        _ -> Left InvalidExpressionLocation
+    pure (CalculationFocus field current item expression)
+  where
+    descend item [] expression = Right (item, expression)
+    descend item (slot : rest) expression = do
+        child <- maybe (Left InvalidExpressionLocation) Right (lookup slot (calculationChildren expression))
+        let nextItem = case expression of Fold _ source _ _ -> Just source; _ -> item
+        descend nextItem rest child
+
+calculationOwner :: FieldId -> Definition -> Either EditError (Maybe ListId, Field)
+calculationOwner key definition = do
+    scope <- fieldContainer key definition
+    fields <- case scope of
+        Nothing -> Right (rootFields definition)
+        Just source -> maybe (Left (MissingList source)) (Right . listFields) (find ((== source) . listId) (recordLists definition))
+    field <- maybe (Left (MissingField key)) Right (find ((== key) . fieldId) fields)
+    pure (scope, field)
+
 applyEdit :: Edit -> Definition -> Either EditError Definition
 applyEdit edit definition = do
     changed <- case edit of
@@ -99,15 +155,15 @@ applyEdit edit definition = do
 -- dependency checker belongs in the designer or JavaScript.
 replaceCalculationPart :: FieldId -> [ExpressionSlot] -> Expression -> Definition -> Either EditError Definition
 replaceCalculationPart key location replacement definition = do
-    scope <- fieldContainer key definition
-    fields <- case scope of
-        Nothing -> Right (rootFields definition)
-        Just source -> maybe (Left (MissingList source)) (Right . listFields) (find ((== source) . listId) (recordLists definition))
-    field <- maybe (Left (MissingField key)) Right (find ((== key) . fieldId) fields)
+    (scope, field) <- calculationOwner key definition
     expression <- case (fieldSource field, location) of
         (_, []) -> Right replacement
         (Calculated current, _) | length location <= maxExpressionDepth limits -> replaceAtLocation location current
         _ -> Left InvalidExpressionLocation
+    -- Cheap canonical type rejection precedes complete dependency/layout
+    -- validation when constructing bounded menus of candidate replacements.
+    resultType <- first RejectedDefinition (expressionType definition scope expression)
+    if resultType == fieldType field then Right () else Left (RejectedDefinition IncompatibleTypes)
     applyEdit (ChangeField key (fieldLabel field) (fieldType field) (Calculated expression)) definition
   where
     replaceAtLocation [] _ = Right replacement
