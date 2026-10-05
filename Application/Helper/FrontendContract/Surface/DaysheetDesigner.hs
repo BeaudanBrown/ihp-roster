@@ -15,6 +15,13 @@ data DesignerFieldEditor
 data DesignerFieldEditorTarget
 data DesignerListEditor
 data DesignerListEditorTarget
+data DesignerReferenceEditor
+data DesignerReferenceEditorTarget
+data ReferenceRecordId
+data EnteredValue
+data AddDesignerReference
+data SaveDesignerReferenceValue
+data RetireDesignerReference
 data DefinitionFieldId
 data DefinitionListId
 data ContainerId
@@ -38,6 +45,7 @@ type DesignerConfigurationResource = Resource DesignerConfiguration '[Field Venu
 type Revisions = '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt]
 type FieldEditorParams = '[OptionalField DefinitionFieldId 'WireUUID, OptionalField ContainerId 'WireUUID]
 type ListEditorParams = '[OptionalField DefinitionListId 'WireUUID]
+type ReferenceEditorParams = '[Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID, Field DefinitionFieldId 'WireUUID]
 type SaveOptions = '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
 
 type DaysheetDesignerSurface = Surface DaysheetDesigner
@@ -50,6 +58,9 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerListEditor ListEditorParams
          '[ 'MountTarget DesignerListEditorTarget ListEditorParams, 'Eager, 'Live
+          , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
+     , Fragment DesignerReferenceEditor ReferenceEditorParams
+         '[ 'MountTarget DesignerReferenceEditorTarget ReferenceEditorParams, 'Eager, 'Live
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , BrowserRole DesignerFinalAction
      , BrowserRole DesignerPendingNotice
@@ -67,5 +78,12 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID] SaveOptions
      , Action RemoveDesignerList
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID] SaveOptions
+     , Action AddDesignerReference
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID] SaveOptions
+     , Action SaveDesignerReferenceValue
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID
+          , Field ReferenceRecordId 'WireUUID, Field DefinitionFieldId 'WireUUID, OptionalField EnteredValue 'WireText] SaveOptions
+     , Action RetireDesignerReference
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID] SaveOptions
      , Action PublishDesignerDraft Revisions SaveOptions
      ]

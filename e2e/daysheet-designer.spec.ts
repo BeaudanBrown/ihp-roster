@@ -28,6 +28,46 @@ test.describe('Daysheet designer controls', () => {
         await expect(page.getByRole('link', { name: 'Door takings', exact: true })).toBeVisible();
     });
 
+    test('edits and retires staged references without changing an existing Daysheet', async ({ page, daysheet }) => {
+        await openDaysheet(page, daysheet);
+        const capturedUrl = page.url();
+        await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+        await page.getByRole('heading', { name: 'Terminals', exact: true }).locator('..').getByRole('link', { name: 'Add field to list', exact: true }).click();
+        await page.getByLabel('Field name', { exact: true }).fill('Float');
+        await page.getByLabel('Field type', { exact: true }).selectOption('money');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        const records = page.getByRole('region', { name: 'Reference records: Terminals', exact: true });
+        await records.getByRole('group', { name: 'Terminal 1', exact: true }).getByRole('link', { name: 'Label', exact: true }).click();
+        await page.getByLabel('Label', { exact: true }).fill('Inside terminal');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await expect(records.getByRole('group', { name: 'Inside terminal', exact: true })).toBeVisible();
+        await records.getByRole('group', { name: 'Inside terminal', exact: true }).getByRole('link', { name: 'Float', exact: true }).click();
+        await page.getByLabel('Float', { exact: true }).fill('12.345');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await expect(page.getByText('Enter an AUD amount with whole-cent precision.', { exact: true })).toBeVisible();
+        await expect(page.getByLabel('Float', { exact: true })).toHaveValue('12.345');
+        await page.getByLabel('Float', { exact: true }).fill('12.34');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await expect(records.getByRole('group', { name: 'Inside terminal', exact: true })).toContainText('12.34');
+        await records.getByRole('group', { name: 'Terminal 2', exact: true }).getByRole('button', { name: 'Retire reference record', exact: true }).click();
+        await expect(records.getByRole('group', { name: 'Terminal 2', exact: true })).toHaveCount(0);
+        await records.getByRole('button', { name: 'Add reference record', exact: true }).click();
+        const added = records.getByRole('group').filter({ has: page.getByRole('heading', { name: /^Record / }) });
+        await added.getByRole('link', { name: 'Label', exact: true }).click();
+        await page.getByLabel('Label', { exact: true }).fill('Spare terminal');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        await expect(records.getByRole('group', { name: 'Spare terminal', exact: true })).toBeVisible();
+        await expectNoHorizontalViewportOverflow(page);
+        await page.getByRole('button', { name: 'Publish draft', exact: true }).click();
+        await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
+        await page.goto(capturedUrl);
+        const receipts = page.getByRole('region', { name: 'Receipts', exact: true });
+        await expect(receipts.getByText('Terminal 1', { exact: true })).toBeVisible();
+        await expect(receipts.getByText('Terminal 2', { exact: true })).toBeVisible();
+        await expect(receipts.getByText('Inside terminal', { exact: true })).toHaveCount(0);
+        await expect(receipts.getByText('Spare terminal', { exact: true })).toHaveCount(0);
+    });
+
     test('retains a dirty editor across another tab saving and supports explicit discard', async ({ page, context, daysheet }) => {
         await openDaysheet(page, daysheet);
         await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();

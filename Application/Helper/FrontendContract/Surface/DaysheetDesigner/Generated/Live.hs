@@ -7,10 +7,12 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , designerIndexLiveFragment
     , designerListEditorLiveFragment
     , designerLiveScope
+    , designerReferenceEditorLiveFragment
     , matchDesignerFieldEditorLiveFragment
     , matchDesignerIndexLiveFragment
     , matchDesignerListEditorLiveFragment
     , matchDesignerLiveScope
+    , matchDesignerReferenceEditorLiveFragment
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Types1
@@ -94,3 +96,24 @@ matchDesignerLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.DaysheetDesignerAdapterFamily)
         @Types1.DesignerScope
+
+designerReferenceEditorLiveFragment ::
+    UUID.UUID ->
+    UUID.UUID ->
+    UUID.UUID ->
+    SurfaceFragmentKey
+designerReferenceEditorLiveFragment definitionListId referenceRecordId definitionFieldId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetDesignerAdapterFamily)
+        @Types1.DesignerReferenceEditor
+        ( surfaceField @Types1.DefinitionListId definitionListId
+            &: surfaceField @Types1.ReferenceRecordId referenceRecordId
+            &: surfaceField @Types1.DefinitionFieldId definitionFieldId
+            &: noSurfaceFields
+        )
+
+matchDesignerReferenceEditorLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (UUID.UUID, (UUID.UUID, ())))
+matchDesignerReferenceEditorLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetDesignerAdapterFamily)
+        @Types1.DesignerReferenceEditor

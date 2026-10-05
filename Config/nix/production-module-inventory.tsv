@@ -35,6 +35,7 @@ Application/Daysheet/DefinitionCodec.hs	production	runtime	Main	Reachable from M
 Application/Daysheet/Designer.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer/Controls.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Designer/Mutations.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Designer/ReferenceEntry.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EmailContract.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Entry.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/EntryLayout.hs	production	runtime	Main	Reachable from Main

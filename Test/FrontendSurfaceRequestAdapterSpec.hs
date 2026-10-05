@@ -354,16 +354,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 108
+        length actionDeclarations `shouldBe` 111
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 103
+        length generatedActionOperations `shouldBe` 106
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 103
+            `shouldBe` 106
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 103
+            `shouldBe` 106
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 67
+            `shouldBe` 70
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)

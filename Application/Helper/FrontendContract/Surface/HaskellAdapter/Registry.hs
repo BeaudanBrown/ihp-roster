@@ -108,6 +108,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerIndex
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerFieldEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceEditor
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
@@ -281,6 +282,9 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerField allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerList allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.PublishDesignerDraft allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.AddDesignerReference allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerReferenceValue allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RetireDesignerReference allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ViewDaysheetDate allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetDesigner
         (requestAdapterOperationsWithoutParser "Navigation to the admin designer has no request payload; its controller rechecks venue-admin authority")

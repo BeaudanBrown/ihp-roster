@@ -88,6 +88,21 @@ tests = aroundAll withDatabaseTestContext do
                 unchanged <- fetch old.id
                 unchanged.referenceData `shouldBe` old.referenceData
 
+        it "requires explicit retirement before removing or repurposing a populated reference list" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Reference lifecycle"
+                user <- createUserRecord "daysheet-reference-lifecycle@example.test" "admin" True
+                member <- createVenueMembershipRecord venue user VenueOwner
+                let definition = D.Definition 2 [] [D.RecordList Fixture.areaList "Areas" D.VenueReference []] [] []
+                    references = ReferenceData [ReferenceList Fixture.areaList [ReferenceRecord Fixture.areaA False []]]
+                Right _ <- saveDraft member 0 Nothing definition references
+                errorSuffix <$> editDraft member 0 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "reference-removal-requires-retirement"
+                errorSuffix <$> editDraft member 0 (Just 0) (Designer.ChangeList Fixture.areaList "Daily areas" D.OpenDaily) `shouldReturn` Just "reference-removal-requires-retirement"
+                Right _ <- editDraftReferences member 0 (Just 0) (RetireReferenceRecord (ReferenceKey Fixture.areaList Fixture.areaA) [])
+                Right _ <- editDraft member 0 (Just 1) (Designer.RemoveList Fixture.areaList)
+                Right _ <- publishDraft member 0 2
+                pure ()
+
         it "publishes staged corrections only for future captures" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"

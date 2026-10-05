@@ -103,6 +103,13 @@ editDraft member expectedBase expectedDraft edit = withAuthority member [VenueAd
     state <- designerState member
     checkDesignerRevision expectedBase expectedDraft state
     changed <- checked InvalidDefinitionDocument (Designer.applyEdit edit state.designerDefinition)
+    let ReferenceData lists = state.designerReferences
+        retiringList = case edit of
+            Designer.RemoveList key -> Just key
+            Designer.ChangeList key _ mode | mode /= D.VenueReference -> Just key
+            _ -> Nothing
+    forM_ retiringList \key -> when (any (\list -> referenceListId list == key && any (not . referenceRetired) (referenceRecords list)) lists)
+        (failure ReferenceRemovalRequiresRetirement)
     saveDraftLocked member expectedBase expectedDraft changed state.designerReferences
 
 editDraftReferences :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> ReferenceEdit -> IO (AppResult DaysheetDefinitionDraft)

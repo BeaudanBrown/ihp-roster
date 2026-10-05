@@ -3,6 +3,7 @@ module Test.Controller.DaysheetDesignerSpec where
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.DefinitionCodec (decodeDefinition)
 import qualified Application.Daysheet.Storage as Storage
+import qualified Application.Daysheet.Evaluation as E
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Data.Data (toConstr)
@@ -93,6 +94,36 @@ tests = aroundAll withDatabaseTestContext do
                 unchanged <- fetch version.id
                 decodeDefinition unchanged.definition `shouldBe` Right Fixture.definition
 
+        it "stages reference edits and retirement without rewriting an existing capture" $ withContext do
+            withCleanDb do
+                (venue, user, member) <- setup
+                Right _ <- Storage.saveDraft member 0 Nothing Fixture.definition Fixture.references
+                Right _ <- Storage.publishDraft member 0 0
+                Right captured <- Storage.captureDefinition member (fromGregorian 2026 10 1)
+                let D.ListId source = Fixture.list 10
+                    D.FieldId field = Fixture.field 9
+                    E.RowId row = Fixture.row 1
+                    E.RowId retired = Fixture.row 2
+                    params key = [("expectedBase", "1"), ("definitionListId", cs (tshow source)), ("referenceRecordId", cs (tshow key)), ("definitionFieldId", cs (tshow field)), ("enteredValue", "Renamed terminal")]
+                form <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams (ShowDesignerReferenceAction source row field) []
+                form `responseStatusShouldBe` status200
+                form `responseBodyShouldContain` "Preserved terminal"
+                denied <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $
+                    callActionWithParams SaveDesignerReferenceValueAction (params retired)
+                lookup "X-Bepis-Form-Saved" (responseHeaders denied) `shouldBe` Nothing
+                query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
+                saved <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $
+                    callActionWithParams SaveDesignerReferenceValueAction (params row)
+                lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
+                retirement <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $
+                    callActionWithParams RetireDesignerReferenceAction [("expectedBase", "1"), ("expectedDraft", "0"), ("definitionListId", cs (tshow source)), ("referenceRecordId", cs (tshow row))]
+                lookup "X-Bepis-Form-Saved" (responseHeaders retirement) `shouldBe` Just "true"
+                Right _ <- Storage.publishDraft member 1 1
+                Right fresh <- Storage.captureDefinition member (fromGregorian 2026 10 2)
+                fresh.referenceData `shouldNotBe` captured.referenceData
+                unchanged <- fetch captured.id
+                unchanged.referenceData `shouldBe` captured.referenceData
+
         it "denies managers and workers on pages, fragments and direct mutations" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
@@ -104,6 +135,9 @@ tests = aroundAll withDatabaseTestContext do
                     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                         callActionWithParams SaveDesignerFieldAction [("expectedBase", "0"), ("label", "Forged"), ("valueKind", "text")]
                     responseStatus response `shouldSatisfy` (/= status200)
+                    reference <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                        callActionWithParams AddDesignerReferenceAction [("expectedBase", "0"), ("definitionListId", cs (tshow UUID.nil))]
+                    responseStatus reference `shouldSatisfy` (/= status200)
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects malformed IDs, unknown control kinds and GET mutations" $ withContext do

@@ -3,6 +3,10 @@ module Web.Controller.DaysheetDesigner where
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Designer as Designer
 import Application.Daysheet.Designer.Controls
+import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
+import qualified Application.Daysheet.Evaluation as E
+import Application.Daysheet.References
+import qualified Application.Daysheet.References as References (referenceRecordId)
 import qualified Application.Daysheet.Designer.Mutations as Mutations
 import qualified Application.Daysheet.Storage as Storage
 import Application.Error.Types
@@ -36,6 +40,51 @@ instance Controller DaysheetDesignerController where
     action current@ShowDesignerFieldBodyAction { definitionFieldId, containerId } = runBepis current BepisFragmentAction (showField True definitionFieldId containerId)
     action current@ShowDesignerListAction { definitionListId } = runBepis current BepisPageAction (showList False definitionListId)
     action current@ShowDesignerListBodyAction { definitionListId } = runBepis current BepisFragmentAction (showList True definitionListId)
+
+    action current@ShowDesignerReferenceAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisPageAction (showReference False referenceSourceId referenceRecordId referenceFieldId)
+    action current@ShowDesignerReferenceBodyAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisFragmentAction (showReference True referenceSourceId referenceRecordId referenceFieldId)
+
+    action current@AddDesignerReferenceAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseAddDesignerReferenceActionParams
+        row <- E.RowId <$> UUIDv4.nextRandom
+        result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (AddReferenceRecord (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)) row)
+        finish member state DesignerIndexPage result
+
+    action current@RetireDesignerReferenceAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRetireDesignerReferenceActionParams
+        result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (RetireReferenceRecord (ReferenceKey (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)) (E.RowId (surfaceFieldValue @Surface.ReferenceRecordId fields))) [])
+        finish member state DesignerIndexPage result
+
+    action current@SaveDesignerReferenceValueAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerReferenceValueActionParams
+        let source = D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)
+            row = E.RowId (surfaceFieldValue @Surface.ReferenceRecordId fields)
+            field = D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
+            raw = fromMaybe "" (surfaceFieldValue @Surface.EnteredValue fields)
+            declared = find ((== source) . D.listId) (D.recordLists state.designerDefinition) >>= find ((== field) . D.fieldId) . D.listFields
+            parsed = if raw == "" then Right Nothing else case declared of
+                Nothing -> Left "This field no longer exists. Clear its obsolete value or discard this edit."
+                Just entry -> parseReferenceEntry (D.fieldType entry) raw
+            page = DesignerReferencePage fields
+        case parsed of
+            Left message -> failurePage member state page message
+            Right value -> do
+                result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+                    (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) (SetReferenceValue (ReferenceKey source row) field value)
+                finish member state page result
 
     action current@SaveDesignerFieldAction = runBepis current BepisMutationAction do
         ensureWrite
@@ -163,6 +212,23 @@ showList fragment rawKey = do
         fields = Action.saveDesignerListActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision)
             key (maybe "" D.listLabel source) (listKind mode) reference
     display fragment member state (DesignerListPage fields) Nothing
+
+showReference :: DesignerRequest => Bool -> UUID -> UUID -> UUID -> IO ResponseReceived
+showReference fragment sourceId rowId fieldId = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    source <- findList state.designerDefinition (D.ListId sourceId)
+    unless (D.listMode source == D.VenueReference) (deny status404 "This is not a venue reference list.")
+    _ <- maybe (deny status404 "This reference field is not editable.") pure
+        (find (\field -> D.fieldId field == D.FieldId fieldId && D.fieldSource field == D.Entered) (D.listFields source))
+    let ReferenceData lists = state.designerReferences
+    row <- case [row | list <- lists, referenceListId list == D.ListId sourceId, row <- referenceRecords list, References.referenceRecordId row == E.RowId rowId, not (referenceRetired row)] of
+        [value] -> pure value
+        _ -> deny status404 "This reference record is no longer active."
+    let fields = Action.saveDesignerReferenceValueActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision)
+            sourceId rowId fieldId (referenceEntryText <$> lookup (D.FieldId fieldId) (referenceValues row))
+    display fragment member state (DesignerReferencePage fields) Nothing
 
 findField :: DesignerRequest => D.Definition -> D.FieldId -> IO D.Field
 findField definition key = maybe (deny status404 "This field no longer exists in the draft.") pure

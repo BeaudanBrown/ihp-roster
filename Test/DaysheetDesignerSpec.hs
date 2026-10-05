@@ -3,6 +3,9 @@ module Test.DaysheetDesignerSpec (tests) where
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Designer
+import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
+import Application.Daysheet.References (ReferenceValue (..))
+import qualified Application.Daysheet.Number as Number
 import Application.Daysheet.Validation (validateDefinition)
 import Data.Either (isLeft)
 import Data.List (find)
@@ -26,6 +29,25 @@ calculated = Fixture.definition
 
 tests :: Spec
 tests = describe "Daysheet designer edits" do
+    it "parses reference inputs by the saved type with exact percentages and money" do
+        Right (Just (ReferenceScalar (PercentageLiteral rate))) <- pure (parseReferenceEntry PercentageType "1.6")
+        Number.fraction rate `shouldBe` (2, 125)
+        Right (Just (ReferenceScalar (MoneyLiteral amount))) <- pure (parseReferenceEntry MoneyType "12.34")
+        Number.fraction amount `shouldBe` (617, 50)
+        parseReferenceEntry WholeType "1.5" `shouldSatisfy` isLeft
+        parseReferenceEntry MoneyType "12.345" `shouldSatisfy` isLeft
+        parseReferenceEntry DecimalType "1e10" `shouldSatisfy` isLeft
+        parseReferenceEntry DecimalType "=1+2" `shouldSatisfy` isLeft
+
+    it "distinguishes reference blanks and explicit false and rejects invalid dates and controls" do
+        parseReferenceEntry TextType "" `shouldBe` Right Nothing
+        parseReferenceEntry BooleanType "false" `shouldBe` Right (Just (ReferenceScalar (BooleanLiteral False)))
+        parseReferenceEntry BooleanType "0" `shouldSatisfy` isLeft
+        parseReferenceEntry DateType "2026-02-30" `shouldSatisfy` isLeft
+        parseReferenceEntry OperationalTimeType "24:00" `shouldSatisfy` isLeft
+        parseReferenceEntry TextType "bad\NULvalue" `shouldSatisfy` isLeft
+        parseReferenceEntry (ReferenceType (Fixture.list 10)) "not-a-record" `shouldSatisfy` isLeft
+
     it "renames and reorders fields without changing identities or the source definition" do
         Right renamed <- pure (applyEdit (ChangeField (Fixture.field 1) "Closing notes" TextType Entered) Fixture.definition)
         Right reordered <- pure (applyEdit (MoveField (Fixture.field 1) 2) renamed)
