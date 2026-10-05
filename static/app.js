@@ -2672,6 +2672,23 @@
     };
   }
 
+  // frontend/ts/shared/request-completion.ts
+  var scopes = /* @__PURE__ */ new WeakMap();
+  function beginRequestCompletion(target) {
+    const work = /* @__PURE__ */ new Set();
+    scopes.set(target, work);
+    return async () => {
+      while (work.size > 0) await Promise.allSettled([...work]);
+      if (scopes.get(target) === work) scopes.delete(target);
+    };
+  }
+  function trackRequestCompletion(target, completion) {
+    const work = target === null ? void 0 : scopes.get(target);
+    if (!work) return;
+    work.add(completion);
+    void completion.then(() => work.delete(completion), () => work.delete(completion));
+  }
+
   // frontend/ts/live-updates/invalidation.ts
   function createLiveUpdateInvalidationRuntime(options) {
     const { activeSubscriptions, refresher, diagnostics } = options;
@@ -2690,11 +2707,11 @@
       }
     };
     function requestFragments(fragments, origin, version) {
-      fragments.forEach((fragment) => refresher.request({
+      return Promise.all(fragments.map((fragment) => refresher.request({
         ...fragment,
         requestOrigin: origin,
         ...version === null ? {} : { requestVersion: version }
-      }));
+      }))).then(() => void 0);
     }
     function handleSubscribedMessage(message) {
       const scopeKey = liveUpdateMessageScopeKey(message);
@@ -2758,16 +2775,18 @@
       if (!actorDetail) return;
       try {
         const detail = parseLiveFragmentsRefreshEventDetail(actorDetail);
-        requestFragments(
-          resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
-          "actor",
-          detail.version
-        );
-        requestFragments(
-          resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
-          "actor",
-          null
-        );
+        trackRequestCompletion(event.target, Promise.all([
+          requestFragments(
+            resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
+            "actor",
+            detail.version
+          ),
+          requestFragments(
+            resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
+            "actor",
+            null
+          )
+        ]).then(() => void 0));
       } catch {
         return;
       }
@@ -3058,7 +3077,8 @@
         pendingFocused: /* @__PURE__ */ new Map(),
         pendingInteraction: /* @__PURE__ */ new Map(),
         pendingInteractionTimers: /* @__PURE__ */ new Map(),
-        satisfiedVersions: /* @__PURE__ */ new Map()
+        satisfiedVersions: /* @__PURE__ */ new Map(),
+        settled: /* @__PURE__ */ new Map()
       });
     }
     function resolveOwnedTarget(fragment) {
@@ -3076,6 +3096,11 @@
       state.pendingInteractionTimers.delete(targetId);
       state.pendingInteraction.delete(targetId);
     }
+    function settleIdleTarget(state, targetId) {
+      if (state.inFlight.has(targetId) || state.pendingFocused.has(targetId) || state.pendingInteraction.has(targetId)) return;
+      state.settled.get(targetId)?.forEach((resolve) => resolve());
+      state.settled.delete(targetId);
+    }
     function disposeState(state) {
       if (!state.active) return;
       state.active = false;
@@ -3085,6 +3110,8 @@
       state.pendingFocused.clear();
       state.inFlight.forEach((slot) => slot.controller.abort());
       state.inFlight.clear();
+      state.settled.forEach((waiters) => waiters.forEach((resolve) => resolve()));
+      state.settled.clear();
     }
     function disposeOwner(ownerEl) {
       const state = ownerStates.get(ownerEl);
@@ -3321,6 +3348,7 @@
           nextVersion: next ? requestVersion(next) : null
         });
         if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
+        settleIdleTarget(state, fragment.targetId);
       });
     }
     function flushInteractionDeferredFragment(state, targetId, reason) {
@@ -3329,6 +3357,7 @@
       clearInteractionDeferredFragment(state, targetId);
       emitDebugEvent("deferred_fragment_flush", { targetId, reason });
       queueFragment(fragment);
+      settleIdleTarget(state, targetId);
     }
     function scheduleInteractionFallback(state, fragment, timeoutMs) {
       const existing = state.pendingInteractionTimers.get(fragment.targetId);
@@ -3373,6 +3402,17 @@
       return fragment.protection.kind === "dirty-form" && forms.protectedTarget(target, fragment.ownerEl);
     }
     function request(fragment) {
+      requestNow(fragment);
+      const state = ownerStates.get(fragment.ownerEl);
+      if (!state?.active) return Promise.resolve();
+      return new Promise((resolve) => {
+        const waiters = state.settled.get(fragment.targetId) ?? /* @__PURE__ */ new Set();
+        waiters.add(resolve);
+        state.settled.set(fragment.targetId, waiters);
+        settleIdleTarget(state, fragment.targetId);
+      });
+    }
+    function requestNow(fragment) {
       if (!fragment.targetId || !fragment.url || stopped) return;
       const state = ownerStates.get(fragment.ownerEl);
       if (!state?.active) return;
@@ -3417,6 +3457,7 @@
             state.pendingFocused.delete(targetId);
             emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
             queueFragment(fragment);
+            settleIdleTarget(state, targetId);
           }
         });
       });
@@ -6102,17 +6143,31 @@
       if (config === null) return;
       const dialog = showLoadingDialog(config);
       if (dialog === null) return;
+      const complete = beginRequestCompletion(form);
+      let finishing = false;
       const finish = () => {
-        if (pendingRequest?.xhr !== xhr) return;
-        pendingRequest = null;
+        if (finishing || pendingRequest?.xhr !== xhr) return;
+        finishing = true;
         xhr.removeEventListener("loadend", finish);
-        if (getMount()?.contains(dialog)) clearDialog(dialog);
+        void complete().then(() => {
+          if (pendingRequest?.xhr !== xhr) return;
+          pendingRequest = null;
+          if (getMount()?.contains(dialog)) clearDialog(dialog);
+        });
       };
       pendingRequest = { xhr, dialog, finish };
       xhr.addEventListener("loadend", finish, { once: true });
     });
     document.addEventListener("htmx:afterRequest", function(event) {
       if (pendingRequest !== null && detailTarget(event, "xhr") === pendingRequest.xhr) pendingRequest.finish();
+    });
+    document.addEventListener("htmx:oobBeforeSwap", function(event) {
+      const mount = getMount();
+      const fragment = detailTarget(event, "fragment");
+      if (pendingRequest === null || !mount?.contains(pendingRequest.dialog) || detailTarget(event, "target") !== mount) return;
+      if (fragment instanceof HTMLElement && fragment.id === mountId && fragment.childElementCount === 0 && fragment.textContent?.trim() === "") {
+        event.preventDefault();
+      }
     });
     document.addEventListener("htmx:beforeOnLoad", function(event) {
       const activeDialog = getActiveDialog();

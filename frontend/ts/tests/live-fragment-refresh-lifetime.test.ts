@@ -755,6 +755,45 @@ test("live refresher stop fences delayed bodies, queued work, reload, and repeat
     }
 });
 
+test("refresh completion waits through response body and DOM processing, and disposal releases waiters", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        void fixture.refresher.request({ ...mounted.fragment, requestVersion: 10, requestOrigin: "passive" });
+        let completed = false;
+        const completion = fixture.refresher.request({ ...mounted.fragment, requestVersion: 10, requestOrigin: "actor" }).then(() => { completed = true; });
+        const control = fixture.controls[0]!;
+        control.fetch.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => control.body.promise } as unknown as Response);
+        await settle();
+        assertEqual(completed, false);
+        control.body.resolve('<section id="shared-fragment">updated</section>');
+        await completion;
+        assertEqual(fixture.effects().processed, 1);
+        assertEqual(fixture.effects().pageReady, 1);
+        const disposed = fixture.refresher.request({ ...mounted.fragment, requestVersion: 11 });
+        fixture.refresher.disposeOwner(mounted.fragment.ownerEl);
+        await disposed;
+        assertEqual(fixture.controls[1]!.signal?.aborted, true);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("refresh completion releases on fetch failure without claiming a render", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        const completion = fixture.refresher.request(mounted.fragment);
+        fixture.controls[0]!.fetch.reject(new Error("network unavailable"));
+        await completion;
+        assertEqual(fixture.effects().processed, 0);
+    } finally {
+        fixture.restore();
+    }
+});
+
 test("actor and passive evidence for one version share one successful mounted request", async () => {
     const fixture = installRefreshFixture();
     try {

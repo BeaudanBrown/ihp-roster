@@ -1,5 +1,6 @@
 import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type FrontendSurfaceMountedFragmentConfig, type SurfaceScope } from "../generated/contracts";
 import { createFocusedFieldProtection } from "../live-updates/focus";
+import { beginRequestCompletion, trackRequestCompletion } from "../shared/request-completion";
 import { createLiveUpdateConnection } from "../live-updates/connection";
 import { createLiveUpdateInvalidationRuntime, type LiveUpdateVersionStore } from "../live-updates/invalidation";
 import type { FrontendSurfaceMountedInstance } from "../live-updates/mount";
@@ -17,6 +18,34 @@ import {
     serverPayloadFromHtmxTriggeredEvent,
 } from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
+
+test("request completion waits only for its actor work and preserves a newer request scope", async () => {
+    const source = new EventTarget();
+    const other = new EventTarget();
+    const finish = beginRequestCompletion(source);
+    let release!: () => void;
+    trackRequestCompletion(source, new Promise<void>(resolve => { release = resolve; }));
+    let completed = false;
+    const completion = finish().then(() => { completed = true; });
+    await beginRequestCompletion(other)();
+    assertEqual(completed, false);
+    const finishNext = beginRequestCompletion(source);
+    release();
+    await completion;
+    // Finishing the old request must not delete the new request's scope.
+    let releaseNext!: () => void;
+    trackRequestCompletion(source, new Promise<void>(resolve => { releaseNext = resolve; }));
+    let nextCompleted = false;
+    const next = finishNext().then(() => { nextCompleted = true; });
+    await Promise.resolve();
+    assertEqual(nextCompleted, false);
+    releaseNext();
+    await next;
+    assertEqual(nextCompleted, true);
+    const finishFailed = beginRequestCompletion(source);
+    trackRequestCompletion(source, Promise.reject(new Error("refresh failed")));
+    await finishFailed();
+});
 
 test("fragment replacement preserves native keyed focus and viewport position without restoring stale values", () => {
     const originalElement = globalThis.HTMLElement;
@@ -109,7 +138,7 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
         markProtectionChanged: () => undefined,
         formChanged: () => undefined,
         handleFormEvent: () => undefined,
-        request: (candidate) => { requested.push(candidate); },
+        request: async (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,
         stop: () => undefined,
@@ -177,7 +206,7 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
         markProtectionChanged: () => undefined,
         formChanged: () => undefined,
         handleFormEvent: () => undefined,
-        request: (candidate) => { requested.push(candidate); },
+        request: async (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,
         stop: () => undefined,

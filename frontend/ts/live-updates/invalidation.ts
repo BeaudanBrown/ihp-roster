@@ -7,6 +7,7 @@ import {
     serverPayloadFromHtmxTriggeredEvent,
 } from "./protocol";
 import type { LiveFragmentRefresher } from "./refresh";
+import { trackRequestCompletion } from "../shared/request-completion";
 import { assertNever } from "../shared/exhaustive";
 import type { LiveUpdateFragmentWithState, LiveUpdateRequestOrigin, SurfaceSubscription } from "./runtime-types";
 
@@ -50,12 +51,12 @@ export function createLiveUpdateInvalidationRuntime(options: {
         fragments: LiveUpdateFragmentWithState[],
         origin: LiveUpdateRequestOrigin,
         version: number | null,
-    ): void {
-        fragments.forEach((fragment) => refresher.request({
+    ): Promise<void> {
+        return Promise.all(fragments.map((fragment) => refresher.request({
             ...fragment,
             requestOrigin: origin,
             ...(version === null ? {} : { requestVersion: version }),
-        }));
+        }))).then(() => undefined);
     }
 
     function handleSubscribedMessage(message: Extract<LiveUpdateMessage, { type: "subscribed" }>): void {
@@ -128,16 +129,18 @@ export function createLiveUpdateInvalidationRuntime(options: {
 
         try {
             const detail = parseLiveFragmentsRefreshEventDetail(actorDetail);
-            requestFragments(
-                resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
-                "actor",
-                detail.version,
-            );
-            requestFragments(
-                resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
-                "actor",
-                null,
-            );
+            trackRequestCompletion(event.target, Promise.all([
+                requestFragments(
+                    resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
+                    "actor",
+                    detail.version,
+                ),
+                requestFragments(
+                    resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
+                    "actor",
+                    null,
+                ),
+            ]).then(() => undefined));
         } catch {
             return;
         }

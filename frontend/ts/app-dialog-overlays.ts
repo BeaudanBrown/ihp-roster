@@ -27,6 +27,7 @@ import { createUnsavedChangeTracker, normalizedFormSnapshot, validateDismissalGu
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
 import { setPageOverlay } from "./shared/page-overlay";
+import { beginRequestCompletion } from "./shared/request-completion";
 
 const dialogMountSelector = `[${dialogMountDomAttr}]`;
 const dialogKeyboardSelector = `[${dialogKeyboardDomAttr}]`;
@@ -662,13 +663,18 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (config === null) return;
         const dialog = showLoadingDialog(config);
         if (dialog === null) return;
+        const complete = beginRequestCompletion(form);
+        let finishing = false;
         const finish = (): void => {
-            if (pendingRequest?.xhr !== xhr) return;
-            pendingRequest = null;
+            if (finishing || pendingRequest?.xhr !== xhr) return;
+            finishing = true;
             xhr.removeEventListener("loadend", finish);
-            // A response may replace the spinner with an editor/error dialog.
-            // Never dismiss that new server-owned dialog.
-            if (getMount()?.contains(dialog)) clearDialog(dialog);
+            void complete().then(() => {
+                if (pendingRequest?.xhr !== xhr) return;
+                pendingRequest = null;
+                // Preserve a new server-owned editor/error dialog.
+                if (getMount()?.contains(dialog)) clearDialog(dialog);
+            });
         };
         pendingRequest = { xhr, dialog, finish };
         xhr.addEventListener("loadend", finish, { once: true });
@@ -676,6 +682,17 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
     document.addEventListener("htmx:afterRequest", function (event) {
         if (pendingRequest !== null && detailTarget(event, "xhr") === pendingRequest.xhr) pendingRequest.finish();
+    });
+
+    document.addEventListener("htmx:oobBeforeSwap", function (event) {
+        const mount = getMount();
+        const fragment = detailTarget(event, "fragment");
+        if (pendingRequest === null || !mount?.contains(pendingRequest.dialog) || detailTarget(event, "target") !== mount) return;
+        // A save's empty dialog-clear response must not remove its loading
+        // barrier while the associated actor refresh is still rendering.
+        if (fragment instanceof HTMLElement && fragment.id === mountId && fragment.childElementCount === 0 && fragment.textContent?.trim() === "") {
+            event.preventDefault();
+        }
     });
 
     document.addEventListener("htmx:beforeOnLoad", function (event) {

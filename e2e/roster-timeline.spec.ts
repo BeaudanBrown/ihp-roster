@@ -492,16 +492,25 @@ test('offers responsive and explicit vertical orientation with stable live scrol
     }
 });
 
-for (const outcome of ['success', 'http-error', 'network-error'] as const) {
+for (const outcome of ['success', 'http-error', 'network-error', 'refresh-error'] as const) {
     test(`blocks actions while a drop is saving and unlocks after ${outcome}`, async ({ page }) => {
         await openCanonicalTimeline(page, 'vertical');
         let release!: () => void;
         const pending = new Promise<void>(resolve => { release = resolve; });
+        let releaseRefresh!: () => void;
+        const refreshPending = new Promise<void>(resolve => { releaseRefresh = resolve; });
+        let refreshRequests = 0;
+        await page.route('**/ShowRosterDayTimelineContentFragment?*', async route => {
+            refreshRequests++;
+            await refreshPending;
+            if (outcome === 'refresh-error') await route.fulfill({ status: 503, body: '' });
+            else await route.continue();
+        });
         let requests = 0;
         await page.route('**/MoveRosterTimelineShift?*', async route => {
             requests++;
             await pending;
-            if (outcome === 'success') await route.continue();
+            if (outcome === 'success' || outcome === 'refresh-error') await route.continue();
             else if (outcome === 'http-error') await route.fulfill({ status: 500, body: '' });
             else await route.abort('failed');
         });
@@ -532,6 +541,29 @@ for (const outcome of ['success', 'http-error', 'network-error'] as const) {
             await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
             expect(requests).toBe(1);
             release();
+            if (outcome === 'success' || outcome === 'refresh-error') {
+                // The POST has fully finished, but its separately fetched roster
+                // is deliberately still stale. This is the physical-device gap.
+                await expect.poll(() => refreshRequests).toBeGreaterThan(0);
+                await expect(page.locator('form[action*="/MoveRosterTimelineShift"]')).not.toHaveClass(/htmx-request/);
+                await expect(source).toHaveAttribute('aria-label', /09:00–17:00/);
+                await expect(loading).toBeVisible();
+                // Empty clears from concurrent responses cannot remove this
+                // request's disposable barrier either. HTMX OOB events carry
+                // target/fragment, not the initiating XHR.
+                expect(await loading.evaluate(dialog => {
+                    const mount = dialog.parentElement!;
+                    const event = new CustomEvent('htmx:oobBeforeSwap', {
+                        bubbles: true, cancelable: true,
+                        detail: { target: mount, fragment: mount.cloneNode(false) },
+                    });
+                    mount.dispatchEvent(event);
+                    return event.defaultPrevented;
+                })).toBe(true);
+                await page.keyboard.press('Escape');
+                await expect(loading).toBeVisible();
+            }
+            releaseRefresh();
             await expect(loading).toHaveCount(0);
             if (outcome === 'success') await expect(source).toHaveAttribute('aria-label', /09:15–17:15/);
             else await expect(source).toHaveAttribute('aria-label', /09:00–17:00/);
@@ -540,6 +572,7 @@ for (const outcome of ['success', 'http-error', 'network-error'] as const) {
             expect(requests).toBe(1);
         } finally {
             release();
+            releaseRefresh();
             await page.unrouteAll({ behavior: 'wait' });
             resetTimelineShiftInterval();
         }

@@ -134,7 +134,17 @@ and message. The generated `RequestLoading` DOM marker carries the shared
 `NavigationLoadingConfig` copy shape. The generic dialog runtime shows a
 non-dismissible, focus-contained loading modal on HTMX `beforeSend`, after
 validation/cancellation has allowed the request. It blocks repeat marked
-requests and releases on completion, HTTP/network error, timeout, or abort;
+requests and releases after the save and its associated actor fragment refreshes
+have settled, including DOM replacement/processing. Empty out-of-band dialog
+clears cannot dismiss the currently owned loading barrier early, even if a
+concurrent response supplies the clear. This protection applies only while that
+exact disposable loading dialog still occupies the mount; it never suppresses a
+new server-rendered dialog or protects a replacement dialog from its own clear.
+Follow-up
+work is scoped to the exact initiating element/request, not global network idle.
+Coalesced refreshes, queued demand and protected deferral retain completion;
+refresh failure or owner disposal releases it without claiming a successful
+render. HTTP/network errors, timeout and abort still release the save lifetime;
 XHR `loadend` remains a fallback when the original form is detached. A new
 server-rendered response dialog is never cleared with the old loading modal.
 Roster shift moves, copies, staff drops and timeline moves opt in; layout

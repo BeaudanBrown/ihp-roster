@@ -13,7 +13,7 @@ export type LiveFragmentRefresher = {
     markProtectionChanged(target: Element): void;
     formChanged(target: Element): void;
     handleFormEvent(event: Event): void;
-    request(fragment: LiveUpdateFragmentWithState): void;
+    request(fragment: LiveUpdateFragmentWithState): Promise<void>;
     flushInteractionDeferredFragmentsWithoutActiveSessions(): void;
     flushFocusedFragmentsWithoutActiveInputs(): void;
     stop(): void;
@@ -40,6 +40,7 @@ type OwnerRefreshState = {
     pendingInteraction: Map<string, LiveUpdateFragmentWithState>;
     pendingInteractionTimers: Map<string, ReturnType<Window["setTimeout"]>>;
     satisfiedVersions: Map<string, number>;
+    settled: Map<string, Set<() => void>>;
 };
 
 export function createLiveFragmentRefresher(options: {
@@ -80,6 +81,7 @@ export function createLiveFragmentRefresher(options: {
             pendingInteraction: new Map(),
             pendingInteractionTimers: new Map(),
             satisfiedVersions: new Map(),
+            settled: new Map(),
         });
     }
 
@@ -107,6 +109,12 @@ export function createLiveFragmentRefresher(options: {
         state.pendingInteraction.delete(targetId);
     }
 
+    function settleIdleTarget(state: OwnerRefreshState, targetId: string): void {
+        if (state.inFlight.has(targetId) || state.pendingFocused.has(targetId) || state.pendingInteraction.has(targetId)) return;
+        state.settled.get(targetId)?.forEach(resolve => resolve());
+        state.settled.delete(targetId);
+    }
+
     function disposeState(state: OwnerRefreshState): void {
         if (!state.active) return;
         state.active = false;
@@ -116,6 +124,8 @@ export function createLiveFragmentRefresher(options: {
         state.pendingFocused.clear();
         state.inFlight.forEach((slot) => slot.controller.abort());
         state.inFlight.clear();
+        state.settled.forEach(waiters => waiters.forEach(resolve => resolve()));
+        state.settled.clear();
     }
 
     function disposeOwner(ownerEl: HTMLElement): void {
@@ -379,6 +389,7 @@ export function createLiveFragmentRefresher(options: {
                     nextVersion: next ? requestVersion(next) : null,
                 });
                 if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
+                settleIdleTarget(state, fragment.targetId);
             });
     }
 
@@ -388,6 +399,7 @@ export function createLiveFragmentRefresher(options: {
         clearInteractionDeferredFragment(state, targetId);
         emitDebugEvent("deferred_fragment_flush", { targetId, reason });
         queueFragment(fragment);
+        settleIdleTarget(state, targetId);
     }
 
     function scheduleInteractionFallback(state: OwnerRefreshState, fragment: LiveUpdateFragmentWithState, timeoutMs: number | null): void {
@@ -443,7 +455,19 @@ export function createLiveFragmentRefresher(options: {
         return fragment.protection.kind === "dirty-form" && forms.protectedTarget(target, fragment.ownerEl);
     }
 
-    function request(fragment: LiveUpdateFragmentWithState): void {
+    function request(fragment: LiveUpdateFragmentWithState): Promise<void> {
+        requestNow(fragment);
+        const state = ownerStates.get(fragment.ownerEl);
+        if (!state?.active) return Promise.resolve();
+        return new Promise(resolve => {
+            const waiters = state.settled.get(fragment.targetId) ?? new Set<() => void>();
+            waiters.add(resolve);
+            state.settled.set(fragment.targetId, waiters);
+            settleIdleTarget(state, fragment.targetId);
+        });
+    }
+
+    function requestNow(fragment: LiveUpdateFragmentWithState): void {
         if (!fragment.targetId || !fragment.url || stopped) return;
         const state = ownerStates.get(fragment.ownerEl);
         if (!state?.active) return;
@@ -491,6 +515,7 @@ export function createLiveFragmentRefresher(options: {
                     state.pendingFocused.delete(targetId);
                     emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
                     queueFragment(fragment);
+                    settleIdleTarget(state, targetId);
                 }
             });
         });
