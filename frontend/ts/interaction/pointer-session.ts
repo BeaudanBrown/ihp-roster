@@ -348,7 +348,9 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             if (activeSession.activated && event.cancelable) event.preventDefault();
         },
         handleContextMenu(event: Event) {
-            if (activeSession?.pointerType === "touch" && activeSession.activated && event.cancelable) event.preventDefault();
+            // Native long-press thresholds vary by browser/device and can beat
+            // the app's activation timer. Reserve the gesture while pending too.
+            if (activeSession?.pointerType === "touch" && event.cancelable) event.preventDefault();
         },
         handleKeyDown(event: Event) {
             if (!activeSession) return;

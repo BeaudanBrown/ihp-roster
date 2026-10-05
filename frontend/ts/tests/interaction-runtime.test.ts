@@ -831,6 +831,39 @@ test("long-press opt-in preserves taps/swipes and activates only a held touch", 
     controller.stop();
 });
 
+test("native context menus cannot interrupt a pending opted-in touch hold", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "450" }));
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    try {
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+        const contextMenu = eventWithTarget("contextmenu", marker);
+        controller.handleContextMenu(contextMenu);
+        assertEqual(contextMenu.defaultPrevented, true);
+    } finally {
+        controller.stop();
+    }
+});
+
+test("context menus remain native without a touch drag and after cancellation", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "450" }));
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    const menu = () => {
+        const event = eventWithTarget("contextmenu", marker);
+        controller.handleContextMenu(event);
+        assertEqual(event.defaultPrevented, false);
+    };
+    menu();
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50));
+    menu();
+    controller.stop();
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+    controller.handlePointerCancel(pointerEventWithTarget("pointercancel", marker, 1, 50, 50, "touch"));
+    menu();
+    controller.stop();
+});
+
 test("a second touch cancels a held drag without suppressing native pinch gestures", async () => {
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "5" }));

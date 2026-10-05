@@ -131,7 +131,11 @@ Touch dragging is opt-in on a typed source with a server-owned long-press delay.
 Taps remain editor activations; movement before the delay cancels the pending
 session without preventing native scrolling. Once held, movement drives the drag.
 A second touch cancels rather than blocking pinch zoom. Pending timers and active
-scroll frames share ordinary session cleanup.
+scroll frames share ordinary session cleanup. Opted-in sources suppress native
+text selection and WebKit touch callouts before activation; pending and active
+touch sessions suppress context menus so browser-specific hold thresholds cannot
+steal the gesture. This does not set `touch-action: none` or suppress context
+menus outside touch sessions.
 
 Use standard HTMX forms, triggers, sync/disabled controls, and lifecycle events.
 Do not add feature fetch persistence, custom mutation transports, extensions, or

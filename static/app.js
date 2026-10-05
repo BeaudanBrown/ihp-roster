@@ -4345,7 +4345,7 @@
         if (activeSession.activated && event.cancelable) event.preventDefault();
       },
       handleContextMenu(event) {
-        if (activeSession?.pointerType === "touch" && activeSession.activated && event.cancelable) event.preventDefault();
+        if (activeSession?.pointerType === "touch" && event.cancelable) event.preventDefault();
       },
       handleKeyDown(event) {
         if (!activeSession) return;

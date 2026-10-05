@@ -492,6 +492,37 @@ test('offers responsive and explicit vertical orientation with stable live scrol
     }
 });
 
+test('reserves native long-press menus before and after activation on shift and staff sources', async ({ page }) => {
+    await openCanonicalTimeline(page, 'vertical');
+    const attrs = InteractionDom.attributes;
+    for (const key of ['existing:a1000000-0000-0000-0000-000000000071', 'staff:a1000000-0000-0000-0000-000000000033']) {
+        if (key.startsWith('staff:')) {
+            const open = page.getByRole('button', { name: 'Open Roster tools' });
+            if (await open.isVisible()) await open.click();
+            await page.getByRole('tab', { name: 'Staff', exact: true }).click();
+        }
+        const source = page.locator(`[${attrs.sourceKey}="${key}"]`);
+        await source.scrollIntoViewIfNeeded();
+        await expect(source).toHaveCSS('user-select', 'none');
+        expect(await source.evaluate(element => getComputedStyle(element).touchAction)).not.toBe('none');
+        const pending = await source.evaluate((element, activeAttr) => {
+            const box = element.getBoundingClientRect();
+            element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 77, pointerType: 'touch', button: 0, clientX: box.x + 10, clientY: box.y + 10 }));
+            return {
+                menuAllowed: element.dispatchEvent(new PointerEvent('contextmenu', { bubbles: true, cancelable: true, pointerType: 'touch' })),
+                activated: document.documentElement.getAttribute(activeAttr) === 'true',
+                calloutSuppressed: !CSS.supports('-webkit-touch-callout', 'none') || getComputedStyle(element).getPropertyValue('-webkit-touch-callout') === 'none',
+            };
+        }, attrs.interactionActive);
+        expect(pending).toEqual({ menuAllowed: false, activated: false, calloutSuppressed: true });
+        await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
+        expect(await source.evaluate(element => element.dispatchEvent(new PointerEvent('contextmenu', { bubbles: true, cancelable: true, pointerType: 'touch' })))).toBe(false);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+    }
+    expect(await page.getByRole('heading', { name: 'Roster', exact: true }).evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(true);
+});
+
 test('moves vertically with exact duration and touch hold, scrolls downward and cancels on viewport changes', async ({ page, isMobile, context }) => {
     await openCanonicalTimeline(page, 'vertical');
     const slotId = 'a1000000-0000-0000-0000-000000000071';
