@@ -5,6 +5,14 @@ Application/Bepis/Action.hs	shared-authority	Application.Script.GenerateBepisArc
 Application/Bepis/Architecture.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Bepis/Controller.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Bepis/Fact.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Contract.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Daily/Types.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Entry.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Evaluation.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Number.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/References.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Results.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Daysheet/Validation.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Boundary.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Domain.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Foundation.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
@@ -44,6 +52,8 @@ Application/Helper/FrontendContract/Surface/Billing.hs	shared-authority	Applicat
 Application/Helper/FrontendContract/Surface/Billing/HaskellAdapter.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/ContractIR.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/Contracts.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Helper/FrontendContract/Surface/Daysheet.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Helper/FrontendContract/Surface/Daysheet/HaskellAdapter.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/Diagnostics.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/DSL.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/Feedback.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling

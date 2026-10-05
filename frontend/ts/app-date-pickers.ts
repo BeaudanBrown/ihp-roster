@@ -28,6 +28,16 @@ export function datePickerConfigFor(inputType: string): FlatpickrConfig {
         };
 }
 
+export function associateDatePickerLabels(
+    input: Pick<HTMLInputElement, "id">,
+    display: Pick<HTMLInputElement, "id">,
+    labels: readonly Pick<HTMLLabelElement, "htmlFor">[],
+): void {
+    if (!input.id || labels.length === 0) return;
+    if (!display.id) display.id = `${input.id}-date-picker-display`;
+    for (const label of labels) label.htmlFor = display.id;
+}
+
 function initInput(inputEl: HTMLInputElement): void {
     if (typeof window.flatpickr !== "function") return;
     if (inputEl.dataset[initializedKey] === "true") return;
@@ -36,7 +46,13 @@ function initInput(inputEl: HTMLInputElement): void {
         return;
     }
 
+    // Flatpickr hides the named input. Retain its ID for the form/API while
+    // associating the authored labels with the visible, focusable control.
+    const labels = Array.from(inputEl.labels ?? []);
     window.flatpickr(inputEl, datePickerConfigFor(inputEl.type));
+    const picker = inputEl._flatpickr as { mobileInput?: HTMLInputElement; altInput?: HTMLInputElement } | undefined;
+    const display = picker?.mobileInput ?? picker?.altInput;
+    if (display instanceof HTMLInputElement) associateDatePickerLabels(inputEl, display, labels);
     inputEl.dataset[initializedKey] = "true";
 }
 

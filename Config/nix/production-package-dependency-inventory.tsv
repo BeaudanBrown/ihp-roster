@@ -8,8 +8,9 @@ Control.Concurrent.MVar	base	Application/Helper/NavigationContextInitialization.
 Control.Exception	base	Application/Helper/Profiling/Runtime.hs via Main
 Control.Exception.Safe	safe-exceptions	Application/Helper/Telemetry.hs via Main
 Control.Monad	base	Application/Helper/Telemetry.hs via Main
-Control.Monad.Trans.Except	transformers	Web/RosterWeeks/Service.hs via Main
-Control.Monad.Trans.State.Strict	transformers	Application/Daysheet/Formula.hs via Main
+Control.Monad.Trans.Class	transformers	Application/Daysheet/EntryLayout.hs via Main
+Control.Monad.Trans.Except	transformers	Application/Daysheet/DailyStorage.hs via Main
+Control.Monad.Trans.State.Strict	transformers	Application/Daysheet/EntryLayout.hs via Main
 Crypto.Cipher.AES	crypton	Application/AccountSecurityEmail/TokenCipher.hs via Main
 Crypto.Cipher.Types	crypton	Application/AccountSecurityEmail/TokenCipher.hs via Main
 Crypto.Error	crypton	Application/AccountSecurityEmail/TokenCipher.hs via Main
@@ -42,7 +43,7 @@ Data.Char	base	Application/Helper/Telemetry.hs via Main
 Data.Coerce	base	Application/Helper/ControllerContext.hs via Main
 Data.Data	base	Application/Helper/Telemetry.hs via Main
 Data.Either	base	Application/Billing/Stripe.hs via Main
-Data.Fixed	base	Web/View/RosterWeeks/Timeline.hs via Main
+Data.Fixed	base	Application/Helper/TimeRules.hs via Main
 Data.Foldable	base	Application/Helper/FrontendContract/Surface/Values.hs via Main
 Data.Function	base	Application/Helper/Audit.hs via Main
 Data.Functor	base	Web/Controller/Admin/Support.hs via Main
@@ -54,7 +55,7 @@ Data.Kind	base	Application/Helper/FrontendContract/DSL.hs via Main
 Data.List	base	Application/Helper/Profiling.hs via Main
 Data.List.NonEmpty	base	Web/Controller/Auth.hs via Main
 Data.Map.Strict	containers	Application/Helper/Profiling.hs via Main
-Data.Maybe	base	Application/Xero/Admin/PayItems.hs via Main
+Data.Maybe	base	Application/Daysheet/Daily.hs via Main
 Data.Ratio	base	Application/Helper/Export/Render.hs via Main
 Data.Scientific	scientific	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Set	containers	Application/Helper/LiveUpdate/RequestState.hs via Main
@@ -62,14 +63,14 @@ Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
 Data.Text.IO	text	Application/Helper/Authentication.hs via Main
-Data.Time	time	Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hs via Main
+Data.Time	time	Application/Daysheet/Contract.hs via Main
 Data.Time.Calendar	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/VenueTime.hs via Main
 Data.Time.Clock.POSIX	time	Application/Billing/Checkout.hs via Main
 Data.Time.Format	time	Web/View/RosterTemplates/ApplicationConfirmation.hs via Main
 Data.Time.Zones	tz	Application/VenueTime.hs via Main
 Data.Time.Zones.All	tz	Application/VenueTime.hs via Main
-Data.Traversable	base	Web/RosterWeeks/TemplateApplication.hs via Main
+Data.Traversable	base	Web/Controller/Daysheets.hs via Main
 Data.Typeable	base	Application/Helper/FrontendContract/Reflect.hs via Main
 Data.UUID	uuid	Application/Helper/Profiling.hs via Main
 Data.UUID.V4	uuid	Application/Helper/Profiling.hs via Main
@@ -81,7 +82,7 @@ Database.PostgreSQL.Simple.Notification	postgresql-simple	Application/Helper/Liv
 Database.PostgreSQL.Simple.Transaction	postgresql-simple	Application/Helper/LiveUpdate/DurableListener.hs via Main
 Database.PostgreSQL.Simple.Types	postgresql-simple	Web/Controller/Auth.hs via Main
 GHC.Clock	base	Application/Helper/Profiling.hs via Main
-GHC.Generics	base	Application/Bepis/Controller.hs via Main
+GHC.Generics	base	Application/Daysheet/Daily.hs via Main
 GHC.Stats	base	Application/Helper/Profiling/Runtime.hs via Main
 GHC.TypeLits	base	Application/Helper/FrontendContract/DSL.hs via Main
 Generated.Enums	app-models	Application/FwcMapd/Validation.hs via Main

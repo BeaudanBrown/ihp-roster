@@ -34,6 +34,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , frontendSurfaceActionAttrs
+    , frontendSurfaceActionLinkUrl
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionFormWithHiddenFields
@@ -46,6 +47,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceLazyFragmentWithConfig
     , mkSurfaceImplFromValues
     , renderFrontendSurfaceMount
+    , renderFrontendSurfaceFragmentMount
     ) where
 
 import Application.Helper.FrontendContract.AppValues (interactionIntentSubmitHtmxTrigger)
@@ -278,11 +280,25 @@ frontendSurfaceMountConfigJson =
 renderFrontendSurfaceMount :: SurfaceImpl spec -> Markup.Html -> Markup.Html
 renderFrontendSurfaceMount impl body =
     [hsx|<div {...attributes}>{body}</div>|]
-    where
-        attributes =
-            [ (surfaceDomAttribute, impl.surfaceImplName)
-            , (surfaceConfigDomAttribute, frontendSurfaceMountConfigJson impl.surfaceImplMountConfig)
-            ]
+    where attributes = frontendSurfaceMountAttributes impl
+
+-- | A replaceable parent owns both its HTML and its complete current fragment
+-- inventory. Adding/removing rows replaces the concrete mount lifetime, rather
+-- than leaving stale child descriptors outside the refreshed region.
+renderFrontendSurfaceFragmentMount ::
+    forall spec marker.
+    KnownMountTarget (FindMountTarget (SurfaceFragmentOptionSpecs spec marker)) =>
+    SurfaceFields (SurfaceFragmentTargetFieldSpecs spec marker) ->
+    SurfaceImpl spec -> Markup.Html -> Markup.Html
+renderFrontendSurfaceFragmentMount fields impl body =
+    [hsx|<div id={surfaceFragmentTargetId @spec @marker fields} {...attributes}>{body}</div>|]
+    where attributes = frontendSurfaceMountAttributes impl
+
+frontendSurfaceMountAttributes :: SurfaceImpl spec -> [(Text, Text)]
+frontendSurfaceMountAttributes impl =
+    [ (surfaceDomAttribute, impl.surfaceImplName)
+    , (surfaceConfigDomAttribute, frontendSurfaceMountConfigJson impl.surfaceImplMountConfig)
+    ]
 
 data FrontendSurfaceLazyFragmentConfig = FrontendSurfaceLazyFragmentConfig
     { lazyFragmentRootClasses        :: ![Text]

@@ -2,6 +2,7 @@ module Web.View.RosterWeeks.Show where
 
 import Application.Helper.Controller (currentUserIsImpersonating,
                                       managerModeToggleVisible)
+import Application.Helper.ControllerContext (currentVenueMembershipOrNothing)
 import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
@@ -35,7 +36,7 @@ renderNoRosterGroupShell NoRosterGroupView { .. } =
         page = renderAppPage AppPageConfig
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
-            , appPageActions = mempty
+            , appPageActions = renderDaysheetsLink
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
             , appPageBody =
@@ -51,12 +52,17 @@ renderNoRosterGroupShell NoRosterGroupView { .. } =
         </section>
     |]
 
+renderDaysheetsLink :: (?context :: ControllerContext) => Html
+renderDaysheetsLink
+    | currentUserIsManager && isJust currentVenueMembershipOrNothing = [hsx|<a class="btn btn-outline-secondary" href={DaysheetsAction}>Daysheets</a>|]
+    | otherwise = mempty
+
 renderRosterWeekShell :: ShowView -> Html
 renderRosterWeekShell ShowView { rosterPageGridModel, .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
-            , appPageActions = mempty
+            , appPageActions = renderDaysheetsLink
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
             , appPageBody =

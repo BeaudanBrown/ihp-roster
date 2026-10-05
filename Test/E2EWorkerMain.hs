@@ -16,6 +16,7 @@ import IHP.ScriptSupport
 import qualified System.Environment as Env
 import System.Exit (die)
 import Test.E2EXero (seedXeroFixture, withE2EXero)
+import Test.E2EDaysheet (seedDaysheetFixture)
 import Test.VerificationPhase (verificationReady)
 import WorkerMain ()
 
@@ -25,6 +26,7 @@ main :: IO ()
 main = Env.getArgs >>= \case
     [] -> withE2EXero (runScript Config.config (runJobWorkers (observeReadiness (workers RootApplication))))
     ["seed-xero"] -> runScript Config.config seedXeroFixture
+    ["seed-daysheet"] -> runScript Config.config seedDaysheetFixture
     _ -> die "Unknown E2E worker arguments"
 
 -- Resource-scoped observation only: never add a startup gate or change job

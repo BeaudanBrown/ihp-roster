@@ -29,6 +29,20 @@ provides scoped reads, atomic explicit creation, latest-state mutations, and
 idempotent submission. `Storage.withDefinitionCapture` keeps initial daily
 materialization and its immutable meaning in the same authority transaction.
 
+`EntryLayout` binds authored occurrences to authorized root/row cells without
+exposing a render document to JavaScript. `Mutations` composes daily persistence
+with the shared durable live publisher. `Entry.deletionToken` fingerprints scope,
+target and incoming revisions; it is concurrency evidence, never authority.
+
+Ordinary single-page entry lives in `Web/Controller/Daysheets.hs`,
+`Web/Daysheets/{ReadModel,LiveUpdates}.hs` and `Web/View/Daysheets/`.
+`Surface/Daysheet` owns its generated typed commands and live fragments. The
+shared dirty-form owner and settled-form gate retain pending, invalid and
+conflicting edits; deleted-row values require explicit discard. No pagination
+or feature-specific browser transport is involved. Browser fixtures are authored
+in `Test/Support/Daysheet.hs` and seeded by `Test/E2EDaysheet.hs`, independent of
+the ignored workbook.
+
 `Authority` rechecks live venue/membership authority under ordered locks.
 `Recipients` owns admin/owner-only external address management independently of
 versioned layouts. Address identities are immutable, removal is permanent, and
@@ -48,4 +62,5 @@ Focused checks:
 ```bash
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test --match Daysheet
+bash ./bin/in-env e2e e2e/daysheet-entry.spec.ts --reporter=line
 ```

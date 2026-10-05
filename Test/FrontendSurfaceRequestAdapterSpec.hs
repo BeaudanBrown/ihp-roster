@@ -354,16 +354,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 89
+        length actionDeclarations `shouldBe` 102
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 84
+        length generatedActionOperations `shouldBe` 97
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 84
+            `shouldBe` 97
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 84
+            `shouldBe` 97
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 52
+            `shouldBe` 62
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -418,6 +418,9 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("feedback-moderation", "open-feedback-archive-confirmation")
                 , ("staff", "open-staff-leave-delete-confirmation")
                 , ("staff", "delete-staff-leave-request")
+                , ("daysheet", "keep-saved-daysheet-cell")
+                , ("daysheet", "submit-daysheet")
+                , ("daysheet", "open-daysheet-row-deletion")
                 ]
 
         intentDeclarations <-
@@ -454,6 +457,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 map (.generatedModuleName) generatedModules
                     `shouldBe`
                         [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Feedback.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"

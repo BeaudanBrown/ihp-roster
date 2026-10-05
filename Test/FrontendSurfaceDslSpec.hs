@@ -808,6 +808,12 @@ tests = describe "FrontendSurface DSL foundation" do
         surfaceIntentNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard `shouldBe` "move-card"
         html `shouldContainText` "data-bepis-surface=\"timesheets\""
         html `shouldContainText` "data-bepis-surface-config="
+        let replacementRoot = cs (HtmlRenderer.renderMarkupLazyText
+                (renderFrontendSurfaceFragmentMount @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetToolbar
+                    noSurfaceFields impl (HtmlRenderer.toHtml ("<body>" :: Text))))
+        replacementRoot `shouldContainText` "<div id=\"timesheet-week-toolbar\" data-bepis-surface=\"timesheets\""
+        replacementRoot `shouldContainText` "&lt;body&gt;</div>"
+        Text.count "<div" replacementRoot `shouldBe` 1
         html `shouldNotContainText` "data-live-update-surface"
         frontendSurfaceMountConfigJson config `shouldContainText` "\"mountKey\":\"primary\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"timesheet-week-toolbar\""
@@ -879,6 +885,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "leave-requests"
                        , "self-service-leave"
                        , "billing"
+                       , "daysheet"
                        , "support"
                        , "feedback"
                        , "feedback-moderation"

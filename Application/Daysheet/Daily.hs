@@ -11,6 +11,7 @@ module Application.Daysheet.Daily
 
 import Prelude
 import Application.Daysheet.Contract
+import Application.Daysheet.Daily.Types
 import qualified Application.Daysheet.Evaluation as E
 import Application.Daysheet.References
 import Application.Daysheet.ReferenceCodec ()
@@ -36,11 +37,6 @@ data DailyDocument = DailyDocument
     { rootCells :: [(FieldId, Cell)], rows :: [DailyRow], deleted :: [ReferenceKey] }
     deriving (Eq)
 instance Show DailyDocument where show _ = "DailyDocument <redacted>"
-data CellAddress = RootCell FieldId | RowCell ReferenceKey FieldId deriving (Eq, Ord, Show)
-data DeletionPlan = DeletionPlan
-    { deletionTarget :: ReferenceKey, targetRevision :: Integer
-    , incomingCells :: [(CellAddress, Integer)]
-    } deriving (Eq, Show)
 data DailyError
     = InvalidDailyDocument | DailyLimit | UnknownDailyField | UnknownDailyList
     | ReadOnlyDailyField | RowNoLongerExists | ChecklistRowsAreFixed

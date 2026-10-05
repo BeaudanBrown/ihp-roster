@@ -18,6 +18,7 @@ if (!['fast', 'full'].includes(e2eTier)) {
     throw new Error(`E2E_TIER must be fast or full, got: ${e2eTier}`);
 }
 const mobileTestFiles = [
+    /.*daysheet-entry\.spec\.ts/,
     /.*mobile-experience\.spec\.ts/,
     /.*pwa-install\.spec\.ts/,
     /.*feedback-diagnostics\.spec\.ts/,

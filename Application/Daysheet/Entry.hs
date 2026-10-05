@@ -2,12 +2,17 @@
 -- spelling for validation/conflict rendering; the pinned field type owns the
 -- second, semantic parse. No floating point or expression parser is involved.
 module Application.Daysheet.Entry
-    ( DaysheetNumericEntry, DaysheetClockEntry
-    , parseNumericEntry, parseClockEntry
+    ( DaysheetNumericEntry, DaysheetClockEntry, DaysheetDeletionToken
+    , parseNumericEntry, parseClockEntry, deletionToken
     ) where
 
 import Prelude
 import Application.Daysheet.Contract
+import qualified Application.Daysheet.Daily.Types as Daily
+import qualified Application.Daysheet.Evaluation as Evaluation
+import qualified "crypton" Crypto.Hash as Hash
+import Data.List (sort)
+import qualified Data.Text.Encoding as TextEncoding
 import qualified Application.Daysheet.Number as Number
 import Application.Helper.NominalText
 import qualified Data.Text as Text
@@ -16,6 +21,22 @@ import Data.Time (TimeOfDay (..), defaultTimeLocale, parseTimeM)
 
 newtype DaysheetNumericEntry = DaysheetNumericEntry Text deriving (Eq, Show)
 newtype DaysheetClockEntry = DaysheetClockEntry Text deriving (Eq, Show)
+newtype DaysheetDeletionToken = DaysheetDeletionToken Text deriving (Eq, Show)
+
+-- A version fingerprint, not authority or a client-owned mutation document.
+-- Compare with a freshly loaded plan; the locked mutation must still validate
+-- that exact plan. No deleted values or reference contents enter this token.
+instance NominalText DaysheetDeletionToken where
+    renderNominalText (DaysheetDeletionToken value) = value
+    parseNominalText value
+        | Text.length value == 64 && Text.all (\c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) value = Right (DaysheetDeletionToken value)
+        | otherwise = Left "Refresh the deletion confirmation."
+
+deletionToken :: Evaluation.SnapshotKey -> Daily.DeletionPlan -> DaysheetDeletionToken
+deletionToken scope plan = DaysheetDeletionToken (Text.pack (show digest))
+  where
+    payload = Text.pack (show ("daysheet-delete-v1" :: String, scope, Daily.deletionTarget plan, Daily.targetRevision plan, sort (Daily.incomingCells plan)))
+    digest = Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256
 
 instance NominalText DaysheetNumericEntry where
     renderNominalText (DaysheetNumericEntry value) = value

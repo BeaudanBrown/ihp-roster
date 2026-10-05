@@ -1,6 +1,6 @@
 import { surfaceConfigDomAttr } from "../generated/contracts";
 import { createDirtyFormProtection } from "../live-updates/forms";
-import { createSettledFormGate } from "../live-updates/settled-form-gate";
+import { createSettledFormGate, isSettledFormAction } from "../live-updates/settled-form-gate";
 import { assertEqual, test } from "./harness";
 import { MiniElement } from "./mini-dom";
 
@@ -60,9 +60,11 @@ function setup() {
     const nativeOwner = owner as unknown as HTMLElement;
     const nativeTarget = target as unknown as HTMLElement;
     const acknowledgements: string[] = [];
-    const forms = createDirtyFormProtection(document, (_owner, targetId) => acknowledgements.push(targetId), () => gate.refresh(nativeOwner));
+    const definitions = [{ name: "fixture", actionRoleAttribute: actionAttribute, noticeRoleAttribute: noticeAttribute }];
+    const forms = createDirtyFormProtection(document, (_owner, targetId) => acknowledgements.push(targetId), () => gate.refresh(nativeOwner),
+        (form) => !isSettledFormAction(form, definitions));
     const gate = createSettledFormGate((candidate) => candidate !== nativeOwner ? null : ({
-        definitions: [{ name: "fixture", actionRoleAttribute: actionAttribute, noticeRoleAttribute: noticeAttribute }],
+        definitions,
         settled: !forms.protectedTarget(nativeTarget, nativeOwner),
     }));
     forms.register(nativeOwner, nativeTarget, { kind: "dirty-form", savedHeader: "X-Test-Saved" });
@@ -78,6 +80,38 @@ function setup() {
     refresh();
     return { owner, target, edit, action, button, notice, forms, gate, refresh, change, event, start, finish, acknowledgements };
 }
+
+test("native validation pages start unsettled until an explicit save acknowledgement", () => fixture((f) => {
+    const invalid = new Form({ "aria-invalid": "true" });
+    invalid.snapshot = "submitted invalid value";
+    f.target.replaceChildren(invalid);
+    const owner = f.owner as unknown as HTMLElement;
+    const target = f.target as unknown as HTMLElement;
+    const policy = { kind: "dirty-form", savedHeader: "X-Test-Saved" } as const;
+    f.forms.register(owner, target, policy);
+    f.refresh();
+    assertEqual(f.button.disabled, true);
+    const xhr = new Xhr();
+    f.forms.handleEvent(new CustomEvent("htmx:beforeRequest", { detail: { xhr, elt: invalid } }));
+    xhr.saved = true;
+    f.forms.handleEvent(new CustomEvent("htmx:beforeOnLoad", { detail: { xhr } }));
+    f.forms.handleEvent(new CustomEvent("htmx:afterRequest", { detail: { xhr } }));
+    f.forms.register(owner, target, policy);
+    f.refresh();
+    assertEqual(f.button.disabled, false);
+}));
+
+test("a gated navigation form never counts its own parameters as unsaved business edits", () => fixture((f) => {
+    f.target.append(f.action);
+    f.forms.register(f.owner as unknown as HTMLElement, f.target as unknown as HTMLElement, { kind: "dirty-form", savedHeader: "X-Test-Saved" });
+    f.action.snapshot = "a different date";
+    f.forms.changed(f.action as unknown as Element);
+    assertEqual(f.forms.protectedTarget(f.target as unknown as HTMLElement, f.owner as unknown as HTMLElement), false);
+    f.refresh();
+    assertEqual(f.button.disabled, false);
+    f.change("unsaved business value");
+    assertEqual(f.button.disabled, true);
+}));
 
 test("settled-form gate shares dirty/pending state and waits for explicit saved acknowledgement", () => fixture((f) => {
     assertEqual(f.button.disabled, false);

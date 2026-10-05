@@ -51,6 +51,7 @@ Put `*.spec.ts` under `e2e/`. Import the narrowest owner under `e2e/support/`:
 - `runtime.ts` — unique values, startup navigation, and live recovery
 - `session.ts` — cached and fresh ordinary login sessions
 - `database.ts` — generic SQL execution only
+- `daysheet.ts` — native scoped Daysheet fixtures and single-page entry navigation
 - `mail.ts` — recipient-scoped MailHog matching and message parsing
 - `passkeys.ts` — virtual authenticators, registration, and privileged sessions
 - `roster.ts` — roster setup, fixture reset, dialogs, rows, and shifts

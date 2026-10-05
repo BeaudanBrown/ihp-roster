@@ -1,7 +1,7 @@
 # Daysheet Definition Contract
 
 Product authority: [Configurable Daysheets](../../specs/07-daysheets.md).
-This subsystem owns definition meaning, not venue authorization or delivery.
+Definition validity does not establish venue authorization or delivery authority.
 A structurally valid definition is never authority to read a venue or day.
 
 ## DSL And Wire Boundary
@@ -142,6 +142,47 @@ settle local pending saves/conflicts before invoking Submit or future Send.
 The canonical daily document cap is 4 MiB; the SQL JSONB text cap is 8 MiB to
 allow PostgreSQL's representation whitespace. NUL text is rejected before SQL.
 No per-field before/after values are written to the audit stream.
+
+## Daily Entry Boundary
+
+Daily entry stays on one page with related figures together. Engine ceilings
+are safety limits, not a pagination requirement. The eight-terminal fixture is
+an authored largest-venue example; verification never requires the ignored
+operator workbook. Authored grouping/sorting changes presentation only.
+
+An entry occurrence identifies a placement in the pinned layout, not a second
+field. Repeated placements share the saved cell/revision but have distinct DOM
+identities. Calculated and captured venue fields remain read-only. The Surface
+DSL owns command fields, live resources, gate roles and generated adapters;
+the saved document never crosses the browser mutation boundary.
+
+IHP AutoRoute does not safely decode optional UUID arguments. Optional row route
+tokens therefore enter the controller as `Maybe Text`, undergo strict UUID
+parsing, and are then checked against the occurrence's pinned list and saved
+snapshot. The generated cell contract remains an optional UUID. Route tests
+exercise IHP's actual parser, not only direct controller calls.
+
+Change/blur autosaves and explicit Save share ordinary forms. The shared dirty
+owner observes input/change before HTMX dispatch, accepts only explicit saved
+acknowledgements, and preserves newer edits and failed responses. Submit and
+other final controls use the shared typed settled-form gate, not a second dirty
+state owner. Native forms retain explicit Save and error recovery. Known errors
+also disable server-rendered final controls until resolution.
+
+Same-cell conflicts retain submitted and saved values for explicit replacement
+or keeping the saved value. If another manager deletes a row, a rejected edit
+retains its submitted value for copying and explicit discard; it cannot recreate
+the row. Recovery remains protected even if the deleted row was the last
+editable content. Discard requests a typed body resync without a mutation or
+publication event. Replacement body roots carry their complete current child
+fragment inventory.
+
+Daily writes, audit and durable live invalidation share one transaction. Typed
+operations nested beneath that publisher use the shared rollback helper's
+savepoint on the existing connection; a typed failure rolls back local writes
+and an outer publication failure rolls back the successful inner operation.
+Advisory passes are quiet, concerns prominent, and unavailable checks explain
+why. None adds a submission gate.
 
 ## Staged Reference Corrections And Storage
 

@@ -4,6 +4,8 @@ import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Daily
 import Application.Daysheet.Entry
+import Application.Daysheet.EntryLayout
+import qualified Data.Map.Strict as Map
 import qualified Application.Daysheet.Number as Number
 import Application.Helper.NominalText
 import Data.Either (isLeft)
@@ -13,56 +15,49 @@ import Application.Daysheet.References
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
-import Data.Word (Word32)
+import Test.Support.Daysheet
 import Test.Hspec
-
-field :: Word32 -> FieldId
-field n = FieldId (UUID.fromWords 0 0 0 n)
-list :: Word32 -> ListId
-list n = ListId (UUID.fromWords 0 0 0 n)
-row :: Word32 -> E.RowId
-row n = E.RowId (UUID.fromWords 0 0 0 n)
-owner :: E.SnapshotKey
-owner = E.SnapshotKey (UUID.fromWords 0 0 0 100) (UUID.fromWords 0 0 0 101)
-definition :: Definition
-definition = Definition 2
-    [Field (field 1) "Comments" TextType Entered, Field (field 2) "Count" WholeType Entered, Field (field 3) "Selected band" (ReferenceType (list 30)) Entered]
-    [RecordList (list 10) "Terminals" VenueReference [Field (field 9) "Label" TextType Entered]
-    , RecordList (list 20) "Receipts" (ReferenceChecklist (list 10))
-        [Field (field 7) "Terminal" (ReferenceType (list 10)) (Calculated (ChecklistReference Current)), Field (field 8) "Receipt" MoneyType Entered]
-    , RecordList (list 30) "Bands" OpenDaily [Field (field 4) "Band" TextType Entered]
-    , RecordList (list 40) "Readings" OpenDaily
-        [Field (field 5) "Band" (ReferenceType (list 30)) Entered, Field (field 6) "Reading" WholeType Entered
-        , Field (field 11) "Band label" TextType (Calculated (ReadField (FieldPath Current [field 5, field 4])))]] [] []
-references :: ReferenceData
-references = ReferenceData [ReferenceList (list 10)
-    [ReferenceRecord (row 1) False [(field 9, ReferenceScalar (TextLiteral "Preserved terminal"))]
-    , ReferenceRecord (row 2) True [(field 9, ReferenceScalar (TextLiteral "Retired terminal"))]]]
-fresh :: Either DailyError DailyDocument
-fresh = emptyDaily definition references owner
-save :: CellAddress -> Integer -> Maybe ReferenceValue -> DailyDocument -> Either DailyError DailyDocument
-save = saveCell definition references owner
-add :: ReferenceKey -> DailyDocument -> Either DailyError DailyDocument
-add = addOpenRow definition references owner
-remove :: DeletionPlan -> DailyDocument -> Either DailyError DailyDocument
-remove = confirmDeletion definition references owner
-text :: String -> Maybe ReferenceValue
-text = Just . ReferenceScalar . TextLiteral . Text.pack
-
-band, reading, otherReading :: ReferenceKey
-band = ReferenceKey (list 30) (row 50)
-reading = ReferenceKey (list 40) (row 60)
-otherReading = ReferenceKey (list 40) (row 61)
-
-linked :: Either DailyError DailyDocument
-linked = fresh >>= add band >>= add reading
-    >>= save (RowCell band (field 4)) 0 (text "Band A")
-    >>= save (RowCell reading (field 5)) 0 (Just (ReferenceLink band))
-    >>= save (RowCell reading (field 6)) 0 (Just (ReferenceScalar (WholeLiteral 94)))
-    >>= save (RootCell (field 3)) 0 (Just (ReferenceLink band))
 
 tests :: Spec
 tests = describe "Daysheet daily content" do
+    it "keeps repeated layout placements distinct over the same scoped saved cell" do
+        let displayed = definition { entryLayout = [Section (SectionId (UUID.fromWords 0 0 0 200)) "Daily entry"
+                [FieldBlock (field 1), FieldBlock (field 1), TableBlock (list 10) [field 9] Nothing [], TableBlock (list 20) [field 7, field 8] Nothing []]] }
+        Right document <- pure fresh
+        Right snapshot <- pure (dailySnapshot displayed references owner document)
+        Right layout <- pure (prepareEntryLayout displayed)
+        Map.size (entryOccurrences layout) `shouldBe` 5
+        Right first <- pure (resolveEntryCell layout snapshot document 0 Nothing)
+        Right repeated <- pure (resolveEntryCell layout snapshot document 1 Nothing)
+        entryAddress first `shouldBe` entryAddress repeated
+        occurrenceIndex (entryOccurrence first) `shouldNotBe` occurrenceIndex (entryOccurrence repeated)
+        Right venueCell <- pure (resolveEntryCell layout snapshot document 2 (Just (row 1)))
+        entrySavedCell venueCell `shouldBe` Nothing
+        Right paired <- pure (resolveEntryCell layout snapshot document 3 (Just (row 1)))
+        entrySavedCell paired `shouldBe` Nothing
+        Right editable <- pure (resolveEntryCell layout snapshot document 4 (Just (row 1)))
+        entrySavedCell editable `shouldBe` Just (Cell 0 Nothing)
+        resolveEntryCell layout snapshot document 0 (Just (row 1)) `shouldBe` Left UnknownDailyField
+        resolveEntryCell layout snapshot document 4 Nothing `shouldBe` Left UnknownDailyField
+        resolveEntryCell layout snapshot document 4 (Just (row 99)) `shouldBe` Left RowNoLongerExists
+        resolveEntryCell layout snapshot document (-1) Nothing `shouldBe` Left UnknownDailyField
+    it "keeps an eight-terminal checklist together in captured order without pagination" do
+        let ids = map row [8, 7, 6, 5, 4, 3, 2, 1]
+        let preserved = ReferenceData [ReferenceList (list 10) [ReferenceRecord key False [(field 9, ReferenceScalar (TextLiteral "Terminal"))] | key <- ids]]
+        Right document <- pure (emptyDaily definition preserved owner)
+        let checklist = RecordList (list 20) "Receipts" (ReferenceChecklist (list 10)) []
+        entryRowIds checklist preserved document `shouldBe` ids
+    it "binds deletion fingerprints to the sheet, target and exact incoming revisions" do
+        let plan = DeletionPlan reading 2 [(RootCell (field 1), 3), (RowCell band (field 4), 4)]
+        let token = deletionToken owner plan
+        parseNominalText @DaysheetDeletionToken (renderNominalText token) `shouldBe` Right token
+        deletionToken owner (plan { incomingCells = reverse (incomingCells plan) }) `shouldBe` token
+        deletionToken owner (plan { targetRevision = 3 }) `shouldNotBe` token
+        deletionToken owner (plan { deletionTarget = otherReading }) `shouldNotBe` token
+        deletionToken owner (plan { incomingCells = [(RootCell (field 1), 4), (RowCell band (field 4), 4)] }) `shouldNotBe` token
+        deletionToken owner (plan { incomingCells = [] }) `shouldNotBe` token
+        deletionToken (E.SnapshotKey (UUID.fromWords 0 0 0 100) (UUID.fromWords 0 0 0 102)) plan `shouldNotBe` token
+        parseNominalText @DaysheetDeletionToken (Text.replicate 64 "g") `shouldSatisfy` isLeft
     it "parses bounded numeric spelling exactly while preserving validation input" do
         let parse kind value = parseNominalText @DaysheetNumericEntry value >>= parseNumericEntry kind
         Right raw <- pure (parseNominalText @DaysheetNumericEntry " +001.60 ")

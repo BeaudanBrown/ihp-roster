@@ -236,6 +236,26 @@ data AdminController
     | ProfileLiveInvalidateLeaveRequestsAction
     deriving (Eq, Show, Data)
 
+data DaysheetsController
+    = DaysheetsAction
+    | CreateDaysheetAction
+    | ShowDaysheetBodyAction { daysheetId :: Id Daysheet }
+    -- IHP AutoRoute supports Maybe Text, not Maybe UUID. The controller
+    -- validates this raw route token before resolving the typed cell scope.
+    | ShowDaysheetCellAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetTextAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetNumberAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetBooleanAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetSelectionAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetDateAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | SaveDaysheetClockAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | KeepSavedDaysheetCellAction { daysheetId :: Id Daysheet, occurrence :: Int, rowId :: Maybe Text }
+    | AddDaysheetRowAction { daysheetId :: Id Daysheet, listId :: UUID }
+    | SubmitDaysheetAction { daysheetId :: Id Daysheet }
+    | ShowDaysheetRowDeletionAction { daysheetId :: Id Daysheet, listId :: UUID, recordId :: UUID }
+    | DeleteDaysheetRowAction { daysheetId :: Id Daysheet, listId :: UUID, recordId :: UUID }
+    deriving (Eq, Show, Data)
+
 data FeedbackController
     = FeedbackAction
     | NewFeedbackAction

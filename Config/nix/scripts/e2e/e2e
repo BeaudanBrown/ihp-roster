@@ -363,6 +363,7 @@ run_e2e_shard() {
         export PLAYWRIGHT_FULLY_PARALLEL=0
         export E2E_XERO_FIXTURE="$shard_dir/xero-fixture.json"
         export E2E_XERO_SEED_BIN="$E2E_WORKER_BIN"
+        export E2E_SEED_BIN="$E2E_WORKER_BIN"
         local worker_start_failed=0 stripe_start_failed=0 app_start_failed=0
 
         cleanup() {

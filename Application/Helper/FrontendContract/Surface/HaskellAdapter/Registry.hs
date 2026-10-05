@@ -22,6 +22,8 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Admin
 import Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
 import Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.Daysheet as Daysheet
+import Application.Helper.FrontendContract.Surface.Daysheet.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
 import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (SurfaceAdapterKind (..))
@@ -47,6 +49,7 @@ type RegisteredSurfaceAdapterFamilies =
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
+     , DaysheetAdapterFamily
      , SupportAdapterFamily
      , FeedbackAdapterFamily
      , FeedbackModerationAdapterFamily
@@ -81,6 +84,7 @@ type RegisteredSurfaceScopeAdapterHomes =
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
+     , SurfaceScopeAdapterHome DaysheetAdapterFamily Daysheet.DaysheetScope
      , SurfaceScopeAdapterHome FeedbackAdapterFamily Feedback.FeedbackVenue
      , SurfaceScopeAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackPlatform
      , SurfaceScopeAdapterHome SupportAdapterFamily Support.SupportPlatform
@@ -97,7 +101,9 @@ type RegisteredSurfaceScopeAdapterHomes =
      ]
 
 type RegisteredSurfaceFragmentAdapterHomes =
-    '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
+    '[ SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
+     , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetStaffContent
@@ -154,7 +160,8 @@ type RegisteredSurfaceFragmentAdapterHomes =
      ]
 
 type RegisteredSurfaceResourceAdapterHomes =
-    '[ SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
+    '[ SurfaceResourceAdapterHome DaysheetAdapterFamily Daysheet.DaysheetData
+     , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeek
@@ -261,6 +268,22 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.DeleteSelfServiceLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ViewDaysheetDate allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.CreateDaysheet allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetText allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetNumber allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetBoolean allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetSelection allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetDate allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetClock allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.AddDaysheetRow allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ConfirmDaysheetRowDeletion allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.KeepSavedDaysheetCell
+        (requestAdapterOperationsWithoutParser "Explicitly discard local input in favour of the scoped saved cell; route identity only")
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SubmitDaysheet
+        (requestAdapterOperationsWithoutParser "Submission consumes the scoped saved Daysheet id; it has no replacement content payload")
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetRowDeletion
+        (requestAdapterOperationsWithoutParser "The confirmation GET consumes scoped route identity and never deletes")
     , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.VoteFeedback
         (requestAdapterOperationsWithoutParser "The zero-field vote consumes its route id and authenticated global account")
     , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.UnvoteFeedback

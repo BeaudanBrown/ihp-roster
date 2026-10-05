@@ -6,6 +6,7 @@ cd "$repo_root"
 
 expected_modules=(
     database
+    daysheet
     exports
     mail
     passkeys

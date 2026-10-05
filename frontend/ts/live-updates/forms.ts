@@ -19,13 +19,14 @@ export function createDirtyFormProtection(
     document: Document,
     saved: (owner: HTMLElement, targetId: string) => void,
     readinessChanged: (owner: HTMLElement) => void = () => undefined,
+    protectForm: (form: HTMLFormElement, owner: HTMLElement) => boolean = () => true,
 ) {
     const forms = new WeakMap<HTMLFormElement, FormState>();
     const submissions = new WeakMap<XMLHttpRequest, Submission>();
 
     function ownedForms(target: HTMLElement, owner: HTMLElement): HTMLFormElement[] {
         return Array.from(target.querySelectorAll("form"))
-            .filter((form) => form.closest(`[${surfaceConfigDomAttr}]`) === owner);
+            .filter((form) => form.closest(`[${surfaceConfigDomAttr}]`) === owner && protectForm(form, owner));
     }
 
     function register(owner: HTMLElement, target: HTMLElement, policy: Policy): void {
@@ -34,7 +35,7 @@ export function createDirtyFormProtection(
             if (!existing || existing.owner !== owner) {
                 forms.set(form, {
                     owner, targetId: target.id, policy, baseline: normalizedFormSnapshot(form),
-                    revision: 0, pending: new Set(), invalid: false,
+                    revision: 0, pending: new Set(), invalid: form.getAttribute("aria-invalid") === "true",
                 });
             } else {
                 // A promoted ancestor must protect every dirty descendant, but

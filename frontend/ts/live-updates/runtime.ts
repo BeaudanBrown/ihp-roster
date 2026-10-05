@@ -109,10 +109,13 @@ export function enableLiveUpdateRuntime(): void {
             if (name === "htmx:afterRequest") scheduleFocusedFlush();
         });
     }
+    // Observe the triggering edit before HTMX starts a change-driven request
+    // on the form. Bubbling here would misclassify that same change as a newer
+    // edit and suppress its authoritative validation response.
     for (const name of ["input", "change"]) {
         document.addEventListener(name, (event) => {
             if (event.target instanceof Element) refresher.formChanged(event.target);
-        });
+        }, true);
     }
     document.addEventListener("focusout", scheduleFocusedFlush);
     document.addEventListener("input", scheduleFocusedFlush);

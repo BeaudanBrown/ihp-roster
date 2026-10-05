@@ -3,6 +3,10 @@ import { detailTarget } from "../shared/lifecycle";
 
 type GateState = { definitions: ReadonlyArray<FrontendSurfaceSettledFormGateDefinition>; settled: boolean };
 
+export function isSettledFormAction(form: HTMLFormElement, definitions: GateState["definitions"]): boolean {
+    return definitions.some((definition) => form.hasAttribute(definition.actionRoleAttribute));
+}
+
 // Only native presentation state lives here. Readiness comes from the existing
 // dirty-form owner; this module never tracks edits, saves values, or sends HTTP.
 export function createSettledFormGate(stateFor: (owner: HTMLElement) => GateState | null) {
@@ -38,7 +42,7 @@ export function createSettledFormGate(stateFor: (owner: HTMLElement) => GateStat
         const owner = form?.closest<HTMLElement>(ownerSelector);
         if (!form || !owner) return false;
         const state = stateFor(owner);
-        if (!state || state.settled || !state.definitions.some((definition) => form.hasAttribute(definition.actionRoleAttribute))) return false;
+        if (!state || state.settled || !isSettledFormAction(form, state.definitions)) return false;
         event.preventDefault();
         // Native keyboard/requestSubmit paths must stop before HTMX observes
         // submission. beforeRequest remains a second guard for custom triggers.

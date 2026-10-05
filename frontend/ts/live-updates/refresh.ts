@@ -1,5 +1,5 @@
-import { surfaceConfigDomAttr, FrontendSurfaceSettledFormGateRegistry } from "../generated/contracts";
-import { createSettledFormGate } from "./settled-form-gate";
+import { surfaceConfigDomAttr, surfaceDomAttr, isFrontendSurfaceName, FrontendSurfaceSettledFormGateRegistry } from "../generated/contracts";
+import { createSettledFormGate, isSettledFormAction } from "./settled-form-gate";
 import { resolveLiveFragmentInteractionConflict, type ActiveInteractionSessionTracker } from "../interaction/live-conflicts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import { createFocusedFieldProtection } from "./focus";
@@ -55,7 +55,13 @@ export function createLiveFragmentRefresher(options: {
     const forms = createDirtyFormProtection(targetDocument, (ownerEl, targetId) => {
         const fragment = readFrontendSurfaceMountElement(ownerEl)?.fragments.find((candidate) => candidate.targetId === targetId);
         if (fragment) request({ ...fragment, ownerEl });
-    }, (owner) => gates.refresh(owner));
+    }, (owner) => gates.refresh(owner), (form, owner) => {
+        const surface = owner.getAttribute(surfaceDomAttr);
+        // Commit/navigation controls consume readiness; their own parameters
+        // are not saved edits and must not deadlock their gate. The owner was
+        // validated on activation; do not reparse its full inventory per form.
+        return !isFrontendSurfaceName(surface) || !isSettledFormAction(form, FrontendSurfaceSettledFormGateRegistry[surface]);
+    });
     const gates = createSettledFormGate((owner) => {
         const mount = readFrontendSurfaceMountElement(owner);
         if (!mount || stopped || !owner.isConnected) return null;

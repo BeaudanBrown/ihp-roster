@@ -12,7 +12,7 @@ import Data.Either (isLeft, isRight)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
-import qualified Test.DaysheetDailySpec as Fixture
+import qualified Test.Support.Daysheet as Fixture
 import Test.DaysheetStorageSpec (errorSuffix)
 import Test.Hspec
 import Test.Support

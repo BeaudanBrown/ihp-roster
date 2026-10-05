@@ -33,6 +33,10 @@ instance AutoRoute E2ETestController where
 
     customPathTo MarkE2EPasskeyVerifiedAction = Just "/__e2e/mark-passkey-verified"
 instance AutoRoute AdminController
+-- Daysheet handlers enforce read versus mutation methods with controlled 405
+-- responses; IHP's automatic unexpected-method exception otherwise becomes 500.
+instance AutoRoute DaysheetsController where
+    allowedMethodsForAction _ = [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE, CONNECT]
 instance AutoRoute FeedbackController where
     allowedMethodsForAction actionName = case actionName of
         -- Handle read-method rejection in the controller: IHP's automatic

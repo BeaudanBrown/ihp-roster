@@ -19,6 +19,7 @@ import Web.Controller.Auth ()
 import Web.Controller.Billing ()
 import Web.Controller.E2ETest ()
 import Web.Controller.Exports ()
+import Web.Controller.Daysheets ()
 import Web.Controller.Feedback ()
 import Web.Controller.Help ()
 import Web.Controller.LeaveRequests ()
@@ -57,6 +58,7 @@ instance FrontController WebApplication where
         , parseRoute @ResendWebhooksController
         , parseRoute @E2ETestController
         , parseRoute @AdminController
+        , parseRoute @DaysheetsController
         , parseRoute @FeedbackController
         , parseRoute @HelpController
         , parseRoute @SupportController
