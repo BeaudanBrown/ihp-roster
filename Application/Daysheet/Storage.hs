@@ -4,7 +4,7 @@
 -- ordinary venue authority cannot be synthesized from a platform user role.
 module Application.Daysheet.Storage
     ( saveDraft, publishDraft, captureDefinition, withDefinitionCapture, retireCurrentReferences, updateCurrentReferences
-    , DesignerState (..), readDesignerState, editDraft
+    , DesignerState (..), readDesignerState, editDraft, editDraftReferences
     ) where
 
 import qualified Application.Daysheet.Contract as D
@@ -101,10 +101,21 @@ designerState member = do
 editDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> Designer.Edit -> IO (AppResult DaysheetDefinitionDraft)
 editDraft member expectedBase expectedDraft edit = withAuthority member [VenueAdmin, VenueOwner] do
     state <- designerState member
-    unless (state.designerBaseRevision == expectedBase && state.designerCurrentRevision == expectedBase
-        && state.designerDraftRevision == expectedDraft) (failure RevisionConflict)
+    checkDesignerRevision expectedBase expectedDraft state
     changed <- checked InvalidDefinitionDocument (Designer.applyEdit edit state.designerDefinition)
     saveDraftLocked member expectedBase expectedDraft changed state.designerReferences
+
+editDraftReferences :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> ReferenceEdit -> IO (AppResult DaysheetDefinitionDraft)
+editDraftReferences member expectedBase expectedDraft edit = withAuthority member [VenueAdmin, VenueOwner] do
+    state <- designerState member
+    checkDesignerRevision expectedBase expectedDraft state
+    changed <- checked InvalidReferenceDocument (editReferenceData state.designerDefinition (owner member) state.designerReferences edit)
+    saveDraftLocked member expectedBase expectedDraft state.designerDefinition changed
+
+checkDesignerRevision :: Integer -> Maybe Integer -> DesignerState -> StoreM ()
+checkDesignerRevision expectedBase expectedDraft state =
+    unless (state.designerBaseRevision == expectedBase && state.designerCurrentRevision == expectedBase
+        && state.designerDraftRevision == expectedDraft) (failure RevisionConflict)
 
 -- Staging permits old reference values incompatible with the new definition;
 -- only publication demands their correction. Saving never touches live data.

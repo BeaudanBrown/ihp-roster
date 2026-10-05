@@ -7,6 +7,7 @@ import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
 import qualified Application.Daysheet.Evaluation as E
 import qualified Data.Map.Strict as Map
+import Data.Either (isLeft)
 import qualified Data.UUID as UUID
 import Test.Hspec
 
@@ -59,6 +60,43 @@ tests = describe "Daysheet reference staging" do
         (encodeReferenceData references >>= decodeReferenceData) `shouldBe` Right references
         validateReferences changed owner references `shouldBe` Left (InvalidReferenceValues (E.InvalidInput areaField))
         validateReferences definition owner references `shouldBe` Right ()
+    it "repairs staged values individually without accepting new incompatible values" do
+        let other = E.RowId (UUID.fromWords 0 0 0 3)
+            key = ReferenceKey terminalList terminal
+            second = ReferenceKey terminalList other
+            changed = definition { recordLists = [RecordList areaList "Areas" VenueReference [], RecordList terminalList "Terminals" VenueReference [Field areaField "Area text" TextType Entered]] }
+        Right withRow <- pure (editReferenceData definition owner references (AddReferenceRecord terminalList other))
+        Right withOldValues <- pure (editReferenceData definition owner withRow (SetReferenceValue second areaField (Just (ReferenceLink (ReferenceKey areaList areaA)))))
+        Right oneFixed <- pure (editReferenceData changed owner withOldValues (SetReferenceValue key areaField (Just (ReferenceScalar (TextLiteral "Inside")))))
+        validateReferences changed owner oneFixed `shouldSatisfy` isLeft
+        editReferenceData changed owner oneFixed (SetReferenceValue second areaField (Just (ReferenceScalar (WholeLiteral 1)))) `shouldSatisfy` isLeft
+        Right repaired <- pure (editReferenceData changed owner oneFixed (SetReferenceValue second areaField (Just (ReferenceScalar (TextLiteral "Outside")))))
+        validateReferences changed owner repaired `shouldBe` Right ()
+        validateReferences definition owner withOldValues `shouldBe` Right ()
+
+    it "permits explicitly clearing an obsolete staged field but not forging a new one" do
+        let changed = definition { recordLists = [RecordList areaList "Areas" VenueReference [], RecordList terminalList "Terminals" VenueReference []] }
+            clear = SetReferenceValue (ReferenceKey terminalList terminal) areaField Nothing
+        Right repaired <- pure (editReferenceData changed owner references clear)
+        validateReferences changed owner repaired `shouldBe` Right ()
+        editReferenceData changed owner repaired clear `shouldBe` Left InvalidReferenceChange
+        editReferenceData changed owner repaired (SetReferenceValue (ReferenceKey terminalList terminal) areaField (Just (ReferenceScalar (TextLiteral "Forged")))) `shouldSatisfy` isLeft
+
+    it "requires real active destinations and never resurrects retired rows" do
+        let target = ReferenceKey areaList areaA
+            missing = ReferenceKey areaList (E.RowId (UUID.fromWords 0 0 0 99))
+        editReferenceData definition owner references (SetReferenceValue (ReferenceKey terminalList terminal) areaField (Just (ReferenceLink missing))) `shouldBe` Left (MissingReferenceRecord missing)
+        Right retired <- pure (editReferenceData definition owner references (RetireReferenceRecord target [ReassignReference (ReferenceKey terminalList terminal) areaField (ReferenceKey areaList areaB)]))
+        editReferenceData definition owner retired (AddReferenceRecord areaList areaA) `shouldBe` Left DuplicateReferenceIdentity
+        editReferenceData definition owner retired (SetReferenceValue target areaField Nothing) `shouldBe` Left (MissingReferenceRecord target)
+        editReferenceData definition owner retired (SetReferenceValue (ReferenceKey terminalList terminal) areaField (Just (ReferenceLink target))) `shouldBe` Left (MissingReferenceRecord target)
+
+    it "rejects reference row creation in daily lists and enforces retained identity limits" do
+        let daily = definition { recordLists = recordLists definition <> [RecordList (ListId (UUID.fromWords 0 0 0 9)) "Daily" OpenDaily []] }
+            full = ReferenceData [ReferenceList areaList [ReferenceRecord (E.RowId (UUID.fromWords 0 0 1 (fromIntegral n))) True [] | n <- [1 .. maxRowsPerList limits]]]
+        editReferenceData daily owner references (AddReferenceRecord (ListId (UUID.fromWords 0 0 0 9)) areaA) `shouldBe` Left (UnknownReferenceList (ListId (UUID.fromWords 0 0 0 9)))
+        editReferenceData definition owner full (AddReferenceRecord areaList areaA) `shouldBe` Left ReferenceLimit
+
     it "rejects duplicate record identities and links into another document" do
         let duplicate = ReferenceData [ReferenceList areaList [ReferenceRecord areaA False [], ReferenceRecord areaA False []]]
         validateReferences definition owner duplicate `shouldBe` Left DuplicateReferenceIdentity

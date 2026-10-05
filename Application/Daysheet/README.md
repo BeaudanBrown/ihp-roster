@@ -18,6 +18,11 @@ commands. `Storage.readDesignerState` reads the draft or published definition
 without creating records; `Storage.editDraft` applies edits under fresh venue
 admin/owner authority and exact draft/base-revision checks. Ordinary edits never
 silently rebase a stale draft after live reference changes.
+`Storage.editDraftReferences` exposes typed row/value/retirement edits under the
+same revision guard. New values use canonical reference validation; old staged
+values can be repaired one at a time, including explicitly clearing removed
+fields. Retirement requires explicit dependency choices and takes effect only
+on publication; no historical capture is rewritten.
 
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;

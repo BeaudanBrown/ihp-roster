@@ -61,6 +61,33 @@ tests = aroundAll withDatabaseTestContext do
                 retained.designerDraftRevision `shouldBe` Just 0
                 retained.designerReferences `shouldBe` Fixture.references
 
+        it "stages typed reference retirement for explicit publication without changing earlier captures" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Designer reference edits"
+                user <- createUserRecord "daysheet-designer-references@example.test" "admin" True
+                member <- createVenueMembershipRecord venue user VenueOwner
+                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
+                Right version <- publishDraft member 0 0
+                Right old <- captureDefinition member (fromGregorian 2026 10 1)
+                let target = ReferenceKey Fixture.areaList Fixture.areaA
+                    terminal = ReferenceKey Fixture.terminalList Fixture.terminal
+                    replacement = ReferenceKey Fixture.areaList Fixture.areaB
+                    retirement = RetireReferenceRecord target [ReassignReference terminal Fixture.areaField replacement]
+                errorSuffix <$> editDraftReferences member 1 Nothing (RetireReferenceRecord target []) `shouldReturn` Just "invalid-reference-document"
+                query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
+                Right staged <- editDraftReferences member 1 Nothing retirement
+                staged.revision `shouldBe` 0
+                errorSuffix <$> editDraftReferences member 1 Nothing retirement `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> editDraftReferences member 1 (Just 0) (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "invalid-reference-document"
+                Right beforePublication <- captureDefinition member (fromGregorian 2026 10 2)
+                beforePublication.definitionVersionId `shouldBe` unpackId version.id
+                beforePublication.referenceData `shouldBe` old.referenceData
+                Right _ <- publishDraft member 1 0
+                Right fresh <- captureDefinition member (fromGregorian 2026 10 3)
+                fresh.referenceData `shouldNotBe` old.referenceData
+                unchanged <- fetch old.id
+                unchanged.referenceData `shouldBe` old.referenceData
+
         it "publishes staged corrections only for future captures" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"
@@ -158,6 +185,7 @@ tests = aroundAll withDatabaseTestContext do
                 errorSuffix <$> editDraft worker 0 Nothing (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "access-denied"
                 manager <- worker |> set #venueRole Manager |> updateRecord
                 errorSuffix <$> readDesignerState manager `shouldReturn` Just "access-denied"
+                errorSuffix <$> editDraftReferences manager 0 Nothing (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "access-denied"
                 admin <- createVenueMembershipRecord other user VenueAdmin
                 forged <- saveDraft (admin |> set #venueId (unpackId venue.id)) 0 Nothing Fixture.definition Fixture.references
                 errorSuffix forged `shouldBe` Just "access-denied"

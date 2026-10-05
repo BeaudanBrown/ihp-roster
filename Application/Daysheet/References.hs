@@ -3,7 +3,7 @@
 module Application.Daysheet.References
     ( ReferenceKey (..), ReferenceValue (..), ReferenceRecord (..)
     , ReferenceList (..), ReferenceData (..), ReferenceError (..)
-    , ReferenceChange (..), Dependency (..)
+    , ReferenceChange (..), Dependency (..), ReferenceEdit (..), editReferenceData
     , validateReferences, captureReferences, retirementDependencies, retireReferences
     , preservesReferences, activeReferenceData, preservesRetirementState
     ) where
@@ -41,6 +41,73 @@ data ReferenceChange
     | ReassignReference ReferenceKey FieldId ReferenceKey
     deriving (Eq, Show)
 data Dependency = Dependency ReferenceKey FieldId deriving (Eq, Ord, Show)
+
+-- Typed staging operations, not a replacement document supplied by a browser.
+-- Retirement retains the existing explicit dependency-resolution operation.
+data ReferenceEdit
+    = AddReferenceRecord ListId E.RowId
+    | SetReferenceValue ReferenceKey FieldId (Maybe ReferenceValue)
+    | RetireReferenceRecord ReferenceKey [ReferenceChange]
+    deriving (Eq, Show)
+
+-- A draft can contain values made incompatible by a definition change. Validate
+-- each new value with the canonical reference/evaluation authority, without
+-- requiring all other old values to be repaired in the same browser request.
+-- Publication still validates the complete document. No operation resurrects
+-- or silently removes an identity, changes a different cell, or edits history.
+editReferenceData :: Definition -> E.SnapshotKey -> ReferenceData -> ReferenceEdit -> Either ReferenceError ReferenceData
+editReferenceData definition owner original@(ReferenceData lists) edit = case edit of
+    AddReferenceRecord source identity -> do
+        _ <- sourceList source
+        case [row | list <- lists, referenceListId list == source, row <- referenceRecords list, referenceRecordId row == identity] of
+            [] -> Right ()
+            _ -> Left DuplicateReferenceIdentity
+        let row = ReferenceRecord identity False []
+        case [list | list <- lists, referenceListId list == source] of
+            [] | length lists < maxLists limits -> Right (ReferenceData (lists <> [ReferenceList source [row]]))
+            [list] | length (referenceRecords list) < maxRowsPerList limits ->
+                Right (ReferenceData (map (\value -> if referenceListId value == source then value { referenceRecords = referenceRecords value <> [row] } else value) lists))
+            _ -> Left ReferenceLimit
+    SetReferenceValue key@(ReferenceKey source identity) field value -> do
+        row <- activeRow key
+        case value of
+            Nothing -> case lookup field (referenceValues row) of
+                Just _ -> Right () -- Explicit correction of a removed/retyped field.
+                Nothing -> do
+                    declared <- sourceList source
+                    case [entry | entry <- listFields declared, fieldId entry == field, fieldSource entry == Entered] of
+                        [_] -> Right ()
+                        _ -> Left InvalidReferenceChange
+            Just entered -> do
+                -- Include only the changed cell and, for a link, its real active
+                -- destination identity. Other stored values need not yet match
+                -- the draft, but cannot make a forged new value permissible.
+                destination <- case entered of
+                    ReferenceScalar _ -> Right []
+                    ReferenceLink target@(ReferenceKey targetList targetRow) -> do
+                        _ <- activeRow target
+                        pure [(targetList, targetRow) | target /= key]
+                let changedRow = ReferenceRecord identity False [(field, entered)]
+                    selected = case destination of
+                        [(targetList, targetRow)] | targetList == source ->
+                            [ReferenceList source [changedRow, ReferenceRecord targetRow False []]]
+                        [(targetList, targetRow)] ->
+                            [ReferenceList source [changedRow], ReferenceList targetList [ReferenceRecord targetRow False []]]
+                        _ -> [ReferenceList source [changedRow]]
+                validateReferences definition owner (ReferenceData selected)
+        let changed = row { referenceValues = filter ((/= field) . fst) (referenceValues row) <> maybe [] (\entered -> [(field, entered)]) value }
+        pure (ReferenceData (map (\list -> if referenceListId list == source
+            then list { referenceRecords = map (\record -> if referenceRecordId record == identity then changed else record) (referenceRecords list) }
+            else list) lists))
+    RetireReferenceRecord key changes -> retireReferences definition owner original key changes
+  where
+    sourceList source = case [list | list <- recordLists definition, listId list == source, listMode list == VenueReference] of
+        [list] -> Right list
+        _ -> Left (UnknownReferenceList source)
+    activeRow key@(ReferenceKey source identity) = case
+        [row | list <- lists, referenceListId list == source, row <- referenceRecords list, referenceRecordId row == identity, not (referenceRetired row)] of
+        [row] -> Right row
+        _ -> Left (MissingReferenceRecord key)
 
 validateReferences :: Definition -> E.SnapshotKey -> ReferenceData -> Either ReferenceError ()
 validateReferences definition owner dataValue@(ReferenceData lists) = do
