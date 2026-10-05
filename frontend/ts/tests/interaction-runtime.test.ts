@@ -860,8 +860,52 @@ test("context menus remain native without a touch drag and after cancellation", 
     controller.stop();
     controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
     controller.handlePointerCancel(pointerEventWithTarget("pointercancel", marker, 1, 50, 50, "touch"));
-    menu();
     controller.stop();
+    menu();
+});
+
+test("a delayed native menu after touch cancellation or release remains part of that gesture", () => {
+    for (const ending of ["pointercancel", "pointerup"]) {
+        const mount = new MiniElement({ [attrs.surface]: "roster" });
+        const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "450" }));
+        const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+        try {
+            controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+            const end = pointerEventWithTarget(ending, marker, 1, 50, 50, "touch");
+            if (ending === "pointercancel") controller.handlePointerCancel(end);
+            else controller.handlePointerUp(end);
+            assertEqual(controller.currentSession(), null);
+            const delayedMenu = eventWithTarget("contextmenu", marker);
+            controller.handleContextMenu(delayedMenu);
+            assertEqual(delayedMenu.defaultPrevented, true);
+            const unrelatedMenu = eventWithTarget("contextmenu", mount);
+            controller.handleContextMenu(unrelatedMenu);
+            assertEqual(unrelatedMenu.defaultPrevented, false);
+            controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 2, 50, 50, "mouse"));
+            const mouseMenu = eventWithTarget("contextmenu", marker);
+            controller.handleContextMenu(mouseMenu);
+            assertEqual(mouseMenu.defaultPrevented, false);
+        } finally {
+            controller.stop();
+        }
+    }
+});
+
+test("delayed touch-menu protection expires without retaining an active drag", async () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.sessionLongPressMs]: "450" }));
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    try {
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 50, 50, "touch"));
+        controller.handlePointerCancel(pointerEventWithTarget("pointercancel", marker, 1, 50, 50, "touch"));
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        const menu = eventWithTarget("contextmenu", marker);
+        controller.handleContextMenu(menu);
+        assertEqual(menu.defaultPrevented, false);
+        assertEqual(controller.currentSession(), null);
+    } finally {
+        controller.stop();
+    }
 });
 
 test("a second touch cancels a held drag without suppressing native pinch gestures", async () => {

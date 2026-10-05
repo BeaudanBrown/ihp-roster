@@ -517,8 +517,13 @@ test('reserves native long-press menus before and after activation on shift and 
         expect(pending).toEqual({ menuAllowed: false, activated: false, calloutSuppressed: true });
         await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
         expect(await source.evaluate(element => element.dispatchEvent(new PointerEvent('contextmenu', { bubbles: true, cancelable: true, pointerType: 'touch' })))).toBe(false);
-        await page.keyboard.press('Escape');
+        const delayedMenuAllowed = await source.evaluate(element => {
+            element.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 77, pointerType: 'touch' }));
+            return element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        });
+        expect(delayedMenuAllowed).toBe(false);
         await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+        await page.keyboard.press('Escape');
     }
     expect(await page.getByRole('heading', { name: 'Roster', exact: true }).evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))).toBe(true);
 });

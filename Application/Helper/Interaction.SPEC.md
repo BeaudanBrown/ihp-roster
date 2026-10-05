@@ -134,8 +134,12 @@ A second touch cancels rather than blocking pinch zoom. Pending timers and activ
 scroll frames share ordinary session cleanup. Opted-in sources suppress native
 text selection and WebKit touch callouts before activation; pending and active
 touch sessions suppress context menus so browser-specific hold thresholds cannot
-steal the gesture. This does not set `touch-action: none` or suppress context
-menus outside touch sessions.
+steal the gesture. After touch release or native pointer cancellation, a
+source-scoped one-second grace period also suppresses delayed context-menu events
+without retaining the drag or allowing another save. New pointer/keyboard input,
+DOM cleanup and runtime disposal clear that protection. Other targets remain
+native. This does not set `touch-action: none` or suppress ordinary mouse and
+keyboard context menus.
 
 Use standard HTMX forms, triggers, sync/disabled controls, and lifecycle events.
 Do not add feature fetch persistence, custom mutation transports, extensions, or

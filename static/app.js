@@ -4163,6 +4163,13 @@
     let timeoutHandle = null;
     let longPressHandle = null;
     let suppressNextClickMarker = null;
+    let delayedTouchMenuMarker = null;
+    let delayedTouchMenuTimer = null;
+    const clearDelayedTouchMenu = () => {
+      if (delayedTouchMenuTimer !== null) clearTimeout(delayedTouchMenuTimer);
+      delayedTouchMenuTimer = null;
+      delayedTouchMenuMarker = null;
+    };
     let scrollFrame = null;
     let lastScrollFrameTime = null;
     const stopEdgeScrolling = () => {
@@ -4210,6 +4217,11 @@
       }, timeoutMs);
     };
     const cleanupSession = (session, reason) => {
+      clearDelayedTouchMenu();
+      if (session.pointerType === "touch" && (reason === "pointercancel" || reason === "pointerup")) {
+        delayedTouchMenuMarker = session.marker;
+        delayedTouchMenuTimer = setTimeout(clearDelayedTouchMenu, 1e3);
+      }
       clearTimeoutHandle();
       stopEdgeScrolling();
       if (longPressHandle !== null) clearTimeout(longPressHandle);
@@ -4274,6 +4286,7 @@
     };
     return {
       handlePointerDown(event) {
+        clearDelayedTouchMenu();
         if (activeSession?.pointerType === "touch" && event.pointerType === "touch" && !isMatchingPointerEvent(event, activeSession)) {
           cancelSession(activeSession, event);
           return;
@@ -4345,9 +4358,11 @@
         if (activeSession.activated && event.cancelable) event.preventDefault();
       },
       handleContextMenu(event) {
-        if (activeSession?.pointerType === "touch" && event.cancelable) event.preventDefault();
+        const delayedTouchMenu = delayedTouchMenuMarker !== null && delayedTouchMenuMarker.isConnected !== false && closestSurfaceSourceRef(event.target) === delayedTouchMenuMarker;
+        if ((activeSession?.pointerType === "touch" || delayedTouchMenu) && event.cancelable) event.preventDefault();
       },
       handleKeyDown(event) {
+        clearDelayedTouchMenu();
         if (!activeSession) return;
         if (isEscapeKeyboardEvent(event)) {
           if (event.cancelable) event.preventDefault();
@@ -4361,6 +4376,7 @@
         updateSessionModifierFromKeyboard(activeSession, event);
       },
       handleExternalCleanup(event) {
+        clearDelayedTouchMenu();
         if (!activeSession) return;
         cancelSession(activeSession, event);
       },
@@ -4384,6 +4400,7 @@
       },
       stop() {
         if (activeSession) cancelSession(activeSession, null);
+        clearDelayedTouchMenu();
         clearTimeoutHandle();
         suppressNextClickMarker = null;
       }

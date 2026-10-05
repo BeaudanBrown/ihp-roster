@@ -152,6 +152,14 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let longPressHandle: ReturnType<typeof setTimeout> | null = null;
     let suppressNextClickMarker: ElementLike | null = null;
+    let delayedTouchMenuMarker: ElementLike | null = null;
+    let delayedTouchMenuTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearDelayedTouchMenu = () => {
+        if (delayedTouchMenuTimer !== null) clearTimeout(delayedTouchMenuTimer);
+        delayedTouchMenuTimer = null;
+        delayedTouchMenuMarker = null;
+    };
     let scrollFrame: number | null = null;
     let lastScrollFrameTime: number | null = null;
 
@@ -205,6 +213,13 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     };
 
     const cleanupSession = (session: ActivePointerSession, reason: string) => {
+        clearDelayedTouchMenu();
+        // Mobile engines may dispatch contextmenu after pointercancel/pointerup.
+        // Retain only this source briefly; never retain the drag or permit a save.
+        if (session.pointerType === "touch" && (reason === "pointercancel" || reason === "pointerup")) {
+            delayedTouchMenuMarker = session.marker;
+            delayedTouchMenuTimer = setTimeout(clearDelayedTouchMenu, 1000);
+        }
         clearTimeoutHandle();
         stopEdgeScrolling();
         if (longPressHandle !== null) clearTimeout(longPressHandle);
@@ -273,6 +288,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
     return {
         handlePointerDown(event: Event) {
+            clearDelayedTouchMenu();
             if (activeSession?.pointerType === "touch" && (event as PointerEventLike).pointerType === "touch"
                 && !isMatchingPointerEvent(event, activeSession)) {
                 cancelSession(activeSession, event);
@@ -350,9 +366,13 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         handleContextMenu(event: Event) {
             // Native long-press thresholds vary by browser/device and can beat
             // the app's activation timer. Reserve the gesture while pending too.
-            if (activeSession?.pointerType === "touch" && event.cancelable) event.preventDefault();
+            const delayedTouchMenu = delayedTouchMenuMarker !== null
+                && delayedTouchMenuMarker.isConnected !== false
+                && closestSurfaceSourceRef(event.target) === delayedTouchMenuMarker;
+            if ((activeSession?.pointerType === "touch" || delayedTouchMenu) && event.cancelable) event.preventDefault();
         },
         handleKeyDown(event: Event) {
+            clearDelayedTouchMenu();
             if (!activeSession) return;
             if (isEscapeKeyboardEvent(event)) {
                 if (event.cancelable) event.preventDefault();
@@ -366,6 +386,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             updateSessionModifierFromKeyboard(activeSession, event);
         },
         handleExternalCleanup(event: Event) {
+            clearDelayedTouchMenu();
             if (!activeSession) return;
             cancelSession(activeSession, event);
         },
@@ -389,6 +410,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         },
         stop() {
             if (activeSession) cancelSession(activeSession, null);
+            clearDelayedTouchMenu();
             clearTimeoutHandle();
             suppressNextClickMarker = null;
         },
