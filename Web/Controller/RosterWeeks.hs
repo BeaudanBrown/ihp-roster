@@ -49,7 +49,6 @@ import Application.Helper.View (ConfirmationDialogConfig (..),
 import qualified Application.RosterNotification as Notification
 import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
-                                          applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
                                           rosterShiftIsOpen)
 import Application.VenueTime (VenueTimeError (InvalidCivilTimeOfDay, NonPositiveResolvedInterval, NonexistentCivilTime, RepeatedCivilTimeRequiresOccurrence, RepeatedTimeOccurrenceNotApplicable))
@@ -950,16 +949,12 @@ instance Controller RosterWeeksController where
                 case result of
                     Left message -> respondWithMoveRosterShiftFailure scope message
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay } -> do
-                        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
-                        let publishedFill = staffDropRosterDay.publicationState == Published
-                            materializeOnSave = not publishedFill && any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays
-                            updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
-                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot publishedFill materializeOnSave
-                        case mutationResult of
+                        assignment <- assignRosterShiftStaff scope staffDropRosterDay staffDropSlot staffDropStaff
+                        case assignment of
                             Left message -> respondWithMoveRosterShiftFailure scope message
-                            Right mutationResult -> do
-                                let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                respondToRosterSlotMutation scope staffDropRosterDay updatedSlot.rowIndex materializeOnSave mutationResult $
+                            Right RosterStaffAssignmentCompletion { rosterStaffAssignmentMutation, rosterStaffAssignmentMaterializedWindow } -> do
+                                let warningToast = rosterStaffAssignmentMutation.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                respondToRosterSlotMutation scope staffDropRosterDay staffDropSlot.rowIndex rosterStaffAssignmentMaterializedWindow rosterStaffAssignmentMutation $
                                     if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
                     Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropSlotDefinition, staffDropRowIndex, staffDropStartsAt } -> do
                         payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]

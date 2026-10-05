@@ -58,7 +58,8 @@ import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
                                         rosterSurfaceScope)
-import Web.RosterWeeks.Types (RosterProjectionFragment (..))
+import Web.RosterWeeks.Types (RosterProjectionFragment (..),
+                              TimelineOrientation (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidationsWithoutContext)
@@ -73,7 +74,7 @@ import Web.Types
 
 rosterScopeValue :: UUID -> Id RosterGroup -> Int -> RosterWeekScopeValue
 rosterScopeValue venueId rosterGroupId windowIndex =
-    RosterWeekScopeValue venueId rosterGroupId windowStart (addDays 7 windowStart) 1 Nothing
+    RosterWeekScopeValue venueId rosterGroupId windowStart (addDays 7 windowStart) 1 Nothing TimelineAuto
   where
     windowStart = testAnchorForOffset windowIndex
 

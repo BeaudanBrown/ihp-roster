@@ -66,6 +66,7 @@ import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterIntentForms)
+import Web.RosterWeeks.Types (TimelineOrientation (..))
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
                                         StaffShiftPreferencesSubmission (..),
@@ -527,9 +528,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     { rosterWeekVenueId = venueId
                     , rosterWeekGroupId = rosterGroupId
                     , rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1
+                    , rosterWeekTimelineOrientation = TimelineAuto
                     , rosterWeekTimelineDate = Nothing
                     }
-        let timelineScope = rosterScope { rosterWeekTimelineDate = Just (addDays 2 (testAnchorForOffset 3)) }
+        let timelineScope = rosterScope { rosterWeekTimelineDate = Just (addDays 2 (testAnchorForOffset 3)), rosterWeekTimelineOrientation = TimelineVertical }
         let rosterForms = rosterIntentForms rosterScope True
         let timelineForms = filter ((== "move-roster-timeline-shift") . intentFormName) (rosterIntentForms timelineScope True)
         map intentFormName rosterForms
@@ -547,7 +549,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)
-                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29", 12)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29&amp;timelineAxis=vertical", 12)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
             assertRosterIntentFormMetadata metadata html

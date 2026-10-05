@@ -5,29 +5,41 @@
 .roster-day-timeline-scroller {
     --roster-timeline-label-width: clamp(7rem, 13vw, 11rem);
     overflow: auto;
-    overscroll-behavior-x: contain;
+    overscroll-behavior: contain;
     max-height: 75vh;
     container-type: inline-size;
 }
 
+.roster-day-timeline-shell {
+    --bepis-drag-axis-direction: horizontal;
+    --roster-timeline-x: 1;
+    --roster-timeline-y: 0;
+    --roster-timeline-lane-width: max(6rem, calc((100cqw - 2.75rem) / 2));
+}
+
 .roster-day-timeline {
+    display: grid;
+    grid-auto-flow: var(--roster-timeline-flow, row);
+    grid-template-columns: var(--roster-timeline-columns, none);
     --roster-timeline-hour-width: 6rem;
     --roster-timeline-row-min-height: 4rem;
     --roster-timeline-track-height: calc(4.5rem * var(--app-density-control-scale));
     --roster-timeline-track-gap: 0.35rem;
-    width: calc(var(--roster-timeline-label-width) + var(--roster-timeline-hours) * var(--roster-timeline-hour-width));
+    width: var(--roster-timeline-width, calc(var(--roster-timeline-label-width) + var(--roster-timeline-hours) * var(--roster-timeline-hour-width)));
     min-width: 0;
 }
 
 .roster-day-timeline-scale,
 .roster-day-timeline-lane {
     display: grid;
-    grid-template-columns: var(--roster-timeline-label-width) minmax(0, 1fr);
+    grid-template-columns: var(--roster-timeline-inner-columns, var(--roster-timeline-label-width) minmax(0, 1fr));
+    grid-template-rows: var(--roster-timeline-rows, none);
 }
 
 .roster-day-timeline-scale {
     position: sticky;
-    top: 0;
+    top: var(--roster-timeline-scale-top, 0);
+    left: var(--roster-timeline-scale-left, auto);
     z-index: 4;
     background: var(--bs-body-bg);
     border-bottom: 1px solid var(--bs-border-color);
@@ -41,13 +53,16 @@
     z-index: 3;
     background: var(--bs-body-bg);
     align-self: center;
+    top: var(--roster-timeline-label-top, auto);
+    height: var(--roster-timeline-label-height, auto);
     color: var(--bs-secondary-color);
     font-size: 0.8rem;
     font-weight: 600;
 }
 
 .roster-day-timeline-scale-body {
-    grid-column: 2;
+    grid-column: var(--roster-timeline-body-column, 2);
+    height: var(--roster-timeline-body-height, auto);
     position: relative;
     min-width: 0;
     min-height: 2rem;
@@ -55,8 +70,9 @@
 
 .roster-day-timeline-scale-tick {
     position: absolute;
-    top: 0.45rem;
-    transform: translateX(-50%);
+    left: calc(var(--roster-timeline-position) * var(--roster-timeline-x));
+    top: calc(0.45rem * var(--roster-timeline-x) + var(--roster-timeline-position) * var(--roster-timeline-y));
+    transform: var(--roster-timeline-tick-transform, translateX(-50%));
     color: var(--bs-body-color);
     font-size: clamp(0.6rem, 0.72vw, 0.75rem);
     white-space: nowrap;
@@ -68,7 +84,9 @@
 
 .roster-day-timeline-lane-label {
     position: sticky;
-    left: 0;
+    left: var(--roster-timeline-label-left, 0);
+    top: var(--roster-timeline-label-top, auto);
+    height: var(--roster-timeline-label-height, auto);
     z-index: 3;
     background: var(--bs-body-bg);
     display: flex;
@@ -76,18 +94,19 @@
     justify-content: center;
     gap: 0.15rem;
     min-height: var(--roster-timeline-row-min-height);
-    padding: 0.75rem 0.75rem 0.75rem 0;
+    padding: var(--roster-timeline-label-padding, 0.75rem 0.75rem 0.75rem 0);
     border-right: 1px solid var(--bs-border-color);
 }
 
 .roster-day-timeline-lane-body {
     position: relative;
     min-width: 0;
-    min-height: calc(
+    height: var(--roster-timeline-body-height, auto);
+    min-height: calc((
         var(--roster-timeline-track-count, 1) * var(--roster-timeline-track-height)
         + max(0, var(--roster-timeline-track-count, 1) - 1) * var(--roster-timeline-track-gap)
         + 1rem
-    );
+    ) * var(--roster-timeline-x));
     background-color: color-mix(in srgb, var(--bs-body-bg) 86%, var(--bs-secondary-bg));
     /* Lines are positioned with the same server-owned scale as cards and ticks. */
     overflow: visible;
@@ -101,14 +120,18 @@
 
 .roster-day-timeline-gridlines span {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    border-left: 1px solid var(--bs-border-color);
+    left: calc(var(--roster-timeline-position) * var(--roster-timeline-x));
+    top: calc(var(--roster-timeline-position) * var(--roster-timeline-y));
+    width: calc(100% * var(--roster-timeline-y));
+    height: calc(100% * var(--roster-timeline-x));
+    border-style: solid;
+    border-color: var(--bs-border-color);
+    border-width: calc(1px * var(--roster-timeline-y)) 0 0 calc(1px * var(--roster-timeline-x));
 }
 
 .roster-day-timeline-dropzones {
     position: absolute;
-    inset: 0.5rem 0;
+    inset: calc(0.5rem * var(--roster-timeline-x)) 0;
 }
 
 .roster-day-timeline-dropzones {
@@ -118,11 +141,12 @@
 .roster-day-timeline-shifts {
     position: relative;
     display: grid;
-    margin: 0.5rem 0;
-    padding-top: calc(
+    height: var(--roster-timeline-body-height, auto);
+    margin: calc(0.5rem * var(--roster-timeline-x)) 0;
+    padding-top: calc((
         var(--roster-timeline-track-count, 1) * var(--roster-timeline-track-height)
         + max(0, var(--roster-timeline-track-count, 1) - 1) * var(--roster-timeline-track-gap)
-    );
+    ) * var(--roster-timeline-x));
     z-index: 2;
     pointer-events: none;
 }
@@ -132,8 +156,10 @@
     border: 0;
     background: transparent;
     position: absolute;
-    top: 0;
-    bottom: 0;
+    left: calc(var(--roster-timeline-position) * var(--roster-timeline-x));
+    top: calc(var(--roster-timeline-position) * var(--roster-timeline-y));
+    width: calc(var(--roster-timeline-extent) * var(--roster-timeline-x) + 100% * var(--roster-timeline-y));
+    height: calc(100% * var(--roster-timeline-x) + var(--roster-timeline-extent) * var(--roster-timeline-y));
     border-radius: 0.25rem;
 }
 
@@ -150,8 +176,10 @@
 
 .roster-day-timeline-shift-position {
     position: absolute;
-    top: calc(var(--roster-timeline-track) * (var(--roster-timeline-track-height) + var(--roster-timeline-track-gap)));
-    height: var(--roster-timeline-track-height);
+    left: calc(var(--roster-timeline-position) * var(--roster-timeline-x) + var(--roster-timeline-track) * 100% / var(--roster-timeline-track-count) * var(--roster-timeline-y));
+    top: calc(var(--roster-timeline-track) * (var(--roster-timeline-track-height) + var(--roster-timeline-track-gap)) * var(--roster-timeline-x) + var(--roster-timeline-position) * var(--roster-timeline-y));
+    width: calc(var(--roster-timeline-extent) * var(--roster-timeline-x) + (100% / var(--roster-timeline-track-count) - var(--roster-timeline-track-gap)) * var(--roster-timeline-y));
+    height: calc(var(--roster-timeline-track-height) * var(--roster-timeline-x) + var(--roster-timeline-extent) * var(--roster-timeline-y));
     overflow: visible;
     pointer-events: none;
 }
@@ -163,7 +191,11 @@
     text-align: left;
     color: var(--bs-body-color);
     min-width: 0;
-    height: var(--roster-timeline-track-height);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
     padding: 0.4rem min(0.55rem, 8%);
     pointer-events: auto;
     border: 1px solid var(--bs-border-color);
@@ -171,7 +203,15 @@
     border-left: 3px solid var(--roster-shift-type-colour, var(--bs-border-color));
     background: color-mix(in srgb, var(--bs-body-bg) 78%, var(--roster-shift-type-colour, var(--bs-secondary-bg)) 22%);
     box-shadow: var(--app-shadow-sm);
-    overflow: hidden;
+    overflow: clip;
+}
+
+.roster-day-timeline-shift-caption {
+    position: sticky;
+    top: var(--roster-timeline-caption-top, auto);
+    left: var(--roster-timeline-caption-left, var(--roster-timeline-label-width));
+    width: var(--roster-timeline-caption-width, max-content);
+    max-width: 100%;
 }
 
 /* Preserve the type colour at the left; dashed edges identify even very short Open shifts. */
@@ -222,7 +262,8 @@
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: var(--roster-timeline-text-wrap, nowrap);
+    overflow-wrap: anywhere;
 }
 
 /* A lane-wide detail line avoids clipping at either edge and never covers cards. */
@@ -230,7 +271,9 @@
     grid-area: 1 / 1;
     position: sticky;
     left: var(--roster-timeline-label-width);
-    width: calc(100cqw - var(--roster-timeline-label-width));
+    width: var(--roster-timeline-details-width, calc(100cqw - var(--roster-timeline-label-width)));
+    align-self: start;
+    height: max-content;
     min-width: 0;
     padding: 0.25rem;
     font-size: 0.75rem;
@@ -259,5 +302,59 @@
     font-size: 0.78rem;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: var(--roster-timeline-text-wrap, nowrap);
+}
+
+/* The same DOM and server-owned coordinates project onto either axis. Only
+   presentation variables differ; Auto shares the explicit vertical recipe. */
+.roster-day-timeline-shell[data-roster-timeline-orientation="vertical"] {
+    --bepis-drag-axis-direction: vertical;
+    --roster-timeline-x: 0;
+    --roster-timeline-y: 1;
+    --roster-timeline-flow: column;
+    --roster-timeline-width: max-content;
+    --roster-timeline-columns: 2.75rem repeat(var(--roster-timeline-lane-count), var(--roster-timeline-lane-width));
+    --roster-timeline-inner-columns: minmax(0, 1fr);
+    --roster-timeline-label-height: 5.5rem;
+    --roster-timeline-label-padding: 0.35rem;
+    --roster-timeline-caption-top: calc(var(--roster-timeline-label-height) + 0.4rem);
+    --roster-timeline-caption-left: auto;
+    --roster-timeline-caption-width: 100%;
+    --roster-timeline-body-height: calc(var(--roster-timeline-hours) * 3.5rem);
+    --roster-timeline-rows: var(--roster-timeline-label-height) var(--roster-timeline-body-height);
+    --roster-timeline-body-column: 1;
+    --roster-timeline-label-left: auto;
+    --roster-timeline-label-top: 0;
+    --roster-timeline-scale-top: auto;
+    --roster-timeline-scale-left: 0;
+    --roster-timeline-tick-transform: translateY(-50%);
+    --roster-timeline-text-wrap: normal;
+    --roster-timeline-details-width: 100%;
+}
+
+@media (max-width: 767.98px) and (orientation: portrait) {
+    .roster-day-timeline-shell[data-roster-timeline-orientation="auto"] {
+        --bepis-drag-axis-direction: vertical;
+        --roster-timeline-x: 0;
+        --roster-timeline-y: 1;
+        --roster-timeline-flow: column;
+        --roster-timeline-width: max-content;
+        --roster-timeline-columns: 2.75rem repeat(var(--roster-timeline-lane-count), var(--roster-timeline-lane-width));
+        --roster-timeline-inner-columns: minmax(0, 1fr);
+        --roster-timeline-label-height: 5.5rem;
+        --roster-timeline-label-padding: 0.35rem;
+        --roster-timeline-caption-top: calc(var(--roster-timeline-label-height) + 0.4rem);
+        --roster-timeline-caption-left: auto;
+        --roster-timeline-caption-width: 100%;
+        --roster-timeline-body-height: calc(var(--roster-timeline-hours) * 3.5rem);
+        --roster-timeline-rows: var(--roster-timeline-label-height) var(--roster-timeline-body-height);
+        --roster-timeline-body-column: 1;
+        --roster-timeline-label-left: auto;
+        --roster-timeline-label-top: 0;
+        --roster-timeline-scale-top: auto;
+        --roster-timeline-scale-left: 0;
+        --roster-timeline-tick-transform: translateY(-50%);
+        --roster-timeline-text-wrap: normal;
+        --roster-timeline-details-width: 100%;
+    }
 }

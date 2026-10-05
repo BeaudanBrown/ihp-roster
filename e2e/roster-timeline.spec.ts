@@ -3,12 +3,16 @@ import { readFileSync } from 'node:fs';
 import { openRoster, openRosterSettings, resetCanonicalRosterAssignedShiftFixture, fillRosterShiftDialogDefaults, saveRosterShiftDialog } from './support/roster';
 import { querySql, runSql, sqlString } from './support/database';
 import { waitForLiveRecovery } from './support/runtime';
-import { InteractionDom, liveFragmentsRefreshEvent, surfaceConfigDomAttr, toggleRootDomAttr } from '../frontend/ts/generated/contracts';
+import { InteractionDom, dragAxisDirectionProperty, liveFragmentsRefreshEvent, surfaceConfigDomAttr, toggleRootDomAttr } from '../frontend/ts/generated/contracts';
 
-async function openTimelineLayout(page: Page) {
+async function openTimelineLayout(page: Page, orientation?: 'Horizontal' | 'Vertical') {
     await openRosterSettings(page);
     await page.getByRole('group', { name: 'Roster layout', exact: true }).getByRole('link', { name: 'Timeline', exact: true }).click();
     await expect(page.locator('.roster-day-timeline')).toBeVisible();
+    if (orientation) {
+        await page.getByRole('group', { name: 'Timeline orientation', exact: true }).getByRole('link', { name: orientation, exact: true }).click();
+        await expect(page.locator('[data-roster-timeline-orientation]')).toHaveAttribute('data-roster-timeline-orientation', orientation.toLowerCase());
+    }
     const closeTools = page.getByRole('button', { name: 'Close Roster tools', exact: true });
     if (await closeTools.isVisible()) {
         await closeTools.click();
@@ -41,15 +45,17 @@ function resetTimelineShiftInterval() {
         WHERE slot.id = 'a1000000-0000-0000-0000-000000000071' AND day.id = slot.roster_day_id`);
 }
 
-async function openCanonicalTimeline(page: Page) {
+async function openCanonicalTimeline(page: Page, orientation = 'horizontal') {
     resetCanonicalRosterAssignedShiftFixture();
     resetTimelineShiftInterval();
     await openRoster(page);
     const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
     const url = new URL(page.url());
     url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('timelineAxis', 'horizontal');
     url.searchParams.set('anchorDate', day);
     url.searchParams.set('dayDate', day);
+    url.searchParams.set('timelineAxis', orientation);
     await page.goto(url.toString());
 }
 
@@ -89,6 +95,7 @@ test('saves a five-minute shift into a projected timeline lane and refreshes the
     const dayCount = () => querySql(`SELECT count(*) FROM roster_days WHERE roster_group_id = ${sqlString(group)} AND operational_date = ${sqlString(date)}`);
     expect(dayCount()).toBe('0');
     url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('timelineAxis', 'horizontal');
     url.searchParams.set('dayDate', date);
     await page.goto(url.toString());
     await page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="425"]').first().click();
@@ -104,8 +111,9 @@ test('saves a five-minute shift into a projected timeline lane and refreshes the
     expect(querySql(`SELECT to_char(slot.starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots slot JOIN roster_days day ON day.id = slot.roster_day_id WHERE day.roster_group_id = ${sqlString(group)} AND day.operational_date = ${sqlString(date)}`)).toBe('07:05');
 });
 
-test('drops staff into empty time and replaces a shift immediately, including touch from the shelf', async ({ page, isMobile, context }) => {
-    await openCanonicalTimeline(page);
+for (const orientation of ['horizontal', 'vertical']) {
+test(`drops staff into empty time and replaces a shift immediately, including touch from the shelf (${orientation})`, async ({ page, isMobile, context }) => {
+    await openCanonicalTimeline(page, orientation);
     const attrs = InteractionDom.attributes;
     const staffId = 'a1000000-0000-0000-0000-000000000033';
     const slotId = 'a1000000-0000-0000-0000-000000000071';
@@ -120,7 +128,9 @@ test('drops staff into empty time and replaces a shift immediately, including to
         const targetBox = (await target.boundingBox())!;
         const label = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
         const viewport = (await owner.boundingBox())!;
-        const end = { x: Math.max(label.x + label.width + 4, Math.min(targetBox.x + Math.min(targetBox.width / 2, 30), viewport.x + viewport.width - 12)), y: targetBox.y + targetBox.height / 2 };
+        const end = orientation === 'vertical'
+            ? { x: targetBox.x + targetBox.width / 2, y: targetBox.y + Math.min(targetBox.height / 2, 30) }
+            : { x: Math.max(label.x + label.width + 4, Math.min(targetBox.x + Math.min(targetBox.width / 2, 30), viewport.x + viewport.width - 12)), y: targetBox.y + targetBox.height / 2 };
         const box = (await source.boundingBox())!;
         const start = { x: box.x + 60, y: box.y + box.height / 2 };
         const response = page.waitForResponse((result) => result.url().includes('/DropRosterStaff'));
@@ -165,8 +175,8 @@ test('drops staff into empty time and replaces a shift immediately, including to
     }
 });
 
-test('keeps two timeline viewers authoritative while retaining last-save-wins and publication guards', async ({ page, browser }) => {
-    await openCanonicalTimeline(page);
+test(`keeps two timeline viewers authoritative while retaining last-save-wins and publication guards (${orientation})`, async ({ page, browser }) => {
+    await openCanonicalTimeline(page, orientation);
     const viewerContext = await browser.newContext();
     const workerContext = await browser.newContext();
     const viewer = await viewerContext.newPage();
@@ -199,6 +209,8 @@ test('keeps two timeline viewers authoritative while retaining last-save-wins an
         await expect(clock(viewer)).toHaveText('09:30–17:30');
         await expect(page.locator('.roster-day-timeline-scroller')).toHaveAttribute('data-test-scroll-owner', 'actor');
         await expect(viewer.locator('.roster-day-timeline-scroller')).toHaveAttribute('data-test-scroll-owner', 'passive');
+        await expect(page.locator('[data-roster-timeline-orientation]')).toHaveAttribute('data-roster-timeline-orientation', orientation);
+        await expect(viewer.locator('[data-roster-timeline-orientation]')).toHaveAttribute('data-roster-timeline-orientation', orientation);
         await edit(viewer, '09:45', '17:45');
         const publish = page.getByRole('switch', { name: 'Published', exact: true });
         const publishToggle = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
@@ -226,6 +238,8 @@ test('keeps two timeline viewers authoritative while retaining last-save-wins an
     }
 });
 
+}
+
 test('defers passive refresh during drag and restores authority after a rejected drop', async ({ page }) => {
     resetCanonicalRosterAssignedShiftFixture();
     const slotId = 'a1000000-0000-0000-0000-000000000071';
@@ -235,6 +249,7 @@ test('defers passive refresh during drag and restores authority after a rejected
         const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
         const url = new URL(page.url());
         url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('timelineAxis', 'horizontal');
         url.searchParams.set('anchorDate', day);
         url.searchParams.set('dayDate', day);
         await page.goto(url.toString());
@@ -291,6 +306,7 @@ test('saves the snapped preview while preserving grab offset and exact duration'
         const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'");
         const url = new URL(page.url());
         url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('timelineAxis', 'horizontal');
         url.searchParams.set('anchorDate', day);
         url.searchParams.set('dayDate', day);
         await page.goto(url.toString());
@@ -343,6 +359,7 @@ test('scrolls at drag edges and preserves native touch swipes', async ({ page, i
     const day = querySql("SELECT operational_date FROM roster_days WHERE id = 'a1000000-0000-0000-0000-000000000061'").trim();
     const url = new URL(page.url());
     url.searchParams.set('rosterView', 'timeline');
+        url.searchParams.set('timelineAxis', 'horizontal');
     url.searchParams.set('anchorDate', day);
     url.searchParams.set('dayDate', day);
     await page.goto(url.toString());
@@ -396,7 +413,7 @@ test('navigates the fixed-scale timeline and preserves its date across view swit
     const url = new URL(page.url());
     url.searchParams.set('anchorDate', '2026-04-04');
     await page.goto(url.toString());
-    await openTimelineLayout(page);
+    await openTimelineLayout(page, 'Horizontal');
     const timeline = page.locator('.roster-day-timeline');
     await expect(page.locator('[data-week-toolbar] input[type="date"]')).toHaveCount(0);
     await expect(page.getByRole('group', { name: 'Roster view', exact: true })).toHaveCount(0);
@@ -429,6 +446,107 @@ test('navigates the fixed-scale timeline and preserves its date across view swit
     await expect(timeline).toHaveAttribute('aria-label', 'Sunday 05/04 roster timeline');
 });
 
+test('offers responsive and explicit vertical orientation with stable live scrolling and empty-space creation', async ({ page }) => {
+    await openCanonicalTimeline(page, 'auto');
+    const laneId = 'a6510000-0000-0000-0000-000000000001';
+    runSql(`INSERT INTO roster_lanes (id, roster_day_id, name, sort_order)
+        VALUES ('${laneId}', 'a1000000-0000-0000-0000-000000000061', 'Empty lane', 1)
+        ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`);
+    try {
+    await page.reload();
+    const shell = page.locator('[data-roster-timeline-orientation]');
+    const portraitPhone = await page.evaluate(() => matchMedia('(max-width: 767.98px) and (orientation: portrait)').matches);
+    const direction = () => shell.evaluate((element, property) => getComputedStyle(element).getPropertyValue(property).trim(), dragAxisDirectionProperty);
+    expect(await direction()).toBe(portraitPhone ? 'vertical' : 'horizontal');
+    await openTimelineLayout(page, 'Vertical');
+    expect(await direction()).toBe('vertical');
+    const owner = page.locator('.roster-day-timeline-scroller');
+    const lanes = page.locator('.roster-day-timeline-lane');
+    const first = (await lanes.nth(0).boundingBox())!;
+    const second = (await lanes.nth(1).boundingBox())!;
+    const ruler = (await page.locator('.roster-day-timeline-scale').boundingBox())!;
+    expect(first.width).toBeCloseTo(second.width, 0);
+    expect(first.y).toBeCloseTo(second.y, 0);
+    expect(first.width * 2 + ruler.width).toBeCloseTo(await owner.evaluate(element => element.clientWidth), 0);
+    await owner.evaluate(element => { element.scrollTop = 180; element.setAttribute('data-test-vertical-owner', 'retained'); });
+    const oldContent = await shell.elementHandle();
+    await requestTimelineRefresh(page);
+    await expect.poll(() => oldContent!.evaluate(element => element.isConnected)).toBe(false);
+    expect(await direction()).toBe('vertical');
+    await expect(owner).toHaveAttribute('data-test-vertical-owner', 'retained');
+    expect(await owner.evaluate(element => element.scrollTop)).toBe(180);
+    const before = querySql('SELECT count(*) FROM roster_slots');
+    await lanes.nth(1).locator('[data-roster-timeline-minute="615"]').click();
+    const dialog = page.getByRole('dialog', { name: 'Add shift' });
+    await expect(dialog.locator('input[name="startTime"]')).toHaveValue('10:15');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(querySql('SELECT count(*) FROM roster_slots')).toBe(before);
+    await page.getByRole('link', { name: 'Next day', exact: true }).click();
+    await expect(page).toHaveURL(/timelineAxis=vertical/);
+    await expect.poll(direction).toBe('vertical');
+    await openRosterSettings(page);
+    await page.getByRole('group', { name: 'Timeline orientation', exact: true }).getByRole('link', { name: 'Horizontal', exact: true }).click();
+    await expect.poll(direction).toBe('horizontal');
+    } finally {
+        runSql(`UPDATE roster_lanes SET deleted_at = NOW() WHERE id = '${laneId}'`);
+    }
+});
+
+test('moves vertically with exact duration and touch hold, scrolls downward and cancels on viewport changes', async ({ page, isMobile, context }) => {
+    await openCanonicalTimeline(page, 'vertical');
+    const slotId = 'a1000000-0000-0000-0000-000000000071';
+    const attrs = InteractionDom.attributes;
+    runSql(`UPDATE roster_slots SET ends_at = starts_at + interval '8 hours 30.5 seconds' WHERE id = '${slotId}'`);
+    await page.reload();
+    const source = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+    const owner = page.locator('.roster-day-timeline-scroller');
+    const cdp = isMobile ? await context.newCDPSession(page) : null;
+    async function begin() {
+        await owner.scrollIntoViewIfNeeded();
+        await owner.evaluate(element => { element.scrollTop = 180; });
+        const box = (await source.boundingBox())!;
+        const header = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+        const point = { x: box.x + box.width / 2, y: Math.max(header.y + header.height + 20, box.y + 60) };
+        if (cdp) {
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+            await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
+        } else {
+            await page.mouse.move(point.x, point.y);
+            await page.mouse.down();
+        }
+        return { point, quarterHour: box.height * 900 / 28830.5 };
+    }
+    async function move(point: { x: number; y: number }) {
+        if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point] });
+        else await page.mouse.move(point.x, point.y);
+    }
+    try {
+        const { point, quarterHour } = await begin();
+        await move({ x: point.x, y: point.y + quarterHour });
+        await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toHaveText('09:15–17:15:30.5');
+        const saved = page.waitForResponse(response => response.url().includes('/MoveRosterTimelineShift') && response.request().method() === 'POST');
+        if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else await page.mouse.up();
+        expect((await saved).ok()).toBe(true);
+        await expect(source).toHaveAttribute('aria-label', /09:15–17:15:30\.5/);
+        expect(querySql(`SELECT extract(epoch from (ends_at - starts_at))::text FROM roster_slots WHERE id = '${slotId}'`)).toBe('28830.500000');
+        const second = await begin();
+        const box = (await owner.boundingBox())!;
+        const initialScroll = await owner.evaluate(element => element.scrollTop);
+        await move({ x: second.point.x, y: box.y + box.height - 8 });
+        await expect.poll(() => owner.evaluate(element => element.scrollTop)).toBeGreaterThan(initialScroll);
+        const viewport = page.viewportSize()!;
+        await page.setViewportSize({ width: viewport.width, height: viewport.height - 40 });
+        await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+        if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else await page.mouse.up();
+        expect(querySql(`SELECT to_char(starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots WHERE id = '${slotId}'`)).toBe('09:15');
+    } finally {
+        await cdp?.detach();
+        resetTimelineShiftInterval();
+    }
+});
+
 test('keeps populated lanes and layout choices usable without extra header controls', async ({ page, isMobile }, testInfo) => {
     await openRoster(page);
     if (!isMobile) await page.setViewportSize({ width: 1600, height: 1100 });
@@ -444,13 +562,25 @@ test('keeps populated lanes and layout choices usable without extra header contr
         await expect(page.locator('[data-week-toolbar] input[type="date"]')).toHaveCount(0);
         await expect(page.getByRole('group', { name: 'Roster view', exact: true })).toHaveCount(0);
         const owner = page.locator('.roster-day-timeline-scroller');
-        await owner.evaluate((element, scrollLeft) => { element.scrollLeft = scrollLeft; }, isMobile ? 192 : 0);
+        await owner.evaluate((element, scrollLeft) => { element.scrollLeft = scrollLeft; }, 0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
         if (isMobile) {
             await expect.poll(async () => page.getByRole('button', { name: 'Open Roster tools', exact: true }).evaluate((element) =>
                 Math.abs(element.getBoundingClientRect().bottom - window.innerHeight))).toBeLessThanOrEqual(1);
         }
         await page.screenshot({ path: testInfo.outputPath('timeline-populated.png'), fullPage: !isMobile });
+        await openTimelineLayout(page, 'Vertical');
+        const laneGeometry = await page.locator('.roster-day-timeline-lane').evaluateAll(lanes => lanes.map(lane => {
+            const bounds = lane.getBoundingClientRect();
+            const cards = Array.from(lane.querySelectorAll('.roster-day-timeline-shift')).map(card => card.getBoundingClientRect());
+            return {
+                contained: cards.every(card => card.top >= bounds.top && card.bottom <= bounds.bottom + 1 && card.left >= bounds.left && card.right <= bounds.right + 1),
+                noCollisions: cards.every((a, i) => cards.slice(i + 1).every(b => a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1)),
+            };
+        }));
+        expect(laneGeometry).toHaveLength(5);
+        for (const lane of laneGeometry) expect(lane).toEqual({ contained: true, noCollisions: true });
+        await page.screenshot({ path: testInfo.outputPath('timeline-populated-vertical.png'), fullPage: false });
         await owner.evaluate((element) => { element.scrollLeft = 960; element.scrollTop = element.scrollHeight; });
         await page.screenshot({ path: testInfo.outputPath('timeline-populated-later.png'), fullPage: !isMobile });
         await openRosterSettings(page);

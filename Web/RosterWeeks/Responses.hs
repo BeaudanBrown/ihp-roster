@@ -57,14 +57,15 @@ import Web.RosterWeeks.Mutations (type RosterSlotMutationResult)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                    rosterMutationMountedProjections)
-import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
+import Web.RosterWeeks.RenderData (currentRosterGridViewMode,
+                                   currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
                                    renderVisibleRosterReadModelFragmentForAuthorizedScope,
                                    rosterGridRenderModelFromProjection)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterProjectionFragment (..),
-                              RosterRenderData (..))
+                              RosterRenderData (..), rosterTimelineOrientation)
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
 
@@ -298,6 +299,7 @@ rosterFrontendScopeValue scope =
         , rosterWeekWindowStart = scope.rosterWindowStart
         , rosterWeekWindowEnd = scope.rosterWindowEnd
         , rosterWeekCalendarRevision = scope.rosterWindowCalendarRevision
+        , rosterWeekTimelineOrientation = rosterTimelineOrientation (currentRosterGridViewMode scope.rosterWindowStart)
         , rosterWeekTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         }
 

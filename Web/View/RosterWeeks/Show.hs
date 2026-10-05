@@ -72,8 +72,9 @@ renderRosterWeekShell ShowView { rosterPageGridModel, .. } =
             , rosterWeekWindowStart = rosterWindowScope.rosterWindowStart
             , rosterWeekWindowEnd = rosterWindowScope.rosterWindowEnd
             , rosterWeekCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
+            , rosterWeekTimelineOrientation = rosterTimelineOrientation rosterPageGridModel.gridViewMode
             , rosterWeekTimelineDate = case rosterPageGridModel.gridViewMode of
-                RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) rosterWindowScope.rosterWindowStart)
+                RosterDayTimelineGridView dayOffset _ -> Just (Calendar.addDays (toInteger dayOffset) rosterWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData (isJust rosterPageGridModel.gridTemplateLibrary) rosterPageGridModel.gridRosterDays rosterPageGridModel.gridRenderIndexes

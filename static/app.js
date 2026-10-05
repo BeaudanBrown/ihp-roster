@@ -240,6 +240,7 @@
   var dragIntervalConfigDomAttr = "data-bepis-drag-interval-config";
   var dragPreviewLabelDomAttr = "data-bepis-drag-preview-label";
   var dragAxisDomAttr = "data-bepis-drag-axis";
+  var dragAxisDirectionProperty = "--bepis-drag-axis-direction";
   var dragPositionDomAttr = "data-bepis-drag-position";
   var interactionActiveDomAttr = "data-bepis-interaction-active";
   var disposableLayerDomAttr = "data-bepis-disposable-layer";
@@ -4032,6 +4033,12 @@
 
   // frontend/ts/interaction/interval-drag.ts
   var attrs5 = InteractionDom.attributes;
+  function verticalAxis(element) {
+    const value = element.ownerDocument?.defaultView?.getComputedStyle(element).getPropertyValue(dragAxisDirectionProperty).trim() ?? "";
+    if (value === "vertical") return true;
+    if (value === "" || value === "horizontal") return false;
+    return null;
+  }
   function nearestIntervalChoice(config, position) {
     let best = 0;
     for (let index = 1; index < config.positions.length; index++) {
@@ -4039,7 +4046,7 @@
     }
     return best;
   }
-  function readIntervalDrag(marker, mount, targetSelector, startX) {
+  function readIntervalDrag(marker, mount, targetSelector, startX, startY = 0) {
     const raw = marker.getAttribute(attrs5.dragIntervalConfig);
     if (raw === null) return void 0;
     let config;
@@ -4051,7 +4058,12 @@
       return null;
     }
     if (config.positions.length === 0) return null;
-    const grabOffset = startX - marker.getBoundingClientRect().left;
+    const vertical = verticalAxis(marker);
+    if (vertical === null) return null;
+    const sourceRect = marker.getBoundingClientRect();
+    const grabX = startX - sourceRect.left;
+    const grabY = startY - sourceRect.top;
+    const grabOffset = vertical ? grabY : grabX;
     const axes = Array.from(mount.querySelectorAll(`[${attrs5.dragAxis}]`)).filter((axis) => axis.getAttribute(attrs5.dragAxis) === "true" && axis.closest(`[${attrs5.surface}]`) === mount).map((axis) => {
       const targets = /* @__PURE__ */ new Map();
       for (const target of axis.querySelectorAll(targetSelector)) {
@@ -4065,15 +4077,31 @@
     });
     return {
       project(x, y) {
+        if (verticalAxis(marker) !== vertical) return null;
         for (const { axis, targets } of axes) {
+          if (verticalAxis(axis) !== vertical) continue;
           const rect = axis.getBoundingClientRect();
-          if (rect.width <= 0 || y < rect.top || y > rect.top + rect.height) continue;
-          const proposed = (x - grabOffset - rect.left) * config.rangeSize / rect.width;
+          const length = vertical ? rect.height : rect.width;
+          const crossPosition = vertical ? x : y;
+          const crossStart = vertical ? rect.left : rect.top;
+          const crossLength = vertical ? rect.width : rect.height;
+          if (length <= 0 || crossPosition < crossStart || crossPosition > crossStart + crossLength) continue;
+          const start = vertical ? rect.top : rect.left;
+          const proposed = ((vertical ? y : x) - grabOffset - start) * config.rangeSize / length;
           const index = nearestIntervalChoice(config, proposed);
           const position = config.positions[index];
           const target = targets.get(position);
           if (!target || target.isConnected === false) return null;
-          return { target, label: config.labels[index], left: rect.left + position * rect.width / config.rangeSize, width: config.extent * rect.width / config.rangeSize };
+          const snapped = start + position * length / config.rangeSize;
+          const extent = config.extent * length / config.rangeSize;
+          return {
+            target,
+            label: config.labels[index],
+            left: vertical ? x - grabX : snapped,
+            top: vertical ? snapped : y - grabY,
+            width: vertical ? sourceRect.width : extent,
+            height: vertical ? extent : sourceRect.height
+          };
         }
         return null;
       }
@@ -4110,6 +4138,7 @@
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
     root.addEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
+    window.addEventListener("resize", controller.stop);
     return () => {
       root.removeEventListener("pointerdown", controller.handlePointerDown);
       root.removeEventListener("pointermove", controller.handlePointerMove);
@@ -4123,6 +4152,7 @@
       root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
       root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
       root.removeEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
+      window.removeEventListener("resize", controller.stop);
       controller.stop();
     };
   }
@@ -4145,6 +4175,7 @@
       if (!owner || owner.getAttribute(attrs6.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
       const container = owner;
       let observedScrollLeft = container.scrollLeft;
+      let observedScrollTop = container.scrollTop;
       const frame = (time) => {
         scrollFrame = null;
         if (activeSession !== session || !session.activated) return;
@@ -4154,9 +4185,10 @@
         }
         const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
         lastScrollFrameTime = time;
-        scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
-        if (container.scrollLeft !== observedScrollLeft) {
+        scrollDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
+        if (container.scrollLeft !== observedScrollLeft || container.scrollTop !== observedScrollTop) {
           observedScrollLeft = container.scrollLeft;
+          observedScrollTop = container.scrollTop;
           session.hasMoved = true;
           session.effects.update(session);
           runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
@@ -4408,7 +4440,7 @@
       intervalDrag: void 0,
       effects: noOpEffectRunner
     };
-    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX);
+    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX, startClientY);
     if (interval === null) return null;
     session.intervalDrag = interval;
     session.effects = createPointerSessionEffectRunner(session);
@@ -4435,6 +4467,17 @@
         for (const handler of globalHandlers) handler.cleanup(activeSession);
       }
     };
+  }
+  function scrollDragContainer(container, clientX, clientY, elapsedMs) {
+    const horizontal = scrollHorizontalDragContainer(container, clientX, clientY, elapsedMs);
+    const rect = container.getBoundingClientRect();
+    const edge = Math.min(48, container.clientHeight / 3);
+    const bottom = rect.top + container.clientHeight;
+    if (edge <= 0 || clientX < rect.left || clientX > rect.left + rect.width || clientY < rect.top - edge || clientY > bottom + edge) return horizontal;
+    const direction = clientY < rect.top + edge ? -Math.min(1, (rect.top + edge - clientY) / edge) : clientY > bottom - edge ? Math.min(1, (clientY - bottom + edge) / edge) : 0;
+    const before = container.scrollTop;
+    container.scrollTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, before + direction * 0.48 * elapsedMs));
+    return horizontal || container.scrollTop !== before;
   }
   function scrollHorizontalDragContainer(container, clientX, clientY, elapsedMs) {
     const rect = container.getBoundingClientRect();
@@ -4539,7 +4582,8 @@
         if (!projection) return;
         const style = shadow.style;
         style.width = `${projection.width}px`;
-        style.transform = `translate3d(${projection.left}px, ${session.currentClientY - grabOffsetY}px, 0)`;
+        style.height = `${projection.height}px`;
+        style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
         if (label) {
           label.textContent = projection.label;
           const viewport = label.ownerDocument.documentElement;

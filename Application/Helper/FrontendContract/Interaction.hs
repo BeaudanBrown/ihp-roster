@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Interaction
     , DragIntervalConfig
     , DragPreviewLabel
     , DragAxis
+    , DragAxisDirectionProperty
     , DragPosition
     , RangeSize
     , Extent
@@ -87,6 +88,7 @@ data SessionLongPressMs
 data DragIntervalConfig
 data DragPreviewLabel
 data DragAxis
+data DragAxisDirectionProperty
 data DragPosition
 data RangeSize
 data Extent
@@ -155,6 +157,7 @@ type InteractionContract =
          , DomAttr DragIntervalConfig
          , DomAttr DragPreviewLabel
          , DomAttr DragAxis
+         , Constant DragAxisDirectionProperty "--bepis-drag-axis-direction"
          , DomAttr DragPosition
          , DomAttr InteractionActive
          , DomAttr DisposableLayer

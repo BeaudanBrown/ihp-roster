@@ -163,6 +163,15 @@ header switch or date form. Timeline has day arrows and Today. View navigation
 is available without management authority; changing the shared day-row/day-column
 preference still requires manager mode.
 
+Timeline orientation is URL presentation state (`timelineAxis`), independent of
+that shared preference. Auto uses vertical time on portrait phones (up to
+767.98px) and horizontal time otherwise. Auto / Horizontal / Vertical choices
+live with Roster layout in Settings. Vertical shows two named lanes side by
+side; remaining lanes scroll horizontally. Overlaps use sub-tracks, empty lanes
+remain present, and time and lane headings stay visible during scrolling.
+Navigation, dialogs and live fragments retain explicit orientation. Viewport
+changes cancel an active drag rather than saving against changed geometry.
+
 The timeline uses elapsed instants at a fixed scale: DST gaps occupy no invented
 time and repeated clocks remain distinct. Configured hours are a minimum range;
 saved intervals may expand it, and removing those intervals may shrink it again.

@@ -65,7 +65,7 @@ import Web.RosterWeeks.DateRange (RosterWindowLane (rosterWindowLaneByDate),
                                   laneForOperationalDate,
                                   rosterWindowLaneRepresentative)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (RosterWeekScopeValue, rosterWeekCalendarRevision, rosterWeekGroupId, rosterWeekTimelineDate, rosterWeekVenueId, rosterWeekWindowEnd, rosterWeekWindowStart),
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (RosterWeekScopeValue, rosterWeekCalendarRevision, rosterWeekGroupId, rosterWeekTimelineDate, rosterWeekTimelineOrientation, rosterWeekVenueId, rosterWeekWindowEnd, rosterWeekWindowStart),
                                         rosterDayColumnDropzoneRef,
                                         rosterFrontendSurfaceIR,
                                         rosterIntentForms,
@@ -122,8 +122,9 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
             , rosterWeekWindowStart = gridWindowScope.rosterWindowStart
             , rosterWeekWindowEnd = gridWindowScope.rosterWindowEnd
             , rosterWeekCalendarRevision = gridWindowScope.rosterWindowCalendarRevision
+            , rosterWeekTimelineOrientation = rosterTimelineOrientation gridViewMode
             , rosterWeekTimelineDate = case gridViewMode of
-                RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) gridWindowScope.rosterWindowStart)
+                RosterDayTimelineGridView dayOffset _ -> Just (Calendar.addDays (toInteger dayOffset) gridWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData (isJust gridTemplateLibrary) gridRosterDays gridRenderIndexes)
@@ -236,19 +237,19 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
         timelineRosterDay = case gridViewMode of
-            RosterDayTimelineGridView dayOffset ->
+            RosterDayTimelineGridView dayOffset _ ->
                 let selectedDate = Calendar.addDays (toInteger dayOffset) gridWeekStartDate
                  in find ((== selectedDate) . (.operationalDate)) gridRosterDays
             RosterWeekGridView -> Nothing
         isTimelineLayout = case gridViewMode of
-            RosterDayTimelineGridView _ -> True
-            RosterWeekGridView          -> False
+            RosterDayTimelineGridView {} -> True
+            RosterWeekGridView           -> False
         isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeIsDayColumns gridRosterLayoutMode
         frameLayoutValue = case gridViewMode of
-            RosterDayTimelineGridView _ -> "timeline"
+            RosterDayTimelineGridView {} -> "timeline"
             RosterWeekGridView -> if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
         gridBody = case gridViewMode of
-            RosterDayTimelineGridView _ ->
+            RosterDayTimelineGridView {} ->
                 case timelineRosterDay of
                         Nothing -> [hsx|<div class="alert alert-warning mb-0">Selected timeline day is not available.</div>|]
                         Just rosterDay -> renderRosterDayTimelinePanel gridModel rosterDay

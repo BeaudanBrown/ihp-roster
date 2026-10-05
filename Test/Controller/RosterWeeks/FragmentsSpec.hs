@@ -64,11 +64,11 @@ import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
 import Web.RosterWeeks.FrontendSurface
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
                                 rosterSlotCopyAmbiguousEndpoints)
+import Web.RosterWeeks.Types (TimelineOrientation (..))
 import Web.Routes
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidations)
 import Web.Types
-
 cssPercentageAfter :: Text -> Text -> Maybe Double
 cssPercentageAfter property html = do
     let (_, fromProperty) = Text.breakOn property html
@@ -178,7 +178,7 @@ tests = aroundAll withDatabaseTestContext do
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.fixtureRosterGroupId (rosterWeek.fixtureWindowStart) (addDays 7 (rosterWeek.fixtureWindowStart)) 1
-                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.fixtureRosterGroupId, rosterWeekWindowStart = rosterWeek.fixtureWindowStart, rosterWeekWindowEnd = addDays 7 (rosterWeek.fixtureWindowStart), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
+                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.fixtureRosterGroupId, rosterWeekWindowStart = rosterWeek.fixtureWindowStart, rosterWeekWindowEnd = addDays 7 (rosterWeek.fixtureWindowStart), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing, rosterWeekTimelineOrientation = TimelineAuto }
                         let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedDaysByDate = mempty, rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
                         let subscription =
                                 SurfaceSubscription
@@ -206,7 +206,7 @@ tests = aroundAll withDatabaseTestContext do
                 let venueId = fromMaybe (error "invalid roster venue UUID") (UUID.fromString "00000000-0000-0000-0000-000000000111")
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
-                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
+                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing, rosterWeekTimelineOrientation = TimelineAuto }
                 let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedDaysByDate = mempty, rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedHasTemplateLibrary = False }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
@@ -1598,7 +1598,7 @@ tests = aroundAll withDatabaseTestContext do
                 let scopedShiftHtml = positionMarker <> Text.takeWhile (/= '>') (snd (Text.breakOnEnd positionMarker beforeShiftSource))
                 let exactWidthPercent = ((0.5 / 60) * 100 / 1440 :: Double)
                 scopedShiftHtml `shouldSatisfy` Text.isInfixOf "roster-day-timeline-shift-position"
-                cssPercentageAfter "width:" scopedShiftHtml
+                cssPercentageAfter "--roster-timeline-extent:" scopedShiftHtml
                     `shouldSatisfy` maybe False (\actualWidth -> abs (actualWidth - exactWidthPercent) < 1e-12)
 
                 let sourceToken = "existing:" <> tshow sourceSlot.id

@@ -22,6 +22,7 @@ module Web.RosterWeeks.Paths
     , rosterManagerModePreferenceUrl
     , rosterOwnLiveShiftHighlightPreferenceUrl
     , rosterTimelineWindowUrl
+    , withTimelineOrientation
     , rosterDayTimelineContentFragmentUrl
     , rosterWeekContentFragmentUrl
     , rosterWeekGridFrameFragmentUrl
@@ -51,6 +52,8 @@ import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
 import qualified Network.HTTP.Types.URI as URI
+import Web.RosterWeeks.Types (TimelineOrientation (..),
+                              timelineOrientationValue)
 import Web.Routes ()
 import Web.Types
 
@@ -96,6 +99,11 @@ rosterViewQueryParams rosterGroupId maybeTimelineDate =
     ("rosterGroupId", tshow rosterGroupId) : case maybeTimelineDate of
         Nothing -> []
         Just dayDate -> [("rosterView", "timeline"), ("dayDate", formatDayParam dayDate)]
+
+withTimelineOrientation :: TimelineOrientation -> Text -> Text
+withTimelineOrientation TimelineAuto url = url
+withTimelineOrientation orientation url = replaceQueryParams url
+    [("timelineAxis", timelineOrientationValue orientation)]
 
 rosterTimelineWindowUrl :: Day -> Id RosterGroup -> Text
 rosterTimelineWindowUrl operationalDate rosterGroupId =

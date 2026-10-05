@@ -41,14 +41,15 @@ import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl,
                               rosterTimelineWindowUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
-                              rosterWindowUrl)
+                              rosterWindowUrl, withTimelineOrientation)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterGridViewMode (..),
                               RosterManagementSettings (..),
                               RosterSettingsRenderModel (..),
                               RosterStaffPanelRenderModel (..),
                               RosterViewCapabilities (..),
-                              RosterWindowState (..))
+                              RosterWindowState (..), TimelineOrientation (..),
+                              rosterTimelineOrientation)
 import Web.RosterWeeks.WageEstimates (RosterPayAudience (..),
                                       rosterPayAudienceForCurrentUser)
 import Web.View.Prelude
@@ -186,11 +187,20 @@ renderRosterLayoutSection selectedDate rosterGroupId selectedLayoutMode viewMode
         {forEach rosterLayoutModes renderGridOption}
         {viewLink "Timeline" (rosterTimelineWindowUrl selectedDate rosterGroupId) isTimeline}
     </div>
+    {when isTimeline orientationControls}
 |]
   where
+    orientationControls = [hsx|
+        <div class="small text-muted mt-2 mb-1">Time axis</div>
+        <div class="btn-group w-100" role="group" aria-label="Timeline orientation">
+            {forEach [(TimelineAuto, "Auto"), (TimelineHorizontal, "Horizontal"), (TimelineVertical, "Vertical")] renderOrientation}
+        </div>
+    |]
+    orientation = rosterTimelineOrientation viewMode
+    renderOrientation (choice, label) = viewLink label (withTimelineOrientation choice (rosterTimelineWindowUrl selectedDate rosterGroupId)) (choice == orientation)
     isTimeline = case viewMode of
-        RosterDayTimelineGridView _ -> True
-        RosterWeekGridView          -> False
+        RosterDayTimelineGridView {} -> True
+        RosterWeekGridView           -> False
     renderGridOption layoutMode
         | hasManagementMode = renderRosterLayoutModeOption (if isTimeline then Nothing else Just selectedLayoutMode) layoutMode
         | layoutMode == selectedLayoutMode = viewLink (rosterLayoutModeLabel layoutMode) (rosterWindowUrl selectedDate rosterGroupId) (not isTimeline)

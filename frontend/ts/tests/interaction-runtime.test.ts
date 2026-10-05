@@ -3,7 +3,7 @@ import { readIntervalDrag } from "../interaction/interval-drag";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
-import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollHorizontalDragContainer } from "../interaction/pointer-session";
+import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollDragContainer, scrollHorizontalDragContainer } from "../interaction/pointer-session";
 import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, dispatchInteractionSessionStart } from "../interaction/session-state";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
@@ -464,6 +464,48 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 2000, 150));
     assertEqual(committed.join(), "1/500");
     controller.stop();
+});
+
+test("vertical interval projection preserves duration and grab offset, crosses lanes and refuses an axis change", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const config = { rangeSize: 1000, extent: 400, positions: [0, 250, 500], labels: ["early", "middle", "late"] };
+    let direction = "vertical";
+    const doc = { elementFromPoint: () => null, defaultView: { getComputedStyle: () => ({ getPropertyValue: () => direction }) } };
+    const first = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
+    first.rect = { left: 0, top: 100, width: 100, height: 1000 };
+    const second = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
+    second.rect = { left: 100, top: 100, width: 100, height: 1000 };
+    for (const [lane, axis] of [first, second].entries()) {
+        axis.ownerDocument = doc;
+        for (const position of config.positions) axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+    }
+    const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
+    marker.ownerDocument = doc;
+    marker.rect = { left: 10, top: 350, width: 50, height: 400 };
+    const drag = readIntervalDrag(marker as unknown as Element, mount as unknown as Element, `[${attrs.dropzoneRef}]`, 30, 400)!;
+    assertEqual(drag.project(50, 400)?.top, 350);
+    assertEqual(drag.project(50, -500)?.top, 100);
+    assertEqual(drag.project(50, 2000)?.top, 600);
+    assertEqual(drag.project(50, 2000)?.height, 400);
+    assertEqual(drag.project(150, 400)?.target.getAttribute(attrs.dropzoneKey), "1/250");
+    assertEqual(drag.project(300, 400), null);
+    first.rect.top = -150;
+    assertEqual(drag.project(50, 400)?.label, "late");
+    direction = "horizontal";
+    assertEqual(drag.project(50, 400), null);
+});
+
+test("drag scrolling supports vertical edges and keeps both axes inside bounds", () => {
+    const owner = Object.assign(new MiniElement(), { scrollLeft: 0, scrollWidth: 300, clientWidth: 300, scrollTop: 100, scrollHeight: 1200, clientHeight: 100 });
+    owner.rect = { left: 10, top: 20, width: 300, height: 100 };
+    const scroll = (x: number, y: number) => scrollDragContainer(owner as unknown as HTMLElement, x, y, 16);
+    assertEqual(scroll(160, 119), true);
+    assertEqual(owner.scrollTop > 100, true);
+    assertEqual(scroll(400, 119), false);
+    owner.scrollTop = 1100;
+    assertEqual(scroll(160, 119), false);
+    owner.scrollTop = 0;
+    assertEqual(scroll(160, 21), false);
 });
 
 test("malformed interval boundaries refuse the gesture instead of using unsnapped hit testing", () => {

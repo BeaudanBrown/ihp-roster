@@ -21,7 +21,8 @@ import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Dom (rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef)
-import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl)
+import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl,
+                              withTimelineOrientation)
 import Web.RosterWeeks.Types (RosterGridViewMode (..),
                               RosterViewCapabilities (..),
                               RosterWindowState (..))
@@ -102,7 +103,7 @@ renderRosterWeekControls currentRosterGroup weekStartDate RosterWeekGridView =
     where
         previousDate = Calendar.addDays (-7) weekStartDate
         nextDate = Calendar.addDays 7 weekStartDate
-renderRosterWeekControls currentRosterGroup weekStartDate (RosterDayTimelineGridView dayOffset) =
+renderRosterWeekControls currentRosterGroup weekStartDate (RosterDayTimelineGridView dayOffset orientation) =
     renderWeekNavigationGroup WeekNavigationConfig
         { weekNavigationAriaLabel = "Roster timeline day navigation"
         , weekNavigationExtraClass = "roster-week-nav-group roster-timeline-day-nav"
@@ -116,8 +117,8 @@ renderRosterWeekControls currentRosterGroup weekStartDate (RosterDayTimelineGrid
         selectedDate = Calendar.addDays (toInteger clampedDayOffset) weekStartDate
         previousDate = Calendar.addDays (-1) selectedDate
         nextDate = Calendar.addDays 1 selectedDate
-        previousUrl = rosterTimelineWindowUrl previousDate currentRosterGroup.id
-        nextUrl = rosterTimelineWindowUrl nextDate currentRosterGroup.id
+        previousUrl = withTimelineOrientation orientation (rosterTimelineWindowUrl previousDate currentRosterGroup.id)
+        nextUrl = withTimelineOrientation orientation (rosterTimelineWindowUrl nextDate currentRosterGroup.id)
 
 renderWeekNavigationLink :: Text -> Text -> Text -> Day -> Id RosterGroup -> Html
 renderWeekNavigationLink iconClass ariaLabel url anchorDate rosterGroupId =
@@ -160,10 +161,10 @@ renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl =
             }
     where
         resetLabel = case gridViewMode of
-            RosterDayTimelineGridView _ -> "Today"
-            RosterWeekGridView          -> "This week"
+            RosterDayTimelineGridView {} -> "Today"
+            RosterWeekGridView           -> "This week"
         thisWeekUrl = case gridViewMode of
-            RosterDayTimelineGridView _ -> fromMaybe (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]) timelineTodayUrl
+            RosterDayTimelineGridView _ orientation -> withTimelineOrientation orientation (fromMaybe (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]) timelineTodayUrl)
             RosterWeekGridView -> pathTo RosterWeeksAction
 
 renderLiveToggleForm :: RosterWindowState -> Day -> Int -> RosterGroup -> Html

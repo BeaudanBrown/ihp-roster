@@ -290,16 +290,17 @@ currentRosterSelectedDate windowStart =
 currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
 currentRosterGridViewMode windowStart =
     case (paramOrNothing @Text "rosterView", paramOrNothing @Calendar.Day "dayDate", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart)))
-        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
-        (Just "timeline", Nothing, Nothing) -> RosterDayTimelineGridView (fromInteger (Calendar.diffDays (currentRosterSelectedDate windowStart) windowStart))
+        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart))) orientation
+        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset) orientation
+        (Just "timeline", Nothing, Nothing) -> RosterDayTimelineGridView (fromInteger (Calendar.diffDays (currentRosterSelectedDate windowStart) windowStart)) orientation
         _ -> RosterWeekGridView
   where
     clampDayOffset = max 0 . min 6
+    orientation = timelineOrientationFromValue (paramOrDefault "auto" "timelineAxis")
 
 currentRosterTimelineDate :: (?request :: Request) => Calendar.Day -> Maybe Calendar.Day
 currentRosterTimelineDate windowStart = case currentRosterGridViewMode windowStart of
-    RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) windowStart)
+    RosterDayTimelineGridView dayOffset _ -> Just (Calendar.addDays (toInteger dayOffset) windowStart)
     RosterWeekGridView                  -> Nothing
 
 visibleRosterWeekForCurrentUser :: (?context :: ControllerContext) => Maybe RosterWindowState -> Maybe RosterWindowState

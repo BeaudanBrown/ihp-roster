@@ -7,6 +7,8 @@
 module Web.RosterWeeks.ShiftWorkflow
     ( RosterShiftDialogSubmission (..)
     , RosterShiftEditCompletion (..)
+    , RosterStaffAssignmentCompletion (..)
+    , assignRosterShiftStaff
     , ValidatedRosterShift (..)
     , createRosterShift
     , editRosterShift
@@ -42,13 +44,15 @@ import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
-import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
+import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
+                                  RosterWindowScope (..), fetchRosterWindow,
                                   rosterWindowTarget)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Mutations (RosterSlotMutationResult (..),
                                   saveRosterSlotMutation,
                                   updateRosterSlotMutation)
-import Web.RosterWeeks.RenderData (currentRosterTimelineDate)
+import Web.RosterWeeks.RenderData (currentRosterGridViewMode,
+                                   currentRosterTimelineDate)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
 import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
@@ -79,6 +83,26 @@ data RosterShiftEditCompletion = RosterShiftEditCompletion
     , rosterShiftEditImpactedRows :: ![(UUID.UUID, Int)]
     , rosterShiftEditWarnSourceTimesheetUnchanged :: !Bool
     }
+
+data RosterStaffAssignmentCompletion = RosterStaffAssignmentCompletion
+    { rosterStaffAssignmentMutation :: !(LiveMutationResult RosterSlotMutationResult)
+    , rosterStaffAssignmentMaterializedWindow :: !Bool
+    }
+
+-- The drop validator has checked scope and assignment eligibility. Keep the
+-- publication classification and complete slot update behind the workflow;
+-- mutation locks still revalidate these snapshots before saving.
+assignRosterShiftStaff :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> Staff -> IO (Either Text RosterStaffAssignmentCompletion)
+assignRosterShiftStaff scope rosterDay rosterSlot staff = do
+    window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+    let publishedFill = rosterDay.publicationState == Published
+        materializeOnSave = not publishedFill && any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays
+        updatedSlot = applyRosterShiftAssignment (StaffAssignment staff.id) rosterSlot
+    mutation <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot publishedFill materializeOnSave
+    pure $ fmap (\result -> RosterStaffAssignmentCompletion
+        { rosterStaffAssignmentMutation = result
+        , rosterStaffAssignmentMaterializedWindow = materializeOnSave
+        }) mutation
 
 createRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> Bool -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
 createRosterShift scope rosterDay slotDefinition rowIndex materializedWindow submission = do
@@ -193,6 +217,7 @@ rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = 
         , rosterShiftDialogTimePickerStep = rosterDialogInterval venueConfig (if isJust (currentRosterTimelineDate scope.rosterWindowStart) then Just 5 else Nothing)
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = False
+        , rosterShiftDialogTimelineOrientation = rosterTimelineOrientation (currentRosterGridViewMode scope.rosterWindowStart)
         , rosterShiftDialogTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
@@ -216,6 +241,7 @@ rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = rosterDay.publicationState == Published
+        , rosterShiftDialogTimelineOrientation = rosterTimelineOrientation (currentRosterGridViewMode scope.rosterWindowStart)
         , rosterShiftDialogTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision

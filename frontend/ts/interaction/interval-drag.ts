@@ -1,8 +1,15 @@
-import { InteractionDom, parseDragIntervalConfig, type DragIntervalConfig } from "../generated/contracts";
+import { InteractionDom, dragAxisDirectionProperty, parseDragIntervalConfig, type DragIntervalConfig } from "../generated/contracts";
 
 const attrs = InteractionDom.attributes;
 
-export type IntervalProjection = { target: Element; label: string; left: number; width: number };
+export type IntervalProjection = { target: Element; label: string; left: number; top: number; width: number; height: number };
+
+function verticalAxis(element: Element): boolean | null {
+    const value = element.ownerDocument?.defaultView?.getComputedStyle(element).getPropertyValue(dragAxisDirectionProperty).trim() ?? "";
+    if (value === "vertical") return true;
+    if (value === "" || value === "horizontal") return false;
+    return null;
+}
 export type IntervalDrag = { project: (x: number, y: number) => IntervalProjection | null };
 
 export function nearestIntervalChoice(config: DragIntervalConfig, position: number): number {
@@ -15,7 +22,7 @@ export function nearestIntervalChoice(config: DragIntervalConfig, position: numb
 
 // Missing configuration retains ordinary discrete drag/drop. Malformed
 // configuration refuses the gesture rather than falling back to unsafe geometry.
-export function readIntervalDrag(marker: Element, mount: Element, targetSelector: string, startX: number): IntervalDrag | null | undefined {
+export function readIntervalDrag(marker: Element, mount: Element, targetSelector: string, startX: number, startY = 0): IntervalDrag | null | undefined {
     const raw = marker.getAttribute(attrs.dragIntervalConfig);
     if (raw === null) return undefined;
     let config: DragIntervalConfig;
@@ -32,7 +39,12 @@ export function readIntervalDrag(marker: Element, mount: Element, targetSelector
         return null;
     }
     if (config.positions.length === 0) return null;
-    const grabOffset = startX - marker.getBoundingClientRect().left;
+    const vertical = verticalAxis(marker);
+    if (vertical === null) return null;
+    const sourceRect = marker.getBoundingClientRect();
+    const grabX = startX - sourceRect.left;
+    const grabY = startY - sourceRect.top;
+    const grabOffset = vertical ? grabY : grabX;
     const axes = Array.from(mount.querySelectorAll(`[${attrs.dragAxis}]`))
         .filter((axis) => axis.getAttribute(attrs.dragAxis) === "true" && axis.closest(`[${attrs.surface}]`) === mount)
         .map((axis) => {
@@ -48,15 +60,30 @@ export function readIntervalDrag(marker: Element, mount: Element, targetSelector
         });
     return {
         project(x, y) {
+            if (verticalAxis(marker) !== vertical) return null;
             for (const { axis, targets } of axes) {
+                if (verticalAxis(axis) !== vertical) continue;
                 const rect = axis.getBoundingClientRect();
-                if (rect.width <= 0 || y < rect.top || y > rect.top + rect.height) continue;
-                const proposed = (x - grabOffset - rect.left) * config.rangeSize / rect.width;
+                const length = vertical ? rect.height : rect.width;
+                const crossPosition = vertical ? x : y;
+                const crossStart = vertical ? rect.left : rect.top;
+                const crossLength = vertical ? rect.width : rect.height;
+                if (length <= 0 || crossPosition < crossStart || crossPosition > crossStart + crossLength) continue;
+                const start = vertical ? rect.top : rect.left;
+                const proposed = ((vertical ? y : x) - grabOffset - start) * config.rangeSize / length;
                 const index = nearestIntervalChoice(config, proposed);
                 const position = config.positions[index]!;
                 const target = targets.get(position);
                 if (!target || target.isConnected === false) return null;
-                return { target, label: config.labels[index]!, left: rect.left + position * rect.width / config.rangeSize, width: config.extent * rect.width / config.rangeSize };
+                const snapped = start + position * length / config.rangeSize;
+                const extent = config.extent * length / config.rangeSize;
+                return {
+                    target, label: config.labels[index]!,
+                    left: vertical ? x - grabX : snapped,
+                    top: vertical ? snapped : y - grabY,
+                    width: vertical ? sourceRect.width : extent,
+                    height: vertical ? extent : sourceRect.height,
+                };
             }
             return null;
         },

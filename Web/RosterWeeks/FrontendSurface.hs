@@ -45,7 +45,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as Su
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Url (appendQueryParams)
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -67,19 +67,22 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterWeekSlotsGridFragmentUrl,
                               rosterWeekStaffPanelFragmentUrl,
                               rosterWeekWageRailFragmentUrl,
-                              withRosterTimelineContext)
+                              withRosterTimelineContext,
+                              withTimelineOrientation)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..),
-                              RosterRenderIndexes (..))
+                              RosterRenderIndexes (..),
+                              TimelineOrientation (..))
 
 -- | Logical roster week live invalidation scope. Viewer-specific preferences and
 -- visibility stay server-owned; the scope identifies the authorized data slice.
 data RosterWeekScopeValue = RosterWeekScopeValue
-    { rosterWeekVenueId          :: !UUID.UUID
-    , rosterWeekGroupId          :: !(Id RosterGroup)
-    , rosterWeekWindowStart      :: !Day
-    , rosterWeekWindowEnd        :: !Day
-    , rosterWeekCalendarRevision :: !Int
-    , rosterWeekTimelineDate     :: !(Maybe Day)
+    { rosterWeekVenueId             :: !UUID.UUID
+    , rosterWeekGroupId             :: !(Id RosterGroup)
+    , rosterWeekWindowStart         :: !Day
+    , rosterWeekWindowEnd           :: !Day
+    , rosterWeekCalendarRevision    :: !Int
+    , rosterWeekTimelineDate        :: !(Maybe Day)
+    , rosterWeekTimelineOrientation :: !TimelineOrientation
     }
     deriving (Eq, Show)
 
@@ -181,7 +184,7 @@ rosterSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
-    map (withRosterCalendarRevision scope.rosterWeekCalendarRevision) $
+    map (withRosterViewContext scope) $
         case scope.rosterWeekTimelineDate of
             Just _  -> rosterTimelineModeMountedFragments scope plan
             Nothing -> rosterWeekGridMountedFragments scope plan
@@ -211,10 +214,13 @@ rosterWeekGridMountedFragments scope plan =
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
 
-withRosterCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
-withRosterCalendarRevision calendarRevision fragment =
+withRosterViewContext :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
+withRosterViewContext scope fragment =
     fragment
-        { mountedFragmentUrl = appendQueryParams fragment.mountedFragmentUrl [("rosterCalendarRevision", tshow calendarRevision)]
+        { mountedFragmentUrl = withTimelineOrientation scope.rosterWeekTimelineOrientation
+            (replaceQueryParams fragment.mountedFragmentUrl
+                ([("rosterCalendarRevision", tshow scope.rosterWeekCalendarRevision)]
+                    <> maybe [] (\date -> [("rosterView", "timeline"), ("dayDate", tshow date)]) scope.rosterWeekTimelineDate))
         }
 
 rosterMountedFragmentForProjection :: RosterWeekScopeValue -> RosterProjectionFragment -> FrontendSurfaceMountedFragment
@@ -268,7 +274,7 @@ rosterIntentForms scope _templateApplicationAvailable =
         (rosterDropStaffRequest scope)
     ] <> [ SurfaceIntent.moveRosterTimelineShiftIntentForm
             (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision)
-            (rosterDragDropRequest (rosterTimelineMoveShiftUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId dayDate))
+            (rosterDragDropRequest (withTimelineOrientation scope.rosterWeekTimelineOrientation (rosterTimelineMoveShiftUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId dayDate)))
          | dayDate <- maybeToList scope.rosterWeekTimelineDate
          ]
 
@@ -291,7 +297,7 @@ rosterDuplicateShiftRequest scope =
 
 rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =
-    rosterDragDropRequest (maybe Prelude.id withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId))
+    rosterDragDropRequest (withTimelineOrientation scope.rosterWeekTimelineOrientation (maybe Prelude.id withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)))
 
 rosterDragDropRequest :: Text -> FrontendSurfaceHtmxRequest
 rosterDragDropRequest requestUrl =

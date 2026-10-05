@@ -30,7 +30,8 @@ import Web.RosterWeeks.FrontendSurface (rosterDayTimelineDropzoneRef,
                                         rosterExistingShiftDropzoneRef,
                                         rosterShiftGroupLinkedHighlight)
 import Web.RosterWeeks.Paths (rosterTimelineCreateDialogUrl,
-                              withRosterTimelineContext)
+                              withRosterTimelineContext,
+                              withTimelineOrientation)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.TimelineScale
 import Web.RosterWeeks.Types
@@ -77,9 +78,11 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
                  class="roster-day-timeline-shell"
                  data-roster-day-timeline="true"
+                 data-roster-timeline-orientation={timelineOrientationValue (rosterTimelineOrientation gridModel.gridViewMode)}
                  data-roster-day-timeline-editable={if editable then ("true" :: Text) else "false"}
+                 style={"--roster-timeline-hours:" <> tshow (timelineWindow.timelineWindowScale.scaleMinutes / 60) <> ";--roster-timeline-lane-count:" <> tshow (length gridModel.gridSlotNames) <> ";"}
                  hx-swap-oob={maybeSwapOob}>
-            <div class="roster-day-timeline" style={"--roster-timeline-hours:" <> tshow (timelineWindow.timelineWindowScale.scaleMinutes / 60) <> ";"} role="group" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
+            <div class="roster-day-timeline" role="group" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
                 {forEach gridModel.gridSlotNames (renderTimelineLane timelineWindow editable rosterDay gridModel.gridRosterCalendarRevision staffById shiftTypeById slotsByDefinition gridModel.gridRenderIndexes.rosterTimingBySlotId)}
             </div>
@@ -87,8 +90,9 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
     |]
 
 data TimelineWindow = TimelineWindow
-    { timelineWindowScale     :: !TimelineScale
-    , timelineWindowEndMinute :: !Int
+    { timelineWindowScale       :: !TimelineScale
+    , timelineWindowEndMinute   :: !Int
+    , timelineWindowOrientation :: !TimelineOrientation
     }
 
 timelineWindowFromGridModel :: RosterGridRenderModel -> Day -> [(UTCTime, UTCTime)] -> Either VenueTimeError TimelineWindow
@@ -97,6 +101,7 @@ timelineWindowFromGridModel gridModel date intervals = do
     pure TimelineWindow
         { timelineWindowScale = scale
         , timelineWindowEndMinute = max 0 (ceiling scale.scaleMinutes - 15)
+        , timelineWindowOrientation = rosterTimelineOrientation gridModel.gridViewMode
         }
 
 renderTimelineScale :: TimelineWindow -> Html
@@ -133,7 +138,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
         addShiftButton = case listToMaybe dropzones of
             Nothing -> mempty
             Just (_, key) -> [hsx|
-                <button {...(rosterShiftDialogLauncherAttrs (rosterTimelineCreateDialogUrl rosterDay.operationalDate (Id rosterDay.rosterGroupId) calendarRevision key))}
+                <button {...(rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (rosterTimelineCreateDialogUrl rosterDay.operationalDate (Id rosterDay.rosterGroupId) calendarRevision key)))}
                         type="button" class="btn btn-sm btn-outline-secondary"
                         aria-label={"Add shift in " <> rosterWindowLaneName windowLane}>Add shift</button>
             |]
@@ -166,7 +171,7 @@ renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
      in [hsx|
         <button {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)}
                 {...(Drag.dragPositionAttrs (timelineCoordinate timelineWindow.timelineWindowScale instant))}
-                {...(rosterShiftDialogLauncherAttrs (rosterTimelineCreateDialogUrl day.operationalDate (Id day.rosterGroupId) revision targetKey))}
+                {...(rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (rosterTimelineCreateDialogUrl day.operationalDate (Id day.rosterGroupId) revision targetKey)))}
                 type="button" tabindex="-1" class="roster-day-timeline-dropzone"
                 style={timelineDropzoneStyle timelineWindow instant}
                 data-roster-timeline-minute={tshow (timelineOperationalMinute day.operationalDate instant)}
@@ -186,9 +191,11 @@ renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shift
         groupKey = "existing:" <> tshow timelineShiftSlot.id
         shiftClasses = classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]
         shiftContents = [hsx|
+          <span class="roster-day-timeline-shift-caption">
             <span class="roster-day-timeline-shift-staff">{staffLabel}</span>
             <span class="roster-day-timeline-shift-time">{timelineShiftTimeLabel}{timingIssue}</span>
             <span class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{openMarker}{shiftTypeLabel}</span>
+          </span>
         |]
         shiftArticle = if canLaunch
             then [hsx|
@@ -207,7 +214,7 @@ renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shift
             else mempty
         launcherAttrs =
             if canLaunch
-                then rosterShiftDialogLauncherAttrs (withRosterTimelineContext anchorDate (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)))
+                then rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (withRosterTimelineContext anchorDate (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision))))
                 else []
         card = [hsx|
             <div class="roster-day-timeline-shift-position"
@@ -296,11 +303,11 @@ timelineHourTicks TimelineWindow { timelineWindowEndMinute } =
 
 timelineLeftStyle :: TimelineWindow -> Int -> Text
 timelineLeftStyle timelineWindow minute =
-    "left:" <> timelinePercent timelineWindow (fromIntegral minute) <> "%;"
+    "--roster-timeline-position:" <> timelinePercent timelineWindow (fromIntegral minute) <> "%;"
 
 timelineDropzoneStyle :: TimelineWindow -> UTCTime -> Text
 timelineDropzoneStyle timelineWindow instant =
-    "left:" <> timelinePercent timelineWindow start <> "%;width:" <> timelinePercent timelineWindow (end - start) <> "%;"
+    "--roster-timeline-position:" <> timelinePercent timelineWindow start <> "%;--roster-timeline-extent:" <> timelinePercent timelineWindow (end - start) <> "%;"
   where
     scale = timelineWindow.timelineWindowScale
     minuteOffset = timelineOffsetMinutes scale instant
@@ -313,9 +320,9 @@ timelineShiftStyle timelineWindow startMin endMin track =
         windowEnd = timelineWindow.timelineWindowScale.scaleMinutes
         clampedStart = max windowStart (min windowEnd startMin)
         clampedEnd = max clampedStart (min windowEnd endMin)
-     in "left:"
+     in "--roster-timeline-position:"
             <> timelinePercent timelineWindow (clampedStart - windowStart)
-            <> "%;width:"
+            <> "%;--roster-timeline-extent:"
             <> timelinePercent timelineWindow (clampedEnd - clampedStart)
             <> "%;--roster-timeline-track:"
             <> tshow track

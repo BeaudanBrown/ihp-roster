@@ -57,6 +57,9 @@ and submission; it derives Draft edit versus Published Open fill, restores the
 correct rejection values, invokes the existing update mutation and prepares
 post-commit row impact. A rejection is dialog values; success is the committed
 mutation result, with edit impact and warning policy ready for `Responses`.
+`assignRosterShiftStaff` owns the complete existing-shift staff-drop update,
+including Published-fill classification and projected-window materialization;
+its typed completion returns mutation evidence and the materialization result.
 
 The input records are snapshots, not new authorization or freshness evidence.
 Controllers retain ordered access and calendar/placement checks. Shift dialogs
@@ -318,14 +321,23 @@ and Day columns. Timeline selection uses canonical `anchorDate`,
 Returning to a grid layout retains the selected date as its anchor. Only managers
 change the shared grid layout; other viewers can switch between Timeline and
 the venue's current grid layout. The existing grid preference remains the
-default; no timeline preference is persisted.
+default; no timeline preference is persisted. Timeline's Auto / Horizontal /
+Vertical controls use the optional `timelineAxis` query parameter. Auto selects
+vertical time on portrait phones up to 767.98px, horizontal otherwise; invalid
+values also resolve to Auto. Explicit choices survive day navigation, dialog
+submission and live replacement without changing venue grid preferences.
 
 The timeline belongs to the main roster FrontendSurface, with distinct typed
 shift/time interaction refs and a day-parameterized live content fragment.
-Only the selected day is registered in timeline mode. Its horizontal scroll
-owner sits outside that fragment so ordinary live replacements retain scroll position. Named
-lane labels and the time header are sticky; scale is fixed at six rem per elapsed
-hour with no zoom or fit-to-viewport mode.
+Only the selected day is registered in timeline mode. Its two-axis scroll owner
+sits outside that fragment so ordinary live replacements retain scroll position.
+Named lane labels and the time ruler are sticky. Scale is fixed at six rem per
+elapsed hour horizontally and 3.5 rem vertically, with no zoom or time-axis
+fit-to-viewport mode. Vertical lane widths expose two lanes; other lanes remain
+horizontally accessible. CSS transposes server-owned positions/extents and emits
+the generated generic drag-axis direction property. Browser geometry follows
+that direction without interpreting roster times. Viewport changes cancel active
+sessions; a changed axis cannot yield a committed drop.
 
 `TimelineScale.hs` resolves configured display boundaries in Melbourne time,
 expands them to trustworthy saved instants and recomputes on each render, allowing
@@ -345,7 +357,7 @@ the mobile tools shelf then closes through the generic interaction bus so the
 underlying timeline is no longer inert. Taps and swipes do not close the shelf.
 
 Outer lanes are active named slot columns, and inner overlap tracks are computed
-for display only. Fixed-height cards use shift-type colours; Open shifts also
+for display only. Proportional cards use shift-type colours; Open shifts also
 have explicit text and dashed edges. Full details appear on hover or focus;
 editable cards use native buttons to launch the existing editor.
 Timeline drag/drop uses the same generic source/dropzone runtime as the roster

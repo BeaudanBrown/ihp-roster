@@ -26,6 +26,7 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Text.Megaparsec.Pos (initialPos)
+import Web.RosterWeeks.Types (TimelineOrientation (..))
 import Web.Timesheets.Filters (emptyTimesheetViewFilters)
 import Web.View.RosterWeeks.ShiftDialog
 
@@ -343,6 +344,7 @@ autofocusRosterDialog values assignmentOnly = RosterShiftDialogData
     , rosterShiftDialogTimePickerStart = "00:00", rosterShiftDialogTimePickerEnd = "23:45", rosterShiftDialogTimePickerStep = 15
     , rosterShiftDialogValues = values, rosterShiftDialogAssignmentOnly = assignmentOnly
     , rosterShiftDialogTimelineDate = Nothing
+    , rosterShiftDialogTimelineOrientation = TimelineAuto
     , rosterShiftDialogAnchorDate = fromGregorian 2026 9 21, rosterShiftDialogCalendarRevision = 0
     }
 

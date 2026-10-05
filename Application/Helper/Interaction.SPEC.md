@@ -117,8 +117,12 @@ position and preview label, including full-interval bounds. The browser preserve
 the grab offset, chooses the nearest allowed position, and uses that same opaque
 target for the disposable preview and committed intent. It never derives domain
 times or parses target keys. Malformed configuration refuses the gesture.
+The generated drag-axis CSS property selects horizontal or vertical geometry;
+missing means horizontal, unknown values refuse the gesture. The browser reads
+computed geometry for preview, grab offsets and cross-axis targeting. Viewport
+resizes cancel active sessions; changing axis direction invalidates projection.
 
-Horizontal drag scrolling is opt-in on a typed scroll owner within the same
+Two-axis drag scrolling is opt-in on a typed scroll owner within the same
 mount. Only an activated session scrolls it; a stationary pointer near an edge
 continues scrolling and retests the target. Ending or cancelling the session
 stops its animation. Unmarked scroll owners remain native.

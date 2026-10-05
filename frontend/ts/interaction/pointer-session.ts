@@ -125,6 +125,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
     root.addEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
+    window.addEventListener("resize", controller.stop);
 
     return () => {
         root.removeEventListener("pointerdown", controller.handlePointerDown);
@@ -139,6 +140,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
         root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
         root.removeEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
+        window.removeEventListener("resize", controller.stop);
         controller.stop();
     };
 }
@@ -165,6 +167,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             || closestInteractionMount(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
         const container = owner as HTMLElement;
         let observedScrollLeft = container.scrollLeft;
+        let observedScrollTop = container.scrollTop;
         const frame = (time: number) => {
             scrollFrame = null;
             if (activeSession !== session || !session.activated) return;
@@ -174,9 +177,10 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             }
             const elapsed = lastScrollFrameTime === null ? 16 : Math.min(32, Math.max(0, time - lastScrollFrameTime));
             lastScrollFrameTime = time;
-            scrollHorizontalDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
-            if (container.scrollLeft !== observedScrollLeft) {
+            scrollDragContainer(container, session.currentClientX, session.currentClientY, elapsed);
+            if (container.scrollLeft !== observedScrollLeft || container.scrollTop !== observedScrollTop) {
                 observedScrollLeft = container.scrollLeft;
+                observedScrollTop = container.scrollTop;
                 session.hasMoved = true;
                 session.effects.update(session);
                 runtime.emit({ phase: "preview", intent: session.intent, fields: pointerSessionFields(session), mount: session.mount, marker: session.marker, sourceEvent: null });
@@ -461,7 +465,7 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         intervalDrag: undefined,
         effects: noOpEffectRunner,
     };
-    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX);
+    const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX, startClientY);
     if (interval === null) return null;
     session.intervalDrag = interval;
     session.effects = createPointerSessionEffectRunner(session);
@@ -500,6 +504,20 @@ export function createPointerSessionEffectRunner(session: ActivePointerSession):
 
 // Geometry only: the server opts a scroll owner in; neither targets nor opaque
 // keys are interpreted here. A stationary pointer keeps scrolling via RAF.
+export function scrollDragContainer(container: HTMLElement, clientX: number, clientY: number, elapsedMs: number): boolean {
+    const horizontal = scrollHorizontalDragContainer(container, clientX, clientY, elapsedMs);
+    const rect = container.getBoundingClientRect();
+    const edge = Math.min(48, container.clientHeight / 3);
+    const bottom = rect.top + container.clientHeight;
+    if (edge <= 0 || clientX < rect.left || clientX > rect.left + rect.width
+        || clientY < rect.top - edge || clientY > bottom + edge) return horizontal;
+    const direction = clientY < rect.top + edge ? -Math.min(1, (rect.top + edge - clientY) / edge)
+        : clientY > bottom - edge ? Math.min(1, (clientY - bottom + edge) / edge) : 0;
+    const before = container.scrollTop;
+    container.scrollTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, before + direction * 0.48 * elapsedMs));
+    return horizontal || container.scrollTop !== before;
+}
+
 export function scrollHorizontalDragContainer(container: HTMLElement, clientX: number, clientY: number, elapsedMs: number): boolean {
     const rect = container.getBoundingClientRect();
     const edge = Math.min(48, container.clientWidth / 3);
@@ -621,7 +639,8 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
             if (!projection) return;
             const style = (shadow as HTMLElement).style;
             style.width = `${projection.width}px`;
-            style.transform = `translate3d(${projection.left}px, ${session.currentClientY - grabOffsetY}px, 0)`;
+            style.height = `${projection.height}px`;
+            style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
             if (label) {
                 label.textContent = projection.label;
                 const viewport = label.ownerDocument.documentElement;

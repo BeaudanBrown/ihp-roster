@@ -104,6 +104,7 @@ test.describe('Roster row controls', () => {
                 anchorDate: rosterUrl.searchParams.get('anchorDate') ?? '',
                 rosterGroupId: rosterUrl.searchParams.get('rosterGroupId') ?? '',
                 rosterView: 'timeline',
+                timelineAxis: 'horizontal',
                 dayDate: windowStart,
             }).toString()}`,
             '.roster-day-timeline',
@@ -115,7 +116,7 @@ test.describe('Roster row controls', () => {
         await expect(timelineLabel).toHaveCSS('white-space', 'nowrap');
         await expect(timelineLabel).toHaveAttribute('title', fullLabel);
 
-        const timelineCard = timelineLabel.locator('..');
+        const timelineCard = page.locator('.roster-day-timeline-shift').filter({ hasText: fullLabel }).first();
         const timelineDetails = timelineCard.locator('..').locator('+ .roster-day-timeline-shift-details');
         await timelineCard.focus();
         await expect(timelineDetails).toBeVisible();
@@ -132,7 +133,7 @@ test.describe('Roster row controls', () => {
                     contained: cards.every((card) => card.top >= bounds.top && card.bottom <= bounds.bottom && card.right <= bounds.right + 1),
                     heights: cards.map((card) => card.height),
                     noCollisions: cards.every((a, i) => cards.slice(i + 1).every((b) => a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top || b.bottom <= a.top)),
-                    sameScale: lines.length === ticks.length && lines.every((line, i) => line.style.left === ticks[i].style.left),
+                    sameScale: lines.length === ticks.length && lines.every((line, i) => line.style.getPropertyValue('--roster-timeline-position') === ticks[i].style.getPropertyValue('--roster-timeline-position')),
                 };
             }));
             expect(geometry.length).toBeGreaterThan(0);

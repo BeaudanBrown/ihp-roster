@@ -73,6 +73,23 @@ import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..),
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
+        it "renders closed orientation choices and defaults unknown timeline axes to Auto" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timeline Orientation Venue"
+                manager <- createUserRecord "roster-orientation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createRosterWeekRecord venue 0 False
+                forEach [("auto", "auto"), ("horizontal", "horizontal"), ("vertical", "vertical"), ("diagonal", "auto")] \(requested, expected) -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams (ShowRosterWindowAction "2025-01-06")
+                            [("rosterView", "timeline"), ("dayDate", "2025-01-06"), ("timelineAxis", requested)]
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` ("data-roster-timeline-orientation=\"" <> expected <> "\"")
+                    response `responseBodyShouldContain` "Timeline orientation"
+                    response `responseBodyShouldContain` ">Auto</a>"
+                    response `responseBodyShouldContain` ">Horizontal</a>"
+                    response `responseBodyShouldContain` ">Vertical</a>"
+
         it "resets grid and timeline navigation to the venue operational day" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Operational Today"

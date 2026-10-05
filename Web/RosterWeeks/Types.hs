@@ -4,6 +4,10 @@ module Web.RosterWeeks.Types
     , RosterDayRenderModel (..)
     , RosterGridRenderModel (..)
     , RosterGridViewMode (..)
+    , TimelineOrientation (..)
+    , timelineOrientationValue
+    , timelineOrientationFromValue
+    , rosterTimelineOrientation
     , RosterProjectionFragment (..)
     , RosterRenderData (..)
     , RosterRenderIndexes (..)
@@ -50,8 +54,25 @@ data ShowView = ShowView
 
 data RosterGridViewMode
     = RosterWeekGridView
-    | RosterDayTimelineGridView { timelineDayOffset :: !Int }
+    | RosterDayTimelineGridView { timelineDayOffset :: !Int, timelineOrientation :: !TimelineOrientation }
     deriving (Eq, Show)
+
+data TimelineOrientation = TimelineAuto | TimelineHorizontal | TimelineVertical
+    deriving (Eq, Show)
+
+timelineOrientationValue :: TimelineOrientation -> Text
+timelineOrientationValue TimelineAuto       = "auto"
+timelineOrientationValue TimelineHorizontal = "horizontal"
+timelineOrientationValue TimelineVertical   = "vertical"
+
+timelineOrientationFromValue :: Text -> TimelineOrientation
+timelineOrientationFromValue "horizontal" = TimelineHorizontal
+timelineOrientationFromValue "vertical"   = TimelineVertical
+timelineOrientationFromValue _            = TimelineAuto
+
+rosterTimelineOrientation :: RosterGridViewMode -> TimelineOrientation
+rosterTimelineOrientation RosterWeekGridView = TimelineAuto
+rosterTimelineOrientation RosterDayTimelineGridView { timelineOrientation } = timelineOrientation
 
 data RosterViewCapabilities = RosterViewCapabilities
     { canToggleRosterLive       :: Bool
