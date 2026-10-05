@@ -91,7 +91,7 @@ findField fields key = case filter ((== key) . fieldId) fields of
 
 literalType :: Literal -> Either ContractError FieldType
 literalType literal = case literal of
-    TextLiteral value | Text.length value <= maxTextLength limits -> Right TextType
+    TextLiteral value | Text.length value <= maxTextLength limits && not (Text.any (== '\NUL') value) -> Right TextType
     BooleanLiteral _ -> Right BooleanType
     -- Choice constants acquire their configured domain from a matching field.
     ChoiceLiteral _ -> Left InvalidLiteral
@@ -254,7 +254,7 @@ validateFields definition = do
 
 validateLabel :: Text.Text -> Either ContractError ()
 validateLabel text
-    | Text.null (Text.strip text) || Text.length text > maxTextLength limits = Left InvalidLabel
+    | Text.null (Text.strip text) || Text.length text > maxTextLength limits || Text.any (== '\NUL') text = Left InvalidLabel
     | otherwise = Right ()
 
 -- | Publication-level semantic validation. A byte-limited boundary decoder is

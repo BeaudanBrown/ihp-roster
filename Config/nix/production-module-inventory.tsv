@@ -194,9 +194,10 @@ Application/Helper/FrontendContract/Surface/Daysheet/Resource.hs	production	runt
 Application/Helper/FrontendContract/Surface/DaysheetDesigner.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DaysheetDesigner/Action.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Action.hs	production	runtime	Main	Reachable from Main
-Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Live.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Live.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DaysheetDesigner/Generated/Resource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DaysheetDesigner/HaskellAdapter.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/DaysheetDesigner/Live.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DaysheetDesigner/Resource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/DependencyPlanner.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Diagnostics.hs	production	runtime	Main	Reachable from Main
@@ -557,6 +558,7 @@ Web/Controller/StripeWebhooks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Support.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Users.hs	production	runtime	Main	Reachable from Main
+Web/Daysheets/LayoutEditing.hs	production	runtime	Main	Reachable from Main
 Web/Daysheets/LiveUpdates.hs	production	runtime	Main	Reachable from Main
 Web/Daysheets/ReadModel.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Mutations.hs	production	runtime	Main	Reachable from Main
@@ -658,6 +660,7 @@ Web/View/Daysheets/Cell.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Deletion.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Designer.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/Daysheets/LayoutDesigner.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Card.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Index.hs	production	runtime	Main	Reachable from Main

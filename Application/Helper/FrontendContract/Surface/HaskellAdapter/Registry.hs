@@ -109,6 +109,9 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerFieldEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReportEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerSectionEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerBlockEditor
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
@@ -281,6 +284,13 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerList allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerField allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerList allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerReport allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerSection allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerBlock allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerReport allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerSection allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerBlock allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.MoveDesignerItem allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.PublishDesignerDraft allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.AddDesignerReference allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerReferenceValue allRequestAdapterOperations

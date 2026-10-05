@@ -7,6 +7,8 @@ import Application.Daysheet.Storage (DesignerState (..))
 import Application.Daysheet.References
 import qualified Application.Daysheet.Evaluation as E
 import Web.Daysheets.ReadModel (numberText, percentageText)
+import Web.Daysheets.LayoutEditing (blockSource)
+import qualified Web.View.Daysheets.LayoutDesigner as Layout
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Surface
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.Action as Action
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
@@ -21,6 +23,9 @@ data DesignerPage
     | DesignerFieldPage (ActionFields Action.SaveDesignerFieldActionOperation)
     | DesignerListPage (ActionFields Action.SaveDesignerListActionOperation)
     | DesignerReferencePage (ActionFields Action.SaveDesignerReferenceValueActionOperation)
+    | DesignerReportPage (ActionFields Action.SaveDesignerReportActionOperation)
+    | DesignerSectionPage (ActionFields Action.SaveDesignerSectionActionOperation)
+    | DesignerBlockPage (ActionFields Action.SaveDesignerBlockActionOperation)
 
 data DesignerView = DesignerView
     { venue :: UUID, state :: DesignerState, page :: DesignerPage, problem :: Maybe Text }
@@ -40,6 +45,14 @@ designerSurface venue page = mkSurfaceImplFromValues @Surface.DaysheetDesignerSu
             params = surfaceOptionalField @Surface.DefinitionFieldId key &: surfaceOptionalField @Surface.ContainerId parent &: noSurfaceFields
             in frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor params params
                 (pathTo (ShowDesignerFieldBodyAction (tshow <$> key) (tshow <$> parent))) FrontendSurfaceDirtyForm
+        DesignerReportPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor
+            (reportParams fields) (reportParams fields) (pathTo (ShowDesignerReportBodyAction (tshow <$> surfaceFieldValue @Surface.DefinitionReportId fields))) FrontendSurfaceDirtyForm
+        DesignerSectionPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor
+            (sectionParams fields) (sectionParams fields) (pathTo (ShowDesignerSectionBodyAction (tshow <$> surfaceFieldValue @Surface.DefinitionReportId fields) (tshow <$> surfaceFieldValue @Surface.DefinitionSectionId fields))) FrontendSurfaceDirtyForm
+        DesignerBlockPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerBlockEditor
+            (blockParams fields) (blockParams fields) (pathTo (ShowDesignerBlockBodyAction (tshow <$> surfaceFieldValue @Surface.DefinitionReportId fields)
+                (surfaceFieldValue @Surface.DefinitionSectionId fields) (tshow <$> surfaceFieldValue @Surface.BlockIndex fields)
+                (inputValue (surfaceFieldValue @Surface.ContentKind fields)) (tshow <$> surfaceFieldValue @Surface.DefinitionListId fields))) FrontendSurfaceDirtyForm
         DesignerReferencePage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceEditor
             (referenceParams fields) (referenceParams fields)
             (pathTo (ShowDesignerReferenceBodyAction (surfaceFieldValue @Surface.DefinitionListId fields)
@@ -56,6 +69,9 @@ renderDesigner venue state page problem = case page of
     DesignerFieldPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor
         (surfaceOptionalField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
             &: surfaceOptionalField @Surface.ContainerId (surfaceFieldValue @Surface.ContainerId fields) &: noSurfaceFields) impl content
+    DesignerReportPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor (reportParams fields) impl content
+    DesignerSectionPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor (sectionParams fields) impl content
+    DesignerBlockPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerBlockEditor (blockParams fields) impl content
     DesignerReferencePage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceEditor
         (referenceParams fields) impl content
     DesignerListPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerListEditor
@@ -94,25 +110,92 @@ renderDesigner venue state page problem = case page of
                 <a class="btn btn-outline-primary" href={ShowDesignerListAction Nothing}>Add list</a>
                 {publishButton}
             </div>
-            <section><h2 class="h4">Root fields</h2>{forEach (D.rootFields definition) fieldSummary}</section>
-            {forEach (D.recordLists definition) listSummary}
+            <section><h2 class="h4">Root fields</h2>{forEach (zip [0 ..] (D.rootFields definition)) (fieldSummary Nothing (length (D.rootFields definition)))}</section>
+            {forEach (zip [0 ..] (D.recordLists definition)) listSummary}
+            <section aria-label="Entry layout"><h2 class="h4">Entry layout</h2>
+                {forEach (zip [0 ..] (D.entryLayout definition)) (sectionSummary Nothing (length (D.entryLayout definition)))}
+                <a class="btn btn-outline-primary" href={ShowDesignerSectionAction Nothing Nothing}>Add entry section</a>
+            </section>
+            <section aria-label="Report layouts"><h2 class="h4">Report layouts</h2>
+                {forEach (zip [0 ..] (D.reports definition)) reportSummary}
+                <a class="btn btn-outline-primary" href={ShowDesignerReportAction Nothing}>Add report</a>
+            </section>
         |]
         DesignerFieldPage fields -> fieldForm fields
         DesignerListPage fields -> listForm fields
         DesignerReferencePage fields -> referenceForm fields
+        DesignerReportPage fields -> Layout.reportForm fields problem
+        DesignerSectionPage fields -> Layout.sectionForm fields problem
+        DesignerBlockPage fields -> Layout.blockForm definition fields problem
     publishButton = case state.designerDraftRevision of
         Nothing -> [hsx|<p class="text-muted">No unpublished changes.</p>|]
         Just _ -> let fields = Action.publishDesignerDraftActionFields base revision
             in renderFrontendSurfaceActionFormWithHiddenFields (Action.publishDesignerDraftAction fields)
                 ((defaultFrontendSurfaceActionRoute (pathTo PublishDesignerDraftAction)) { actionRouteExtraAttrs = finalAttrs })
                 [hsx|<button class="btn btn-primary" type="submit">Publish draft</button>|]
-    fieldSummary field = let
+    moveControls :: DesignerMoveKind -> Maybe UUID -> Maybe UUID -> Maybe Int -> Maybe UUID -> Int -> Int -> Html
+    moveControls kind report section block source index count = let
+        noun :: Text
+        noun = case kind of MoveFieldItem -> "field"; MoveListItem -> "list"; MoveReportItem -> "report"; MoveSectionItem -> "section"; MoveBlockItem -> "content"; MoveColumnItem -> "column"; MoveSortItem -> "sort"
+        button delta caption = let
+            fields = Action.moveDesignerItemActionFields base revision kind report section block source index (index + delta)
+            in renderFrontendSurfaceActionFormWithHiddenFields (Action.moveDesignerItemAction fields)
+                (defaultFrontendSurfaceActionRoute (pathTo MoveDesignerItemAction)) [hsx|<button class="btn btn-sm btn-outline-secondary" type="submit" disabled={index + delta < 0 || index + delta >= count}>{"Move " <> noun <> " " <> caption}</button>|]
+        in [hsx|<div class="d-flex flex-wrap gap-1">{button (-1) "earlier"}{button 1 "later"}</div>|]
+    reportSummary (reportIndex, D.Report (D.ReportId key) label sections outputs) = let
+        fields = Action.removeDesignerReportActionFields base revision key
+        remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerReportAction fields)
+            (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerReportAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove report</button>|]
+        in renderAppPanel (defaultAppPanelConfig [hsx|<section aria-label={"Report: " <> label}><h3 class="h5"><a href={ShowDesignerReportAction (Just (tshow key))}>{label}</a></h3>
+            <p>{forEach outputs outputLabel}</p>{moveControls MoveReportItem Nothing Nothing Nothing Nothing reportIndex (length (D.reports definition))}
+            {forEach (zip [0 ..] sections) (sectionSummary (Just key) (length sections))}
+            <div class="d-flex gap-2"><a class="btn btn-sm btn-outline-primary" href={ShowDesignerSectionAction (Just (tshow key)) Nothing}>Add report section</a>{remove}</div>
+        </section>|])
+    outputLabel :: D.Output -> Html
+    outputLabel target = case target of D.FormattedReport -> [hsx|<span class="me-2">Formatted report</span>|]; D.ExcelDownload -> [hsx|<span class="me-2">Excel download</span>|]
+    sectionSummary report count (sectionIndex, D.Section (D.SectionId key) label blocks) = let
+        fields = Action.removeDesignerSectionActionFields base revision report key
+        remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerSectionAction fields)
+            (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerSectionAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove section</button>|]
+        add kind source caption = [hsx|<a class="btn btn-sm btn-outline-secondary me-2 mb-2" href={ShowDesignerBlockAction (tshow <$> report) key Nothing (inputValue kind) source}>{caption}</a>|]
+        listContents source = let D.ListId identity = D.listId source in [hsx|
+            {add TableContent (Just (tshow identity)) ("Add table: " <> D.listLabel source)}
+            {add RowAdvisoryContent (Just (tshow identity)) ("Add row check: " <> D.listLabel source)}
+        |]
+        in [hsx|<section class="mb-3" aria-label={"Section: " <> label}><h4 class="h6"><a href={ShowDesignerSectionAction (tshow <$> report) (Just (tshow key))}>{label}</a></h4>
+            {moveControls MoveSectionItem report Nothing Nothing Nothing sectionIndex count}
+            <ol>{forEach (zip [0 ..] blocks) (blockSummary report key (length blocks))}</ol>
+            <details><summary>Add content to {label}</summary>
+                {add InstructionsContent Nothing ("Add instructions" :: Text)}{add FieldContent Nothing ("Add field or summary" :: Text)}{add AdvisoryContent Nothing ("Add advisory check" :: Text)}
+                {forEach (D.recordLists definition) listContents}
+            </details>{remove}
+        </section>|]
+    blockSummary report section count (index, block) = let
+        fields = Action.removeDesignerBlockActionFields base revision report section index
+        remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerBlockAction fields)
+            (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerBlockAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove content</button>|]
+        tableOrder = case block of
+            D.TableBlock source columns _ sorting -> let
+                declared = maybe [] D.listFields (find ((== source) . D.listId) (D.recordLists definition))
+                ordered kind size (position, key) = [hsx|<li>{maybe "Unavailable field" D.fieldLabel (find ((== key) . D.fieldId) declared)}{moveControls kind report (Just section) (Just index) Nothing position size}</li>|]
+                in [hsx|<details><summary>Column and sort order</summary><p>Columns</p><ol>{forEach (zip [0 ..] columns) (ordered MoveColumnItem (length columns))}</ol><p>Sorting</p><ol>{forEach (zip [0 ..] (map fst sorting)) (ordered MoveSortItem (length sorting))}</ol></details>|]
+            _ -> mempty
+        in [hsx|<li class="mb-2 text-break"><a href={ShowDesignerBlockAction (tshow <$> report) section (Just (tshow index)) (inputValue (blockKind block)) (tshow <$> blockSource block)}>{blockCaption block}</a>
+            {moveControls MoveBlockItem report (Just section) Nothing Nothing index count}{tableOrder}{remove}</li>|]
+    blockCaption :: D.Block -> Text
+    blockCaption block = case block of
+        D.Instructions text -> "Instructions: " <> text
+        D.FieldBlock key -> "Field: " <> maybe "Unavailable" D.fieldLabel (find ((== key) . D.fieldId) (D.rootFields definition))
+        D.TableBlock key _ _ _ -> "Table: " <> maybe "Unavailable" D.listLabel (find ((== key) . D.listId) (D.recordLists definition))
+        D.AdvisoryBlock check -> "Check: " <> D.passedMessage check
+        D.RowAdvisoryBlock _ check -> "Row check: " <> D.passedMessage check
+    fieldSummary source count (index, field) = let
         D.FieldId key = D.fieldId field
         fields = Action.removeDesignerFieldActionFields base revision key
         remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerFieldAction fields)
             (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerFieldAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove field</button>|]
-        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span>{remove}</div>|]
-    listSummary source = let
+        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span>{moveControls MoveFieldItem Nothing Nothing Nothing source index count}{remove}</div>|]
+    listSummary (index, source) = let
         D.ListId key = D.listId source
         fields = Action.removeDesignerListActionFields base revision key
         remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerListAction fields)
@@ -120,7 +203,8 @@ renderDesigner venue state page problem = case page of
         in renderAppPanel (defaultAppPanelConfig [hsx|
             <h2 class="h4"><a href={ShowDesignerListAction (Just (tshow key))}>{D.listLabel source}</a></h2>
             <p>{listKindLabel (listKind (D.listMode source))}</p>
-            {forEach (D.listFields source) fieldSummary}
+            {moveControls MoveListItem Nothing Nothing Nothing Nothing index (length (D.recordLists definition))}
+            {forEach (zip [0 ..] (D.listFields source)) (fieldSummary (Just key) (length (D.listFields source)))}
             {referenceRows source}
             <div class="d-flex gap-2"><a class="btn btn-sm btn-outline-primary" href={ShowDesignerFieldAction Nothing (Just (tshow key))}>Add field to list</a>{remove}</div>
         |])
@@ -220,6 +304,18 @@ renderDesigner venue state page problem = case page of
             {buttons}
         |]
     buttons = [hsx|<div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save draft</button><a class="btn btn-outline-secondary" href={DaysheetDesignerAction}>Discard edit and return</a></div>|]
+
+reportParams :: ActionFields Action.SaveDesignerReportActionOperation -> SurfaceFields Surface.ReportEditorParams
+reportParams fields = surfaceOptionalField @Surface.DefinitionReportId (surfaceFieldValue @Surface.DefinitionReportId fields) &: noSurfaceFields
+sectionParams :: ActionFields Action.SaveDesignerSectionActionOperation -> SurfaceFields Surface.SectionEditorParams
+sectionParams fields = surfaceOptionalField @Surface.DefinitionReportId (surfaceFieldValue @Surface.DefinitionReportId fields)
+    &: surfaceOptionalField @Surface.DefinitionSectionId (surfaceFieldValue @Surface.DefinitionSectionId fields) &: noSurfaceFields
+blockParams :: ActionFields Action.SaveDesignerBlockActionOperation -> SurfaceFields Surface.BlockEditorParams
+blockParams fields = surfaceOptionalField @Surface.DefinitionReportId (surfaceFieldValue @Surface.DefinitionReportId fields)
+    &: surfaceField @Surface.DefinitionSectionId (surfaceFieldValue @Surface.DefinitionSectionId fields)
+    &: surfaceOptionalField @Surface.BlockIndex (surfaceFieldValue @Surface.BlockIndex fields)
+    &: surfaceField @Surface.ContentKind (surfaceFieldValue @Surface.ContentKind fields)
+    &: surfaceOptionalField @Surface.DefinitionListId (surfaceFieldValue @Surface.DefinitionListId fields) &: noSurfaceFields
 
 referenceParams :: ActionFields Action.SaveDesignerReferenceValueActionOperation -> SurfaceFields Surface.ReferenceEditorParams
 referenceParams fields = surfaceField @Surface.DefinitionListId (surfaceFieldValue @Surface.DefinitionListId fields)

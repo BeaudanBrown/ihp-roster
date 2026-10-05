@@ -12,13 +12,20 @@ import qualified Application.Daysheet.Storage as Storage
 import Application.Error.Types
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Surface
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.Action as Action
+import Application.Helper.FrontendContract.Surface.DaysheetDesigner.Live (designerLiveScope)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.FrontendContract.ClosedScalar (parseClosedScalarLiteral)
+import qualified Web.Daysheets.LayoutEditing as Layout
 import Application.Helper.SurfaceResource
 import Application.Helper.View (ToastOverlayPosition (..), errorToast, renderToastOob)
 import qualified Data.ByteString as ByteString
 import Data.Traversable (traverse)
+import Text.Read (readMaybe)
 import qualified Data.UUID as UUID
+import qualified Data.Text as Text
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.Wai as Wai
 import Network.HTTP.Types.Status (Status, status400, status403, status404, status405)
@@ -85,6 +92,94 @@ instance Controller DaysheetDesignerController where
                 result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
                     (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) (SetReferenceValue (ReferenceKey source row) field value)
                 finish member state page result
+
+    action current@ShowDesignerReportAction { layoutReportId } = runBepis current BepisPageAction (showReport False layoutReportId)
+    action current@ShowDesignerReportBodyAction { layoutReportId } = runBepis current BepisFragmentAction (showReport True layoutReportId)
+    action current@ShowDesignerSectionAction { layoutReportId, layoutSectionId } = runBepis current BepisPageAction (showSection False layoutReportId layoutSectionId)
+    action current@ShowDesignerSectionBodyAction { layoutReportId, layoutSectionId } = runBepis current BepisFragmentAction (showSection True layoutReportId layoutSectionId)
+    action current@ShowDesignerBlockAction { layoutReportId, blockSectionId, layoutBlockIndex, layoutContentKind, layoutSourceId } = runBepis current BepisPageAction (showBlock False layoutReportId blockSectionId layoutBlockIndex layoutContentKind layoutSourceId)
+    action current@ShowDesignerBlockBodyAction { layoutReportId, blockSectionId, layoutBlockIndex, layoutContentKind, layoutSourceId } = runBepis current BepisFragmentAction (showBlock True layoutReportId blockSectionId layoutBlockIndex layoutContentKind layoutSourceId)
+
+    action current@MoveDesignerItemAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseMoveDesignerItemActionParams
+        case Layout.moveEdit state.designerDefinition fields of
+            Left message -> failurePage member state DesignerIndexPage message
+            Right change -> do
+                result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+                finish member state DesignerIndexPage result
+
+    action current@SaveDesignerReportAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerReportActionParams
+        let label = surfaceFieldValue @Surface.Label fields
+            outputs = reportOutputs (surfaceFieldValue @Surface.Targets fields)
+        change <- case surfaceFieldValue @Surface.DefinitionReportId fields of
+            Just key -> pure (Designer.ChangeReport (D.ReportId key) label outputs)
+            Nothing -> do
+                key <- D.ReportId <$> UUIDv4.nextRandom
+                pure (Designer.AddReport (length (D.reports state.designerDefinition)) (D.Report key label [] outputs))
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+        finish member state (DesignerReportPage fields) result
+
+    action current@SaveDesignerSectionAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerSectionActionParams
+        let report = surfaceFieldValue @Surface.DefinitionReportId fields
+            label = surfaceFieldValue @Surface.Label fields
+            target = Layout.layoutTarget report
+        change <- case surfaceFieldValue @Surface.DefinitionSectionId fields of
+            Just key -> pure (Designer.RenameSection target (D.SectionId key) label)
+            Nothing -> do
+                key <- D.SectionId <$> UUIDv4.nextRandom
+                pure (Designer.AddSection target (either (const 0) length (Layout.layoutSections state.designerDefinition report)) (D.Section key label []))
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+        finish member state (DesignerSectionPage fields) result
+
+    action current@SaveDesignerBlockAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerBlockActionParams
+        let page = DesignerBlockPage fields
+        case Layout.blockEdit state.designerDefinition fields of
+            Left message -> failurePage member state page message
+            Right change -> do
+                result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+                finish member state page result
+
+    action current@RemoveDesignerReportAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRemoveDesignerReportActionParams
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (Designer.RemoveReport (D.ReportId (surfaceFieldValue @Surface.DefinitionReportId fields)))
+        finish member state DesignerIndexPage result
+
+    action current@RemoveDesignerSectionAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRemoveDesignerSectionActionParams
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (Designer.RemoveSection (Layout.layoutTarget (surfaceFieldValue @Surface.DefinitionReportId fields)) (D.SectionId (surfaceFieldValue @Surface.DefinitionSectionId fields)))
+        finish member state DesignerIndexPage result
+
+    action current@RemoveDesignerBlockAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRemoveDesignerBlockActionParams
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields)) (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+            (Designer.RemoveBlock (Layout.layoutTarget (surfaceFieldValue @Surface.DefinitionReportId fields)) (D.SectionId (surfaceFieldValue @Surface.DefinitionSectionId fields)) (surfaceFieldValue @Surface.BlockIndex fields))
+        finish member state DesignerIndexPage result
 
     action current@SaveDesignerFieldAction = runBepis current BepisMutationAction do
         ensureWrite
@@ -213,6 +308,47 @@ showList fragment rawKey = do
             key (maybe "" D.listLabel source) (listKind mode) reference
     display fragment member state (DesignerListPage fields) Nothing
 
+showReport :: DesignerRequest => Bool -> Maybe Text -> IO ResponseReceived
+showReport fragment rawKey = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    key <- parseKey rawKey
+    previous <- traverse (\identity -> maybe (deny status404 "This report no longer exists.") pure (find (\(D.Report (D.ReportId value) _ _ _) -> value == identity) (D.reports state.designerDefinition))) key
+    let label = case previous of Just (D.Report _ value _ _) -> value; _ -> ""
+        targets = case previous of Just (D.Report _ _ _ values) -> reportTargets values; _ -> FormattedAndExcel
+        fields = Action.saveDesignerReportActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision) key label targets
+    display fragment member state (DesignerReportPage fields) Nothing
+
+showSection :: DesignerRequest => Bool -> Maybe Text -> Maybe Text -> IO ResponseReceived
+showSection fragment rawReport rawKey = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    report <- parseKey rawReport
+    key <- parseKey rawKey
+    sections <- either (deny status404) pure (Layout.layoutSections state.designerDefinition report)
+    previous <- traverse (either (deny status404) pure . (`Layout.sectionById` sections)) key
+    let label = case previous of Just (D.Section _ value _) -> value; _ -> ""
+        fields = Action.saveDesignerSectionActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision) report key label
+    display fragment member state (DesignerSectionPage fields) Nothing
+
+showBlock :: DesignerRequest => Bool -> Maybe Text -> UUID -> Maybe Text -> Text -> Maybe Text -> IO ResponseReceived
+showBlock fragment rawReport section rawIndex rawKind rawSource = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    report <- parseKey rawReport
+    source <- parseKey rawSource
+    index <- traverse (\value -> if Text.length value > 18 then deny status400 "Invalid content position."
+        else maybe (deny status400 "Invalid content position.") pure (readMaybe @Int (cs value))) rawIndex
+    kind <- maybe (deny status400 "Invalid content type.") pure (parseClosedScalarLiteral @BlockKind rawKind)
+    sections <- either (deny status404) pure (Layout.layoutSections state.designerDefinition report)
+    D.Section _ _ blocks <- either (deny status404) pure (Layout.sectionById section sections)
+    previous <- traverse (either (deny status404) pure . (`Layout.blockAt` blocks)) index
+    let fields = Layout.blockFormFields state report section index kind source previous
+    display fragment member state (DesignerBlockPage fields) Nothing
+
 showReference :: DesignerRequest => Bool -> UUID -> UUID -> UUID -> IO ResponseReceived
 showReference fragment sourceId rowId fieldId = do
     ensureRead
@@ -261,8 +397,15 @@ finish member state page result = case result.liveMutationValue of
     Left failure -> failurePage member state page (appErrorSafeMessage failure)
     Right _ -> do
         setHeader ("X-Bepis-Form-Saved", "true")
-        if isHtmxRequest then setHeader ("HX-Redirect", cs (pathTo DaysheetDesignerAction)) >> respondHtml mempty
-            else redirectTo DaysheetDesignerAction
+        if isHtmxRequest then do
+            case page of
+                DesignerIndexPage -> do
+                    let impl = designerSurface member.venueId DesignerIndexPage
+                    setActorLiveResourcesRefresh (designerLiveScope member.venueId) result.liveMutationTouchedResources impl.surfaceImplMountConfig.mountFragments
+                    setHeader ("HX-Reswap", "none")
+                _ -> setHeader ("HX-Redirect", cs (pathTo DaysheetDesignerAction))
+            respondHtml mempty
+        else redirectTo DaysheetDesignerAction
 
 ensureRead :: DesignerRequest => IO ()
 ensureRead = ensureMethods ["GET", "HEAD"]

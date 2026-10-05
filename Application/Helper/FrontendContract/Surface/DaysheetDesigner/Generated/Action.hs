@@ -8,37 +8,65 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Action
     ( AddDesignerReferenceActionOperation
+    , MoveDesignerItemActionOperation
     , PublishDesignerDraftActionOperation
+    , RemoveDesignerBlockActionOperation
     , RemoveDesignerFieldActionOperation
     , RemoveDesignerListActionOperation
+    , RemoveDesignerReportActionOperation
+    , RemoveDesignerSectionActionOperation
     , RetireDesignerReferenceActionOperation
+    , SaveDesignerBlockActionOperation
     , SaveDesignerFieldActionOperation
     , SaveDesignerListActionOperation
     , SaveDesignerReferenceValueActionOperation
+    , SaveDesignerReportActionOperation
+    , SaveDesignerSectionActionOperation
     , addDesignerReferenceAction
     , addDesignerReferenceActionFields
+    , moveDesignerItemAction
+    , moveDesignerItemActionFields
     , parseAddDesignerReferenceActionParams
+    , parseMoveDesignerItemActionParams
     , parsePublishDesignerDraftActionParams
+    , parseRemoveDesignerBlockActionParams
     , parseRemoveDesignerFieldActionParams
     , parseRemoveDesignerListActionParams
+    , parseRemoveDesignerReportActionParams
+    , parseRemoveDesignerSectionActionParams
     , parseRetireDesignerReferenceActionParams
+    , parseSaveDesignerBlockActionParams
     , parseSaveDesignerFieldActionParams
     , parseSaveDesignerListActionParams
     , parseSaveDesignerReferenceValueActionParams
+    , parseSaveDesignerReportActionParams
+    , parseSaveDesignerSectionActionParams
     , publishDesignerDraftAction
     , publishDesignerDraftActionFields
+    , removeDesignerBlockAction
+    , removeDesignerBlockActionFields
     , removeDesignerFieldAction
     , removeDesignerFieldActionFields
     , removeDesignerListAction
     , removeDesignerListActionFields
+    , removeDesignerReportAction
+    , removeDesignerReportActionFields
+    , removeDesignerSectionAction
+    , removeDesignerSectionActionFields
     , retireDesignerReferenceAction
     , retireDesignerReferenceActionFields
+    , saveDesignerBlockAction
+    , saveDesignerBlockActionFields
     , saveDesignerFieldAction
     , saveDesignerFieldActionFields
     , saveDesignerListAction
     , saveDesignerListActionFields
     , saveDesignerReferenceValueAction
     , saveDesignerReferenceValueActionFields
+    , saveDesignerReportAction
+    , saveDesignerReportActionFields
+    , saveDesignerSectionAction
+    , saveDesignerSectionActionFields
     ) where
 
 import qualified Application.Daysheet.Designer.Controls as Types1
@@ -106,6 +134,62 @@ parseAddDesignerReferenceActionParams =
     parseActionParams
         @AddDesignerReferenceActionOperation
 
+data MoveDesignerItemActionOperation
+
+type instance ActionSurface MoveDesignerItemActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker MoveDesignerItemActionOperation = Types2.MoveDesignerItem
+type instance ActionFieldSpecs MoveDesignerItemActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'Field Types2.MoveKind ('WireClosed Types1.DesignerMoveKind)
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'OptionalField Types2.DefinitionSectionId 'WireUUID
+     , 'OptionalField Types2.BlockIndex 'WireInt
+     , 'OptionalField Types2.DefinitionListId 'WireUUID
+     , 'Field Types2.FromPosition 'WireInt
+     , 'Field Types2.ToPosition 'WireInt
+     ]
+
+moveDesignerItemActionFields ::
+    Int ->
+    Maybe Int ->
+    Types1.DesignerMoveKind ->
+    Maybe UUID.UUID ->
+    Maybe UUID.UUID ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    Int ->
+    Int ->
+    ActionFields MoveDesignerItemActionOperation
+moveDesignerItemActionFields expectedBase expectedDraft moveKind definitionReportId definitionSectionId blockIndex definitionListId fromPosition toPosition =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceField @Types2.MoveKind moveKind
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceOptionalField @Types2.DefinitionSectionId definitionSectionId
+            &: surfaceOptionalField @Types2.BlockIndex blockIndex
+            &: surfaceOptionalField @Types2.DefinitionListId definitionListId
+            &: surfaceField @Types2.FromPosition fromPosition
+            &: surfaceField @Types2.ToPosition toPosition
+            &: noSurfaceFields
+        )
+
+moveDesignerItemActionEvidence :: ActionEvidence MoveDesignerItemActionOperation
+moveDesignerItemActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "MoveDesignerItem" "move-designer-item" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MoveKind" "moveKind" (SurfaceIR.WireClosedIR "DesignerMoveKind" "Application.Daysheet.Designer.Controls" "DesignerMoveKind") SurfaceIR.RequiredField, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionSectionId" "definitionSectionId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "BlockIndex" "blockIndex" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionListId" "definitionListId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "FromPosition" "fromPosition" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ToPosition" "toPosition" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+moveDesignerItemAction :: ActionFields MoveDesignerItemActionOperation -> FrontendSurfaceAction
+moveDesignerItemAction =
+    frontendSurfaceActionFromEvidence moveDesignerItemActionEvidence
+
+parseMoveDesignerItemActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields MoveDesignerItemActionOperation)
+parseMoveDesignerItemActionParams =
+    parseActionParams
+        @MoveDesignerItemActionOperation
+
 data PublishDesignerDraftActionOperation
 
 type instance ActionSurface PublishDesignerDraftActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
@@ -140,6 +224,50 @@ parsePublishDesignerDraftActionParams ::
 parsePublishDesignerDraftActionParams =
     parseActionParams
         @PublishDesignerDraftActionOperation
+
+data RemoveDesignerBlockActionOperation
+
+type instance ActionSurface RemoveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerBlockActionOperation = Types2.RemoveDesignerBlock
+type instance ActionFieldSpecs RemoveDesignerBlockActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'Field Types2.DefinitionSectionId 'WireUUID
+     , 'Field Types2.BlockIndex 'WireInt
+     ]
+
+removeDesignerBlockActionFields ::
+    Int ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    UUID.UUID ->
+    Int ->
+    ActionFields RemoveDesignerBlockActionOperation
+removeDesignerBlockActionFields expectedBase expectedDraft definitionReportId definitionSectionId blockIndex =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceField @Types2.DefinitionSectionId definitionSectionId
+            &: surfaceField @Types2.BlockIndex blockIndex
+            &: noSurfaceFields
+        )
+
+removeDesignerBlockActionEvidence :: ActionEvidence RemoveDesignerBlockActionOperation
+removeDesignerBlockActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "RemoveDesignerBlock" "remove-designer-block" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionSectionId" "definitionSectionId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "BlockIndex" "blockIndex" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+removeDesignerBlockAction :: ActionFields RemoveDesignerBlockActionOperation -> FrontendSurfaceAction
+removeDesignerBlockAction =
+    frontendSurfaceActionFromEvidence removeDesignerBlockActionEvidence
+
+parseRemoveDesignerBlockActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields RemoveDesignerBlockActionOperation)
+parseRemoveDesignerBlockActionParams =
+    parseActionParams
+        @RemoveDesignerBlockActionOperation
 
 data RemoveDesignerFieldActionOperation
 
@@ -217,6 +345,85 @@ parseRemoveDesignerListActionParams =
     parseActionParams
         @RemoveDesignerListActionOperation
 
+data RemoveDesignerReportActionOperation
+
+type instance ActionSurface RemoveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerReportActionOperation = Types2.RemoveDesignerReport
+type instance ActionFieldSpecs RemoveDesignerReportActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'Field Types2.DefinitionReportId 'WireUUID
+     ]
+
+removeDesignerReportActionFields ::
+    Int ->
+    Maybe Int ->
+    UUID.UUID ->
+    ActionFields RemoveDesignerReportActionOperation
+removeDesignerReportActionFields expectedBase expectedDraft definitionReportId =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceField @Types2.DefinitionReportId definitionReportId
+            &: noSurfaceFields
+        )
+
+removeDesignerReportActionEvidence :: ActionEvidence RemoveDesignerReportActionOperation
+removeDesignerReportActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "RemoveDesignerReport" "remove-designer-report" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+removeDesignerReportAction :: ActionFields RemoveDesignerReportActionOperation -> FrontendSurfaceAction
+removeDesignerReportAction =
+    frontendSurfaceActionFromEvidence removeDesignerReportActionEvidence
+
+parseRemoveDesignerReportActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields RemoveDesignerReportActionOperation)
+parseRemoveDesignerReportActionParams =
+    parseActionParams
+        @RemoveDesignerReportActionOperation
+
+data RemoveDesignerSectionActionOperation
+
+type instance ActionSurface RemoveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerSectionActionOperation = Types2.RemoveDesignerSection
+type instance ActionFieldSpecs RemoveDesignerSectionActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'Field Types2.DefinitionSectionId 'WireUUID
+     ]
+
+removeDesignerSectionActionFields ::
+    Int ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    UUID.UUID ->
+    ActionFields RemoveDesignerSectionActionOperation
+removeDesignerSectionActionFields expectedBase expectedDraft definitionReportId definitionSectionId =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceField @Types2.DefinitionSectionId definitionSectionId
+            &: noSurfaceFields
+        )
+
+removeDesignerSectionActionEvidence :: ActionEvidence RemoveDesignerSectionActionOperation
+removeDesignerSectionActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "RemoveDesignerSection" "remove-designer-section" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionSectionId" "definitionSectionId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+removeDesignerSectionAction :: ActionFields RemoveDesignerSectionActionOperation -> FrontendSurfaceAction
+removeDesignerSectionAction =
+    frontendSurfaceActionFromEvidence removeDesignerSectionActionEvidence
+
+parseRemoveDesignerSectionActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields RemoveDesignerSectionActionOperation)
+parseRemoveDesignerSectionActionParams =
+    parseActionParams
+        @RemoveDesignerSectionActionOperation
+
 data RetireDesignerReferenceActionOperation
 
 type instance ActionSurface RetireDesignerReferenceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
@@ -257,6 +464,80 @@ parseRetireDesignerReferenceActionParams ::
 parseRetireDesignerReferenceActionParams =
     parseActionParams
         @RetireDesignerReferenceActionOperation
+
+data SaveDesignerBlockActionOperation
+
+type instance ActionSurface SaveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerBlockActionOperation = Types2.SaveDesignerBlock
+type instance ActionFieldSpecs SaveDesignerBlockActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'Field Types2.DefinitionSectionId 'WireUUID
+     , 'OptionalField Types2.BlockIndex 'WireInt
+     , 'Field Types2.ContentKind ('WireClosed Types1.BlockKind)
+     , 'OptionalField Types2.DefinitionListId 'WireUUID
+     , 'OptionalField Types2.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types2.TextContent 'WireText
+     , 'OptionalField Types2.ColumnIds ('WireList 'WireUUID)
+     , 'OptionalField Types2.GroupingFieldId 'WireUUID
+     , 'OptionalField Types2.SortingFieldIds ('WireList 'WireUUID)
+     , 'OptionalField Types2.DescendingFieldIds ('WireList 'WireUUID)
+     , 'OptionalField Types2.PassedText 'WireText
+     , 'OptionalField Types2.ConcernText 'WireText
+     ]
+
+saveDesignerBlockActionFields ::
+    Int ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    UUID.UUID ->
+    Maybe Int ->
+    Types1.BlockKind ->
+    Maybe UUID.UUID ->
+    Maybe UUID.UUID ->
+    Maybe Text ->
+    Maybe [UUID.UUID] ->
+    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe Text ->
+    Maybe Text ->
+    ActionFields SaveDesignerBlockActionOperation
+saveDesignerBlockActionFields expectedBase expectedDraft definitionReportId definitionSectionId blockIndex contentKind definitionListId definitionFieldId textContent columnIds groupingFieldId sortingFieldIds descendingFieldIds passedText concernText =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceField @Types2.DefinitionSectionId definitionSectionId
+            &: surfaceOptionalField @Types2.BlockIndex blockIndex
+            &: surfaceField @Types2.ContentKind contentKind
+            &: surfaceOptionalField @Types2.DefinitionListId definitionListId
+            &: surfaceOptionalField @Types2.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types2.TextContent textContent
+            &: surfaceOptionalField @Types2.ColumnIds columnIds
+            &: surfaceOptionalField @Types2.GroupingFieldId groupingFieldId
+            &: surfaceOptionalField @Types2.SortingFieldIds sortingFieldIds
+            &: surfaceOptionalField @Types2.DescendingFieldIds descendingFieldIds
+            &: surfaceOptionalField @Types2.PassedText passedText
+            &: surfaceOptionalField @Types2.ConcernText concernText
+            &: noSurfaceFields
+        )
+
+saveDesignerBlockActionEvidence :: ActionEvidence SaveDesignerBlockActionOperation
+saveDesignerBlockActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SaveDesignerBlock" "save-designer-block" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionSectionId" "definitionSectionId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "BlockIndex" "blockIndex" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ContentKind" "contentKind" (SurfaceIR.WireClosedIR "BlockKind" "Application.Daysheet.Designer.Controls" "BlockKind") SurfaceIR.RequiredField, SurfaceIR.FieldIR "DefinitionListId" "definitionListId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionFieldId" "definitionFieldId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "TextContent" "textContent" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ColumnIds" "columnIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "GroupingFieldId" "groupingFieldId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "SortingFieldIds" "sortingFieldIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DescendingFieldIds" "descendingFieldIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PassedText" "passedText" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ConcernText" "concernText" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+saveDesignerBlockAction :: ActionFields SaveDesignerBlockActionOperation -> FrontendSurfaceAction
+saveDesignerBlockAction =
+    frontendSurfaceActionFromEvidence saveDesignerBlockActionEvidence
+
+parseSaveDesignerBlockActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SaveDesignerBlockActionOperation)
+parseSaveDesignerBlockActionParams =
+    parseActionParams
+        @SaveDesignerBlockActionOperation
 
 data SaveDesignerFieldActionOperation
 
@@ -404,3 +685,91 @@ parseSaveDesignerReferenceValueActionParams ::
 parseSaveDesignerReferenceValueActionParams =
     parseActionParams
         @SaveDesignerReferenceValueActionOperation
+
+data SaveDesignerReportActionOperation
+
+type instance ActionSurface SaveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerReportActionOperation = Types2.SaveDesignerReport
+type instance ActionFieldSpecs SaveDesignerReportActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'Field Types2.Label 'WireText
+     , 'Field Types2.Targets ('WireClosed Types1.ReportTargets)
+     ]
+
+saveDesignerReportActionFields ::
+    Int ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    Text ->
+    Types1.ReportTargets ->
+    ActionFields SaveDesignerReportActionOperation
+saveDesignerReportActionFields expectedBase expectedDraft definitionReportId label targets =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceField @Types2.Label label
+            &: surfaceField @Types2.Targets targets
+            &: noSurfaceFields
+        )
+
+saveDesignerReportActionEvidence :: ActionEvidence SaveDesignerReportActionOperation
+saveDesignerReportActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SaveDesignerReport" "save-designer-report" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "Label" "label" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Targets" "targets" (SurfaceIR.WireClosedIR "ReportTargets" "Application.Daysheet.Designer.Controls" "ReportTargets") SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+saveDesignerReportAction :: ActionFields SaveDesignerReportActionOperation -> FrontendSurfaceAction
+saveDesignerReportAction =
+    frontendSurfaceActionFromEvidence saveDesignerReportActionEvidence
+
+parseSaveDesignerReportActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SaveDesignerReportActionOperation)
+parseSaveDesignerReportActionParams =
+    parseActionParams
+        @SaveDesignerReportActionOperation
+
+data SaveDesignerSectionActionOperation
+
+type instance ActionSurface SaveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerSectionActionOperation = Types2.SaveDesignerSection
+type instance ActionFieldSpecs SaveDesignerSectionActionOperation =
+    '[ 'Field Types2.ExpectedBase 'WireInt
+     , 'OptionalField Types2.ExpectedDraft 'WireInt
+     , 'OptionalField Types2.DefinitionReportId 'WireUUID
+     , 'OptionalField Types2.DefinitionSectionId 'WireUUID
+     , 'Field Types2.Label 'WireText
+     ]
+
+saveDesignerSectionActionFields ::
+    Int ->
+    Maybe Int ->
+    Maybe UUID.UUID ->
+    Maybe UUID.UUID ->
+    Text ->
+    ActionFields SaveDesignerSectionActionOperation
+saveDesignerSectionActionFields expectedBase expectedDraft definitionReportId definitionSectionId label =
+    actionFields
+        (surfaceField @Types2.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types2.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+            &: surfaceOptionalField @Types2.DefinitionSectionId definitionSectionId
+            &: surfaceField @Types2.Label label
+            &: noSurfaceFields
+        )
+
+saveDesignerSectionActionEvidence :: ActionEvidence SaveDesignerSectionActionOperation
+saveDesignerSectionActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SaveDesignerSection" "save-designer-section" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionReportId" "definitionReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionSectionId" "definitionSectionId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "Label" "label" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+saveDesignerSectionAction :: ActionFields SaveDesignerSectionActionOperation -> FrontendSurfaceAction
+saveDesignerSectionAction =
+    frontendSurfaceActionFromEvidence saveDesignerSectionActionEvidence
+
+parseSaveDesignerSectionActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SaveDesignerSectionActionOperation)
+parseSaveDesignerSectionActionParams =
+    parseActionParams
+        @SaveDesignerSectionActionOperation

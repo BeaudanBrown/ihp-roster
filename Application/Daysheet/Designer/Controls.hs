@@ -3,6 +3,8 @@
 module Application.Daysheet.Designer.Controls
     ( FieldKind (..), ListKind (..), fieldKind, fieldKindLabel, fieldKindType
     , listKind, listKindLabel, listKindMode
+    , BlockKind (..), blockKind, blockKindLabel, ReportTargets (..), reportOutputs, reportTargets
+    , DesignerMoveKind (..)
     ) where
 
 import Prelude
@@ -14,6 +16,56 @@ data FieldKind = TextField | BooleanField | ChoiceField | WholeField | DecimalFi
     | MoneyField | PercentageField | DateField | ClockField | ReferenceField
     deriving (Eq, Show, Enum, Bounded)
 data ListKind = VenueList | DailyList | Checklist deriving (Eq, Show, Enum, Bounded)
+
+data BlockKind = InstructionsContent | FieldContent | TableContent | AdvisoryContent | RowAdvisoryContent
+    deriving (Eq, Show, Enum, Bounded)
+data ReportTargets = FormattedOnly | ExcelOnly | FormattedAndExcel deriving (Eq, Show, Enum, Bounded)
+
+data DesignerMoveKind = MoveFieldItem | MoveListItem | MoveReportItem | MoveSectionItem | MoveBlockItem | MoveColumnItem | MoveSortItem
+    deriving (Eq, Show, Enum, Bounded)
+instance InputValue DesignerMoveKind where
+    inputValue MoveFieldItem = "field"
+    inputValue MoveListItem = "list"
+    inputValue MoveReportItem = "report"
+    inputValue MoveSectionItem = "section"
+    inputValue MoveBlockItem = "block"
+    inputValue MoveColumnItem = "column"
+    inputValue MoveSortItem = "sort"
+
+instance InputValue BlockKind where
+    inputValue InstructionsContent = "instructions"
+    inputValue FieldContent = "field"
+    inputValue TableContent = "table"
+    inputValue AdvisoryContent = "advisory"
+    inputValue RowAdvisoryContent = "row-advisory"
+instance InputValue ReportTargets where
+    inputValue FormattedOnly = "formatted"
+    inputValue ExcelOnly = "excel"
+    inputValue FormattedAndExcel = "formatted-and-excel"
+
+blockKind :: Block -> BlockKind
+blockKind (Instructions _) = InstructionsContent
+blockKind (FieldBlock _) = FieldContent
+blockKind (TableBlock _ _ _ _) = TableContent
+blockKind (AdvisoryBlock _) = AdvisoryContent
+blockKind (RowAdvisoryBlock _ _) = RowAdvisoryContent
+
+blockKindLabel :: BlockKind -> Text
+blockKindLabel InstructionsContent = "Instructions"
+blockKindLabel FieldContent = "Field or summary"
+blockKindLabel TableContent = "Record table"
+blockKindLabel AdvisoryContent = "Advisory check"
+blockKindLabel RowAdvisoryContent = "Row advisory check"
+
+reportOutputs :: ReportTargets -> [Output]
+reportOutputs FormattedOnly = [FormattedReport]
+reportOutputs ExcelOnly = [ExcelDownload]
+reportOutputs FormattedAndExcel = [FormattedReport, ExcelDownload]
+
+reportTargets :: [Output] -> ReportTargets
+reportTargets [FormattedReport] = FormattedOnly
+reportTargets [ExcelDownload] = ExcelOnly
+reportTargets _ = FormattedAndExcel
 
 instance InputValue FieldKind where
     inputValue TextField = "text"

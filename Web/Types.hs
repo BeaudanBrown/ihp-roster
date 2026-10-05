@@ -248,6 +248,19 @@ data DaysheetDesignerController
     | AddDesignerReferenceAction
     | SaveDesignerReferenceValueAction
     | RetireDesignerReferenceAction
+    | ShowDesignerReportAction { layoutReportId :: Maybe Text }
+    | ShowDesignerReportBodyAction { layoutReportId :: Maybe Text }
+    | ShowDesignerSectionAction { layoutReportId :: Maybe Text, layoutSectionId :: Maybe Text }
+    | ShowDesignerSectionBodyAction { layoutReportId :: Maybe Text, layoutSectionId :: Maybe Text }
+    | ShowDesignerBlockAction { layoutReportId :: Maybe Text, blockSectionId :: UUID, layoutBlockIndex :: Maybe Text, layoutContentKind :: Text, layoutSourceId :: Maybe Text }
+    | ShowDesignerBlockBodyAction { layoutReportId :: Maybe Text, blockSectionId :: UUID, layoutBlockIndex :: Maybe Text, layoutContentKind :: Text, layoutSourceId :: Maybe Text }
+    | MoveDesignerItemAction
+    | SaveDesignerReportAction
+    | SaveDesignerSectionAction
+    | SaveDesignerBlockAction
+    | RemoveDesignerReportAction
+    | RemoveDesignerSectionAction
+    | RemoveDesignerBlockAction
     | SaveDesignerFieldAction
     | SaveDesignerListAction
     | RemoveDesignerFieldAction

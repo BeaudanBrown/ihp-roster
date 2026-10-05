@@ -3,8 +3,13 @@ module Test.DaysheetDesignerSpec (tests) where
 import Prelude
 import Application.Daysheet.Contract
 import Application.Daysheet.Designer
+import Application.Daysheet.Designer.Controls (BlockKind (..), DesignerMoveKind (..))
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.Action as Action
 import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
 import Application.Daysheet.References (ReferenceValue (..))
+import Application.Daysheet.Storage (DesignerState (..))
+import qualified Web.Daysheets.LayoutEditing as Layout
+import Control.Monad (forM_)
 import qualified Application.Daysheet.Number as Number
 import Application.Daysheet.Validation (validateDefinition)
 import Data.Either (isLeft)
@@ -47,6 +52,27 @@ tests = describe "Daysheet designer edits" do
         parseReferenceEntry OperationalTimeType "24:00" `shouldSatisfy` isLeft
         parseReferenceEntry TextType "bad\NULvalue" `shouldSatisfy` isLeft
         parseReferenceEntry (ReferenceType (Fixture.list 10)) "not-a-record" `shouldSatisfy` isLeft
+
+    it "round-trips existing layout blocks without rewriting complex advisory conditions" do
+        let definition = Fixture.entryDefinition
+            state = DesignerState definition Fixture.entryReferences 0 0 (Just 0) Nothing
+        forM_ (entryLayout definition) \(Section (SectionId sectionId) _ blocks) ->
+            forM_ (zip [0 ..] blocks) \(index, block) -> do
+                let fields = Layout.blockFormFields state Nothing sectionId (Just index) InstructionsContent Nothing (Just block)
+                Right change <- pure (Layout.blockEdit definition fields)
+                applyEdit change definition `shouldBe` Right definition
+
+    it "reorders table columns by revision-bound positions without changing their identities" do
+        let sectionId = UUID.fromWords 0 0 0 700
+            fields = Action.moveDesignerItemActionFields 0 (Just 0) MoveColumnItem Nothing (Just sectionId) (Just 2) Nothing 0 1
+        Right change <- pure (Layout.moveEdit Fixture.entryDefinition fields)
+        Right expected <- pure (applyEdit (ChangeBlock EntryLayout (SectionId sectionId) 2 (TableBlock (Fixture.list 20) [Fixture.field 8, Fixture.field 7] Nothing [])) Fixture.entryDefinition)
+        applyEdit change Fixture.entryDefinition `shouldBe` Right expected
+        Layout.moveEdit Fixture.entryDefinition (Action.moveDesignerItemActionFields 0 (Just 0) MoveColumnItem Nothing (Just sectionId) (Just 2) Nothing 0 99) `shouldSatisfy` isLeft
+
+    it "rejects NUL in labels and formula text before PostgreSQL JSON storage" do
+        applyEdit (ChangeField (Fixture.field 1) "Bad\NULname" TextType Entered) Fixture.definition `shouldSatisfy` isLeft
+        replaceCalculationPart (Fixture.field 1) [] (Constant (TextLiteral "Bad\NULliteral")) Fixture.definition `shouldSatisfy` isLeft
 
     it "renames and reorders fields without changing identities or the source definition" do
         Right renamed <- pure (applyEdit (ChangeField (Fixture.field 1) "Closing notes" TextType Entered) Fixture.definition)

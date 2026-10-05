@@ -38,6 +38,18 @@ before retirement; active reference lists cannot be removed or repurposed first.
 Obsolete staged values have explicit clear controls. Reference edits and
 retirement remain draft-only until publication.
 
+`Web.Daysheets.LayoutEditing` adapts generated section/report/block controls to
+validated definition edits; `Web.View.Daysheets.LayoutDesigner` renders their
+single-form editors. Entry and report layouts select the same fields but retain
+independent section/content order. Tables select columns, grouping and ordered
+sort keys; explicit move controls reorder fields, lists, reports, sections,
+content, columns and sort keys without replacing identities. Advisory controls
+select boolean fields, and message-only edits preserve existing complex
+conditions. Report targets are a closed supported selection, not recipient
+addresses or a second calculation model. Read-only index mutations use semantic
+actor refresh; editor saves navigate back to the index after acknowledging the
+saved form. Passive observers refetch authorized fragments independently.
+
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
