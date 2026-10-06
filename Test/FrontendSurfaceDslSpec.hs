@@ -1268,8 +1268,8 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [["clone-shadow", "dropzone-highlight"]]
         map (map interactionEffectClassNames . (.sessionEffects)) surface.surfaceSessions
             `shouldBe` [[["bepis-pointer-clone-shadow"], ["bepis-dropzone-highlight"]]]
-        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], [], []]
-        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], [], []]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], [], ["copy"]]
+        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], [], ["clone-shadow-copy", "dropzone-highlight"]]
         surface.surfacePolicies `shouldBe` []
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do

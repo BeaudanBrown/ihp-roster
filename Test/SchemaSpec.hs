@@ -386,7 +386,9 @@ tests = describe "Schema" do
         schemaSqlText `shouldNotSatisfy` Text.isInfixOf "worked_on DATE NOT NULL"
         schemaSqlText `shouldNotSatisfy` Text.isInfixOf "had_break BOOLEAN"
         schemaSqlText `shouldNotSatisfy` Text.isInfixOf "break_minutes INT"
-        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "duration_minutes INT"
+        -- The venue's creation default is policy, not a persisted shift duration.
+        Text.lines schemaSqlText `shouldNotSatisfy` any (Text.isPrefixOf "duration_minutes " . Text.stripStart)
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "default_roster_shift_duration_minutes INT DEFAULT 480 NOT NULL"
 
     it "migrates authoritative boundaries before retiring legacy columns" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1784932300.sql"
