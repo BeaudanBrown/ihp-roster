@@ -58,6 +58,7 @@ Application/Daysheet/Report.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportDelivery.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportError.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/Daysheet/ReportHistory.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/ReportStorage.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
@@ -73,6 +74,7 @@ Application/EmailDelivery/Envelope.hs	production	runtime	Main	Reachable from Mai
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Status.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/EmailDelivery/Support.hs	production	runtime	Main	Reachable from Main
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main

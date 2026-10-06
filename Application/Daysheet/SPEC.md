@@ -158,9 +158,13 @@ Existing committed cutoff snapshots may be acknowledged after a failed queue
 completion, but a missing snapshot is never reconstructed by a late retry.
 
 Pre-arming occupies an ordinary worker slot while waiting outside the transaction.
-Deployment must provide headroom for concurrent venue cutoffs and other jobs;
-queue saturation is a missed cutoff, not permission for catch-up. Worker-capacity
-and integrated release verification remain part of #642.
+`Application.Job.App` currently sets four concurrent tasks per worker process
+(not the IHP default of sixteen). Deployment must provide headroom for concurrent
+venue cutoffs and other jobs: with one process, four waiting captures can occupy
+all slots and a fifth same-time venue can miss cutoff even without an outage.
+Queue saturation is a missed cutoff, not permission for catch-up. Capacity strategy
+requires an explicit operator decision; integrated release verification remains
+part of #642.
 
 `Cutoff` resolves the civil boundary through the shared timezone authority,
 including DST, with no UTC fallback. `CutoffCapture` rechecks live venue state and

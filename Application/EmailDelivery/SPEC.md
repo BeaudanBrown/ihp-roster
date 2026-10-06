@@ -53,6 +53,12 @@ nothing. Results/logs contain bounded statuses/reasons, never the destination or
 rendered report. Provider correlation, safe transport errors, and retries remain
 shared.
 
+`Status.deliveryProgress` projects independent closed queue/provider facts for
+customer-facing history. Queue success never implies provider acceptance or inbox
+delivery. Acknowledgement failure/retry can coexist with retained SMTP acceptance;
+removal cancels remaining attempts without erasing known provider outcomes. Raw
+provider errors and payloads are never returned by this projection.
+
 The installed `Application.Daysheet.ReportDelivery` resolver verifies the frozen
 reference's venue/report, exact captured recipient membership and immutable
 address before returning selected HTML/plain-text content. It reads the sealed

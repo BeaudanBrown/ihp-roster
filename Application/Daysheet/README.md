@@ -138,6 +138,13 @@ snapshots after retry without rebuilding them. Unsubmitted/missed days finish
 quietly as skipped. There is no separate scheduler, worker transport or implicit
 creation of business days.
 
+`ReportHistory.readFrozenReport` provides authorized single-run detail from the
+sealed document and exact captured recipient identities. It never reconstructs
+from a current definition, live data or replacement recipient list. Queue and
+provider facts are independent: a retry/cancellation can coexist with earlier
+provider acceptance or confirmed delivery. Missing/mismatched job provenance
+shows unavailable status, not invented success. History routes/UI remain pending.
+
 `ReportDelivery` is installed in the shared mail pipeline. It verifies frozen
 venue/report identity, exact captured recipient membership and address, then
 renders retained selected content without loading the live Daysheet/evaluator.
