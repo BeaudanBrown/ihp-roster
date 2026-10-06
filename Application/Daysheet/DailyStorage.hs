@@ -11,6 +11,7 @@ module Application.Daysheet.DailyStorage
 import Application.Daysheet.Authority (withAuthority)
 import qualified Application.Daysheet.Cutoff as Cutoff
 import Application.Daysheet.CutoffCapture (CutoffClock, withScheduledCutoff)
+import Application.Daysheet.CutoffJob (enqueueCutoffCapture)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyError
@@ -120,6 +121,8 @@ createDailySheet member date = withDefinitionCapture member date \captured -> do
                 |> set #definitionCaptureId captured.id |> set #savedData encoded
                 |> set #createdBy (Id member.userId) |> set #lastEditedBy (Id member.userId)
                 |> set #createdAt now |> set #lastEditedAt now |> createRecord)
+            plan <- either (const (failure SavedDaysheetInvalid)) pure (Cutoff.planCutoff captured.timezone date)
+            liftIO (enqueueCutoffCapture now record plan)
             _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetCreatedAudit "daysheets" key
                 (Aeson.object ["operationalDate" Aeson..= date]) ApplicationAuditSource)
             pure DailyState { daysheet = record, captured, definition, references, content }

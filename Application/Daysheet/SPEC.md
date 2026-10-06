@@ -151,7 +151,16 @@ serialization lock at most one second before the following venue-local 06:00.
 One task must capture all eligible configured reports for that day; independent
 per-report workers would contend across the same deadline. The queue's default
 future-job polling interval is 60 seconds, so the plan arms two minutes early.
-No active scheduler registration is implied by this boundary alone.
+`CutoffJob` schedules this through the existing AppJob queue on explicit daily
+creation; `CutoffWorker` is registered in the shared dispatcher. Past cutoffs are
+not enqueued. Submission neither creates a report nor changes this deadline.
+Existing committed cutoff snapshots may be acknowledged after a failed queue
+completion, but a missing snapshot is never reconstructed by a late retry.
+
+Pre-arming occupies an ordinary worker slot while waiting outside the transaction.
+Deployment must provide headroom for concurrent venue cutoffs and other jobs;
+queue saturation is a missed cutoff, not permission for catch-up. Worker-capacity
+and integrated release verification remain part of #642.
 
 `Cutoff` resolves the civil boundary through the shared timezone authority,
 including DST, with no UTC fallback. `CutoffCapture` rechecks live venue state and
@@ -189,7 +198,7 @@ Transport is not invoked by capture. The installed frozen-mail resolver reads
 only retained selected content and immutable capture metadata; it verifies the
 exact captured recipient set as well as current recipient eligibility through the
 shared pipeline. Later edits, recipient additions and retries cannot select new
-values/destinations. History and scheduler wiring remain integration work.
+values/destinations. History and Send/recipient UI remain integration work.
 
 `daysheet_report_snapshots` stores the captured definition link, saved revision,
 selected versioned content and distinct intended recipient identities. Recipient

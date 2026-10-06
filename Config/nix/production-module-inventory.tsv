@@ -29,6 +29,8 @@ Application/Daysheet/Authority.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Contract.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Cutoff.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/CutoffCapture.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/CutoffJob.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/CutoffWorker.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Daysheet/Daily.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Daily/Types.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyError.hs	production	runtime	Main	Reachable from Main
@@ -55,8 +57,8 @@ Application/Daysheet/References.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Report.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportDelivery.hs	production	runtime	Main	Reachable from Main
-Application/Daysheet/ReportError.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/ReportStorage.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/ReportError.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/Daysheet/ReportStorage.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main

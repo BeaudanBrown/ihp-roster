@@ -118,8 +118,8 @@ capture authority and delivery must wrap this codec; it alone creates no report.
 admission. `CutoffCapture` provides the real venue-lock/transaction boundary with
 an injectable clock: preparation waits outside locks, capture waits at most one
 second beforehand, late attempts skip, and callback failures roll back. It does
-not yet register jobs, persist report snapshots or invoke mail transport. See the
-scheduled-cutoff contract in `SPEC.md` and the committed concurrency tests.
+not itself invoke mail transport. See the scheduled-cutoff contract in `SPEC.md`
+and the committed concurrency tests.
 
 `ReportStorage` atomically persists selected frozen content, source revision,
 origin/time, deliberate Send identity and intended recipient IDs with shared v2
@@ -128,7 +128,15 @@ capture current saved data. Scheduled capture uses `withScheduledDaily`, skips
 missing/unsubmitted days and captures all configured formatted reports under one
 cutoff transaction. The database seals snapshots against mutation/deletion and
 checks submitted source/venue/revision and active scoped recipient identities.
-This service is not yet connected to the scheduler or Send UI.
+The Send UI remains separate integration work.
+
+`CutoffJob` atomically enqueues one pre-armed capture task with explicit creation
+of a day whose cutoff is still ahead. It creates no historical catch-up jobs.
+`CutoffWorker` is registered in the shared AppJob dispatcher, verifies day/venue/
+deadline provenance, invokes the cutoff boundary and acknowledges committed
+snapshots after retry without rebuilding them. Unsubmitted/missed days finish
+quietly as skipped. There is no separate scheduler, worker transport or implicit
+creation of business days.
 
 `ReportDelivery` is installed in the shared mail pipeline. It verifies frozen
 venue/report identity, exact captured recipient membership and address, then

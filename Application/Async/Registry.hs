@@ -8,6 +8,8 @@ import Application.Async.Heartbeat
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
+import Application.Daysheet.CutoffJob (cutoffJobKind)
+import Application.Daysheet.CutoffWorker (performCutoffCaptureJob)
 import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.Helper.Telemetry (withJobTelemetrySpan)
@@ -52,6 +54,7 @@ registeredJobKinds :: [Text]
 registeredJobKinds =
     [ workerHeartbeatJobKind
     , emailDeliveryJobKind
+    , cutoffJobKind
     , fwcMapdRefreshJobKind
     , publicHolidayRefreshJobKind
     , publicHolidayShadowJobKind
@@ -70,6 +73,7 @@ dispatchAppJobByKind appJob =
     case appJob.jobKind of
         kind | kind == workerHeartbeatJobKind -> performWorkerHeartbeatJob appJob
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
+        kind | kind == cutoffJobKind -> performCutoffCaptureJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         -- Includes already queued/retrying anonymous jobs at deployment. Never
         -- turn them into successful refresh evidence or execute the old importer.
