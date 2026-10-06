@@ -68,6 +68,7 @@ auditEventWireContract =
     , (DaysheetRecipientRemovedAudit, "daysheet_recipient_removed")
     , (DaysheetCreatedAudit, "daysheet_created")
     , (DaysheetSubmittedAudit, "daysheet_submitted")
+    , (DaysheetReportCapturedAudit, "daysheet_report_captured")
     ]
 
 auditSourceChannelWireContract :: [(AuditSourceChannel, Text)]

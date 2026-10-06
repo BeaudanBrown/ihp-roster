@@ -60,6 +60,7 @@ data AuditEventType
     | DaysheetRecipientRemovedAudit
     | DaysheetCreatedAudit
     | DaysheetSubmittedAudit
+    | DaysheetReportCapturedAudit
     deriving (Bounded, Enum, Eq, Show)
 
 data AuditSourceChannel
@@ -76,6 +77,7 @@ auditEventTypeText DaysheetRecipientAddedAudit = "daysheet_recipient_added"
 auditEventTypeText DaysheetRecipientRemovedAudit = "daysheet_recipient_removed"
 auditEventTypeText DaysheetCreatedAudit = "daysheet_created"
 auditEventTypeText DaysheetSubmittedAudit = "daysheet_submitted"
+auditEventTypeText DaysheetReportCapturedAudit = "daysheet_report_captured"
 auditEventTypeText FeedbackSubmittedAudit = "feedback_submitted"
 auditEventTypeText FeedbackEditedAudit = "feedback_edited"
 auditEventTypeText FeedbackPublishedAudit = "feedback_published"

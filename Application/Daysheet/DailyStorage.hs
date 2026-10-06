@@ -5,9 +5,12 @@
 module Application.Daysheet.DailyStorage
     ( DailyState (..), createDailySheet, readDailySheet, readDailyForDate
     , editDailyCell, addDailyRow, prepareDailyDeletion, deleteDailyRow, submitDailySheet
+    , withScheduledDaily
     ) where
 
 import Application.Daysheet.Authority (withAuthority)
+import qualified Application.Daysheet.Cutoff as Cutoff
+import Application.Daysheet.CutoffCapture (CutoffClock, withScheduledCutoff)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyError
@@ -20,7 +23,7 @@ import Application.Error.Domain (projectDomainError)
 import Application.Error.Types
 import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Audit.Vocabulary
-import Control.Monad.Trans.Except (ExceptT, throwE)
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID.V4 as UUID
 import Data.Traversable (traverse)
@@ -83,6 +86,23 @@ readDailyForDate :: (?modelContext :: ModelContext) => VenueMembership -> Day ->
 readDailyForDate member date = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     stored <- liftIO (query @Daysheet |> filterWhere (#venueId, Id member.venueId) |> filterWhere (#operationalDate, date) |> fetchOneOrNothing)
     traverse load stored
+
+-- Background authority is the verified venue cutoff transaction, never a
+-- fabricated membership. Missing/unsubmitted days skip without creation/jobs.
+withScheduledDaily :: (?modelContext :: ModelContext) => CutoffClock -> UUID -> Cutoff.CutoffPlan
+    -> ((?modelContext :: ModelContext) => DailyState -> UTCTime -> IO (AppResult value))
+    -> IO (AppResult (Maybe value))
+withScheduledDaily clock venueId plan capture = fmap (fmap join) $
+    withScheduledCutoff clock venueId plan \_ capturedAt -> runExceptT do
+        stored <- liftIO (query @Daysheet |> filterWhere (#venueId, Id venueId)
+            |> filterWhere (#operationalDate, Cutoff.operationalDate plan) |> fetchOneOrNothing)
+        case stored of
+            Just record
+                | maybe False (<= Cutoff.cutoffAt plan) record.submittedAt
+                  && record.lastEditedAt <= Cutoff.cutoffAt plan -> do
+                state <- load record
+                Just <$> ExceptT (capture state capturedAt)
+            _ -> pure Nothing
 
 createDailySheet :: (?modelContext :: ModelContext) => VenueMembership -> Day -> IO (AppResult DailyState)
 createDailySheet member date = withDefinitionCapture member date \captured -> do

@@ -121,6 +121,15 @@ second beforehand, late attempts skip, and callback failures roll back. It does
 not yet register jobs, persist report snapshots or invoke mail transport. See the
 scheduled-cutoff contract in `SPEC.md` and the committed concurrency tests.
 
+`ReportStorage` atomically persists selected frozen content, source revision,
+origin/time, deliberate Send identity and intended recipient IDs with shared v2
+mail jobs. Repeated manual requests reuse the same immutable run; fresh nonces
+capture current saved data. Scheduled capture uses `withScheduledDaily`, skips
+missing/unsubmitted days and captures all configured formatted reports under one
+cutoff transaction. The database seals snapshots against mutation/deletion and
+checks submitted source/venue/revision and active scoped recipient identities.
+This service is not yet connected to the scheduler, Send UI or delivery resolver.
+
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence
 with the shared durable live publisher. `Entry.deletionToken` fingerprints scope,

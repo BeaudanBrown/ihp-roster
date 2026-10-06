@@ -27,8 +27,8 @@ Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Authority.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Contract.hs	production	runtime	Main	Reachable from Main
-Application/Daysheet/Cutoff.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/CutoffCapture.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/Cutoff.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/CutoffCapture.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Daily.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Daily/Types.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/DailyError.hs	production	runtime	Main	Reachable from Main
@@ -54,6 +54,8 @@ Application/Daysheet/ReferenceCodec.hs	production	runtime	Main	Reachable from Ma
 Application/Daysheet/References.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Report.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportCodec.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/ReportError.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Daysheet/ReportStorage.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main

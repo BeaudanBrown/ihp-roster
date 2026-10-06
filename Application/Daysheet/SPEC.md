@@ -151,8 +151,7 @@ serialization lock at most one second before the following venue-local 06:00.
 One task must capture all eligible configured reports for that day; independent
 per-report workers would contend across the same deadline. The queue's default
 future-job polling interval is 60 seconds, so the plan arms two minutes early.
-No active scheduler registration or snapshot persistence is implied by this
-boundary alone.
+No active scheduler registration is implied by this boundary alone.
 
 `Cutoff` resolves the civil boundary through the shared timezone authority,
 including DST, with no UTC fallback. `CutoffCapture` rechecks live venue state and
@@ -171,6 +170,39 @@ cannot be persisted/reused by retries after failure. Delivery runs only after
 commit through the shared mail pipeline. Submission eligibility, immutable
 snapshot storage and recipient/job creation belong to the capture callback, not
 the clock policy; blank figures and advisory concerns are not eligibility gates.
+
+## Frozen Persistence
+
+`ReportStorage` captures formatted configured reports only, never caller-supplied
+content or destinations. Manual capture rechecks membership under the venue lock,
+requires submission and binds its request nonce to venue, sender, Daysheet and
+report. Concurrent/retried attempts return the existing run without recalculating
+values, adding recipients or enqueueing again. A new nonce deliberately creates
+a fresh run; older content and intended-recipient sets remain unchanged.
+
+Snapshot insertion and every shared external-recipient mail job use the same
+transaction. Any failure rolls back the entire run/batch. Scheduled capture uses
+no fabricated account and also refuses source timestamps after cutoff, including
+clock-anomaly cases. The immutable scheduled row is its background provenance;
+manual capture additionally emits the typed report-captured audit event.
+Transport is not invoked by capture. Mail resolver, history and scheduler wiring
+remain separate integration work.
+
+`daysheet_report_snapshots` stores the captured definition link, saved revision,
+selected versioned content and distinct intended recipient identities. Recipient
+rows already preserve immutable addresses, so later cancellation cannot rewrite
+the original destination and re-addition cannot join an old run. PostgreSQL
+rejects mismatched source scope, unsubmitted sources, stale revisions, invalid
+origin/sender/cutoff combinations, foreign/removed/duplicate recipients and all
+snapshot UPDATE/DELETE operations. The application validates selected content;
+SQL does not duplicate the report codec/evaluator. Selected JSON is capped at
+16 MiB canonically (32 MiB PostgreSQL representation), with at most 10,000 intended
+recipients per report; exceeding safety ceilings rejects rather than truncates.
+
+Migration `1791259200-daysheet-frozen-reports.sql` is additive and rewrites no
+existing records. Rollback to an older application can leave the new objects
+unused; retain all snapshots/jobs rather than dropping them. Controlled retention
+remains the only deletion path. No deployment or live-mail approval is implied.
 
 ## Daily Entry Boundary
 
