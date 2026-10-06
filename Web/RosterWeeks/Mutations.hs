@@ -6,6 +6,7 @@ module Web.RosterWeeks.Mutations
     , ensureRosterWeekExistsMutation
     , materializeRosterWindowMutation
     , moveRosterSlotMutation
+    , duplicateRosterSlotMutation
     , removeRosterDayRowByLanesMutation
     , repackRosterWindowMutation
     , rosterDayTouchedResources
@@ -346,6 +347,26 @@ saveRosterSlotMutation scope rosterDay existingSlot newSlot materializeOnSave =
                     slotResources <- rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot)
                     pure (if materializedWindow then rosterWeekStructuralTouchedResources scope <> slotResources else slotResources)
                 pure (Right mutationResult)
+
+duplicateRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+duplicateRosterSlotMutation scope targetDay originalSlot copiedSlot =
+    withDurableRosterMutation "roster.slot.duplicate" do
+        result <- withRosterWindowSlotStaffLocks scope RequireDraftWindow [originalSlot, copiedSlot] do
+            sourceMatches <- rosterSlotStillMatches originalSlot
+            validationError <- if sourceMatches
+                then validateRosterSlotForPersistence scope.rosterWindowVenueId copiedSlot
+                else pure (Just rosterSlotStaffUnavailableMessage)
+            case validationError of
+                Just message -> pure (Left message)
+                Nothing -> do
+                    when (copiedSlot.rowIndex >= targetDay.rowCount) do
+                        _ <- targetDay |> set #rowCount (copiedSlot.rowIndex + 1) |> updateRecord
+                        pure ()
+                    Right <$> createRecord copiedSlot
+        case result of
+            Left message -> pure (Left message)
+            Right persisted -> Right <$> rosterMutationResult (RosterSlotMutationResult (Just persisted) Nothing False)
+                (rosterSlotMutationTouchedResources scope targetDay (Just persisted))
 
 moveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 moveRosterSlotMutation scope sourceRosterDay targetRosterDay originalSlot updatedSlot =

@@ -295,7 +295,7 @@ rosterMoveShiftRequest scope =
 
 rosterDuplicateShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDuplicateShiftRequest scope =
-    rosterDragDropRequest (rosterDuplicateShiftUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)
+    rosterDragDropRequest (withTimelineOrientation scope.rosterWeekTimelineOrientation (maybe Prelude.id withRosterTimelineContext scope.rosterWeekTimelineDate (rosterDuplicateShiftUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)))
 
 rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =

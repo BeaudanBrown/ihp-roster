@@ -9,6 +9,7 @@ module Web.RosterWeeks.ShiftWorkflow
     , RosterShiftEditCompletion (..)
     , RosterStaffAssignmentCompletion (..)
     , assignRosterShiftStaff
+    , duplicateRosterTimelineShift
     , ValidatedRosterShift (..)
     , createRosterShift
     , editRosterShift
@@ -31,7 +32,8 @@ import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
-                                          applyRosterShiftAssignment)
+                                          applyRosterShiftAssignment,
+                                          copyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..),
                               resolvedInstantFromUTC, resolvedInstantLocalTime,
                               resolvedInstantOccurrence)
@@ -47,8 +49,12 @@ import Web.Controller.RosterWeeks.Validation
 import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
                                   RosterWindowScope (..), fetchRosterWindow,
                                   rosterWindowTarget)
+import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
+                                     RosterTimelineDropBoundaryResolution (..),
+                                     resolveRosterTimelineDropBoundaries)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Mutations (RosterSlotMutationResult (..),
+                                  duplicateRosterSlotMutation,
                                   saveRosterSlotMutation,
                                   updateRosterSlotMutation)
 import Web.RosterWeeks.RenderData (currentRosterGridViewMode,
@@ -59,6 +65,23 @@ import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.ShiftDialog
+
+duplicateRosterTimelineShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> MoveRosterTimelineShiftIntent -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+duplicateRosterTimelineShift scope intent =
+    case resolveRosterTimelineDropBoundaries intent of
+        RosterTimelineDropInvalid message -> pure (Left message)
+        RosterTimelineDropBoundaryReady boundaries ->
+            case copyRosterShiftAssignment intent.timelineSourceSlot (newRecord @RosterSlot) of
+                Left message -> pure (Left message)
+                Right assigned -> do
+                    let copied = assigned
+                            |> set #rosterDayId (unpackId intent.timelineTargetRosterDay.id)
+                            |> set #rosterLaneId (unpackId intent.timelineTargetSlotDefinition.id)
+                            |> set #slotSortOrder intent.timelineTargetSlotDefinition.sortOrder
+                            |> set #rowIndex intent.timelineTargetRowIndex
+                            |> set #shiftTypeId intent.timelineSourceSlot.shiftTypeId
+                            |> applyRosterSlotBoundaries boundaries
+                    duplicateRosterSlotMutation scope intent.timelineTargetRosterDay intent.timelineSourceSlot copied
 
 data RosterShiftDialogSubmission = RosterShiftDialogSubmission
     { submittedRosterShiftStaffId         :: !(Maybe Text)

@@ -1017,7 +1017,8 @@ type RosterDayTimelineActionBundle =
 
 type RosterDayTimelineInteractionBundle =
     Concat
-        '[ '[ DragSourceRefFor TimelineShiftDragSource MoveRosterTimelineShift '[TimelineTimeDropzone] '[]
+        '[ '[ DragSourceRefFor TimelineShiftDragSource MoveRosterTimelineShift '[TimelineTimeDropzone]
+                '[ 'ModifierVariant Copy DuplicateRosterShiftToDay '[ CloneShadowCopy DragPreviewLayer, DropzoneHighlight ] ]
             , DragDropzoneRefFor TimelineTimeDropzone
             ]
          , DragDropIntentWithExtraFields MoveRosterTimelineShift RosterDayTimelineContent '[ Field RosterCalendarRevision 'WireInt ]

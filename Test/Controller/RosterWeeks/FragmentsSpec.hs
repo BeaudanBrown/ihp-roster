@@ -37,7 +37,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (diffUTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -468,7 +468,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-drag-scroll-container=\"true\""
-                response `responseBodyShouldContain` "data-bepis-session-long-press-ms=\"450\""
+                response `responseBodyShouldContain` "data-bepis-session-long-press-ms=\"200\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"540\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
                 response `responseBodyShouldContain` ("data-bepis-roster-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
@@ -1490,7 +1490,35 @@ tests = aroundAll withDatabaseTestContext do
                 fmap (.localDay) (movedSlot.startsAt >>= either (const Nothing) Just . storedInstantLocalTime movedSlot.timezone)
                     `shouldBe` Just (fromGregorian 2026 4 5)
 
-        it "moves an equal-clock repeated timeline shift using its authoritative elapsed duration" $ withContext do
+        it "rejects timeline copies on Published windows without creating or changing a shift" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Published timeline copy"
+                manager <- createUserRecord "published-timeline-copy@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                laneName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Copy" "Source"
+                week <- createRosterWeekRecord venue 0 True
+                day <- createRosterDayRecord week 0
+                source <- createCompleteRosterSlotRecord day laneName staffMember 0
+                let epoch = floor (utcTimeToPOSIXSeconds (fromJust source.startsAt)) :: Integer
+                    token = "instant:" <> tshow day.id <> ":" <> tshow source.rosterLaneId <> ":" <> tshow epoch
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction (rosterMutationParams 0 <>
+                            [ ("rosterGroupId", cs (tshow week.fixtureRosterGroupId))
+                            , ("rosterView", "timeline")
+                            , ("sourceItemKey", cs ("existing:" <> tshow source.id))
+                            , ("targetDropzoneKey", cs token)
+                            ])
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "Roster shift copied."
+                count <- query @RosterSlot |> fetchCount
+                count `shouldBe` 1
+                unchanged <- fetch source.id
+                unchanged.startsAt `shouldBe` source.startsAt
+                unchanged.endsAt `shouldBe` source.endsAt
+
+        it "copies and moves an equal-clock repeated timeline shift using its authoritative elapsed duration" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Equal DST Timeline Move Venue"
                 manager <- createUserRecord "roster-manager-equal-dst-timeline-move@example.com" "staff" True
@@ -1524,6 +1552,30 @@ tests = aroundAll withDatabaseTestContext do
                         , ("sourceItemKey", cs sourceToken)
                         , ("targetDropzoneKey", cs targetDropzoneKey)
                         ]
+
+                copyResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction
+                            (rosterMutationParams 64 <> moveParams sameTargetToken "5")
+                copyResponse `responseStatusShouldBe` status200
+                copyResponse `responseBodyShouldContain` "Roster shift copied."
+                copied <- query @RosterSlot |> filterWhere (#rosterDayId, unpackId sourceDay.id) |> filterWhereNot (#id, sourceSlot.id) |> fetchOne
+                copied.startsAt `shouldBe` sourceSlot.startsAt
+                copied.endsAt `shouldBe` sourceSlot.endsAt
+                copied.staffId `shouldBe` sourceSlot.staffId
+                copied.shiftTypeId `shouldBe` sourceSlot.shiftTypeId
+                copied.rowIndex `shouldNotBe` sourceSlot.rowIndex
+                copied.rosterLaneId `shouldBe` sourceSlot.rosterLaneId
+                targetCopyResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction
+                            (rosterMutationParams 64 <> moveParams targetToken "6")
+                targetCopyResponse `responseBodyShouldContain` "Roster shift copied."
+                targetCopy <- query @RosterSlot |> filterWhere (#rosterDayId, unpackId targetDay.id) |> fetchOne
+                targetCopy.rosterLaneId `shouldBe` unpackId targetLane.id
+                rosterSlotElapsedSeconds targetCopy `shouldBe` Just (60 * 60)
+                rosterSlotStartTime targetCopy `shouldBe` Just (TimeOfDay 9 0 0)
+                rosterSlotEndTime targetCopy `shouldBe` Just (TimeOfDay 10 0 0)
 
                 noOpResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

@@ -296,6 +296,58 @@ test('defers passive refresh during drag and restores authority after a rejected
     }
 });
 
+for (const orientation of ['horizontal', 'vertical']) {
+    test(`copies a timeline shift with the modifier without moving its source (${orientation})`, async ({ page }) => {
+        await openCanonicalTimeline(page, orientation);
+        const slotId = 'a1000000-0000-0000-0000-000000000071';
+        const dayId = 'a1000000-0000-0000-0000-000000000061';
+        const originalIds = querySql(`SELECT array_agg(id)::text FROM roster_slots WHERE roster_day_id = '${dayId}'`);
+        runSql(`UPDATE roster_slots SET ends_at = starts_at + interval '8 hours 30.5 seconds' WHERE id = '${slotId}'`);
+        await page.reload();
+        const attrs = InteractionDom.attributes;
+        const source = page.locator(`[${attrs.sourceKey}="existing:${slotId}"]`);
+        const sourceSnapshot = () => querySql(`SELECT json_build_array(roster_lane_id, row_index, starts_at, ends_at, staff_id, shift_type_id)::text FROM roster_slots WHERE id = '${slotId}'`);
+        const original = sourceSnapshot();
+        try {
+            if (orientation === 'horizontal') await page.locator(`[${attrs.dragScrollContainer}]`).evaluate(element => { element.scrollLeft = 300; });
+            await source.scrollIntoViewIfNeeded();
+            const box = (await source.boundingBox())!;
+            const label = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
+            const point = {
+                x: orientation === 'horizontal' ? Math.max(label.x + label.width + 20, box.x + 60) : box.x + box.width / 2,
+                y: orientation === 'horizontal' ? box.y + box.height / 2 : box.y + 60,
+            };
+            await page.mouse.move(point.x, point.y);
+            await page.mouse.down();
+            await page.mouse.move(point.x + (orientation === 'horizontal' ? 24 : 0), point.y + (orientation === 'vertical' ? 14 : 0));
+            await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toHaveText('09:15–17:15:30.5');
+            await page.keyboard.down('Control');
+            await expect(page.locator('.bepis-pointer-clone-shadow-copy')).toBeVisible();
+            await page.keyboard.up('Control');
+            await expect(page.locator('.bepis-pointer-clone-shadow-copy')).toHaveCount(0);
+            await page.keyboard.down('Control');
+            await expect(page.locator('.bepis-pointer-clone-shadow-copy')).toBeVisible();
+            const copied = page.waitForResponse(response => response.url().includes('/DuplicateRosterShiftToDay') && response.request().method() === 'POST');
+            await page.mouse.up();
+            expect((await copied).ok()).toBe(true);
+            await page.keyboard.up('Control');
+            await expect(page.getByRole('dialog', { name: 'Saving…', exact: true })).toHaveCount(0);
+            expect(sourceSnapshot()).toBe(original);
+            const copyIds = querySql(`SELECT id::text FROM roster_slots WHERE roster_day_id = '${dayId}' AND deleted_at IS NULL AND NOT (id = ANY(${sqlString(originalIds)}::uuid[]))`).split('\n').filter(Boolean);
+            expect(copyIds).toHaveLength(1);
+            const copyId = copyIds[0]!;
+            expect(querySql(`SELECT (c.staff_id = s.staff_id AND c.shift_type_id = s.shift_type_id AND c.roster_lane_id = s.roster_lane_id AND c.row_index <> s.row_index AND c.starts_at = s.starts_at + interval '15 minutes' AND c.ends_at = s.ends_at + interval '15 minutes')::text FROM roster_slots c, roster_slots s WHERE c.id = ${sqlString(copyId)} AND s.id = '${slotId}'`)).toBe('true');
+            await expect(page.locator(`[${attrs.sourceKey}="existing:${copyId}"]`)).toHaveAttribute('aria-label', /09:15–17:15:30\.5/);
+            await expect(source).toHaveAttribute('aria-label', /09:00–17:00:30\.5/);
+        } finally {
+            await page.keyboard.up('Control');
+            await page.mouse.up();
+            runSql(`UPDATE roster_slots SET deleted_at = now() WHERE roster_day_id = '${dayId}' AND NOT (id = ANY(${sqlString(originalIds)}::uuid[]))`);
+            resetTimelineShiftInterval();
+        }
+    });
+}
+
 test('saves the snapped preview while preserving grab offset and exact duration', async ({ page, isMobile, context }) => {
     resetCanonicalRosterAssignedShiftFixture();
     const slotId = 'a1000000-0000-0000-0000-000000000071';

@@ -91,6 +91,7 @@ import Web.RosterWeeks.Responses (respondToRosterShiftEdit,
                                   respondToRosterSlotMove,
                                   respondToRosterSlotMutation,
                                   respondToRosterSlotUpdate,
+                                  respondToRosterTimelineSlotDuplicate,
                                   respondToRosterTimelineSlotMove,
                                   respondWithRosterContentError,
                                   respondWithRosterContentForAuthorizedScope,
@@ -894,7 +895,16 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
-                if parseRosterShiftDropDestinationToken targetToken == Just DeleteRosterShiftDestination
+                if isJust (parseTimelineShiftDropTargetToken targetToken)
+                    then do
+                        intent <- validateDuplicateRosterTimelineShiftIntent scope sourceToken targetToken
+                        result <- case intent of
+                            Left message -> pure (Left message)
+                            Right valid -> duplicateRosterTimelineShift scope valid
+                        case result of
+                            Left message -> respondWithRosterTimelineMoveFailure scope message
+                            Right mutation -> respondToRosterTimelineSlotDuplicate scope mutation
+                    else if parseRosterShiftDropDestinationToken targetToken == Just DeleteRosterShiftDestination
                     then do
                         result <- validateRosterShiftDeleteDropIntent scope sourceToken targetToken
                         case result of

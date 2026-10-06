@@ -4,6 +4,7 @@ module Web.RosterWeeks.Responses
     ( respondToRosterSlotMutation
     , respondToRosterSlotMove
     , respondToRosterTimelineSlotMove
+    , respondToRosterTimelineSlotDuplicate
     , respondWithRosterTimelineMoveFailure
     , respondToRosterSlotUpdate
     , respondToRosterShiftEdit
@@ -120,6 +121,12 @@ respondWithRosterTimelineMoveFailure scope message = do
                 (RosterLive.rosterWeekLiveScope (unpackId scope.rosterWindowVenueId) (unpackId scope.rosterWindowRosterGroupId) scope.rosterWindowStart scope.rosterWindowEnd scope.rosterWindowCalendarRevision)
                 [RosterLive.rosterDayTimelineContentLiveFragment (unpackId day.id)]
             respondHtmlProfiled feedback
+
+respondToRosterTimelineSlotDuplicate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> IO ResponseReceived
+respondToRosterTimelineSlotDuplicate scope mutationResult = do
+    mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
+    respondWithRosterResourceInvalidation scope mutationResult.liveMutationTouchedResources mountedProjections
+        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift copied."))
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ResponseReceived
 respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do

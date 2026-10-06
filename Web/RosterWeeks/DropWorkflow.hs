@@ -19,6 +19,7 @@ module Web.RosterWeeks.DropWorkflow
     , validateDuplicateRosterShiftIntent
     , validateMoveRosterShiftIntent
     , validateMoveRosterTimelineShiftIntent
+    , validateDuplicateRosterTimelineShiftIntent
     , validateRosterShiftDeleteDropIntent
     , validateRosterStaffDropIntent
     ) where
@@ -142,10 +143,16 @@ validateDuplicateRosterShiftIntent scope sourceToken targetToken =
     validateRosterShiftDropIntent scope False sourceToken targetToken
 
 validateMoveRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> Text -> IO (Either Text MoveRosterTimelineShiftIntent)
-validateMoveRosterTimelineShiftIntent scope sourceToken targetToken = do
+validateMoveRosterTimelineShiftIntent = validateTimelineShiftIntent True
+
+validateDuplicateRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> Text -> IO (Either Text MoveRosterTimelineShiftIntent)
+validateDuplicateRosterTimelineShiftIntent = validateTimelineShiftIntent False
+
+validateTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> RosterWindowScope -> Text -> Text -> IO (Either Text MoveRosterTimelineShiftIntent)
+validateTimelineShiftIntent isMove scope sourceToken targetToken = do
     case (parseExistingSlotToken sourceToken, parseTimelineShiftDropTargetToken targetToken) of
         (Just sourceSlotId, Just target) -> do
-            validateRosterTimelineShiftDropTarget scope sourceSlotId target >>= \case
+            validateRosterTimelineShiftDropTarget isMove scope sourceSlotId target >>= \case
                 Left _ -> pure (Left invalidRosterSlotTimingMessage)
                 Right maybeResult -> pure (maybe (Left "The shift or target is unavailable. Review the refreshed timeline and try again.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open timeline time target.")
@@ -318,8 +325,8 @@ validateRosterShiftDropTarget scope allowSemanticDayNoOp sourceSlotId dropTarget
                                 pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex, moveIsNoOp = False }
                             _ -> Nothing
 
-validateRosterTimelineShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Id RosterSlot -> TimelineShiftDropTarget -> IO (Either RosterShiftIntegrityError (Maybe MoveRosterTimelineShiftIntent))
-validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
+validateRosterTimelineShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> RosterWindowScope -> Id RosterSlot -> TimelineShiftDropTarget -> IO (Either RosterShiftIntegrityError (Maybe MoveRosterTimelineShiftIntent))
+validateRosterTimelineShiftDropTarget isMove scope sourceSlotId target = do
     maybeSourceSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, sourceSlotId) |> filterWhere (#deletedAt, Nothing))
     case maybeSourceSlot of
         Nothing -> pure (Right Nothing)
@@ -346,7 +353,7 @@ validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
                             targetEnd = addUTCTime (rosterShiftTimingElapsedSeconds sourceTiming) targetStart
                             sourceStart = authoritativeStartsAt (rosterShiftTimingBoundaries sourceTiming)
                             targetDefinitionMatchesWeek = targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id
-                            isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
+                            isNoOp = isMove && sourceSlot.rosterDayId == unpackId targetRosterDay.id
                                 && sourceSlot.rosterLaneId == unpackId targetSlotDefinition.id
                                 && sourceStart == targetStart
                             validTargetStart = isNoOp || case scale of
@@ -354,7 +361,7 @@ validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
                                 Right window -> targetStart >= window.scaleStartsAt
                                     && targetEnd <= window.scaleEndsAt
                                     && utcTimeToPOSIXSeconds targetStart / 300 == fromInteger (floor (utcTimeToPOSIXSeconds targetStart / 300))
-                        maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
+                        maybeRowIndex <- resolveTimelineTargetRowIndex isMove sourceSlot targetRosterDay targetSlotDefinition
                         pure $ Right do
                             targetRowIndex <- maybeRowIndex
                             guard (rosterDayMatchesScope scope sourceRosterDay)
@@ -388,14 +395,14 @@ rosterDayIsEditable :: RosterDay -> Bool
 rosterDayIsEditable rosterDay =
     rosterDay.publicationState == Draft && not rosterDay.isClosed
 
-resolveTimelineTargetRowIndex :: (?modelContext :: ModelContext) => RosterSlot -> RosterDay -> RosterLane -> IO (Maybe Int)
-resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition = do
+resolveTimelineTargetRowIndex :: (?modelContext :: ModelContext) => Bool -> RosterSlot -> RosterDay -> RosterLane -> IO (Maybe Int)
+resolveTimelineTargetRowIndex isMove sourceSlot targetRosterDay targetSlotDefinition = do
     daySlots <- query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
         |> filterWhere (#rosterLaneId, unpackId targetSlotDefinition.id)
         |> filterWhere (#deletedAt, Nothing)
         |> fetch
-    let occupiedRows = Set.fromList [ slot.rowIndex | slot <- daySlots, slot.id /= sourceSlot.id ]
+    let occupiedRows = Set.fromList [ slot.rowIndex | slot <- daySlots, not isMove || slot.id /= sourceSlot.id ]
         preferredRow = sourceSlot.rowIndex
         candidateRows = preferredRow : filter (/= preferredRow) [0 .. max preferredRow targetRosterDay.rowCount]
         fallbackRow = max preferredRow targetRosterDay.rowCount

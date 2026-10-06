@@ -60,8 +60,8 @@ preflight continuation, not a cause-specific failure response.
 
 Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
   explicit occurrence selection. Week/slot copies preserve civil clocks on the
-  target date and re-resolve them; timeline moves preserve exact elapsed
-  duration from the selected target start instant.
+  target date and re-resolve them; timeline moves and modifier copies preserve
+  exact elapsed duration from the selected target start instant.
 - Staff, shift type, assignment, pay disposition, venue/group scope, and
   authoritative boundaries are revalidated for every save, reassignment, move,
   duplicate, copy, template application, publication, and tampered request.
@@ -178,7 +178,12 @@ saved intervals may expand it, and removing those intervals may shrink it again.
 Five-minute moves preserve exact elapsed duration and assignment, clamp the whole
 interval, and save immediately. Last-successful-save-wins is intentional, not a
 revision-based stale-editor protocol; current authorization, publication and
-assignment checks still apply under the existing mutation locks.
+assignment checks still apply under the existing mutation locks. Ctrl-drag
+(Option on Mac) copies through the existing duplicate intent rather than moving;
+modifier changes during dragging update the preview and committed intent together.
+Copies leave their source untouched, preserve staff/type and exact duration, and
+choose an unoccupied persisted row even at the same lane and instant. Published
+windows cannot be copied into or used as timeline copy sources.
 
 Empty-space selection and staff drops open the existing editor without
 materializing projected dates or lanes until a valid save. Timeline creation
