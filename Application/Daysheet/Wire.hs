@@ -8,6 +8,7 @@
 module Application.Daysheet.Wire
     ( decodeFormula, FormulaWireError (..)
     , expressionJson, parseExpressionJson, literalJson, parseLiteralJson
+    , parseProjectedLiteralJson
     ) where
 
 import Prelude
@@ -52,6 +53,11 @@ literalJson = contractReferenceJson @S.DaysheetLiteral
 
 parseLiteralJson :: Aeson.Value -> Aeson.Parser Literal
 parseLiteralJson = parseContractReference @S.DaysheetLiteral
+
+-- Selected results may contain unrounded money intermediates. Keep their exact
+-- fractions without relaxing the whole-cent rule for authored/entered values.
+parseProjectedLiteralJson :: Aeson.Value -> Aeson.Parser Literal
+parseProjectedLiteralJson = parseLiteralWith Right
 
 parseFormula :: Aeson.Value -> Aeson.Parser Formula
 parseFormula = parseRecordIn @S.FormulaContracts @S.DaysheetFormula \(root, (nodes, ())) -> do
@@ -117,7 +123,10 @@ instance ContractReference S.DaysheetLiteral where
             (requiredField @S.Numerator (Text.pack (show n)) &: requiredField @S.Denominator (Text.pack (show d)) &: noFields)
         DateLiteral value -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetLiteral @S.DateValue (requiredField @S.Value value &: noFields)
         OperationalTimeLiteral value -> taggedUnionValueIn @S.FormulaContracts @S.DaysheetLiteral @S.OperationalTimeValue (requiredField @S.Value (Text.pack (show value)) &: noFields)
-    parseContractReference = parseTaggedUnionIn @S.FormulaContracts @S.DaysheetLiteral
+    parseContractReference = parseLiteralWith Number.enteredMoney
+
+parseLiteralWith :: (Number.Number -> Either Number.NumberError Number.Number) -> Aeson.Value -> Aeson.Parser Literal
+parseLiteralWith money = parseTaggedUnionIn @S.FormulaContracts @S.DaysheetLiteral
         (unionCase @S.TextValue (\(value, ()) -> if Text.length value > maxTextLength limits then fail "text limit" else pure (TextLiteral value))
         |: unionCase @S.BooleanValue (\(value, ()) -> pure (BooleanLiteral value))
         |: unionCase @S.ChoiceValue (\(value, ()) -> pure (ChoiceLiteral (ChoiceId value)))
@@ -125,7 +134,7 @@ instance ContractReference S.DaysheetLiteral where
         |: unionCase @S.DecimalValue (\(n, (d, ())) -> DecimalLiteral <$> rational n d)
         |: unionCase @S.MoneyValue (\(n, (d, ())) -> do
             value <- rational n d
-            either (const (fail "money requires cents")) (pure . MoneyLiteral) (Number.enteredMoney value))
+            either (const (fail "money requires cents")) (pure . MoneyLiteral) (money value))
         |: unionCase @S.PercentageValue (\(n, (d, ())) -> PercentageLiteral <$> rational n d)
         |: unionCase @S.DateValue (\(value, ()) -> pure (DateLiteral value))
         |: unionCase @S.OperationalTimeValue (\(value, ()) -> OperationalTimeLiteral <$> time value)

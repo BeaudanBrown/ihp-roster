@@ -51,6 +51,7 @@ Application/Daysheet/Recipients.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReferenceCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/References.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Report.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/ReportCodec.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main

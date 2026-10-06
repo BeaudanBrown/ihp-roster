@@ -107,6 +107,13 @@ the shared Daysheet resource. Preview navigation uses the pending-edit gate and
 supports native GET forms. Excel-only reports retain the same projection but
 are not exposed as formatted browser outputs.
 
+`ReportCodec` retains versioned selected results and their original display copy
+without reevaluation or current reference lookups. It is a server-only storage
+boundary, not a browser report document. Calculated money retains exact fractions;
+authored/entered money still requires whole cents. Unknown versions, unresolved
+choice identities, NUL and oversized documents fail closed. Frozen persistence,
+capture authority and delivery must wrap this codec; it alone creates no report.
+
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence
 with the shared durable live publisher. `Entry.deletionToken` fingerprints scope,
