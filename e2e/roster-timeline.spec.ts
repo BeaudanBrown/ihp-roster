@@ -59,6 +59,35 @@ async function openCanonicalTimeline(page: Page, orientation = 'horizontal') {
     await page.goto(url.toString());
 }
 
+async function expectDestinationPaint(page: Page, sourceBox: { width: number; height: number }) {
+    const highlight = page.locator('.bepis-dropzone-highlight');
+    await expect(highlight).toHaveCount(1);
+    const paint = await highlight.evaluate((element) => {
+        const painted = getComputedStyle(element, '::after');
+        const box = element.getBoundingClientRect();
+        const shadow = document.querySelector('.bepis-pointer-clone-shadow')!.getBoundingClientRect();
+        const vertical = document.querySelector('[data-roster-timeline-orientation]')!.getAttribute('data-roster-timeline-orientation') === 'vertical';
+        const shape = painted.content === 'none'
+            ? { width: box.width, height: box.height, x: box.left, y: box.top, pointerEvents: '' }
+            : { width: parseFloat(painted.width), height: parseFloat(painted.height),
+                x: box.left + parseFloat(painted.left), y: box.top + parseFloat(painted.top), pointerEvents: painted.pointerEvents };
+        return { ...shape, shadowX: shadow.x, shadowY: shadow.y, hitExtent: vertical ? box.height : box.width,
+            paintExtent: vertical ? shape.height : shape.width };
+    });
+    expect(Math.abs(paint.width - sourceBox.width), 'painted destination highlight width').toBeLessThan(1);
+    expect(Math.abs(paint.height - sourceBox.height), 'painted destination highlight height').toBeLessThan(1);
+    expect(Math.abs(paint.x - paint.shadowX), 'highlight agrees with snapped preview start').toBeLessThan(1);
+    expect(Math.abs(paint.y - paint.shadowY), 'highlight agrees with snapped preview start').toBeLessThan(1);
+    expect(paint.pointerEvents).toBe('none');
+    expect(paint.hitExtent, 'hit target stays one snap step').toBeLessThan(paint.paintExtent / 2);
+}
+
+async function expectDestinationCleanup(page: Page) {
+    await expect(page.locator('.bepis-dropzone-highlight')).toHaveCount(0);
+    await expect(page.locator('.bepis-dropzone-highlight-projected')).toHaveCount(0);
+    await expect(page.locator('[style*="--bepis-dropzone-paint-"]')).toHaveCount(0);
+}
+
 test('opens snapped empty-space creation and a keyboard alternative without writing drafts', async ({ page }) => {
     await openCanonicalTimeline(page);
     const count = () => querySql("SELECT count(*) FROM roster_slots WHERE roster_day_id = 'a1000000-0000-0000-0000-000000000061'");
@@ -200,6 +229,25 @@ for (const orientation of ['horizontal', 'vertical']) {
                 if (copy) await page.keyboard.down('Control');
                 await expect(shadow).toBeVisible();
                 if (copy) await expect(shadow).toHaveClass(/bepis-pointer-clone-shadow-copy/);
+                await expectDestinationPaint(page, sourceBox);
+                const targetKey = await page.locator('.bepis-dropzone-highlight').getAttribute(InteractionDom.attributes.dropzoneKey);
+                await page.mouse.move(grab.x + (orientation === 'horizontal' ? 20 : 2), grab.y + (orientation === 'vertical' ? 20 : 2));
+                await expect(page.locator('.bepis-dropzone-highlight')).toHaveAttribute(InteractionDom.attributes.dropzoneKey, targetKey!);
+                await expectDestinationPaint(page, sourceBox);
+                expect(await page.locator('.bepis-dropzone-highlight').evaluate((element) => {
+                    const box = element.getBoundingClientRect();
+                    const paint = getComputedStyle(element, '::after');
+                    const owner = element.closest('.roster-day-timeline-scroller')!.getBoundingClientRect();
+                    const left = box.left + parseFloat(paint.left);
+                    const top = box.top + parseFloat(paint.top);
+                    const x = (Math.max(left, owner.left, 0) + Math.min(left + parseFloat(paint.width), owner.right, innerWidth)) / 2;
+                    const y = (Math.max(top, owner.top, 0) + Math.min(top + parseFloat(paint.height), owner.bottom, innerHeight)) / 2;
+                    const probe = document.createElement('style');
+                    probe.textContent = '.bepis-dropzone-highlight-projected::after { pointer-events: auto !important; }';
+                    document.head.append(probe);
+                    try { return document.elementFromPoint(x, y) === element; }
+                    finally { probe.remove(); }
+                }), 'full destination paint is above overlapping cards').toBe(true);
                 const shadowBox = (await shadow.boundingBox())!;
                 expect(Math.abs(shadowBox.width - sourceBox.width)).toBeLessThan(1);
                 expect(Math.abs(shadowBox.height - sourceBox.height)).toBeLessThan(1);
@@ -219,8 +267,10 @@ for (const orientation of ['horizontal', 'vertical']) {
             await page.keyboard.press('Escape');
             await page.mouse.up();
             await expect(shadow).toHaveCount(0);
+            await expectDestinationCleanup(page);
             await expect(page.getByRole('dialog')).toHaveCount(0);
         } finally {
+            await page.keyboard.press('Escape');
             await page.keyboard.up('Control');
             await page.mouse.up();
             runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id = '${overlapId}'`);
@@ -527,10 +577,12 @@ test('saves the snapped preview while preserving grab offset and exact duration'
         const preview = page.locator(`[${attrs.dragPreviewLabel}]`);
         await expect(preview).toBeVisible();
         await expect(preview).toHaveText('09:15–17:15:30.5');
+        await expectDestinationPaint(page, sourceBox);
         await owner.evaluate((element) => { element.scrollLeft = 0; });
         await expect(preview).toHaveText('06:00–14:00:30.5');
         await owner.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
         await expect(preview).toHaveText('21:40–05:40:30.5');
+        await expectDestinationPaint(page, sourceBox);
         await owner.evaluate((element, position) => { element.scrollLeft = position; }, initialScroll);
         await expect(preview).toHaveText('09:15–17:15:30.5');
         await page.screenshot({ path: test.info().outputPath('timeline-drag-preview.png') });
@@ -541,6 +593,7 @@ test('saves the snapped preview while preserving grab offset and exact duration'
         await expect(source).toHaveAttribute('aria-label', /09:15–17:15:30\.5/);
         expect(querySql(`SELECT extract(epoch from (ends_at - starts_at))::text FROM roster_slots WHERE id = '${slotId}'`)).toBe('28830.500000');
         await expect(preview).toHaveCount(0);
+        await expectDestinationCleanup(page);
         if (cdp) await cdp.detach();
     } finally {
         runSql(`UPDATE roster_slots SET starts_at = ${sqlString(original.start)}, ends_at = ${sqlString(original.end)} WHERE id = '${slotId}'`);
@@ -893,6 +946,7 @@ test('moves vertically with exact duration and touch hold, scrolls downward and 
         const { point, quarterHour } = await begin();
         await move({ x: point.x, y: point.y + quarterHour });
         await expect(page.locator(`[${attrs.dragPreviewLabel}]`)).toHaveText('09:15–17:15:30.5');
+        await expectDestinationPaint(page, (await source.boundingBox())!);
         const saved = page.waitForResponse(response => response.url().includes('/MoveRosterTimelineShift') && response.request().method() === 'POST');
         if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         else await page.mouse.up();
@@ -909,9 +963,11 @@ test('moves vertically with exact duration and touch hold, scrolls downward and 
         const initialScroll = await owner.evaluate(element => element.scrollTop);
         await move({ x: second.point.x, y: box.y + box.height - 8 });
         await expect.poll(() => owner.evaluate(element => element.scrollTop)).toBeGreaterThan(initialScroll);
+        await expectDestinationPaint(page, (await source.boundingBox())!);
         const viewport = page.viewportSize()!;
         await page.setViewportSize({ width: viewport.width, height: viewport.height - 40 });
         await expect(page.locator('html')).not.toHaveAttribute(attrs.interactionActive, 'true');
+        await expectDestinationCleanup(page);
         if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         else await page.mouse.up();
         expect(querySql(`SELECT to_char(starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots WHERE id = '${slotId}'`)).toBe('09:15');

@@ -119,8 +119,12 @@ target for the disposable preview and committed intent. It never derives domain
 times or parses target keys. Malformed configuration refuses the gesture.
 The generated drag-axis CSS property selects horizontal or vertical geometry;
 missing means horizontal, unknown values refuse the gesture. The browser reads
-computed geometry for preview, grab offsets and cross-axis targeting. Viewport
-resizes cancel active sessions; changing axis direction invalidates projection.
+computed geometry for preview, grab offsets and cross-axis targeting. Interval
+destination highlighting paints that same full projected rectangle, not the
+individual snap target. Hit targets retain their server-rendered geometry; the
+pointer-transparent paint follows scrolling and cross-axis movement, including
+movement within one target. All temporary paint styles clear with the session.
+Viewport resizes cancel active sessions; changing axis direction invalidates projection.
 
 Two-axis drag scrolling is opt-in on a typed scroll owner within the same
 mount. Only an activated session scrolls it; a stationary pointer near an edge

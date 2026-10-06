@@ -732,18 +732,46 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
 
 function createDropzoneHighlightEffect(className: string): ContextualEffectHandler {
     let activeTarget: Element | null = null;
+    let restoreProjection: (() => void) | null = null;
+    // Adapter-local paint geometry, not target identity or domain coordinates.
+    const projectedClass = "bepis-dropzone-highlight-projected";
+    const properties = ["--bepis-dropzone-paint-left", "--bepis-dropzone-paint-top", "--bepis-dropzone-paint-width", "--bepis-dropzone-paint-height"];
 
     const clear = () => {
+        restoreProjection?.();
+        restoreProjection = null;
         if (activeTarget) removeClass(activeTarget, className);
         activeTarget = null;
     };
 
     return {
-        update(_session, target) {
-            if (target === activeTarget) return;
-            clear();
-            activeTarget = target;
-            if (activeTarget) addClass(activeTarget, className);
+        update(session, target) {
+            if (target !== activeTarget) {
+                clear();
+                activeTarget = target;
+                if (activeTarget) addClass(activeTarget, className);
+            }
+            const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
+            if (!activeTarget || !projection || projection.target !== activeTarget) return;
+            const element = activeTarget as HTMLElement;
+            if (!restoreProjection) {
+                const previous = properties.map((property) => [element.style.getPropertyValue(property), element.style.getPropertyPriority(property)] as const);
+                addClass(element, projectedClass);
+                restoreProjection = () => {
+                    removeClass(element, projectedClass);
+                    properties.forEach((property, index) => {
+                        const [value, priority] = previous[index]!;
+                        if (value) element.style.setProperty(property, value, priority);
+                        else element.style.removeProperty(property);
+                    });
+                };
+            }
+            // Paint a full interval without enlarging the five-minute hit target.
+            // Recompute even for the same target: cross-axis movement and scroll
+            // can change its viewport geometry without changing the opaque key.
+            const rect = element.getBoundingClientRect();
+            const values = [projection.left - rect.left - element.clientLeft, projection.top - rect.top - element.clientTop, projection.width, projection.height];
+            properties.forEach((property, index) => element.style.setProperty(property, `${values[index]}px`));
         },
         cleanup() {
             clear();

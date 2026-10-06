@@ -94,13 +94,41 @@
 }
 
 .bepis-dropzone-highlight {
+    --bepis-dropzone-highlight-z-index: 5;
     --bepis-dropzone-highlight-color: var(--app-accent);
     --bepis-dropzone-highlight-ring-width: 3px;
     --bepis-dropzone-highlight-background: color-mix(in srgb, var(--app-surface-2) 76%, var(--app-accent) 24%);
     --bepis-dropzone-highlight-elevation: 0 0.45rem 0.9rem var(--app-shadow-md-raw);
-    z-index: 5;
+    z-index: var(--bepis-dropzone-highlight-z-index, 5);
     background: var(--bepis-dropzone-highlight-background) !important;
     box-shadow:
         0 0 0 var(--bepis-dropzone-highlight-ring-width) var(--bepis-dropzone-highlight-color),
         var(--bepis-dropzone-highlight-elevation) !important;
+}
+
+/* Interval targets retain their hit geometry; only the disposable paint grows. */
+.bepis-dropzone-highlight-projected {
+    --bepis-dropzone-paint-left: 0px;
+    --bepis-dropzone-paint-top: 0px;
+    --bepis-dropzone-paint-width: 100%;
+    --bepis-dropzone-paint-height: 100%;
+    position: relative;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.bepis-dropzone-highlight-projected::after {
+    content: "";
+    position: absolute;
+    left: var(--bepis-dropzone-paint-left, 0px);
+    top: var(--bepis-dropzone-paint-top, 0px);
+    width: var(--bepis-dropzone-paint-width, 100%);
+    height: var(--bepis-dropzone-paint-height, 100%);
+    box-sizing: border-box;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--bepis-dropzone-highlight-background);
+    box-shadow:
+        0 0 0 var(--bepis-dropzone-highlight-ring-width) var(--bepis-dropzone-highlight-color),
+        var(--bepis-dropzone-highlight-elevation);
 }

@@ -4701,16 +4701,40 @@
   }
   function createDropzoneHighlightEffect(className) {
     let activeTarget = null;
+    let restoreProjection = null;
+    const projectedClass = "bepis-dropzone-highlight-projected";
+    const properties = ["--bepis-dropzone-paint-left", "--bepis-dropzone-paint-top", "--bepis-dropzone-paint-width", "--bepis-dropzone-paint-height"];
     const clear = () => {
+      restoreProjection?.();
+      restoreProjection = null;
       if (activeTarget) removeClass(activeTarget, className);
       activeTarget = null;
     };
     return {
-      update(_session, target) {
-        if (target === activeTarget) return;
-        clear();
-        activeTarget = target;
-        if (activeTarget) addClass(activeTarget, className);
+      update(session, target) {
+        if (target !== activeTarget) {
+          clear();
+          activeTarget = target;
+          if (activeTarget) addClass(activeTarget, className);
+        }
+        const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
+        if (!activeTarget || !projection || projection.target !== activeTarget) return;
+        const element = activeTarget;
+        if (!restoreProjection) {
+          const previous = properties.map((property) => [element.style.getPropertyValue(property), element.style.getPropertyPriority(property)]);
+          addClass(element, projectedClass);
+          restoreProjection = () => {
+            removeClass(element, projectedClass);
+            properties.forEach((property, index) => {
+              const [value, priority] = previous[index];
+              if (value) element.style.setProperty(property, value, priority);
+              else element.style.removeProperty(property);
+            });
+          };
+        }
+        const rect = element.getBoundingClientRect();
+        const values2 = [projection.left - rect.left - element.clientLeft, projection.top - rect.top - element.clientTop, projection.width, projection.height];
+        properties.forEach((property, index) => element.style.setProperty(property, `${values2[index]}px`));
       },
       cleanup() {
         clear();
