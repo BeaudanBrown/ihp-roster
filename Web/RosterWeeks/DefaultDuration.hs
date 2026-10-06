@@ -14,7 +14,6 @@ import Application.VenueTime (MelbourneCivilTime (..),
                               RepeatedTimeOccurrence (..), VenueTimeError (..),
                               resolveCivilTime, resolvedInstantFromUTC,
                               resolvedInstantLocalTime, resolvedInstantUTC)
-import Data.Time (addDays, addUTCTime, diffDays, localDay, localTimeOfDay)
 import Generated.Types (VenueConfig, defaultRosterShiftDurationMinutes)
 import IHP.Prelude
 

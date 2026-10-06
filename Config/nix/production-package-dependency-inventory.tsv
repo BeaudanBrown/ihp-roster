@@ -60,7 +60,7 @@ Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
 Data.Text.IO	text	Application/Helper/Authentication.hs via Main
-Data.Time	time	Web/RosterWeeks/DefaultDuration.hs via Main
+Data.Time	time	Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hs via Main
 Data.Time.Calendar	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/VenueTime.hs via Main
 Data.Time.Clock.POSIX	time	Application/Billing/Checkout.hs via Main
