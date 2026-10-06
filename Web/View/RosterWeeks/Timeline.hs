@@ -24,6 +24,8 @@ import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import qualified Data.UUID as UUID
 import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate,
                                   rosterWindowLaneName)
+import Web.RosterWeeks.DefaultDuration (RosterCreationDefaults (..),
+                                        defaultRosterEnd)
 import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
 import Web.RosterWeeks.FrontendSurface (rosterDayTimelineDropzoneRef,
                                         rosterDayTimelineSourceRef,
@@ -90,18 +92,21 @@ renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
     |]
 
 data TimelineWindow = TimelineWindow
-    { timelineWindowScale       :: !TimelineScale
-    , timelineWindowEndMinute   :: !Int
-    , timelineWindowOrientation :: !TimelineOrientation
+    { timelineWindowScale          :: !TimelineScale
+    , timelineWindowEndMinute      :: !Int
+    , timelineWindowOrientation    :: !TimelineOrientation
+    , timelineWindowCreationPolicy :: !RosterCreationDefaults
     }
 
 timelineWindowFromGridModel :: RosterGridRenderModel -> Day -> [(UTCTime, UTCTime)] -> Either VenueTimeError TimelineWindow
 timelineWindowFromGridModel gridModel date intervals = do
-    scale <- timelineScaleForDay date gridModel.gridRosterTimePickerStartMinute gridModel.gridRosterTimePickerFinalSelectableMinute intervals
+    let policy = gridModel.gridRosterCreationPolicy
+    scale <- timelineScaleForDay date policy.creationWindowStartMinute policy.creationWindowEndMinute intervals
     pure TimelineWindow
         { timelineWindowScale = scale
         , timelineWindowEndMinute = max 0 (ceiling scale.scaleMinutes - 15)
         , timelineWindowOrientation = rosterTimelineOrientation gridModel.gridViewMode
+        , timelineWindowCreationPolicy = policy
         }
 
 renderTimelineScale :: TimelineWindow -> Html
@@ -176,8 +181,20 @@ renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
                 style={timelineDropzoneStyle timelineWindow instant}
                 data-roster-timeline-minute={tshow (timelineOperationalMinute day.operationalDate instant)}
                 aria-label={label} title={label}>
+            {forEach (maybeToList (defaultRosterEnd timelineWindow.timelineWindowCreationPolicy day.operationalDate instant 5)) (renderTimelineCreationPreview timelineWindow instant)}
         </button>
     |]
+
+renderTimelineCreationPreview :: TimelineWindow -> UTCTime -> UTCTime -> Html
+renderTimelineCreationPreview window start end =
+    [hsx|<span class="roster-day-timeline-create-preview" aria-hidden="true" style={previewStyle}>{timelineClockLabel start <> "–" <> timelineClockLabel end}</span>|]
+  where
+    scale = window.timelineWindowScale
+    minute = timelineOffsetMinutes scale start
+    cellStart = max 0 (minute - 2.5)
+    cellExtent = min scale.scaleMinutes (minute + 2.5) - cellStart
+    previewStyle = "--roster-create-offset:" <> tshow ((minute - cellStart) * 100 / cellExtent) <> "%;--roster-create-extent:"
+        <> tshow ((timelineOffsetMinutes scale end - minute) * 100 / cellExtent) <> "%;"
 
 renderTimelineShift :: TimelineWindow -> Bool -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
 renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =

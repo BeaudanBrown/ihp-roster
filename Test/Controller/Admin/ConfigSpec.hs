@@ -1224,6 +1224,42 @@ tests = aroundAll withDatabaseTestContext do
                 rosterOnlyConfig.defaultStaffPayAssignmentMode `shouldBe` RosterOnly
                 rosterOnlyConfig.defaultStaffAwardLevelId `shouldBe` Nothing
 
+        it "persists bounded roster creation defaults for the current venue only" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Duration Venue"
+                otherVenue <- createVenueWithConfig "Other Duration Venue"
+                admin <- createUserRecord "duration-admin@example.com" "staff" True
+                manager <- createUserRecord "duration-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue manager Manager
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                otherConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId otherVenue.id) |> fetchOne
+                config.defaultRosterShiftDurationMinutes `shouldBe` 480
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateDefaultRosterShiftDurationAction
+                            [("defaultRosterShiftDurationMinutes", "90"), ("venueId", cs (tshow otherVenue.id))]
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Default roster shift duration"
+                response `responseBodyShouldContain` "value=\"90\""
+                resources <- query @LiveInvalidationEventResource |> fetch
+                resources `shouldSatisfy` any (Text.isInfixOf "roster-default-duration-config" . tshow . get #resourcePayload)
+                saved <- fetch config.id
+                untouched <- fetch otherConfig.id
+                saved.defaultRosterShiftDurationMinutes `shouldBe` 90
+                untouched.defaultRosterShiftDurationMinutes `shouldBe` 480
+
+                forEach ["0", "14", "16", "1441", "", "invalid"] \value -> do
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams UpdateDefaultRosterShiftDurationAction [("defaultRosterShiftDurationMinutes", value)]
+                    unchanged <- fetch config.id
+                    unchanged.defaultRosterShiftDurationMinutes `shouldBe` 90
+                _ <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateDefaultRosterShiftDurationAction [("defaultRosterShiftDurationMinutes", "120")]
+                rejected <- fetch config.id
+                rejected.defaultRosterShiftDurationMinutes `shouldBe` 90
+
         it "configures, disables, and validates the unavailable-staff warning threshold" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Availability Threshold Venue"

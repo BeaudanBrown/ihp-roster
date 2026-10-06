@@ -45,6 +45,7 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.AuthorizedScope
 import Web.RosterWeeks.Capabilities
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..))
+import Web.RosterWeeks.DefaultDuration (rosterCreationDefaults)
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.StaffOptions
@@ -243,7 +244,7 @@ rosterToolbarRenderModelFromProjection projection =
         }
 
 rosterGridRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> RosterGridRenderModel
-rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowScope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, rosterPayDisplayMode, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
+rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowScope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterCreationPolicy, rosterWagePrediction, rosterPayDisplayMode, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
     let visibleRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
      in RosterGridRenderModel
         { gridRosterWeek = visibleRosterWeek
@@ -268,8 +269,7 @@ rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowS
         , gridViewCapabilities = buildRosterViewCapabilities visibleRosterWeek
         , gridRosterLayoutMode = rosterLayoutMode
         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
-        , gridRosterTimePickerStartMinute = rosterTimePickerStartMinute
-        , gridRosterTimePickerFinalSelectableMinute = rosterTimePickerFinalSelectableMinute
+        , gridRosterCreationPolicy = rosterCreationPolicy
         , gridRosterWagePrediction = rosterWagePrediction
         , gridRosterPayDisplayMode = rosterPayDisplayMode
         , gridShowRosterWarnings = showRosterWarnings
@@ -498,7 +498,7 @@ fetchRosterRenderDataForPlan renderPlan snapshot = do
                 Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
             else pure Nothing
     let rosterCalendarRevision = venueConfig.rosterCalendarRevision
-    pure RosterRenderData { rosterWeek, rosterWindowScope = scope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, rosterPayDisplayMode, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays }
+    pure RosterRenderData { rosterWeek, rosterWindowScope = scope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterCreationPolicy = rosterCreationDefaults venueConfig, rosterWagePrediction, rosterPayDisplayMode, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays }
 
 fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> Day -> [RosterDay] -> IO (Maybe Notification.RosterNotificationPanelData)
 fetchRosterPanelNotificationData authorizedScope windowStart rosterDays

@@ -45,6 +45,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseUpdateRosterWeekStartsOnActionParams
     , parseUpdateShiftTypeActionParams
     , parseUpdateUnavailableStaffWarningThresholdActionParams
+    , parseUpdateDefaultRosterShiftDurationActionParams
     , renewVenueInvitationAction
     , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
@@ -74,6 +75,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , updateShiftTypeAction
     , updateShiftTypeActionFields
     , updateUnavailableStaffWarningThresholdAction
+    , updateDefaultRosterShiftDurationAction
+    , updateDefaultRosterShiftDurationActionFields
     , updateUnavailableStaffWarningThresholdActionFields
     ) where
 
@@ -115,6 +118,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            parseShowXeroTimesheetPreparationStaffMappingsActionParams,
                                                                            parseToggleInactiveRosterGroupsActionParams,
                                                                            parseToggleInactiveShiftTypesActionParams,
+                                                                           parseUpdateDefaultRosterShiftDurationActionParams,
                                                                            parseUpdateDefaultStaffPayRateActionParams,
                                                                            parseUpdateMinutePrecisionShiftTimesEnabledActionParams,
                                                                            parseUpdateRosterEndTimesEnabledActionParams,
@@ -137,6 +141,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            toggleInactiveShiftTypesAction,
                                                                            toggleInactiveShiftTypesActionFields,
                                                                            toggleInactiveShiftTypesActionParamsPresent,
+                                                                           updateDefaultRosterShiftDurationAction,
+                                                                           updateDefaultRosterShiftDurationActionFields,
                                                                            updateDefaultStaffPayRateAction,
                                                                            updateDefaultStaffPayRateActionFields,
                                                                            updateMinutePrecisionShiftTimesEnabledAction,

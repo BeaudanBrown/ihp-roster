@@ -202,6 +202,7 @@ data AdminController
     | UpdateDefaultStaffPayRateAction
     | UpdateMinutePrecisionShiftTimesEnabledAction
     | UpdateUnavailableStaffWarningThresholdAction
+    | UpdateDefaultRosterShiftDurationAction
     | UpdateRosterTimePickerWindowAction
     | UpdateRosterWeekStartsOnAction
     | ShowAdminVenueSettingsFragmentAction

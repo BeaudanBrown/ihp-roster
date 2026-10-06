@@ -17,6 +17,7 @@ module Web.Admin.Mutations
     , setMinutePrecisionShiftTimesEnabledMutation
     , setRosterEndTimesEnabledMutation
     , setUnavailableStaffWarningThresholdMutation
+    , setDefaultRosterShiftDurationMutation
     , setRosterTimePickerWindowMutation
     , shiftTypeAffectsXeroPayItems
     , shiftTypePayResources
@@ -26,7 +27,8 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
@@ -106,6 +108,12 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled =
             |> set #rosterEndTimesEnabled rosterEndTimesEnabled
             |> updateRecord
         pure (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
+
+setDefaultRosterShiftDurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
+setDefaultRosterShiftDurationMutation config minutes =
+    withDurableLiveMutation "admin.venue_config.default_roster_shift_duration" do
+        updated <- config |> set #defaultRosterShiftDurationMinutes minutes |> updateRecord
+        pure (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [rosterDefaultDurationConfigResource (unpackId currentVenueId)]))
 
 setUnavailableStaffWarningThresholdMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe Int -> IO (LiveMutationResult VenueConfig)
 setUnavailableStaffWarningThresholdMutation venueConfig threshold =

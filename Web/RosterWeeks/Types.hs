@@ -39,6 +39,7 @@ import Generated.Types
 import IHP.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
                                   RosterWindowState (..))
+import Web.RosterWeeks.DefaultDuration (RosterCreationDefaults)
 
 data NoRosterGroupView = NoRosterGroupView
     { noRosterGroupPasskeySetupPrompt :: Maybe PasskeySetupPromptMode
@@ -193,34 +194,33 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
     }
 
 data RosterRenderData = RosterRenderData
-    { rosterWeek            :: Maybe RosterWindowState
-    , rosterWindowScope     :: RosterWindowScope
-    , rosterGroups          :: [RosterGroup]
-    , currentRosterGroup    :: RosterGroup
-    , rosterDays            :: [RosterDay]
-    , weekStartDate         :: Day
-    , rosterCalendarRevision :: Int
-    , assignmentFilters     :: RosterAssignmentFilters
-    , staffMembers          :: [Staff]
-    , panelStaff            :: [RosterStaffPanelEntry]
-    , templateLibrary       :: Maybe RosterTemplateLibrary
+    { rosterWeek                  :: Maybe RosterWindowState
+    , rosterWindowScope           :: RosterWindowScope
+    , rosterGroups                :: [RosterGroup]
+    , currentRosterGroup          :: RosterGroup
+    , rosterDays                  :: [RosterDay]
+    , weekStartDate               :: Day
+    , rosterCalendarRevision      :: Int
+    , assignmentFilters           :: RosterAssignmentFilters
+    , staffMembers                :: [Staff]
+    , panelStaff                  :: [RosterStaffPanelEntry]
+    , templateLibrary             :: Maybe RosterTemplateLibrary
     , rosterNotificationPanelData :: Maybe RosterNotificationPanelData
-    , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
-    , orderedSlotNames      :: [RosterWindowLane]
-    , shiftTypes            :: [ShiftType]
-    , allSlots              :: [RosterSlot]
-    , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes         :: RosterRenderIndexes
-    , rosterLayoutMode      :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled              :: Bool
-    , rosterTimePickerStartMinute        :: Int
-    , rosterTimePickerFinalSelectableMinute :: Int
-    , rosterWagePrediction               :: Maybe RosterWagePrediction
-    , rosterPayDisplayMode     :: RosterPayDisplayMode
-    , showRosterWarnings    :: Bool
-    , highlightOwnLiveShifts :: Bool
-    , currentViewerStaffKey :: Maybe Text
-    , rosterPublicHolidays  :: Map Day Text
+    , staffSelfServicePanel       :: Maybe RosterStaffSelfServicePanel
+    , orderedSlotNames            :: [RosterWindowLane]
+    , shiftTypes                  :: [ShiftType]
+    , allSlots                    :: [RosterSlot]
+    , slotConflicts               :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes               :: RosterRenderIndexes
+    , rosterLayoutMode            :: RosterLayoutModeEnum
+    , rosterEndTimesEnabled       :: Bool
+    , rosterCreationPolicy        :: RosterCreationDefaults
+    , rosterWagePrediction        :: Maybe RosterWagePrediction
+    , rosterPayDisplayMode        :: RosterPayDisplayMode
+    , showRosterWarnings          :: Bool
+    , highlightOwnLiveShifts      :: Bool
+    , currentViewerStaffKey       :: Maybe Text
+    , rosterPublicHolidays        :: Map Day Text
 }
 
 data RosterToolbarRenderModel = RosterToolbarRenderModel
@@ -237,39 +237,38 @@ data RosterToolbarRenderModel = RosterToolbarRenderModel
 
 
 data RosterGridRenderModel = RosterGridRenderModel
-    { gridRosterWeek            :: Maybe RosterWindowState
-    , gridRosterDays            :: [RosterDay]
-    , gridWindowScope           :: RosterWindowScope
-    , gridRosterGroups          :: [RosterGroup]
-    , gridCurrentRosterGroup    :: RosterGroup
-    , gridAssignmentFilters     :: RosterAssignmentFilters
-    , gridStaffMembers          :: [Staff]
-    , gridPanelStaff            :: [RosterStaffPanelEntry]
-    , gridTemplateLibrary       :: Maybe RosterTemplateLibrary
-    , gridNotificationPanelData :: Maybe RosterNotificationPanelData
-    , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
-    , gridSlotNames             :: [RosterWindowLane]
-    , gridShiftTypes            :: [ShiftType]
-    , gridWeekStartDate         :: Day
-    , gridSelectedDate          :: Day
+    { gridRosterWeek             :: Maybe RosterWindowState
+    , gridRosterDays             :: [RosterDay]
+    , gridWindowScope            :: RosterWindowScope
+    , gridRosterGroups           :: [RosterGroup]
+    , gridCurrentRosterGroup     :: RosterGroup
+    , gridAssignmentFilters      :: RosterAssignmentFilters
+    , gridStaffMembers           :: [Staff]
+    , gridPanelStaff             :: [RosterStaffPanelEntry]
+    , gridTemplateLibrary        :: Maybe RosterTemplateLibrary
+    , gridNotificationPanelData  :: Maybe RosterNotificationPanelData
+    , gridStaffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
+    , gridSlotNames              :: [RosterWindowLane]
+    , gridShiftTypes             :: [ShiftType]
+    , gridWeekStartDate          :: Day
+    , gridSelectedDate           :: Day
     , gridRosterCalendarRevision :: Int
-    , gridAllSlots              :: [RosterSlot]
-    , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
-    , gridRenderIndexes         :: RosterRenderIndexes
-    , gridViewCapabilities      :: RosterViewCapabilities
-    , gridRosterLayoutMode      :: RosterLayoutModeEnum
-    , gridRosterEndTimesEnabled              :: Bool
-    , gridRosterTimePickerStartMinute        :: Int
-    , gridRosterTimePickerFinalSelectableMinute :: Int
-    , gridRosterWagePrediction               :: Maybe RosterWagePrediction
-    , gridRosterPayDisplayMode     :: RosterPayDisplayMode
-    , gridShowRosterWarnings    :: Bool
+    , gridAllSlots               :: [RosterSlot]
+    , gridSlotConflicts          :: [(Id RosterSlot, [RosterConflict])]
+    , gridRenderIndexes          :: RosterRenderIndexes
+    , gridViewCapabilities       :: RosterViewCapabilities
+    , gridRosterLayoutMode       :: RosterLayoutModeEnum
+    , gridRosterEndTimesEnabled  :: Bool
+    , gridRosterCreationPolicy   :: RosterCreationDefaults
+    , gridRosterWagePrediction   :: Maybe RosterWagePrediction
+    , gridRosterPayDisplayMode   :: RosterPayDisplayMode
+    , gridShowRosterWarnings     :: Bool
     , gridHighlightOwnLiveShifts :: Bool
-    , gridCurrentViewerStaffKey :: Maybe Text
-    , gridPublicHolidays        :: Map Day Text
-    , gridPublishAttempted      :: Bool
-    , gridViewMode              :: RosterGridViewMode
-    , gridTimelineTodayUrl      :: Maybe Text
+    , gridCurrentViewerStaffKey  :: Maybe Text
+    , gridPublicHolidays         :: Map Day Text
+    , gridPublishAttempted       :: Bool
+    , gridViewMode               :: RosterGridViewMode
+    , gridTimelineTodayUrl       :: Maybe Text
     }
 
 data RosterDayRenderModel = RosterDayRenderModel

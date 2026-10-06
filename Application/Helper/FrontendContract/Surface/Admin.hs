@@ -49,6 +49,8 @@ module Application.Helper.FrontendContract.Surface.Admin
     , UpdateDefaultStaffPayRate
     , UpdateMinutePrecisionShiftTimesEnabled
     , UpdateUnavailableStaffWarningThreshold
+    , UpdateDefaultRosterShiftDuration
+    , DefaultRosterShiftDurationMinutes
     , UpdateRosterTimePickerWindow
     , UpdateRosterWeekStartsOn
     , CreateVenueInvitation
@@ -136,6 +138,8 @@ data UpdateRosterEndTimesEnabled
 data UpdateDefaultStaffPayRate
 data UpdateMinutePrecisionShiftTimesEnabled
 data UpdateUnavailableStaffWarningThreshold
+data UpdateDefaultRosterShiftDuration
+data DefaultRosterShiftDurationMinutes
 data UpdateRosterTimePickerWindow
 data UpdateRosterWeekStartsOn
 data CreateVenueInvitation
@@ -251,6 +255,14 @@ type AdminVenueSettingsSurface =
              ]
          , Action UpdateUnavailableStaffWarningThreshold
             '[ OptionalField UnavailableStaffWarningThreshold 'WireInt ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting inputs submit on change"
+             ]
+         , Action UpdateDefaultRosterShiftDuration
+            '[ Field DefaultRosterShiftDurationMinutes 'WireInt ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
              , 'HtmxSwap 'HtmxNoSwap

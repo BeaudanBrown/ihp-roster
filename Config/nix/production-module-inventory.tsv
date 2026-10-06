@@ -545,6 +545,7 @@ Web/RosterWeeks/AuthorizedScope.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/AvailabilityInputs.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Capabilities.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DateRange.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/DefaultDuration.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DirectReadModel.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Dom.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DropWorkflow.hs	production	runtime	Main	Reachable from Main

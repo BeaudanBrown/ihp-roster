@@ -301,6 +301,10 @@ tests = do
             let candidates = rosterCandidateMountedFragments scopeValue plan
             let resources = Set.singleton (rosterDayResource dayUuid)
             let expected = [RosterLive.rosterDayTimelineContentLiveFragment dayUuid]
+            let durationResources = Set.singleton (rosterDefaultDurationConfigResource venueId)
+            passiveFragmentKeys durationResources scope candidates `shouldBe` expected
+            actorLiveFragmentsRefreshKeys scope durationResources candidates `shouldBe` expected
+            passiveFragmentKeys (Set.singleton (rosterDefaultDurationConfigResource (fromWords 70 0 0 0))) scope candidates `shouldBe` []
             passiveFragmentKeys resources scope candidates `shouldBe` expected
             actorLiveFragmentsRefreshKeys scope resources candidates `shouldBe` expected
             passiveFragmentKeys (Set.singleton (rosterDayResource (fromWords 10 0 0 0))) scope candidates `shouldBe` []

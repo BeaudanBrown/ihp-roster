@@ -49,6 +49,8 @@ import Web.Controller.RosterWeeks.Validation
 import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
                                   RosterWindowScope (..), fetchRosterWindow,
                                   rosterWindowTarget)
+import Web.RosterWeeks.DefaultDuration (defaultRosterEnd, defaultRosterStart,
+                                        rosterCreationDefaults)
 import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
                                      RosterTimelineDropBoundaryResolution (..),
                                      resolveRosterTimelineDropBoundaries)
@@ -270,23 +272,26 @@ rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
-rosterTimelineCreateDialogValues :: UTCTime -> RosterShiftDialogValues
-rosterTimelineCreateDialogValues instant =
+rosterTimelineCreateDialogValues :: VenueConfig -> Day -> UTCTime -> RosterShiftDialogValues
+rosterTimelineCreateDialogValues config day = rosterCreationValues config day 5
+
+rosterCreationValues :: VenueConfig -> Day -> Int -> UTCTime -> RosterShiftDialogValues
+rosterCreationValues config day precision instant =
     let resolved = resolvedInstantFromUTC instant
         occurrence = resolvedInstantOccurrence resolved
+        end = resolvedInstantFromUTC <$> defaultRosterEnd (rosterCreationDefaults config) day instant precision
      in emptyRosterShiftDialogValues
         { rosterShiftStartTime = timeOfDayToStorageValue (resolvedInstantLocalTime resolved).localTimeOfDay
         , rosterShiftStartOccurrence = occurrence
         , rosterShiftStartIsRepeated = isJust occurrence
+        , rosterShiftEndTime = maybe "" (timeOfDayToStorageValue . localTimeOfDay . resolvedInstantLocalTime) end
+        , rosterShiftEndOccurrence = end >>= resolvedInstantOccurrence
+        , rosterShiftEndIsRepeated = isJust (end >>= resolvedInstantOccurrence)
         }
 
-defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues
-defaultRosterShiftDialogValuesForVenue venueConfig =
-    let (defaultStart, defaultEnd) = defaultShiftTimesForVenueConfig venueConfig
-     in emptyRosterShiftDialogValues
-            { rosterShiftStartTime = timeOfDayToStorageValue defaultStart
-            , rosterShiftEndTime = timeOfDayToStorageValue defaultEnd
-            }
+defaultRosterShiftDialogValuesForVenue :: VenueConfig -> Day -> RosterShiftDialogValues
+defaultRosterShiftDialogValuesForVenue config day =
+    maybe emptyRosterShiftDialogValues (rosterCreationValues config day 15) (defaultRosterStart (rosterCreationDefaults config) day)
 
 buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterDay -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
 buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay targetSlot staffMembers = do

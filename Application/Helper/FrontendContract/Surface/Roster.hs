@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterGridToolbar
     , RosterGroupId
     , RosterEndTimesConfig
+    , RosterDefaultDurationConfig
     , RosterLayoutConfig
     , RosterRow
     , RosterSlotsGrid
@@ -467,6 +468,7 @@ data StaffScope
 data RosterDay
 data RosterWeekOverview
 data RosterEndTimesConfig
+data RosterDefaultDurationConfig
 data RosterLayoutConfig
 data RosterWeekBoundaryConfig
 data TimePickerConfig
@@ -483,6 +485,7 @@ type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field Roste
 type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
 type RosterTemplateLibraryResource = Resource RosterTemplateLibrary '[ Field RosterGroupId 'WireUUID ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
+type RosterDefaultDurationConfigResource = Resource RosterDefaultDurationConfig '[ Field VenueId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterLayoutConfigResource = Resource RosterLayoutConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
@@ -1008,6 +1011,7 @@ type RosterDayTimelineFragmentBundle =
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterDefaultDurationConfigResource '[ 'FromScope VenueId ]
          ]
      ]
 

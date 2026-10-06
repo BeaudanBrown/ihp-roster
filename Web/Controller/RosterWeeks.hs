@@ -971,7 +971,8 @@ instance Controller RosterWeeksController where
                         if coerce staffDropStaff.id `Set.member` payInvalidStaffIds
                             then respondWithMoveRosterShiftFailure scope "Resolve pay configuration for the selected staff member before adding a roster shift."
                             else do
-                                let values = maybe emptyRosterShiftDialogValues rosterTimelineCreateDialogValues staffDropStartsAt
+                                config <- fetchVenueConfig
+                                let values = maybe (defaultRosterShiftDialogValuesForVenue config staffDropRosterDay.operationalDate) (rosterTimelineCreateDialogValues config staffDropRosterDay.operationalDate) staffDropStartsAt
                                 respondWithRosterShiftCreateDialogOob scope staffDropRosterDay staffDropSlotDefinition staffDropRowIndex values { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction = runBepis currentAction BepisMutationAction do
@@ -1056,8 +1057,10 @@ instance Controller RosterWeeksController where
         scope <- rosterActionScope rosterGroup.id
         validateRosterTimelineCreateTarget scope timelineTargetKey >>= \case
             Left message -> respondWithRosterToast message "app-toast-error"
-            Right target -> renderRosterShiftDialogForCreate scope target.timelineCreateDay target.timelineCreateLane target.timelineCreateRowIndex
-                (rosterTimelineCreateDialogValues target.timelineCreateStartsAt)
+            Right target -> do
+                config <- fetchVenueConfig
+                renderRosterShiftDialogForCreate scope target.timelineCreateDay target.timelineCreateLane target.timelineCreateRowIndex
+                    (rosterTimelineCreateDialogValues config target.timelineCreateDay.operationalDate target.timelineCreateStartsAt)
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerModeAccess
@@ -1072,7 +1075,7 @@ instance Controller RosterWeeksController where
             then respondWithRosterToast "Create at least one shift type in Admin > Shift Types before adding roster shifts." "app-toast-error"
             else do
                 venueConfig <- fetchVenueConfig
-                renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
+                renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig rosterDay.operationalDate)
 
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerModeAccess

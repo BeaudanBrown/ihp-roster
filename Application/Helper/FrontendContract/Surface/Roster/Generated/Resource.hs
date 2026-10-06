@@ -4,6 +4,7 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     ( matchRosterDayResource
+    , matchRosterDefaultDurationConfigResource
     , matchRosterEndTimesConfigResource
     , matchRosterGroupStaffResource
     , matchRosterLayoutConfigResource
@@ -16,6 +17,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , matchRosterWeekStructureResource
     , matchTimePickerConfigResource
     , rosterDayResource
+    , rosterDefaultDurationConfigResource
     , rosterEndTimesConfigResource
     , rosterGroupStaffResource
     , rosterLayoutConfigResource
@@ -57,6 +59,23 @@ matchRosterDayResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDay
+
+rosterDefaultDurationConfigResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+rosterDefaultDurationConfigResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterDefaultDurationConfig
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchRosterDefaultDurationConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchRosterDefaultDurationConfigResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterDefaultDurationConfig
 
 rosterEndTimesConfigResource ::
     UUID.UUID ->

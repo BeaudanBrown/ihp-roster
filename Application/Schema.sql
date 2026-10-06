@@ -460,6 +460,7 @@ CREATE TABLE venue_config (
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    default_roster_shift_duration_minutes INT DEFAULT 480 NOT NULL,
     UNIQUE(venue_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
@@ -470,6 +471,7 @@ CREATE TABLE venue_config (
     CHECK (time_picker_start_minute_of_day <> time_picker_final_selectable_minute_of_day),
     CHECK (staff_timesheet_edit_window_days >= 0),
     CHECK (unavailable_staff_warning_threshold IS NULL OR ((unavailable_staff_warning_threshold >= 1) AND (unavailable_staff_warning_threshold <= 100))),
+    CONSTRAINT venue_config_default_roster_shift_duration_check CHECK ((default_roster_shift_duration_minutes >= 15) AND ((default_roster_shift_duration_minutes <= 1440) AND (mod(default_roster_shift_duration_minutes, 15) = 0))),
     CHECK (
         (default_staff_pay_assignment_mode = 'award_rate' AND default_staff_award_level_id IS NOT NULL)
         OR (default_staff_pay_assignment_mode = 'roster_only' AND default_staff_award_level_id IS NULL)

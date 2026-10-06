@@ -115,6 +115,11 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- ensureVenueDefaultShiftType venue
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig
+                    |> set #defaultRosterShiftDurationMinutes 90
+                    |> set #timePickerStartMinuteOfDay 540
+                    |> set #timePickerFinalSelectableMinuteOfDay 1020
+                    |> updateRecord
                 let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (testAnchorForOffset 26)
                 window <- fetchRosterWindow venue.id rosterGroup.id scope.rosterWindowStart
                 let requestedDayId = projectedRosterDayId rosterGroup.id scope.rosterWindowStart
@@ -155,8 +160,13 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams DropRosterStaffAction (timelineParams <>
                             [("sourceItemKey", cs sourceToken), ("targetDropzoneKey", cs timelineToken)])
+                forEach [dropResponse, dialogResponse] \response -> do
+                    response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
+                    response `responseBodyShouldContain` "name=\"endTime\" value=\"10:30\""
                 timelineDialog `responseStatusShouldBe` status200
                 timelineDialog `responseBodyShouldContain` "value=\"09:05\""
+                timelineDialog `responseBodyShouldContain` "name=\"endTime\" value=\"10:35\""
+                timelineStaffDialog `responseBodyShouldContain` "name=\"endTime\" value=\"10:35\""
                 timelineDialog `responseBodyShouldContain` "rosterView=timeline"
                 timelineStaffDialog `responseBodyShouldContain` "value=\"09:05\""
                 timelineStaffDialog `responseBodyShouldContain` ("value=\"" <> cs (tshow staff.id) <> "\" selected")
@@ -200,6 +210,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 savedSlot <- query @RosterSlot |> fetchOne
                 savedSlot.startsAt `shouldBe` Just (timelineInstantAt scale 5)
+                savedSlot.endsAt `shouldBe` Just (timelineInstantAt scale 480)
                 materializedDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> orderByAsc #operationalDate

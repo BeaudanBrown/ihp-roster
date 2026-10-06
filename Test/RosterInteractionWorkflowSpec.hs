@@ -1,7 +1,9 @@
 module Test.RosterInteractionWorkflowSpec where
 
+import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig)
 import Application.RosterShiftAssignment
-import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime (RepeatedTimeOccurrence (..),
+                              resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.VenueTime.Model
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
@@ -15,24 +17,93 @@ import IHP.ModelSupport (newRecord, unpackId)
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import Test.Hspec
+import Web.RosterWeeks.DefaultDuration
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Service (rosterSlotBlocksPublish)
 import Web.RosterWeeks.ShiftWorkflow
 import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..))
 
+workflowVenueConfig :: VenueConfig
+workflowVenueConfig = (newRecord @VenueConfig)
+    { defaultRosterShiftDurationMinutes = 480
+    , timePickerStartMinuteOfDay = 360
+    , timePickerFinalSelectableMinuteOfDay = 345
+    }
+
 tests :: Spec
 tests = do
     describe "roster interaction workflow tokens" do
-        it "prefills timeline creation with the exact repeated occurrence, not an invented end" do
-            let first = rosterTimelineCreateDialogValues (posixSecondsToUTCTime 1775316600)
-                second = rosterTimelineCreateDialogValues (posixSecondsToUTCTime 1775320200)
+        it "prefills timeline creation with the exact repeated occurrence and clips its real end" do
+            let config = workflowVenueConfig
+                day = fromGregorian 2026 4 4
+                first = rosterTimelineCreateDialogValues config day (posixSecondsToUTCTime 1775316600)
+                second = rosterTimelineCreateDialogValues config day (posixSecondsToUTCTime 1775320200)
             first.rosterShiftStartTime `shouldBe` "02:30"
             second.rosterShiftStartTime `shouldBe` "02:30"
             first.rosterShiftStartOccurrence `shouldBe` Just FirstOccurrence
             second.rosterShiftStartOccurrence `shouldBe` Just SecondOccurrence
             first.rosterShiftStartIsRepeated `shouldBe` True
-            first.rosterShiftEndTime `shouldBe` ""
+            first.rosterShiftEndTime `shouldBe` "05:45"
+            second.rosterShiftEndTime `shouldBe` "05:45"
             first.rosterShiftSelectedAssignment `shouldBe` Nothing
+
+        it "retains a repeated end occurrence when elapsed duration crosses the autumn fold" do
+            let config = workflowVenueConfig { defaultRosterShiftDurationMinutes = 30 }
+                values = rosterTimelineCreateDialogValues config (fromGregorian 2026 4 4) (posixSecondsToUTCTime 1775316600)
+            values.rosterShiftStartTime `shouldBe` "02:30"
+            values.rosterShiftEndTime `shouldBe` "02:00"
+            values.rosterShiftEndOccurrence `shouldBe` Just SecondOccurrence
+            values.rosterShiftEndIsRepeated `shouldBe` True
+
+        it "clips a nonexistent spring window endpoint to the final real selectable minute" do
+            let policy = RosterCreationDefaults 480 0 150
+                day = fromGregorian 2026 10 3
+                end precision = do
+                    start <- defaultRosterStart policy day
+                    instant <- defaultRosterEnd policy day start precision
+                    pure (resolvedInstantLocalTime (resolvedInstantFromUTC instant)).localTimeOfDay
+            end 5 `shouldBe` Just (TimeOfDay 1 55 0)
+            end 15 `shouldBe` Just (TimeOfDay 1 45 0)
+
+        it "validates bounded quarter-hour venue defaults" do
+            map validDefaultRosterDuration [15, 480, 1440] `shouldBe` replicate 3 True
+            map validDefaultRosterDuration [-1, 0, 1, 14, 16, 1441] `shouldBe` replicate 6 False
+
+        it "clips an eight-hour default at 15:00 to the configured 17:00 end" do
+            let config = workflowVenueConfig
+                    { timePickerStartMinuteOfDay = 9 * 60
+                    , timePickerFinalSelectableMinuteOfDay = 17 * 60
+                    }
+                start = UTCTime (fromGregorian 2026 6 1) (secondsToDiffTime (5 * 3600))
+                values = rosterTimelineCreateDialogValues config (fromGregorian 2026 6 1) start
+            values.rosterShiftStartTime `shouldBe` "15:00"
+            values.rosterShiftEndTime `shouldBe` "17:00"
+
+        it "uses configured duration in both ordinary and timeline creation" do
+            let config = workflowVenueConfig { defaultRosterShiftDurationMinutes = 90 }
+                day = fromGregorian 2026 6 1
+                Just start = defaultRosterStart (rosterCreationDefaults config) day
+                ordinary = defaultRosterShiftDialogValuesForVenue config day
+                timeline = rosterTimelineCreateDialogValues config day start
+            ordinary.rosterShiftStartTime `shouldBe` "06:00"
+            ordinary.rosterShiftEndTime `shouldBe` "07:30"
+            timeline.rosterShiftEndTime `shouldBe` ordinary.rosterShiftEndTime
+            snd (defaultShiftTimesForVenueConfig config) `shouldBe` TimeOfDay 14 0 0
+
+        it "uses elapsed hours across both DST transitions without inventing clock times" do
+            let policy = RosterCreationDefaults 480 (22 * 60) (10 * 60)
+                endpoint day = do
+                    start <- defaultRosterStart policy day
+                    end <- defaultRosterEnd policy day start 15
+                    pure (resolvedInstantLocalTime (resolvedInstantFromUTC end)).localTimeOfDay
+            endpoint (fromGregorian 2026 10 3) `shouldBe` Just (TimeOfDay 7 0 0)
+            endpoint (fromGregorian 2026 4 4) `shouldBe` Just (TimeOfDay 5 0 0)
+
+        it "does not invent a default for a nonexistent start or a window with no remaining room" do
+            defaultRosterStart (RosterCreationDefaults 480 150 600) (fromGregorian 2026 10 3) `shouldBe` Nothing
+            let policy = RosterCreationDefaults 480 540 1020
+                start = UTCTime (fromGregorian 2026 6 1) (secondsToDiffTime (7 * 3600))
+            defaultRosterEnd policy (fromGregorian 2026 6 1) start 5 `shouldBe` Nothing
 
         it "rejects malformed and wrong-kind opaque source tokens" do
             parseRosterDropSourceToken "" `shouldBe` Nothing

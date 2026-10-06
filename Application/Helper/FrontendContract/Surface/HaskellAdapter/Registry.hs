@@ -164,6 +164,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateLibrary
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDefaultDurationConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.TimePickerConfig
@@ -291,6 +292,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateDefaultStaffPayRate allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateDefaultRosterShiftDuration allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations

@@ -30,10 +30,11 @@ import qualified Data.Text as Text
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
-import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
+import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Prelude
+import Web.RosterWeeks.DefaultDuration (validDefaultRosterDuration)
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
 import Web.SurfaceInvalidation (withDurableLiveMutation)
 import Web.View.Admin.Exports
@@ -441,6 +442,20 @@ instance Controller AdminController where
                     if enabled
                         then "Minute-precision shift and timesheet entry enabled."
                         else "15-minute shift and timesheet entry enabled."
+        respondToVenueSettingsMutation
+
+    action currentAction@UpdateDefaultRosterShiftDurationAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        config <- fetchVenueConfig
+        case AdminAction.parseUpdateDefaultRosterShiftDurationActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                let minutes = surfaceFieldValue @Surface.DefaultRosterShiftDurationMinutes fields
+                if validDefaultRosterDuration minutes
+                    then do
+                        _ <- setDefaultRosterShiftDurationMutation config minutes
+                        setSuccessMessage "Default roster shift duration updated."
+                    else setErrorMessage "Enter 15 to 1440 minutes in 15-minute steps."
         respondToVenueSettingsMutation
 
     action currentAction@UpdateUnavailableStaffWarningThresholdAction = runBepis currentAction BepisMutationAction do

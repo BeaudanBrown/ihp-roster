@@ -50,6 +50,7 @@ renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
                 {renderRosterWindowStartDayForm venueConfig}
                 {renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates}
                 {renderRosterTimePickerWindowForm venueConfig}
+                {renderDefaultRosterShiftDurationForm venueConfig}
                 {renderMinutePrecisionShiftTimesForm venueConfig}
                 {renderUnavailableStaffWarningThresholdForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
@@ -171,6 +172,33 @@ renderRosterTimePickerWindowForm venueConfig =
             (venueTimePickerStartTimeText venueConfig)
             (venueTimePickerFinalSelectableTimeText venueConfig)
 
+renderDefaultRosterShiftDurationForm :: VenueConfig -> Html
+renderDefaultRosterShiftDurationForm config =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateDefaultRosterShiftDurationAction fields)
+        defaultRosterShiftDurationSettingRoute
+        [hsx|
+        <div class="admin-setting-row-copy">
+            <label class="fw-semibold" for="venue-default-roster-duration">Default roster shift duration (minutes)</label>
+            <p class="small app-muted mb-0">480 minutes is 8 hours. New roster shifts are shortened to fit the valid shift window. Existing shifts, copies and Timesheet defaults are unchanged.</p>
+        </div>
+        <div class="admin-setting-row-control">
+            <input id="venue-default-roster-duration" class="form-control form-control-sm"
+                   type="number" min="15" max="1440" step="15" required="required"
+                   name={surfaceFieldNameFrom @Surface.DefaultRosterShiftDurationMinutes fields}
+                   value={tshow config.defaultRosterShiftDurationMinutes} />
+        </div>
+        |]
+  where
+    fields = AdminAction.updateDefaultRosterShiftDurationActionFields config.defaultRosterShiftDurationMinutes
+
+defaultRosterShiftDurationSettingRoute :: FrontendSurfaceActionRoute
+defaultRosterShiftDurationSettingRoute = (defaultFrontendSurfaceActionRoute (pathTo UpdateDefaultRosterShiftDurationAction))
+    { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateDefaultRosterShiftDurationAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
+
 renderMinutePrecisionShiftTimesForm :: VenueConfig -> Html
 renderMinutePrecisionShiftTimesForm venueConfig =
     renderFrontendSurfaceActionForm
@@ -179,7 +207,7 @@ renderMinutePrecisionShiftTimesForm venueConfig =
         [hsx|
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Minute-precision shift times</div>
-            <p class="small app-muted mb-0">Use native minute entry for roster shifts and timesheets, including breaks. Timeline dragging remains on 15-minute intervals.</p>
+            <p class="small app-muted mb-0">Use native minute entry for roster shifts and timesheets, including breaks. Timeline dragging remains on five-minute intervals.</p>
         </div>
         <div class="admin-setting-row-control">
             {renderMinutePrecisionSettingToggle fields "venue-minute-precision-shift-times-enabled" venueConfig.minutePrecisionShiftTimesEnabled}

@@ -68,8 +68,7 @@ test('opens snapped empty-space creation and a keyboard alternative without writ
     const dialog = page.getByRole('dialog', { name: 'Add shift' });
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('input[name="startTime"]')).toHaveValue('07:05');
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(dialog).toContainText('Choose an end time.');
+    await expect(dialog.locator('input[name="endTime"]')).toHaveValue('15:05');
     expect(count()).toBe(before);
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toBeHidden();
@@ -85,6 +84,61 @@ test('opens snapped empty-space creation and a keyboard alternative without writ
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     expect(count()).toBe(before);
 });
+
+for (const orientation of ['horizontal', 'vertical']) {
+    test(`matches configured and clipped creation previews to the editor in ${orientation} orientation`, async ({ page }) => {
+        const venue = 'a1000000-0000-0000-0000-000000000001';
+        const original = JSON.parse(querySql(`SELECT json_build_object('duration', default_roster_shift_duration_minutes,
+            'start', time_picker_start_minute_of_day, 'end', time_picker_final_selectable_minute_of_day)
+            FROM venue_config WHERE venue_id = '${venue}'`)) as { duration: number; start: number; end: number };
+        try {
+            runSql(`UPDATE venue_config SET default_roster_shift_duration_minutes = 480,
+                time_picker_start_minute_of_day = 540, time_picker_final_selectable_minute_of_day = 1020
+                WHERE venue_id = '${venue}'`);
+            runSql(`INSERT INTO roster_lanes (id, roster_day_id, name, sort_order)
+                VALUES ('a6540000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000061', 'Duration defaults', 10)
+                ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`);
+            await openCanonicalTimeline(page, orientation);
+            const lane = page.getByRole('region', { name: 'Duration defaults', exact: true });
+            const target = lane.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="900"]');
+            await target.hover();
+            const preview = target.locator('.roster-day-timeline-create-preview');
+            await expect(preview).toBeVisible();
+            await expect(preview).toHaveText('15:00–17:00');
+            await expect(preview).toHaveCSS('pointer-events', 'none');
+            const scaleBox = await lane.locator('.roster-day-timeline-lane-body').boundingBox();
+            const previewBox = await preview.boundingBox();
+            expect(scaleBox).not.toBeNull();
+            expect(previewBox).not.toBeNull();
+            // Display includes the final 15-minute cell: 09:00 through 17:15.
+            const extent = orientation === 'horizontal' ? previewBox!.width : previewBox!.height;
+            const scaleExtent = orientation === 'horizontal' ? scaleBox!.width : scaleBox!.height;
+            expect(extent / scaleExtent).toBeCloseTo(120 / 495, 2);
+            await target.click();
+            const dialog = page.getByRole('dialog', { name: 'Add shift' });
+            await expect(dialog.locator('input[name="startTime"]')).toHaveValue('15:00');
+            await expect(dialog.locator('input[name="endTime"]')).toHaveValue('17:00');
+            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+            runSql(`UPDATE venue_config SET default_roster_shift_duration_minutes = 90 WHERE venue_id = '${venue}'`);
+            await page.reload();
+            await target.hover();
+            await expect(preview).toHaveText('15:00–16:30');
+            await target.click();
+            await expect(dialog.locator('input[name="endTime"]')).toHaveValue('16:30');
+            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+            await page.getByRole('button', { name: 'Add shift in Early', exact: true }).click();
+            await expect(dialog.locator('input[name="startTime"]')).toHaveValue('09:00');
+            await expect(dialog.locator('input[name="endTime"]')).toHaveValue('10:30');
+            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        } finally {
+            runSql(`UPDATE roster_lanes SET deleted_at = NOW() WHERE id = 'a6540000-0000-0000-0000-000000000081';
+                UPDATE venue_config SET default_roster_shift_duration_minutes = ${original.duration},
+                time_picker_start_minute_of_day = ${original.start}, time_picker_final_selectable_minute_of_day = ${original.end}
+                WHERE venue_id = '${venue}'`);
+        }
+    });
+}
 
 test('saves a five-minute shift into a projected timeline lane and refreshes the actor', async ({ page }, testInfo) => {
     const weekOffset = 160 + testInfo.config.projects.findIndex((project) => project.name === testInfo.project.name);

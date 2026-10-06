@@ -169,9 +169,23 @@
     --bepis-dropzone-highlight-background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
 }
 
-.roster-day-timeline-dropzone:hover:not(.bepis-dropzone-highlight) {
+.roster-day-timeline-create-preview {
+    display: none;
+    position: absolute;
+    left: calc(var(--roster-create-offset) * var(--roster-timeline-x));
+    top: calc(var(--roster-create-offset) * var(--roster-timeline-y));
+    width: calc(var(--roster-create-extent) * var(--roster-timeline-x) + 100% * var(--roster-timeline-y));
+    height: calc(var(--roster-timeline-track-height) * var(--roster-timeline-x) + var(--roster-create-extent) * var(--roster-timeline-y));
+    pointer-events: none;
+    padding: 0.4rem;
+    border-radius: 0.55rem;
     background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
     outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
+    white-space: nowrap;
+}
+
+.roster-day-timeline-dropzone:hover:not(.bepis-dropzone-highlight) .roster-day-timeline-create-preview {
+    display: block;
 }
 
 .roster-day-timeline-shift-position {

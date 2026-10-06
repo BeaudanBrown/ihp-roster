@@ -188,6 +188,15 @@ windows cannot be copied into or used as timeline copy sources.
 Empty-space selection and staff drops open the existing editor without
 materializing projected dates or lanes until a valid save. Timeline creation
 accepts five-minute times even when the ordinary editor uses quarter-hours.
+Every newly created roster shift uses the venue's default duration (initially
+480 minutes; configurable by Venue Admins/Owners from 15 to 1440 minutes in
+15-minute steps). `DefaultDuration.hs` owns the shared preview/editor calculation:
+elapsed duration is shortened to the final real selectable endpoint inside the
+configured civil shift window. DST gaps are never invented; repeated boundaries
+retain their actual occurrence. Ordinary creation uses the first occurrence of
+an ambiguous configured start, and leaves nonexistent starts for explicit user
+selection. Copies, templates, existing shifts and Timesheet defaults are unchanged.
+The duration resource invalidates timeline previews only within the owning venue.
 Staff drops on existing shifts preserve lane/time and save immediately; published
 rosters permit only the existing authorized Open-to-Staff fill. Timeline and
 staff interactions share the roster scope, while day-content refreshes preserve

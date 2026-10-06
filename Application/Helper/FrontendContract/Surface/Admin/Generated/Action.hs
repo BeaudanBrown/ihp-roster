@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , SyncXeroPayrollReferenceDataActionOperation
     , ToggleInactiveRosterGroupsActionOperation
     , ToggleInactiveShiftTypesActionOperation
+    , UpdateDefaultRosterShiftDurationActionOperation
     , UpdateDefaultStaffPayRateActionOperation
     , UpdateMinutePrecisionShiftTimesEnabledActionOperation
     , UpdateRosterEndTimesEnabledActionOperation
@@ -63,6 +64,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
+    , parseUpdateDefaultRosterShiftDurationActionParams
     , parseUpdateDefaultStaffPayRateActionParams
     , parseUpdateMinutePrecisionShiftTimesEnabledActionParams
     , parseUpdateRosterEndTimesEnabledActionParams
@@ -85,6 +87,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
     , toggleInactiveShiftTypesActionParamsPresent
+    , updateDefaultRosterShiftDurationAction
+    , updateDefaultRosterShiftDurationActionFields
     , updateDefaultStaffPayRateAction
     , updateDefaultStaffPayRateActionFields
     , updateMinutePrecisionShiftTimesEnabledAction
@@ -667,6 +671,37 @@ parseToggleInactiveShiftTypesActionParams ::
 parseToggleInactiveShiftTypesActionParams =
     parseActionParams
         @ToggleInactiveShiftTypesActionOperation
+
+data UpdateDefaultRosterShiftDurationActionOperation
+
+type instance ActionSurface UpdateDefaultRosterShiftDurationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminVenueSettingsAdapterFamily)
+type instance ActionMarker UpdateDefaultRosterShiftDurationActionOperation = Types2.UpdateDefaultRosterShiftDuration
+type instance ActionFieldSpecs UpdateDefaultRosterShiftDurationActionOperation =
+    '[ 'Field Types2.DefaultRosterShiftDurationMinutes 'WireInt
+     ]
+
+updateDefaultRosterShiftDurationActionFields ::
+    Int ->
+    ActionFields UpdateDefaultRosterShiftDurationActionOperation
+updateDefaultRosterShiftDurationActionFields defaultRosterShiftDurationMinutes =
+    actionFields
+        (surfaceField @Types2.DefaultRosterShiftDurationMinutes defaultRosterShiftDurationMinutes)
+        noSurfaceFields
+
+updateDefaultRosterShiftDurationActionEvidence :: ActionEvidence UpdateDefaultRosterShiftDurationActionOperation
+updateDefaultRosterShiftDurationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateDefaultRosterShiftDuration" "update-default-roster-shift-duration" [SurfaceIR.FieldIR "DefaultRosterShiftDurationMinutes" "defaultRosterShiftDurationMinutes" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-venue-settings-fragment" ["admin-venue-settings-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "venue setting inputs submit on change")])
+
+updateDefaultRosterShiftDurationAction :: ActionFields UpdateDefaultRosterShiftDurationActionOperation -> FrontendSurfaceAction
+updateDefaultRosterShiftDurationAction =
+    frontendSurfaceActionFromEvidence updateDefaultRosterShiftDurationActionEvidence
+
+parseUpdateDefaultRosterShiftDurationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields UpdateDefaultRosterShiftDurationActionOperation)
+parseUpdateDefaultRosterShiftDurationActionParams =
+    parseActionParams
+        @UpdateDefaultRosterShiftDurationActionOperation
 
 data UpdateDefaultStaffPayRateActionOperation
 
