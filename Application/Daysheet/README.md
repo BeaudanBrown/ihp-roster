@@ -60,6 +60,12 @@ come from the saved expression location: aggregate `Item` never replaces the
 enclosing `Current` row. Reference traversal is bounded and uses canonical type
 inference; menu choices carry internal edits, not browser expression documents.
 Their snapshot validity never replaces under-lock revision/authority checks.
+`Web.Daysheets.CalculationEditing` owns bounded navigation tokens and typed
+constant requests; `Web.View.Daysheets.CalculationDesigner` renders native
+part-selection controls and a separate dirty-safe constant form. Selecting a
+part stages it immediately; visible example constants remain editable before
+explicit publication. Calculation pages refresh semantically at the same saved
+location. No expression document or evaluator is sent to the browser.
 
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;

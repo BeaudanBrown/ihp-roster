@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { daysheetTest as test, openDaysheet } from './support/daysheet';
+import { daysheetTest as test, openDaysheet, openDaysheetDate } from './support/daysheet';
 import { expectNoHorizontalViewportOverflow } from './support/responsive';
 
 test.describe('Daysheet designer controls', () => {
@@ -156,6 +156,120 @@ test.describe('Daysheet designer controls', () => {
         await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
         await page.goto(capturedUrl);
         await expect(page.getByRole('heading', { name: 'Extra notes', exact: true })).toHaveCount(0);
+    });
+
+    test('guides exact fee calculations and uses them only in newly captured Daysheets', async ({ page, daysheet }) => {
+        await openDaysheet(page, daysheet);
+        const capturedUrl = page.url();
+        await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+        for (const [name, kind] of [['Gross', 'money'], ['Processing rate', 'percentage'], ['Net', 'money']] as const) {
+            await page.getByRole('link', { name: 'Add root field', exact: true }).click();
+            await page.getByLabel('Field name', { exact: true }).fill(name);
+            await page.getByLabel('Field type', { exact: true }).selectOption(kind);
+            await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        }
+        await page.getByRole('link', { name: 'Calculation: Net', exact: true }).click();
+        const formula = page.getByRole('region', { name: 'Calculation: Net', exact: true });
+        await expect(formula.getByRole('button', { name: 'Use Whole Daysheet — Net', exact: true })).toHaveCount(0);
+        await expect(formula.getByRole('button', { name: 'Use Whole Daysheet — Processing rate', exact: true })).toHaveCount(0);
+        await formula.getByRole('link', { name: 'Enter constant value', exact: true }).click();
+        await page.getByLabel('New constant value', { exact: true }).fill('0.005');
+        await page.getByRole('button', { name: 'Save constant', exact: true }).click();
+        await expect(page.getByText('Enter an AUD amount with whole-cent precision.', { exact: true })).toBeVisible();
+        await expect(page.getByLabel('New constant value', { exact: true })).toHaveValue('0.005');
+        await page.getByLabel('New constant value', { exact: true }).fill('0.00');
+        await page.getByRole('button', { name: 'Save constant', exact: true }).click();
+        await formula.getByRole('link', { name: 'Operations and conditions', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Divide — Money (AUD) / Decimal number', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Divide');
+        await formula.getByRole('link', { name: /^Edit left input:/ }).click();
+        await formula.getByRole('button', { name: 'Use Whole Daysheet — Gross', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Whole Daysheet — Gross');
+        await formula.getByRole('link', { name: 'Whole calculation', exact: true }).click();
+        await formula.getByRole('link', { name: /^Edit right input:/ }).click();
+        await formula.getByRole('link', { name: 'Operations and conditions', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Add — Decimal number / Decimal number', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Add');
+        await formula.getByRole('link', { name: /^Edit right input:/ }).click();
+        await formula.getByRole('link', { name: 'Operations and conditions', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Percentage as decimal ratio — Percentage', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Percentage as decimal ratio');
+        await formula.getByRole('link', { name: /^Edit input:/ }).click();
+        await formula.getByRole('button', { name: 'Use Whole Daysheet — Processing rate', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Whole Daysheet — Processing rate');
+        await formula.getByRole('link', { name: 'Whole calculation', exact: true }).click();
+        await formula.getByRole('link', { name: 'Operations and conditions', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Round AUD to cents — Money (AUD)', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Round AUD to cents');
+        await expectNoHorizontalViewportOverflow(page);
+        await formula.getByRole('link', { name: 'Return to designer', exact: true }).click();
+        await page.getByRole('link', { name: 'Add entry section', exact: true }).click();
+        await page.getByLabel('Section name', { exact: true }).fill('Card check');
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        const section = page.getByRole('region', { name: 'Section: Card check', exact: true });
+        for (const name of ['Gross', 'Processing rate', 'Net']) {
+            await section.getByText('Add content to Card check', { exact: true }).click();
+            await section.getByRole('link', { name: 'Add field or summary', exact: true }).click();
+            await page.getByLabel('Field or summary', { exact: true }).selectOption({ label: name });
+            await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        }
+        await page.getByRole('button', { name: 'Publish draft', exact: true }).click();
+        await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
+        await page.goto(capturedUrl);
+        await openDaysheetDate(page, '2026-10-02');
+        const net = page.getByText('Net', { exact: true }).locator('..');
+        await expect(net).toContainText('Unavailable:');
+        await page.getByLabel('Gross', { exact: true }).fill('101.60');
+        await page.getByLabel('Gross', { exact: true }).blur();
+        await page.getByLabel('Processing rate', { exact: true }).fill('1.6');
+        await page.getByLabel('Processing rate', { exact: true }).blur();
+        await expect(net.getByRole('status')).toHaveText('100 AUD');
+        await page.goto(capturedUrl);
+        await expect(page.getByRole('heading', { name: 'Card check', exact: true })).toHaveCount(0);
+    });
+
+    test('guides filtered list scopes and linked references without changing an old draft', async ({ page, daysheet }) => {
+        await openDaysheet(page, daysheet);
+        const capturedUrl = page.url();
+        await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+        await page.getByRole('link', { name: 'Calculation: Reading', exact: true }).click();
+        const formula = page.getByRole('region', { name: 'Calculation: Reading', exact: true });
+        await expect(formula.getByRole('button', { name: 'Use This row — Readings — Reading', exact: true })).toHaveCount(0);
+        await formula.getByRole('link', { name: 'List totals and counts', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Sum — Bands — Whole number', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Sum rows — Bands');
+        await formula.getByRole('link', { name: /^Edit row value:/ }).click();
+        await formula.getByRole('link', { name: 'Enter constant value', exact: true }).click();
+        await page.getByLabel('New constant value', { exact: true }).fill('1');
+        await page.getByRole('button', { name: 'Save constant', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('1');
+        await formula.getByRole('link', { name: 'Whole calculation', exact: true }).click();
+        await formula.getByRole('link', { name: 'List totals and counts', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Add row filter — starts with Yes', exact: true }).click();
+        await formula.getByRole('link', { name: /^Edit row filter:/ }).click();
+        await formula.getByRole('link', { name: 'Operations and conditions', exact: true }).click();
+        await formula.getByRole('button', { name: 'Use Equal — Text / Text', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Equal');
+        await formula.getByRole('link', { name: /^Edit left input:/ }).click();
+        await formula.getByRole('button', { name: 'Use Included row — Bands — Band', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('Included row — Band');
+        await formula.getByRole('link', { name: 'Whole calculation', exact: true }).click();
+        await formula.getByRole('link', { name: /^Edit row filter:/ }).click();
+        await formula.getByRole('link', { name: /^Edit right input:/ }).click();
+        await formula.getByRole('button', { name: 'Use This row — Readings — Band label', exact: true }).click();
+        await expect(formula.getByRole('status')).toHaveText('This row — Band label');
+        await expectNoHorizontalViewportOverflow(page);
+        await formula.getByRole('link', { name: 'Return to designer', exact: true }).click();
+        await page.getByRole('link', { name: 'Calculation: Comments', exact: true }).click();
+        const linked = page.getByRole('region', { name: 'Calculation: Comments', exact: true });
+        await linked.getByRole('link', { name: 'Follow Whole Daysheet — Selected band', exact: true }).click();
+        await linked.getByRole('button', { name: 'Use Bands — Band', exact: true }).click();
+        await expect(linked.getByRole('status')).toHaveText('Whole Daysheet — Selected band → Band');
+        await linked.getByRole('link', { name: 'Return to designer', exact: true }).click();
+        await page.getByRole('button', { name: 'Publish draft', exact: true }).click();
+        await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
+        await page.goto(capturedUrl);
+        await expect(page.getByLabel('Comments', { exact: true })).toBeEditable();
     });
 
     test('retains a dirty editor across another tab saving and supports explicit discard', async ({ page, context, daysheet }) => {

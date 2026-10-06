@@ -108,6 +108,8 @@ type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerIndex
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerFieldEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerChoiceEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerCalculation
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerConstantEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReportEditor
@@ -295,6 +297,9 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerSection allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.RemoveDesignerBlock allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.MoveDesignerItem allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.UseDesignerCalculationPart allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerConstant allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.MakeDesignerFieldEntered allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.PublishDesignerDraft allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.AddDesignerReference allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerReferenceValue allRequestAdapterOperations

@@ -22,11 +22,15 @@ export const daysheetTest = base.extend<{ daysheet: DaysheetFixture }>({
 export async function openDaysheet(page: Page, fixture: DaysheetFixture, create = true) {
     await loginAsPrivilegedUserWithSeededPasskeySession(page, fixture.email);
     await page.getByRole('link', { name: 'Daysheets', exact: true }).click();
+    await openDaysheetDate(page, fixture.operationalDate, create);
+}
+
+export async function openDaysheetDate(page: Page, operationalDate: string, create = true) {
     await expect(page.getByLabel('Operational date', { exact: true })).toBeVisible();
-    await setFlatpickrDate(page, '#daysheet-operational-date', fixture.operationalDate);
+    await setFlatpickrDate(page, '#daysheet-operational-date', operationalDate);
     await page.getByRole('button', { name: 'Open date', exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`operationalDate=${fixture.operationalDate}`));
+    await expect(page).toHaveURL(new RegExp(`operationalDate=${operationalDate}`));
     if (create) await page.getByRole('button', { name: 'Create Daysheet', exact: true }).click();
     await expect(page.locator(`[${surfaceDomAttr}="daysheet"]`)).toBeVisible();
-    await expect(page.getByRole('heading', { name: `Daysheet — ${fixture.operationalDate}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: `Daysheet — ${operationalDate}`, exact: true })).toBeVisible();
 }

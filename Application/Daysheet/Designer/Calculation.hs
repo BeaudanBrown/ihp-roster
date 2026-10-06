@@ -57,17 +57,11 @@ calculationMenu group key location browse definition = do
             ValueParts -> literalOptions definition (case calculationExpression focus of Nothing -> Just (fieldType (calculationField focus)); Just expression -> either (const Nothing) Just (infer expression))
             OperationParts -> operationOptions definition seeds
             ListParts -> listOptions definition (calculationExpression focus)
-        accepted = [CalculationOption label edit | (label, expression) <- candidates, Right edit <- [validatedEdit expression]]
+        accepted = [CalculationOption label edit | (label, expression) <- candidates, Right edit <- [calculationPartEdit key location expression definition]]
         links = if group /= FieldParts then [] else
             [CalculationLink ("Follow " <> label) path | (label, path@(FieldPath _ fields)) <- paths
                 , length fields < maxReferenceDepth limits, Right (ReferenceType _) <- [infer (ReadField path)]]
     pure (CalculationMenu accepted links)
-  where
-    validatedEdit expression = do
-        next <- replaceCalculationPart key location expression definition
-        focus <- calculationFocus key [] next
-        let field = calculationField focus
-        pure (ChangeField key (fieldLabel field) (fieldType field) (fieldSource field))
 
 directPaths :: Definition -> CalculationFocus -> [(Text, FieldPath)]
 directPaths definition focus =

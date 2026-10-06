@@ -9,6 +9,8 @@ import qualified Application.Daysheet.Evaluation as E
 import Web.Daysheets.ReadModel (numberText, percentageText)
 import Web.Daysheets.LayoutEditing (blockSource)
 import qualified Web.View.Daysheets.LayoutDesigner as Layout
+import qualified Web.View.Daysheets.CalculationDesigner as CalculationView
+import qualified Web.Daysheets.CalculationEditing as CalculationEditing
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Surface
 import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.Action as Action
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
@@ -21,6 +23,8 @@ import Web.View.Prelude hiding (referenceRecordId)
 data DesignerPage
     = DesignerIndexPage
     | DesignerFieldPage (ActionFields Action.SaveDesignerFieldActionOperation)
+    | DesignerCalculationPage CalculationEditing.CalculationEditor
+    | DesignerConstantPage (ActionFields Action.SaveDesignerConstantActionOperation)
     | DesignerChoicePage (ActionFields Action.SaveDesignerChoiceActionOperation)
     | DesignerListPage (ActionFields Action.SaveDesignerListActionOperation)
     | DesignerReferencePage (ActionFields Action.SaveDesignerReferenceValueActionOperation)
@@ -46,6 +50,14 @@ designerSurface venue page = mkSurfaceImplFromValues @Surface.DaysheetDesignerSu
             params = surfaceOptionalField @Surface.DefinitionFieldId key &: surfaceOptionalField @Surface.ContainerId parent &: noSurfaceFields
             in frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor params params
                 (pathTo (ShowDesignerFieldBodyAction (tshow <$> key) (tshow <$> parent))) FrontendSurfaceDirtyForm
+        DesignerCalculationPage editor -> let D.FieldId key = editor.editorField in
+            frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerCalculation
+                (calculationParams editor) (calculationParams editor) (pathTo (ShowDesignerCalculationBodyAction key
+                    (CalculationEditing.renderCalculationLocation editor.editorLocation) (inputValue editor.editorGroup)
+                    (CalculationEditing.renderReferencePath <$> editor.editorReferencePath))) FrontendSurfaceReplace
+        DesignerConstantPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerConstantEditor
+            (constantParams fields) (constantParams fields) (pathTo (ShowDesignerConstantBodyAction (surfaceFieldValue @Surface.DefinitionFieldId fields)
+                (CalculationEditing.renderCalculationLocation (fromMaybe [] (surfaceFieldValue @Surface.ExpressionSlots fields))))) FrontendSurfaceDirtyForm
         DesignerChoicePage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerChoiceEditor
             (choiceParams fields) (choiceParams fields) (pathTo (ShowDesignerChoiceBodyAction (surfaceFieldValue @Surface.DefinitionFieldId fields)
                 (tshow <$> surfaceFieldValue @Surface.DefinitionChoiceId fields))) FrontendSurfaceDirtyForm
@@ -73,6 +85,8 @@ renderDesigner venue state page problem = case page of
     DesignerFieldPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerFieldEditor
         (surfaceOptionalField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
             &: surfaceOptionalField @Surface.ContainerId (surfaceFieldValue @Surface.ContainerId fields) &: noSurfaceFields) impl content
+    DesignerCalculationPage editor -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerCalculation (calculationParams editor) impl content
+    DesignerConstantPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerConstantEditor (constantParams fields) impl content
     DesignerChoicePage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerChoiceEditor (choiceParams fields) impl content
     DesignerReportPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor (reportParams fields) impl content
     DesignerSectionPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor (sectionParams fields) impl content
@@ -127,6 +141,8 @@ renderDesigner venue state page problem = case page of
             </section>
         |]
         DesignerFieldPage fields -> fieldForm fields
+        DesignerCalculationPage editor -> CalculationView.calculationBody state editor
+        DesignerConstantPage fields -> CalculationView.constantForm state fields problem
         DesignerChoicePage fields -> choiceForm fields
         DesignerListPage fields -> listForm fields
         DesignerReferencePage fields -> referenceForm fields
@@ -200,7 +216,7 @@ renderDesigner venue state page problem = case page of
         fields = Action.removeDesignerFieldActionFields base revision key
         remove = renderFrontendSurfaceActionFormWithHiddenFields (Action.removeDesignerFieldAction fields)
             (defaultFrontendSurfaceActionRoute (pathTo RemoveDesignerFieldAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove field</button>|]
-        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span>{moveControls MoveFieldItem Nothing Nothing Nothing source index count}{remove}</div>{choiceControls field}|]
+        in [hsx|<div class="d-flex gap-2 align-items-center flex-wrap mb-2"><a href={ShowDesignerFieldAction (Just (tshow key)) Nothing}>{D.fieldLabel field}</a><span class="text-muted">{fieldKindLabel (fieldKind (D.fieldType field))}</span><a href={ShowDesignerCalculationAction key Nothing (inputValue FieldParts) Nothing}>{"Calculation: " <> D.fieldLabel field}</a>{moveControls MoveFieldItem Nothing Nothing Nothing source index count}{remove}</div>{choiceControls field}|]
     choiceControls field = case D.fieldType field of
         D.ChoiceType choices -> let D.FieldId key = D.fieldId field in [hsx|
             <div role="group" aria-label={"Choice options: " <> D.fieldLabel field} class="mb-3"><details><summary>Choice options</summary>
@@ -339,6 +355,15 @@ renderDesigner venue state page problem = case page of
             {buttons}
         |]
     buttons = [hsx|<div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save draft</button><a class="btn btn-outline-secondary" href={DaysheetDesignerAction}>Discard edit and return</a></div>|]
+
+calculationParams :: CalculationEditing.CalculationEditor -> SurfaceFields Surface.CalculationParams
+calculationParams editor = let D.FieldId key = editor.editorField in
+    surfaceField @Surface.DefinitionFieldId key &: surfaceField @Surface.ExpressionSlots editor.editorLocation
+        &: surfaceField @Surface.CalculationGroup editor.editorGroup
+        &: surfaceOptionalField @Surface.ReferencePath (CalculationEditing.renderReferencePath <$> editor.editorReferencePath) &: noSurfaceFields
+constantParams :: ActionFields Action.SaveDesignerConstantActionOperation -> SurfaceFields Surface.ConstantEditorParams
+constantParams fields = surfaceField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
+    &: surfaceField @Surface.ExpressionSlots (fromMaybe [] (surfaceFieldValue @Surface.ExpressionSlots fields)) &: noSurfaceFields
 
 choiceParams :: ActionFields Action.SaveDesignerChoiceActionOperation -> SurfaceFields Surface.ChoiceEditorParams
 choiceParams fields = surfaceField @Surface.DefinitionFieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)

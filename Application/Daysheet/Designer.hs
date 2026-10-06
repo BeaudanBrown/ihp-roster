@@ -4,7 +4,7 @@
 module Application.Daysheet.Designer
     ( Edit (..), LayoutTarget (..), EditError (..), ExpressionSlot (..)
     , CalculationFocus (..), calculationFocus, calculationChildren
-    , applyEdit, replaceCalculationPart, permittedCalculationParts
+    , applyEdit, replaceCalculationPart, calculationPartEdit, permittedCalculationParts
     ) where
 
 import Prelude
@@ -177,6 +177,15 @@ replaceCalculationPart key location replacement definition = do
         (FoldFilter, Fold operation source (Just predicate) value) -> (\next -> Fold operation source (Just next) value) <$> replaceAtLocation rest predicate
         (FoldValue, Fold operation source predicate value) -> Fold operation source predicate <$> replaceAtLocation rest value
         _ -> Left InvalidExpressionLocation
+
+-- Prepare the internal field edit for revision-checked persistence without
+-- making controllers reconstruct the enclosing calculation or field metadata.
+calculationPartEdit :: FieldId -> [ExpressionSlot] -> Expression -> Definition -> Either EditError Edit
+calculationPartEdit key location expression definition = do
+    next <- replaceCalculationPart key location expression definition
+    focus <- calculationFocus key [] next
+    let field = calculationField focus
+    pure (ChangeField key (fieldLabel field) (fieldType field) (fieldSource field))
 
 -- Candidates come from bounded, server-authored controls. Accepted candidates
 -- preserve their order; submission always repeats the authoritative check.

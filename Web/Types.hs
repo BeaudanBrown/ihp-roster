@@ -259,6 +259,13 @@ data DaysheetDesignerController
     | SaveDesignerChoiceAction
     | RemoveDesignerChoiceAction
     | MoveDesignerChoiceAction
+    | ShowDesignerCalculationAction { calculationFieldId :: UUID, calculationLocation :: Maybe Text, calculationGroup :: Text, calculationReferencePath :: Maybe Text }
+    | ShowDesignerCalculationBodyAction { calculationFieldId :: UUID, calculationLocation :: Maybe Text, calculationGroup :: Text, calculationReferencePath :: Maybe Text }
+    | ShowDesignerConstantAction { calculationFieldId :: UUID, calculationLocation :: Maybe Text }
+    | ShowDesignerConstantBodyAction { calculationFieldId :: UUID, calculationLocation :: Maybe Text }
+    | UseDesignerCalculationPartAction
+    | SaveDesignerConstantAction
+    | MakeDesignerFieldEnteredAction
     | MoveDesignerItemAction
     | SaveDesignerReportAction
     | SaveDesignerSectionAction

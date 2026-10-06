@@ -3,6 +3,7 @@
 module Application.Helper.FrontendContract.Surface.DaysheetDesigner where
 
 import qualified Application.Daysheet.Designer.Controls as Controls
+import qualified Application.Daysheet.Designer as Designer
 import Application.Helper.FrontendContract.Surface.DSL
 
 data DaysheetDesigner
@@ -71,6 +72,17 @@ data MoveDesignerItem
 data MoveKind
 data FromPosition
 data ToPosition
+data DesignerCalculation
+data DesignerCalculationTarget
+data DesignerConstantEditor
+data DesignerConstantEditorTarget
+data ExpressionSlots
+data CalculationGroup
+data ReferencePath
+data CandidateIndex
+data UseDesignerCalculationPart
+data SaveDesignerConstant
+data MakeDesignerFieldEntered
 data DesignerFinalAction
 data DesignerPendingNotice
 data DesignerPendingGate
@@ -84,6 +96,8 @@ type ReferenceEditorParams = '[Field DefinitionListId 'WireUUID, Field Reference
 type ReportEditorParams = '[OptionalField DefinitionReportId 'WireUUID]
 type SectionEditorParams = '[OptionalField DefinitionReportId 'WireUUID, OptionalField DefinitionSectionId 'WireUUID]
 type BlockEditorParams = '[OptionalField DefinitionReportId 'WireUUID, Field DefinitionSectionId 'WireUUID, OptionalField BlockIndex 'WireInt, Field ContentKind ('WireClosed Controls.BlockKind), OptionalField DefinitionListId 'WireUUID]
+type CalculationParams = '[Field DefinitionFieldId 'WireUUID, Field ExpressionSlots ('WireList ('WireClosed Designer.ExpressionSlot)), Field CalculationGroup ('WireClosed Controls.CalculationGroup), OptionalField ReferencePath 'WireText]
+type ConstantEditorParams = '[Field DefinitionFieldId 'WireUUID, Field ExpressionSlots ('WireList ('WireClosed Designer.ExpressionSlot))]
 type SaveOptions = '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
 
 type DaysheetDesignerSurface = Surface DaysheetDesigner
@@ -109,6 +123,10 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
          '[ 'MountTarget DesignerSectionEditorTarget SectionEditorParams, 'Eager, 'Live, 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerBlockEditor BlockEditorParams
          '[ 'MountTarget DesignerBlockEditorTarget BlockEditorParams, 'Eager, 'Live, 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
+     , Fragment DesignerCalculation CalculationParams
+         '[ 'MountTarget DesignerCalculationTarget CalculationParams, 'Eager, 'Live, 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
+     , Fragment DesignerConstantEditor ConstantEditorParams
+         '[ 'MountTarget DesignerConstantEditorTarget ConstantEditorParams, 'Eager, 'Live, 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , BrowserRole DesignerFinalAction
      , BrowserRole DesignerPendingNotice
      , SettledFormGate DesignerPendingGate DesignerFinalAction DesignerPendingNotice
@@ -155,5 +173,14 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field MoveKind ('WireClosed Controls.DesignerMoveKind)
           , OptionalField DefinitionReportId 'WireUUID, OptionalField DefinitionSectionId 'WireUUID, OptionalField BlockIndex 'WireInt, OptionalField DefinitionListId 'WireUUID
           , Field FromPosition 'WireInt, Field ToPosition 'WireInt] SaveOptions
+     , Action UseDesignerCalculationPart
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID
+          , OptionalField ExpressionSlots ('WireList ('WireClosed Designer.ExpressionSlot)), Field CalculationGroup ('WireClosed Controls.CalculationGroup)
+          , OptionalField ReferencePath 'WireText, Field CandidateIndex 'WireInt] SaveOptions
+     , Action SaveDesignerConstant
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID
+          , OptionalField ExpressionSlots ('WireList ('WireClosed Designer.ExpressionSlot)), Field EnteredValue 'WireText] SaveOptions
+     , Action MakeDesignerFieldEntered
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID] SaveOptions
      , Action PublishDesignerDraft Revisions SaveOptions
      ]

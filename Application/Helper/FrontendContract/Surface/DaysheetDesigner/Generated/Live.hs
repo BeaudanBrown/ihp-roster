@@ -4,7 +4,9 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Live
     ( designerBlockEditorLiveFragment
+    , designerCalculationLiveFragment
     , designerChoiceEditorLiveFragment
+    , designerConstantEditorLiveFragment
     , designerFieldEditorLiveFragment
     , designerIndexLiveFragment
     , designerListEditorLiveFragment
@@ -13,7 +15,9 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , designerReportEditorLiveFragment
     , designerSectionEditorLiveFragment
     , matchDesignerBlockEditorLiveFragment
+    , matchDesignerCalculationLiveFragment
     , matchDesignerChoiceEditorLiveFragment
+    , matchDesignerConstantEditorLiveFragment
     , matchDesignerFieldEditorLiveFragment
     , matchDesignerIndexLiveFragment
     , matchDesignerListEditorLiveFragment
@@ -23,9 +27,10 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , matchDesignerSectionEditorLiveFragment
     ) where
 
-import qualified Application.Daysheet.Designer.Controls as Types1
-import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Types2
-import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.HaskellAdapter as Types3
+import qualified Application.Daysheet.Designer as Types1
+import qualified Application.Daysheet.Designer.Controls as Types2
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Types3
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.HaskellAdapter as Types4
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          SurfaceScope,
@@ -44,26 +49,49 @@ designerBlockEditorLiveFragment ::
     Maybe UUID.UUID ->
     UUID.UUID ->
     Maybe Int ->
-    Types1.BlockKind ->
+    Types2.BlockKind ->
     Maybe UUID.UUID ->
     SurfaceFragmentKey
 designerBlockEditorLiveFragment definitionReportId definitionSectionId blockIndex contentKind definitionListId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerBlockEditor
-        ( surfaceOptionalField @Types2.DefinitionReportId definitionReportId
-            &: surfaceField @Types2.DefinitionSectionId definitionSectionId
-            &: surfaceOptionalField @Types2.BlockIndex blockIndex
-            &: surfaceField @Types2.ContentKind contentKind
-            &: surfaceOptionalField @Types2.DefinitionListId definitionListId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerBlockEditor
+        ( surfaceOptionalField @Types3.DefinitionReportId definitionReportId
+            &: surfaceField @Types3.DefinitionSectionId definitionSectionId
+            &: surfaceOptionalField @Types3.BlockIndex blockIndex
+            &: surfaceField @Types3.ContentKind contentKind
+            &: surfaceOptionalField @Types3.DefinitionListId definitionListId
             &: noSurfaceFields
         )
 
-matchDesignerBlockEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, (UUID.UUID, (Maybe Int, (Types1.BlockKind, (Maybe UUID.UUID, ())))))
+matchDesignerBlockEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, (UUID.UUID, (Maybe Int, (Types2.BlockKind, (Maybe UUID.UUID, ())))))
 matchDesignerBlockEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerBlockEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerBlockEditor
+
+designerCalculationLiveFragment ::
+    UUID.UUID ->
+    [Types1.ExpressionSlot] ->
+    Types2.CalculationGroup ->
+    Maybe Text ->
+    SurfaceFragmentKey
+designerCalculationLiveFragment definitionFieldId expressionSlots calculationGroup referencePath =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerCalculation
+        ( surfaceField @Types3.DefinitionFieldId definitionFieldId
+            &: surfaceField @Types3.ExpressionSlots expressionSlots
+            &: surfaceField @Types3.CalculationGroup calculationGroup
+            &: surfaceOptionalField @Types3.ReferencePath referencePath
+            &: noSurfaceFields
+        )
+
+matchDesignerCalculationLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ([Types1.ExpressionSlot], (Types2.CalculationGroup, (Maybe Text, ()))))
+matchDesignerCalculationLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerCalculation
 
 designerChoiceEditorLiveFragment ::
     UUID.UUID ->
@@ -71,18 +99,37 @@ designerChoiceEditorLiveFragment ::
     SurfaceFragmentKey
 designerChoiceEditorLiveFragment definitionFieldId definitionChoiceId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerChoiceEditor
-        ( surfaceField @Types2.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types2.DefinitionChoiceId definitionChoiceId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerChoiceEditor
+        ( surfaceField @Types3.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types3.DefinitionChoiceId definitionChoiceId
             &: noSurfaceFields
         )
 
 matchDesignerChoiceEditorLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (Maybe UUID.UUID, ()))
 matchDesignerChoiceEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerChoiceEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerChoiceEditor
+
+designerConstantEditorLiveFragment ::
+    UUID.UUID ->
+    [Types1.ExpressionSlot] ->
+    SurfaceFragmentKey
+designerConstantEditorLiveFragment definitionFieldId expressionSlots =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerConstantEditor
+        ( surfaceField @Types3.DefinitionFieldId definitionFieldId
+            &: surfaceField @Types3.ExpressionSlots expressionSlots
+            &: noSurfaceFields
+        )
+
+matchDesignerConstantEditorLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ([Types1.ExpressionSlot], ()))
+matchDesignerConstantEditorLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerConstantEditor
 
 designerFieldEditorLiveFragment ::
     Maybe UUID.UUID ->
@@ -90,65 +137,65 @@ designerFieldEditorLiveFragment ::
     SurfaceFragmentKey
 designerFieldEditorLiveFragment definitionFieldId containerId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerFieldEditor
-        ( surfaceOptionalField @Types2.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types2.ContainerId containerId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerFieldEditor
+        ( surfaceOptionalField @Types3.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types3.ContainerId containerId
             &: noSurfaceFields
         )
 
 matchDesignerFieldEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, (Maybe UUID.UUID, ()))
 matchDesignerFieldEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerFieldEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerFieldEditor
 
 designerIndexLiveFragment :: SurfaceFragmentKey
 designerIndexLiveFragment =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerIndex
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerIndex
         noSurfaceFields
 
 matchDesignerIndexLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchDesignerIndexLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerIndex
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerIndex
 
 designerListEditorLiveFragment ::
     Maybe UUID.UUID ->
     SurfaceFragmentKey
 designerListEditorLiveFragment definitionListId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerListEditor
-        ( surfaceOptionalField @Types2.DefinitionListId definitionListId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerListEditor
+        ( surfaceOptionalField @Types3.DefinitionListId definitionListId
             &: noSurfaceFields
         )
 
 matchDesignerListEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, ())
 matchDesignerListEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerListEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerListEditor
 
 designerLiveScope ::
     UUID.UUID ->
     SurfaceScope
 designerLiveScope venueId =
     frontendSurfaceScope
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerScope
-        ( surfaceField @Types2.VenueId venueId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerScope
+        ( surfaceField @Types3.VenueId venueId
             &: noSurfaceFields
         )
 
 matchDesignerLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
 matchDesignerLiveScope =
     matchFrontendSurfaceScope
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerScope
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerScope
 
 designerReferenceEditorLiveFragment ::
     UUID.UUID ->
@@ -157,36 +204,36 @@ designerReferenceEditorLiveFragment ::
     SurfaceFragmentKey
 designerReferenceEditorLiveFragment definitionListId referenceRecordId definitionFieldId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerReferenceEditor
-        ( surfaceField @Types2.DefinitionListId definitionListId
-            &: surfaceField @Types2.ReferenceRecordId referenceRecordId
-            &: surfaceField @Types2.DefinitionFieldId definitionFieldId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReferenceEditor
+        ( surfaceField @Types3.DefinitionListId definitionListId
+            &: surfaceField @Types3.ReferenceRecordId referenceRecordId
+            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
             &: noSurfaceFields
         )
 
 matchDesignerReferenceEditorLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (UUID.UUID, (UUID.UUID, ())))
 matchDesignerReferenceEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerReferenceEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReferenceEditor
 
 designerReportEditorLiveFragment ::
     Maybe UUID.UUID ->
     SurfaceFragmentKey
 designerReportEditorLiveFragment definitionReportId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerReportEditor
-        ( surfaceOptionalField @Types2.DefinitionReportId definitionReportId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReportEditor
+        ( surfaceOptionalField @Types3.DefinitionReportId definitionReportId
             &: noSurfaceFields
         )
 
 matchDesignerReportEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, ())
 matchDesignerReportEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerReportEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReportEditor
 
 designerSectionEditorLiveFragment ::
     Maybe UUID.UUID ->
@@ -194,15 +241,15 @@ designerSectionEditorLiveFragment ::
     SurfaceFragmentKey
 designerSectionEditorLiveFragment definitionReportId definitionSectionId =
     frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerSectionEditor
-        ( surfaceOptionalField @Types2.DefinitionReportId definitionReportId
-            &: surfaceOptionalField @Types2.DefinitionSectionId definitionSectionId
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerSectionEditor
+        ( surfaceOptionalField @Types3.DefinitionReportId definitionReportId
+            &: surfaceOptionalField @Types3.DefinitionSectionId definitionSectionId
             &: noSurfaceFields
         )
 
 matchDesignerSectionEditorLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, (Maybe UUID.UUID, ()))
 matchDesignerSectionEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types3.DaysheetDesignerAdapterFamily)
-        @Types2.DesignerSectionEditor
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerSectionEditor

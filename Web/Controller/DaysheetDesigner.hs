@@ -2,6 +2,8 @@ module Web.Controller.DaysheetDesigner where
 
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Designer as Designer
+import qualified Application.Daysheet.Designer.Calculation as Calculation
+import qualified Web.Daysheets.CalculationEditing as CalculationEditing
 import Application.Daysheet.Designer.Controls
 import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
 import qualified Application.Daysheet.Evaluation as E
@@ -45,6 +47,10 @@ instance Controller DaysheetDesignerController where
     action current@ShowDesignerIndexBodyAction = runBepis current BepisFragmentAction (showIndex True)
     action current@ShowDesignerFieldAction { definitionFieldId, containerId } = runBepis current BepisPageAction (showField False definitionFieldId containerId)
     action current@ShowDesignerFieldBodyAction { definitionFieldId, containerId } = runBepis current BepisFragmentAction (showField True definitionFieldId containerId)
+    action current@ShowDesignerCalculationAction { calculationFieldId, calculationLocation, calculationGroup, calculationReferencePath } = runBepis current BepisPageAction (showCalculation False calculationFieldId calculationLocation calculationGroup calculationReferencePath)
+    action current@ShowDesignerCalculationBodyAction { calculationFieldId, calculationLocation, calculationGroup, calculationReferencePath } = runBepis current BepisFragmentAction (showCalculation True calculationFieldId calculationLocation calculationGroup calculationReferencePath)
+    action current@ShowDesignerConstantAction { calculationFieldId, calculationLocation } = runBepis current BepisPageAction (showConstant False calculationFieldId calculationLocation)
+    action current@ShowDesignerConstantBodyAction { calculationFieldId, calculationLocation } = runBepis current BepisFragmentAction (showConstant True calculationFieldId calculationLocation)
     action current@ShowDesignerChoiceAction { choiceFieldId, definitionChoiceId } = runBepis current BepisPageAction (showChoice False choiceFieldId definitionChoiceId)
     action current@ShowDesignerChoiceBodyAction { choiceFieldId, definitionChoiceId } = runBepis current BepisFragmentAction (showChoice True choiceFieldId definitionChoiceId)
     action current@ShowDesignerListAction { definitionListId } = runBepis current BepisPageAction (showList False definitionListId)
@@ -52,6 +58,49 @@ instance Controller DaysheetDesignerController where
 
     action current@ShowDesignerReferenceAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisPageAction (showReference False referenceSourceId referenceRecordId referenceFieldId)
     action current@ShowDesignerReferenceBodyAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisFragmentAction (showReference True referenceSourceId referenceRecordId referenceFieldId)
+
+    action current@UseDesignerCalculationPartAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseUseDesignerCalculationPartActionParams
+        let key = D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
+            location = fromMaybe [] (surfaceFieldValue @Surface.ExpressionSlots fields)
+            selected = surfaceFieldValue @Surface.CandidateIndex fields
+            prepared = CalculationEditing.prepareCalculationEditor state.designerDefinition key location
+                (surfaceFieldValue @Surface.CalculationGroup fields) (surfaceFieldValue @Surface.ReferencePath fields)
+        case prepared of
+            Left message -> failurePage member state DesignerIndexPage message
+            Right editor -> case drop selected (Calculation.calculationMenuOptions editor.editorMenu) of
+                option : _ | selected >= 0 -> do
+                    result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+                        (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) (Calculation.calculationOptionEdit option)
+                    finish member state (DesignerCalculationPage editor) result
+                _ -> failurePage member state (DesignerCalculationPage editor) "Choose an available calculation part."
+
+    action current@SaveDesignerConstantAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseSaveDesignerConstantActionParams
+        case CalculationEditing.constantEdit state.designerDefinition (D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields))
+            (fromMaybe [] (surfaceFieldValue @Surface.ExpressionSlots fields)) (surfaceFieldValue @Surface.EnteredValue fields) of
+                Left message -> failurePage member state (DesignerConstantPage fields) message
+                Right change -> do
+                    result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+                        (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+                    finish member state (DesignerConstantPage fields) result
+
+    action current@MakeDesignerFieldEnteredAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseMakeDesignerFieldEnteredActionParams
+        field <- findField state.designerDefinition (D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields))
+        editor <- either (deny status400) pure (CalculationEditing.prepareCalculationEditor state.designerDefinition (D.fieldId field) [] FieldParts Nothing)
+        result <- Mutations.edit member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) (Designer.ChangeField (D.fieldId field) (D.fieldLabel field) (D.fieldType field) D.Entered)
+        finish member state (DesignerCalculationPage editor) result
 
     action current@SaveDesignerChoiceAction = runBepis current BepisMutationAction do
         ensureWrite
@@ -334,6 +383,26 @@ showField fragment rawKey rawParent = do
             key parent (maybe "" D.fieldLabel field) (fieldKind valueType) reference Nothing
     display fragment member state (DesignerFieldPage fields) Nothing
 
+showCalculation :: DesignerRequest => Bool -> UUID -> Maybe Text -> Text -> Maybe Text -> IO ResponseReceived
+showCalculation fragment key rawLocation rawGroup path = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    location <- either (deny status400) pure (CalculationEditing.parseCalculationLocation rawLocation)
+    group <- maybe (deny status400 "Choose an available calculation group.") pure (parseClosedScalarLiteral @CalculationGroup rawGroup)
+    editor <- either (deny status404) pure (CalculationEditing.prepareCalculationEditor state.designerDefinition (D.FieldId key) location group path)
+    display fragment member state (DesignerCalculationPage editor) Nothing
+
+showConstant :: DesignerRequest => Bool -> UUID -> Maybe Text -> IO ResponseReceived
+showConstant fragment key rawLocation = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    location <- either (deny status400) pure (CalculationEditing.parseCalculationLocation rawLocation)
+    _ <- either (deny status404) pure (CalculationEditing.constantType state.designerDefinition (D.FieldId key) location)
+    let fields = Action.saveDesignerConstantActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision) key (Just location) ""
+    display fragment member state (DesignerConstantPage fields) Nothing
+
 showChoice :: DesignerRequest => Bool -> UUID -> Maybe Text -> IO ResponseReceived
 showChoice fragment key rawChoice = do
     ensureRead
@@ -451,15 +520,23 @@ finish member state page result = case result.liveMutationValue of
     Left failure -> failurePage member state page (appErrorSafeMessage failure)
     Right _ -> do
         setHeader ("X-Bepis-Form-Saved", "true")
+        let target = case page of
+                DesignerCalculationPage editor -> let D.FieldId key = editor.editorField in
+                    ShowDesignerCalculationAction key (CalculationEditing.renderCalculationLocation editor.editorLocation) (inputValue editor.editorGroup) (CalculationEditing.renderReferencePath <$> editor.editorReferencePath)
+                DesignerConstantPage fields -> ShowDesignerCalculationAction (surfaceFieldValue @Surface.DefinitionFieldId fields)
+                    (CalculationEditing.renderCalculationLocation (fromMaybe [] (surfaceFieldValue @Surface.ExpressionSlots fields))) (inputValue ValueParts) Nothing
+                _ -> DaysheetDesignerAction
+            refresh = do
+                let impl = designerSurface member.venueId page
+                setActorLiveResourcesRefresh (designerLiveScope member.venueId) result.liveMutationTouchedResources impl.surfaceImplMountConfig.mountFragments
+                setHeader ("HX-Reswap", "none")
         if isHtmxRequest then do
             case page of
-                DesignerIndexPage -> do
-                    let impl = designerSurface member.venueId DesignerIndexPage
-                    setActorLiveResourcesRefresh (designerLiveScope member.venueId) result.liveMutationTouchedResources impl.surfaceImplMountConfig.mountFragments
-                    setHeader ("HX-Reswap", "none")
-                _ -> setHeader ("HX-Redirect", cs (pathTo DaysheetDesignerAction))
+                DesignerIndexPage -> refresh
+                DesignerCalculationPage _ -> refresh
+                _ -> setHeader ("HX-Redirect", cs (pathTo target))
             respondHtml mempty
-        else redirectTo DaysheetDesignerAction
+        else redirectTo target
 
 ensureRead :: DesignerRequest => IO ()
 ensureRead = ensureMethods ["GET", "HEAD"]

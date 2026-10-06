@@ -10,6 +10,7 @@ import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
 import Application.Daysheet.References (ReferenceValue (..))
 import Application.Daysheet.Storage (DesignerState (..))
 import qualified Web.Daysheets.LayoutEditing as Layout
+import qualified Web.Daysheets.CalculationEditing as CalculationEditing
 import Control.Monad (forM_)
 import qualified Application.Daysheet.Number as Number
 import Application.Daysheet.Validation (validateDefinition, expressionTypeInScope)
@@ -198,6 +199,21 @@ tests = describe "Daysheet designer edits" do
                 (Binary Add (Constant (DecimalLiteral one)) (Unary PercentageRatio (ReadField (FieldPath Root [rate])))))
         fieldSource <$> find ((== net) . fieldId) (rootFields rounded) `shouldBe` Just (Calculated expected)
         validateDefinition rounded `shouldBe` Right ()
+
+    it "bounds structural navigation and parses constants without an expression escape hatch" do
+        let location = [BinaryRight, FoldFilter, BinaryLeft]
+            reference = FieldPath Current [Fixture.field 5, Fixture.field 4]
+        CalculationEditing.parseCalculationLocation (CalculationEditing.renderCalculationLocation location) `shouldBe` Right location
+        CalculationEditing.parseReferencePath (Just (CalculationEditing.renderReferencePath reference)) `shouldBe` Right (Just reference)
+        CalculationEditing.parseCalculationLocation (Just "left/eval") `shouldSatisfy` isLeft
+        CalculationEditing.parseCalculationLocation (CalculationEditing.renderCalculationLocation (replicate 33 BinaryLeft)) `shouldSatisfy` isLeft
+        CalculationEditing.parseReferencePath (Just "root/not-a-field") `shouldSatisfy` isLeft
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 8) [] "0.005" `shouldSatisfy` isLeft
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 2) [] "1+2" `shouldSatisfy` isLeft
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 2) [] "1e2" `shouldSatisfy` isLeft
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 1) [] "bad\NULtext" `shouldSatisfy` isLeft
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 1) [] "" `shouldSatisfy` isRight
+        CalculationEditing.constantEdit Fixture.definition (Fixture.field 11) [] "replacement" `shouldSatisfy` isLeft
 
     it "offers only compatible and cycle-safe field expressions using canonical validation" do
         let count = reference Root (Fixture.field 2)

@@ -6,7 +6,8 @@ module Application.Helper.FrontendContract.ClosedScalars
     ( ClosedScalarContract
     ) where
 
-import Application.Daysheet.Designer.Controls (FieldKind, ListKind, BlockKind, ReportTargets, DesignerMoveKind)
+import Application.Daysheet.Designer.Controls (FieldKind, ListKind, BlockKind, ReportTargets, DesignerMoveKind, CalculationGroup)
+import Application.Daysheet.Designer (ExpressionSlot)
 import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
@@ -27,6 +28,8 @@ type ClosedScalarContract =
          , BrowserInboundSchema (ClosedScalar BlockKind)
          , ServerSchema (ClosedScalar ReportTargets)
          , ServerSchema (ClosedScalar DesignerMoveKind)
+         , BrowserInboundSchema (ClosedScalar CalculationGroup)
+         , BrowserInboundSchema (ClosedScalar ExpressionSlot)
          , ServerSchema (ClosedScalar RosterLayoutModeEnum)
          , ServerSchema (ClosedScalar RosterPayDisplayMode)
          , BrowserInboundSchema (ClosedScalar WageDisplayModeEnum)
