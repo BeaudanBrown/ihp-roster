@@ -119,6 +119,7 @@ Application/Helper/ControllerContext.hs	production	runtime	Main	Reachable from M
 Application/Helper/ControllerSupport.hs	production	runtime	Main	Reachable from Main
 Application/Helper/EmailVerification.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Export/DaysheetWorkbook.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Helper/Export/Definitions.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/HourlyBreakdown.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Payloads.hs	production	runtime	Main	Reachable from Main
