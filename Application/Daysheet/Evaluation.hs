@@ -4,6 +4,7 @@ module Application.Daysheet.Evaluation
     ( SnapshotKey (..), RowId (..), RecordReference (..), Value (..)
     , Snapshot (..), Target (..), EvaluationError (..)
     , Evaluation, prepareEvaluation, evaluate, evaluateAdvisory, explainUnavailable, operationalSeconds
+    , AdvisoryRequest (..), evaluateAdvisories
     ) where
 
 import Prelude
@@ -113,16 +114,49 @@ evaluate evaluation@(Evaluation definition snapshot) targets = do
             _ -> Left InvalidTarget
 
 evaluateAdvisory :: Evaluation -> Scope -> Advisory -> Either EvaluationError AdvisoryResult
-evaluateAdvisory evaluation@(Evaluation definition snapshot) scope advisory = do
-    case scope of
-        Nothing -> Right ()
-        Just (list, row) -> case Map.lookup list (savedRows snapshot) >>= Map.lookup row of
-            Just _ -> Right ()
-            Nothing -> Left InvalidTarget
-    actual <- either (Left . InvalidDefinition) Right (expressionType definition (fmap fst scope) (advisoryCondition advisory))
-    if actual /= BooleanType then Left (InvalidDefinition IncompatibleTypes) else Right ()
-    let result = evalState (evalExpression evaluation scope Nothing (advisoryCondition advisory)) (maxEvaluationSteps limits)
-    pure (advisoryResult advisory (asBool result))
+evaluateAdvisory evaluation scope advisory = do
+    results <- evaluateAdvisories evaluation [case scope of
+        Nothing -> RootAdvisory advisory
+        Just (list, row) -> ListAdvisory list [row] advisory]
+    case results of
+        [[result]] -> Right result
+        _ -> Left InvalidTarget
+
+-- A report checks all selected advisories under one work budget, rather than
+-- resetting it per row. Each configured expression is validated once per block.
+data AdvisoryRequest
+    = RootAdvisory Advisory
+    | ListAdvisory ListId [RowId] Advisory
+    deriving (Eq, Show)
+
+evaluateAdvisories :: Evaluation -> [AdvisoryRequest] -> Either EvaluationError [[AdvisoryResult]]
+evaluateAdvisories evaluation@(Evaluation definition snapshot) requests = do
+    if length (take (maxExpressionNodes limits + 1) requests) > maxExpressionNodes limits
+        || length (take (maxEvaluationSteps limits + 1) (concatMap scopes requests)) > maxEvaluationSteps limits
+        then Left SnapshotLimit else Right ()
+    mapM_ validate requests
+    pure (evalState (mapM run requests) (maxEvaluationSteps limits))
+  where
+    condition (RootAdvisory advisory) = advisory
+    condition (ListAdvisory _ _ advisory) = advisory
+    scopes (RootAdvisory _) = [Nothing]
+    scopes (ListAdvisory list rows _) = map (Just . (list,)) rows
+    validate request = do
+        list <- case request of
+            RootAdvisory _ -> Right Nothing
+            ListAdvisory key _ _ -> case findList definition key of
+                Just _ -> Right (Just key)
+                Nothing -> Left InvalidTarget
+        mapM_ (\case
+            Nothing -> Right ()
+            Just (key, row) -> case Map.lookup key (savedRows snapshot) >>= Map.lookup row of
+                Just _ -> Right ()
+                Nothing -> Left InvalidTarget) (scopes request)
+        actual <- either (Left . InvalidDefinition) Right (expressionType definition list (advisoryCondition (condition request)))
+        if actual == BooleanType then Right () else Left (InvalidDefinition IncompatibleTypes)
+    run request = mapM (\scope -> do
+        result <- evalExpression evaluation scope Nothing (advisoryCondition (condition request))
+        pure (advisoryResult (condition request) (asBool result))) (scopes request)
 
 spend :: Eval (Result a) -> Eval (Result a)
 spend action = do

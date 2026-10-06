@@ -90,7 +90,16 @@ materialization and its immutable meaning in the same authority transaction.
 projection. It owns exact value display, preserved reference labels and stable
 table ordering; operational times sort against the evaluator's 06:00 boundary.
 This internal model contains source fields and must not itself be serialized as
-a selected report.
+a selected report. Nominal choice/reference sorting uses preserved display
+labels with identity tie-breaks, keeping equally named groups contiguous.
+
+`Report` is the selected-content boundary over that saved evaluation. It emits
+only authored sections, fields, tables and checks, with resolved nominal labels
+and exact typed values for subsequent renderers. Hidden dependency labels are
+redacted from unavailable reasons; row checks use ordinal identities rather
+than discovering hidden text fields. Report text remains plain data for escaped
+HTML/non-executable spreadsheet handling. All selected advisory checks share one
+evaluator work budget, including checks repeated across rows.
 
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence

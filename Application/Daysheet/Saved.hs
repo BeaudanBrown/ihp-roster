@@ -49,15 +49,15 @@ tableRows model source grouping ordering = sortBy compareRows (Map.findWithDefau
     keys = case grouping of
         Nothing -> ordering
         Just key -> (key, fromMaybe D.Ascending (lookup key ordering)) : filter ((/= key) . fst) ordering
-    compareRows left right = foldMap (\(key, direction) -> compareValue direction
+    compareRows left right = foldMap (\(key, direction) -> compareValue key direction
         (resultFor model (E.RowTarget (D.listId source) left key))
         (resultFor model (E.RowTarget (D.listId source) right key))) keys
-    compareValue direction left right = case (left, right) of
+    compareValue key direction left right = case (left, right) of
         (D.Unavailable _, D.Unavailable _) -> EQ
         (D.Unavailable _, _) -> GT
         (_, D.Unavailable _) -> LT
-        (D.Known a, D.Known b) -> if direction == D.Descending then compareKnown b a else compareKnown a b
-    compareKnown (E.Scalar a) (E.Scalar b) = case (a, b) of
+        (D.Known a, D.Known b) -> if direction == D.Descending then compareKnown key b a else compareKnown key a b
+    compareKnown key left@(E.Scalar a) right@(E.Scalar b) = case (a, b) of
         (D.WholeLiteral x, D.WholeLiteral y) -> compare x y
         (D.DecimalLiteral x, D.DecimalLiteral y) -> compare x y
         (D.MoneyLiteral x, D.MoneyLiteral y) -> compare x y
@@ -66,8 +66,14 @@ tableRows model source grouping ordering = sortBy compareRows (Map.findWithDefau
         (D.OperationalTimeLiteral x, D.OperationalTimeLiteral y) -> compare (E.operationalSeconds x) (E.operationalSeconds y)
         (D.BooleanLiteral x, D.BooleanLiteral y) -> compare x y
         (D.TextLiteral x, D.TextLiteral y) -> compare x y
+        (D.ChoiceLiteral _, D.ChoiceLiteral _) -> compareLabels key left right
         _ -> compare (show a) (show b)
-    compareKnown a b = compare (show a) (show b)
+    compareKnown key a b = compareLabels key a b
+    -- Nominal values sort by preserved display labels, then identity so two
+    -- distinct equally named records/options still form contiguous groups.
+    compareLabels key a b = case find ((== key) . D.fieldId) (D.listFields source) of
+        Just field -> compare (valueText model field a) (valueText model field b) <> compare (show a) (show b)
+        Nothing -> compare (show a) (show b)
 
 referenceLabel :: Saved -> D.ListId -> E.RowId -> Text
 referenceLabel model source row = fromMaybe "Record" do
