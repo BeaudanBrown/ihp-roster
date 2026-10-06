@@ -86,6 +86,12 @@ provides scoped reads, atomic explicit creation, latest-state mutations, and
 idempotent submission. `Storage.withDefinitionCapture` keeps initial daily
 materialization and its immutable meaning in the same authority transaction.
 
+`Saved` prepares one authoritative saved-state evaluation for entry and report
+projection. It owns exact value display, preserved reference labels and stable
+table ordering; operational times sort against the evaluator's 06:00 boundary.
+This internal model contains source fields and must not itself be serialized as
+a selected report.
+
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence
 with the shared durable live publisher. `Entry.deletionToken` fingerprints scope,

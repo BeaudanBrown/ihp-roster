@@ -3,7 +3,7 @@
 module Application.Daysheet.Evaluation
     ( SnapshotKey (..), RowId (..), RecordReference (..), Value (..)
     , Snapshot (..), Target (..), EvaluationError (..)
-    , Evaluation, prepareEvaluation, evaluate, evaluateAdvisory, explainUnavailable
+    , Evaluation, prepareEvaluation, evaluate, evaluateAdvisory, explainUnavailable, operationalSeconds
     ) where
 
 import Prelude
