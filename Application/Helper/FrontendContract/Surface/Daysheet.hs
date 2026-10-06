@@ -14,6 +14,10 @@ data DaysheetBody
 data DaysheetBodyTarget
 data DaysheetCell
 data DaysheetCellTarget
+data DaysheetReport
+data DaysheetReportTarget
+data ConfiguredReportId
+data OpenDaysheetReport
 data Occurrence
 data RowId
 data OperationalDate
@@ -65,6 +69,11 @@ type DaysheetSurface = Surface Daysheet
      , Fragment DaysheetCell CellParams
          '[ 'MountTarget DaysheetCellTarget CellParams, 'Eager, 'Live
           , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
+     , Fragment DaysheetReport '[Field ConfiguredReportId 'WireUUID]
+         '[ 'MountTarget DaysheetReportTarget '[Field ConfiguredReportId 'WireUUID], 'Eager, 'Live
+          , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
+     , Action OpenDaysheetReport '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
+         '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
      , DomToken DaysheetCellFormTarget
      , DomToken DialogOverlayMount
      , BrowserRole DaysheetFinalAction

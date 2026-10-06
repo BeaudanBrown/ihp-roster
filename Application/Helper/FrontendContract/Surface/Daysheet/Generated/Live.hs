@@ -6,9 +6,11 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Live
     ( daysheetBodyLiveFragment
     , daysheetCellLiveFragment
     , daysheetLiveScope
+    , daysheetReportLiveFragment
     , matchDaysheetBodyLiveFragment
     , matchDaysheetCellLiveFragment
     , matchDaysheetLiveScope
+    , matchDaysheetReportLiveFragment
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Daysheet as Types1
@@ -77,3 +79,20 @@ matchDaysheetLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
         @Types1.DaysheetScope
+
+daysheetReportLiveFragment ::
+    UUID.UUID ->
+    SurfaceFragmentKey
+daysheetReportLiveFragment configuredReportId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetReport
+        ( surfaceField @Types1.ConfiguredReportId configuredReportId
+            &: noSurfaceFields
+        )
+
+matchDaysheetReportLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
+matchDaysheetReportLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetReport

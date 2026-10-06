@@ -54,6 +54,7 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
         , appPageBody = [hsx|
             <div class="app-page-stack">
                 {designerLink}
+                {reportPreviews}
                 {dateNavigation record.operationalDate (isJust feedback)}
                 <p>Changes save when a field changes or you leave it. Amounts are AUD; enter percentages such as 1.6 for 1.6%.</p>
                 <noscript><p>JavaScript is off. Use Save for each changed field before submitting.</p></noscript>
@@ -64,6 +65,12 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
             </div>
         |]
         }
+    reportPreviews = forEach [report | report@(D.Report _ _ _ outputs) <- D.reports model.state.definition, D.FormattedReport `elem` outputs] preview
+    preview (D.Report (D.ReportId key) label _ _) =
+        renderFrontendSurfaceActionFormWithHiddenFields
+            (Action.openDaysheetReportAction (Action.openDaysheetReportActionFields (unpackId record.id) key))
+            ((defaultFrontendSurfaceActionRoute (pathTo (ShowDaysheetReportAction record.id key))) { actionRouteExtraAttrs = finalActionAttrs })
+            [hsx|<button type="submit" class="btn btn-outline-secondary text-break" disabled={isJust feedback}>Preview: {label}</button>|]
     deletedNotice = case feedback of
         Just (DeletedCellProblem index row raw) -> renderDeletedEntryCell model index row (Just raw)
         _ -> mempty

@@ -117,6 +117,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerBlockEditor
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
+     , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetReport
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
@@ -316,6 +317,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SaveDaysheetClock allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.AddDaysheetRow allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ConfirmDaysheetRowDeletion allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetReport allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.KeepSavedDaysheetCell
         (requestAdapterOperationsWithoutParser "Explicitly discard local input in favour of the scoped saved cell; route identity only")
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SubmitDaysheet

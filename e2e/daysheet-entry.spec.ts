@@ -1,29 +1,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { dialogOverlayMountDomId, surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
-import { daysheetTest as test, openDaysheet } from './support/daysheet';
+import { daysheetTest as test, openDaysheet, saveDaysheetChange as saveChange, saveDaysheetText as saveText } from './support/daysheet';
 import { E2E_TIMEOUT } from './timeouts';
 import { expectDialogToFitViewport, expectNoHorizontalViewportOverflow } from './support/responsive';
-
-function revision(control: Locator): Promise<string | null> {
-    return control.evaluate(element => ((element as HTMLInputElement).form?.elements.namedItem('expectedRevision') as HTMLInputElement | null)?.value ?? null);
-}
-
-async function saveChange(page: Page, control: Locator, change: () => Promise<unknown>) {
-    const before = await revision(control);
-    expect(before).not.toBeNull();
-    const action = await control.evaluate(element => (element as HTMLInputElement).form!.action);
-    const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === action);
-    await change();
-    await control.blur();
-    const response = await responsePromise;
-    expect(response.status(), await response.text()).toBe(200);
-    expect(response.headers()['x-bepis-form-saved']).toBe('true');
-    await expect.poll(() => revision(control), { timeout: E2E_TIMEOUT.assertion }).not.toBe(before);
-}
-
-async function saveText(page: Page, control: Locator, value: string) {
-    await saveChange(page, control, () => control.fill(value));
-}
 
 function section(page: Page, name: string): Locator {
     return page.getByRole('heading', { name, exact: true }).locator('..');

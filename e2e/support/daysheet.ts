@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page, type Locator } from '@playwright/test';
 import { surfaceDomAttr } from '../../frontend/ts/generated/contracts';
 import { loginAsPrivilegedUserWithSeededPasskeySession } from './passkeys';
 import { setFlatpickrDate } from './profile';
+import { E2E_TIMEOUT } from '../timeouts';
 
 export interface DaysheetFixture {
     venueId: string;
@@ -18,6 +19,27 @@ export const daysheetTest = base.extend<{ daysheet: DaysheetFixture }>({
         await use(fixture);
     },
 });
+
+function daysheetCellRevision(control: Locator): Promise<string | null> {
+    return control.evaluate(element => ((element as HTMLInputElement).form?.elements.namedItem('expectedRevision') as HTMLInputElement | null)?.value ?? null);
+}
+
+export async function saveDaysheetChange(page: Page, control: Locator, change: () => Promise<unknown>) {
+    const before = await daysheetCellRevision(control);
+    expect(before).not.toBeNull();
+    const action = await control.evaluate(element => (element as HTMLInputElement).form!.action);
+    const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === action);
+    await change();
+    await control.blur();
+    const response = await responsePromise;
+    expect(response.status(), await response.text()).toBe(200);
+    expect(response.headers()['x-bepis-form-saved']).toBe('true');
+    await expect.poll(() => daysheetCellRevision(control), { timeout: E2E_TIMEOUT.assertion }).not.toBe(before);
+}
+
+export async function saveDaysheetText(page: Page, control: Locator, value: string) {
+    await saveDaysheetChange(page, control, () => control.fill(value));
+}
 
 export async function openDaysheet(page: Page, fixture: DaysheetFixture, create = true) {
     await loginAsPrivilegedUserWithSeededPasskeySession(page, fixture.email);

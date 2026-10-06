@@ -18,7 +18,7 @@ import IHP.ControllerPrelude
 import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (responseHeaders)
+import Network.Wai (responseHeaders, responseStatus)
 import qualified Test.Support.Daysheet as Fixture
 import Test.Hspec
 import Test.Support
@@ -27,11 +27,14 @@ import Web.FrontController ()
 import Web.Types
 
 setup :: (?modelContext :: ModelContext) => IO (Venue, User, VenueMembership)
-setup = do
+setup = setupWithDefinition Fixture.entryDefinition
+
+setupWithDefinition :: (?modelContext :: ModelContext) => D.Definition -> IO (Venue, User, VenueMembership)
+setupWithDefinition definition = do
     venue <- createVenueWithConfig "Single-page Daysheets"
     user <- createUserRecord "daysheet-controller@example.test" "manager" True
     member <- createVenueMembershipRecord venue user VenueOwner
-    Right _ <- saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+    Right _ <- saveDraft member 0 Nothing definition Fixture.entryReferences
     Right _ <- publishDraft member 0 0
     pure (venue, user, member)
 
@@ -43,10 +46,88 @@ tests = aroundAll withDatabaseTestContext do
     describe "DaysheetsController" do
         it "round-trips root and row URLs through the real IHP AutoRoute parser" $ withContext do
             let key = Id (UUID.fromWords 0 0 0 500)
+            forM_ [ShowDaysheetReportAction key UUID.nil, ShowDaysheetReportBodyAction key UUID.nil] \action -> do
+                let query = parseQuery (cs (Text.dropWhile (/= '?') (pathTo action)))
+                either (const Nothing) Just (Router.applyAction @DaysheetsController (toConstr action) query) `shouldBe` Just action
             forM_ [Nothing, Just (tshow (UUID.fromWords 0 0 0 1))] \row ->
                 forM_ [ShowDaysheetCellAction key 3 row, SaveDaysheetNumberAction key 3 row, KeepSavedDaysheetCellAction key 3 row] \action -> do
                     let query = parseQuery (cs (Text.dropWhile (/= '?') (pathTo action)))
                     either (const Nothing) Just (Router.applyAction @DaysheetsController (toConstr action) query) `shouldBe` Just action
+
+        it "previews selected saved content with escaped text and honest Draft/Live identity without writes" $ withContext do
+            withCleanDb do
+                let report = UUID.fromWords 0 0 0 910
+                    definition = Fixture.entryDefinition { D.reports = [D.Report (D.ReportId report) "Manager report"
+                        [D.Section (D.SectionId (UUID.fromWords 0 0 0 911)) "Selected content"
+                            [D.FieldBlock (Fixture.field 1), D.FieldBlock (Fixture.field 16)
+                            , D.AdvisoryBlock (D.Advisory (D.Binary D.GreaterOrEqual (D.ReadField (D.FieldPath D.Root [Fixture.field 2])) (D.Constant (D.WholeLiteral 0))) "Within tolerance" "Review value")]] [D.FormattedReport]] }
+                (venue, user, member) <- setupWithDefinition definition
+                Right created <- Storage.createDailySheet member day
+                Right state <- Storage.editDailyCell member created.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "<script>unsafe()</script>")
+                jobs <- query @AppJob |> fetchCount
+                events <- query @LiveInvalidationEvent |> fetchCount
+                _ <- member |> set #venueRole Manager |> updateRecord
+                let action = ShowDaysheetReportAction state.daysheet.id report
+                    fields = [("daysheetId", cs (tshow state.daysheet.id)), ("configuredReportId", cs (tshow report))]
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action fields
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Draft preview"
+                response `responseBodyShouldContain` "not a frozen or sent report"
+                response `responseBodyShouldContain` "&lt;script&gt;unsafe()&lt;/script&gt;"
+                response `responseBodyShouldNotContain` "<script>unsafe()"
+                response `responseBodyShouldContain` "Unavailable: Required input has not been entered."
+                response `responseBodyShouldContain` "Not evaluated: Required input has not been entered."
+                response `responseBodyShouldNotContain` "Terminal 1"
+                response `responseBodyShouldNotContain` "Enter Count"
+                fragment <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id report) []
+                fragment `responseStatusShouldBe` status200
+                fragment `responseBodyShouldContain` "Draft preview"
+                fragment `responseBodyShouldNotContain` "hx-swap-oob"
+                query @AppJob |> fetchCount >>= (`shouldBe` jobs)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` events)
+                retained <- query @Daysheet |> filterWhere (#id, state.daysheet.id) |> fetchOne
+                retained.submittedAt `shouldBe` Nothing
+                retained.revision `shouldBe` state.daysheet.revision
+                Right _ <- Storage.submitDailySheet member state.daysheet.id
+                live <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id report) []
+                live `responseStatusShouldBe` status200
+                live `responseBodyShouldContain` "Live preview"
+                live `responseBodyShouldNotContain` "Draft preview"
+
+        it "scopes report pages/fragments, honors output targets and never creates missing Daysheets" $ withContext do
+            withCleanDb do
+                let report = UUID.fromWords 0 0 0 910
+                    excel = UUID.fromWords 0 0 0 912
+                    definition = Fixture.entryDefinition { D.reports = [D.Report (D.ReportId report) "Formatted" [] [D.FormattedReport], D.Report (D.ReportId excel) "Workbook only" [] [D.ExcelDownload]] }
+                (venue, user, member) <- setupWithDefinition definition
+                absent <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (ShowDaysheetReportBodyAction (Id UUID.nil) report) []
+                absent `responseStatusShouldBe` status404
+                query @Daysheet |> fetchCount >>= (`shouldBe` 0)
+                query @DaysheetDefinitionCapture |> fetchCount >>= (`shouldBe` 0)
+                Right state <- Storage.createDailySheet member day
+                forM_ [excel, UUID.nil] \key -> do
+                    rejected <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                        callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id key) []
+                    rejected `responseStatusShouldBe` status404
+                wrongMethod <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithParams (ShowDaysheetReportBodyAction state.daysheet.id report) []
+                wrongMethod `responseStatusShouldBe` status405
+                malformed <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (ShowDaysheetReportAction state.daysheet.id report)
+                        [("daysheetId", cs (tshow state.daysheet.id)), ("configuredReportId", "not-a-uuid")]
+                malformed `responseStatusShouldBe` status400
+                other <- createVenueWithConfig "Another report venue"
+                _ <- createVenueMembershipRecord other user VenueOwner
+                foreignResponse <- withPasskeyVerifiedUserAndCurrentVenue user other.id $
+                    callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id report) []
+                foreignResponse `responseStatusShouldBe` status404
+                _ <- member |> set #venueRole Worker |> updateRecord
+                forM_ [ShowDaysheetReportAction state.daysheet.id report, ShowDaysheetReportBodyAction state.daysheet.id report] \action -> do
+                    denied <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action []
+                    responseStatus denied `shouldSatisfy` (`elem` [status302, status303, status403])
 
         it "reads an absent date without creation and creates only on explicit POST" $ withContext do
             withCleanDb do

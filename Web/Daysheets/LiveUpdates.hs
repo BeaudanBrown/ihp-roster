@@ -1,5 +1,5 @@
 module Web.Daysheets.LiveUpdates
-    ( daysheetSurface, cellTargetId, daysheetDateUrl, finalActionAttrs, pendingNoticeAttrs ) where
+    ( daysheetSurface, daysheetReportSurface, cellTargetId, daysheetDateUrl, finalActionAttrs, pendingNoticeAttrs ) where
 
 import Application.Daysheet.EntryLayout
 import Application.Daysheet.DailyStorage (DailyState (..))
@@ -27,6 +27,13 @@ cellTargetId occurrence row = surfaceFragmentTargetId @Surface.DaysheetSurface @
 daysheetDateUrl :: Day -> Text
 daysheetDateUrl date = frontendSurfaceActionLinkUrl
     (Action.viewDaysheetDateAction (Action.viewDaysheetDateActionFields (Just date))) (pathTo DaysheetsAction)
+
+daysheetReportSurface :: Daysheet -> UUID -> SurfaceImpl Surface.DaysheetSurface
+daysheetReportSurface record report = mkSurfaceImplFromValues @Surface.DaysheetSurface @Surface.DaysheetScope "report"
+    (surfaceField @Surface.VenueId (unpackId record.venueId) &: surfaceField @Surface.DaysheetId (unpackId record.id) &: noSurfaceFields)
+    noSurfaceFields [frontendSurfaceMountedFragmentFor @Surface.DaysheetSurface @Surface.DaysheetReport
+        fields fields (pathTo (ShowDaysheetReportBodyAction record.id report)) FrontendSurfaceReplace]
+  where fields = surfaceField @Surface.ConfiguredReportId report &: noSurfaceFields
 
 daysheetSurface :: EntryModel -> Bool -> SurfaceImpl Surface.DaysheetSurface
 daysheetSurface model hasPendingRecovery = mkSurfaceImplFromValues @Surface.DaysheetSurface @Surface.DaysheetScope "primary"

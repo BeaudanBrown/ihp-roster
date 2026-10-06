@@ -9,6 +9,8 @@ import Application.Daysheet.EntryLayout
 import qualified Application.Daysheet.Evaluation as E
 import qualified Application.Daysheet.Mutations as Mutations
 import Application.Daysheet.References
+import qualified Application.Daysheet.Report as Report
+import qualified Application.Daysheet.Saved as Saved
 import Application.Error.Domain (domainErrorCode)
 import Application.Error.Types
 import qualified Application.Helper.FrontendContract.Surface.Daysheet as Surface
@@ -38,6 +40,7 @@ import Web.Daysheets.ReadModel
 import Web.View.Daysheets.Cell
 import Web.View.Daysheets.Deletion
 import Web.View.Daysheets.Index
+import Web.View.Daysheets.Report
 
 type DaysheetRequest = (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond)
 
@@ -78,6 +81,22 @@ instance Controller DaysheetsController where
         model <- loadModel daysheetId
         keys <- freshRowKeys model
         respondHtml (renderDaysheetBody model keys Nothing)
+
+    action current@ShowDaysheetReportAction {} = runBepis current BepisPageAction do
+        ensureRead
+        fields <- either (badRequest . surfaceRequestFieldErrorsMessage) pure Action.parseOpenDaysheetReportActionParams
+        let key = Id (surfaceFieldValue @Surface.DaysheetId fields)
+        let report = surfaceFieldValue @Surface.ConfiguredReportId fields
+        (record, content) <- loadReport key report
+        if isHtmxRequest then do
+            setHeader ("HX-Redirect", cs (pathTo (ShowDaysheetReportAction key report)))
+            respondHtml mempty
+        else render ReportView { record, report, content }
+
+    action current@ShowDaysheetReportBodyAction { daysheetId, configuredReportId } = runBepis current BepisFragmentAction do
+        ensureRead
+        (record, content) <- loadReport daysheetId configuredReportId
+        respondHtml (renderReportBody record configuredReportId content)
 
     action current@ShowDaysheetCellAction { daysheetId, occurrence, rowId } = runBepis current BepisFragmentAction do
         ensureRead
@@ -244,6 +263,21 @@ loadModel :: DaysheetRequest => Id Daysheet -> IO EntryModel
 loadModel key = do
     member <- manager
     Storage.readDailySheet member key >>= either readFailure project
+
+loadReport :: DaysheetRequest => Id Daysheet -> UUID -> IO (Daysheet, Report.ReportContent)
+loadReport key report = do
+    member <- manager
+    state <- Storage.readDailySheet member key >>= either readFailure pure
+    let configured = find (\(D.Report candidate _ _ _) -> candidate == D.ReportId report) (D.reports state.definition)
+    case configured of
+        Just (D.Report _ _ _ outputs) | D.FormattedReport `elem` outputs -> pure ()
+        _ -> deny status404 "This formatted report is not available on this Daysheet."
+    let owner = E.SnapshotKey (unpackId state.daysheet.venueId) (unpackId state.daysheet.id)
+    saved <- either (deny status503 . appErrorSafeMessage . projectDailyFailure) pure
+        (Saved.prepareSaved state.definition state.references owner state.content)
+    content <- either (const (deny status503 "This report could not be prepared from the saved Daysheet.")) pure
+        (Report.projectReport saved (D.ReportId report))
+    pure (state.daysheet, content)
 
 project :: DaysheetRequest => Storage.DailyState -> IO EntryModel
 project = either (deny status503 . appErrorSafeMessage . projectDailyFailure) pure . prepareEntryModel

@@ -100,6 +100,12 @@ redacted from unavailable reasons; row checks use ordinal identities rather
 than discovering hidden text fields. Report text remains plain data for escaped
 HTML/non-executable spreadsheet handling. All selected advisory checks share one
 evaluator work budget, including checks repeated across rows.
+`Web.View.Daysheets.Report` renders escaped, read-only Draft/Live previews for
+captured reports with the formatted output enabled. Pages and live fragments
+use the same scoped read, never create/submit/capture reports, and refresh from
+the shared Daysheet resource. Preview navigation uses the pending-edit gate and
+supports native GET forms. Excel-only reports retain the same projection but
+are not exposed as formatted browser outputs.
 
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence
