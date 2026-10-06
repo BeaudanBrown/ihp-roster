@@ -140,6 +140,81 @@ for (const orientation of ['horizontal', 'vertical']) {
     });
 }
 
+for (const orientation of ['horizontal', 'vertical']) {
+    test(`paints creation and full-size move/copy previews above overlapping cards (${orientation})`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await openCanonicalTimeline(page, orientation);
+        const overlapId = 'a6550000-0000-0000-0000-000000000071';
+        runSql(`INSERT INTO roster_slots (id, roster_day_id, roster_lane_id, staff_id, assignment_state, row_index, starts_at, ends_at, timezone, shift_type_id)
+            SELECT '${overlapId}', roster_day_id, roster_lane_id, NULL, 'open', 1, starts_at + INTERVAL '1 hour', ends_at + INTERVAL '1 hour', timezone, shift_type_id
+            FROM roster_slots WHERE id = 'a1000000-0000-0000-0000-000000000071'
+            ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`);
+        try {
+            await page.reload();
+            const lane = page.getByRole('region', { name: 'Early', exact: true });
+            const target = lane.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="535"]');
+            await target.hover();
+            const preview = target.locator('.roster-day-timeline-create-preview');
+            await expect(preview).toBeVisible();
+            const source = lane.locator(`[${InteractionDom.attributes.sourceKey}="existing:a1000000-0000-0000-0000-000000000071"]`);
+            const cardBox = (await source.boundingBox())!;
+            const previewBox = (await preview.boundingBox())!;
+            const point = { x: Math.max(cardBox.x, previewBox.x) + 5, y: Math.max(cardBox.y, previewBox.y) + 5 };
+            // Temporarily include the pointer-transparent preview in hit testing
+            // to observe real paint order, then restore it before interactions.
+            expect(await preview.evaluate((element, point) => {
+                const style = (element as HTMLElement).style;
+                const previous = style.pointerEvents;
+                style.pointerEvents = 'auto';
+                const topmost = document.elementFromPoint(point.x, point.y) === element;
+                style.pointerEvents = previous;
+                return topmost;
+            }, point)).toBe(true);
+            await expect(preview).toHaveCSS('pointer-events', 'none');
+            await testInfo.attach(`creation-${orientation}`, { body: await page.screenshot(), contentType: 'image/png' });
+            await source.scrollIntoViewIfNeeded();
+            const sourceBox = (await source.boundingBox())!;
+            const labelBox = (await lane.locator('.roster-day-timeline-lane-label').boundingBox())!;
+            const grab = {
+                x: orientation === 'horizontal' ? Math.max(sourceBox.x + 20, labelBox.x + labelBox.width + 20) : sourceBox.x + Math.min(20, sourceBox.width / 2),
+                y: sourceBox.y + 20,
+            };
+            await page.mouse.move(grab.x, grab.y);
+            await page.mouse.down();
+            await page.mouse.move(grab.x + (orientation === 'horizontal' ? 20 : 0), grab.y + (orientation === 'vertical' ? 20 : 0), { steps: 5 });
+            const shadow = page.locator('.bepis-pointer-clone-shadow');
+            for (const copy of [false, true]) {
+                if (copy) await page.keyboard.down('Control');
+                await expect(shadow).toBeVisible();
+                if (copy) await expect(shadow).toHaveClass(/bepis-pointer-clone-shadow-copy/);
+                const shadowBox = (await shadow.boundingBox())!;
+                expect(Math.abs(shadowBox.width - sourceBox.width)).toBeLessThan(1);
+                expect(Math.abs(shadowBox.height - sourceBox.height)).toBeLessThan(1);
+                await expect(shadow).toHaveCSS('pointer-events', 'none');
+                expect(await shadow.evaluate((element) => {
+                    const box = element.getBoundingClientRect();
+                    const style = (element as HTMLElement).style;
+                    const previous = style.pointerEvents;
+                    style.pointerEvents = 'auto';
+                    const topmost = document.elementFromPoint(box.left + 5, box.top + 5) === element;
+                    style.pointerEvents = previous;
+                    return topmost;
+                })).toBe(true);
+                await testInfo.attach(`${copy ? 'copy' : 'move'}-${orientation}`, { body: await page.screenshot(), contentType: 'image/png' });
+            }
+            await page.keyboard.up('Control');
+            await page.keyboard.press('Escape');
+            await page.mouse.up();
+            await expect(shadow).toHaveCount(0);
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+        } finally {
+            await page.keyboard.up('Control');
+            await page.mouse.up();
+            runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id = '${overlapId}'`);
+        }
+    });
+}
+
 test('saves a five-minute shift into a projected timeline lane and refreshes the actor', async ({ page }, testInfo) => {
     const weekOffset = 160 + testInfo.config.projects.findIndex((project) => project.name === testInfo.project.name);
     await openRoster(page, { weekOffset, ensureEditable: false });
@@ -161,8 +236,8 @@ test('saves a five-minute shift into a projected timeline lane and refreshes the
     await expect(dialog.locator('input[name="startTime"]')).toHaveValue('07:05');
     await saveRosterShiftDialog(page);
     expect(dayCount()).toBe('1');
-    await expect(page.locator('.roster-day-timeline-shift-time')).toHaveText('07:05–17:00');
-    expect(querySql(`SELECT to_char(slot.starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') FROM roster_slots slot JOIN roster_days day ON day.id = slot.roster_day_id WHERE day.roster_group_id = ${sqlString(group)} AND day.operational_date = ${sqlString(date)}`)).toBe('07:05');
+    await expect(page.locator('.roster-day-timeline-shift-time')).toHaveText('07:05–15:05');
+    expect(querySql(`SELECT to_char(slot.starts_at AT TIME ZONE 'Australia/Melbourne', 'HH24:MI') || '/' || EXTRACT(EPOCH FROM (slot.ends_at - slot.starts_at))::int FROM roster_slots slot JOIN roster_days day ON day.id = slot.roster_day_id WHERE day.roster_group_id = ${sqlString(group)} AND day.operational_date = ${sqlString(date)}`)).toBe('07:05/28800');
 });
 
 for (const orientation of ['horizontal', 'vertical']) {

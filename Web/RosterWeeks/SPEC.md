@@ -197,6 +197,10 @@ retain their actual occurrence. Ordinary creation uses the first occurrence of
 an ambiguous configured start, and leaves nonexistent starts for explicit user
 selection. Copies, templates, existing shifts and Timesheet defaults are unchanged.
 The duration resource invalidates timeline previews only within the owning venue.
+Creation previews paint above shift cards and below sticky labels, without
+intercepting pointers. Move/copy previews reuse the generic interval projection:
+source-card cross-axis dimensions (including overlap tracks), exact elapsed
+long-axis extent and the original grab offset; no new layout or duration authority.
 Staff drops on existing shifts preserve lane/time and save immediately; published
 rosters permit only the existing authorized Open-to-Staff fill. Timeline and
 staff interactions share the roster scope, while day-content refreshes preserve
