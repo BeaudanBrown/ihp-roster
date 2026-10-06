@@ -130,13 +130,20 @@ cutoff transaction. The database seals snapshots against mutation/deletion and
 checks submitted source/venue/revision and active scoped recipient identities.
 The Send UI remains separate integration work.
 
-`CutoffJob` atomically enqueues one pre-armed capture task with explicit creation
-of a day whose cutoff is still ahead. It creates no historical catch-up jobs.
-`CutoffWorker` is registered in the shared AppJob dispatcher, verifies day/venue/
-deadline provenance, invokes the cutoff boundary and acknowledges committed
-snapshots after retry without rebuilding them. Unsubmitted/missed days finish
-quietly as skipped. There is no separate scheduler, worker transport or implicit
-creation of business days.
+`CutoffJob` atomically enqueues one pre-armed `DaysheetCaptureJob` with explicit
+creation of a day whose cutoff is still ahead. The dedicated IHP queue has eight
+slots per worker process; ordinary `AppJob` work retains four. Both are registered
+in `Web.Worker`, with the same framework polling/retry machinery, not a parallel
+scheduler or transport. `CutoffWorker` validates retained day/deadline meaning,
+invokes the cutoff boundary and acknowledges committed snapshots after retry
+without rebuilding them. Unsubmitted/missed days finish quietly as skipped.
+There are no historical catch-up jobs or implicit business-day creation.
+
+Existing legacy AppJob capture tasks remain intact. Their dispatcher atomically
+hands off to the dedicated queue without waiting until cutoff. Handoff retries
+reuse the same task, including terminal tasks. The additive queue migration never
+drops customer reports/jobs; older workers cannot consume new dedicated tasks,
+so rollback recovery must restore a compatible worker before future cutoffs.
 
 `ReportHistory.readFrozenReport` provides authorized single-run detail from the
 sealed document and exact captured recipient identities. It never reconstructs

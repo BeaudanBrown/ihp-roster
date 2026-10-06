@@ -151,20 +151,24 @@ serialization lock at most one second before the following venue-local 06:00.
 One task must capture all eligible configured reports for that day; independent
 per-report workers would contend across the same deadline. The queue's default
 future-job polling interval is 60 seconds, so the plan arms two minutes early.
-`CutoffJob` schedules this through the existing AppJob queue on explicit daily
-creation; `CutoffWorker` is registered in the shared dispatcher. Past cutoffs are
+`CutoffJob` schedules this through the dedicated IHP `DaysheetCaptureJob` queue
+on explicit daily creation; its worker is registered beside ordinary AppJobs. Past cutoffs are
 not enqueued. Submission neither creates a report nor changes this deadline.
 Existing committed cutoff snapshots may be acknowledged after a failed queue
 completion, but a missing snapshot is never reconstructed by a late retry.
 
-Pre-arming occupies an ordinary worker slot while waiting outside the transaction.
-`Application.Job.App` currently sets four concurrent tasks per worker process
-(not the IHP default of sixteen). Deployment must provide headroom for concurrent
-venue cutoffs and other jobs: with one process, four waiting captures can occupy
-all slots and a fifth same-time venue can miss cutoff even without an outage.
-Queue saturation is a missed cutoff, not permission for catch-up. Capacity strategy
-requires an explicit operator decision; integrated release verification remains
-part of #642.
+The operator-approved limit is eight dedicated capture slots per worker process;
+`Application.Job.App` keeps its existing four ordinary-job slots. Pre-arming
+occupies a capture slot outside the transaction, not an ordinary/email slot.
+Existing AppJob capture tasks need an ordinary slot only for a short, idempotent
+handoff; that path never waits until cutoff. There is no second mail transport.
+
+Eight slots are a concurrency bound, not a throughput or deployment-wide SLA:
+multiple worker processes multiply it, database/memory resources remain shared,
+and a ninth same-time capture can still miss cutoff. Saturation must skip, never
+catch up. Deterministic bounded-admission tests cover eight simultaneous venues,
+ordinary heartbeat progress and a ninth admitted after cutoff; production-server
+resource/capacity and integrated release verification remain part of #642.
 
 `Cutoff` resolves the civil boundary through the shared timezone authority,
 including DST, with no UTC fallback. `CutoffCapture` rechecks live venue state and

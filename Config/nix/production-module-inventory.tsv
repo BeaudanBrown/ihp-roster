@@ -413,6 +413,7 @@ Application/InvitationDelivery/Email.hs	production	runtime	Main	Reachable from M
 Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/Job/DaysheetCapture.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
 Application/OperationalIncident.hs	production	runtime	Main	Reachable from Main
 Application/OperationalIncident/Email.hs	production	runtime	Main	Reachable from Main

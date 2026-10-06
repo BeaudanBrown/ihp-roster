@@ -1,10 +1,14 @@
 # AppJob boundary
 
-Bepis uses IHP's unmodified `Job AppJob` worker, retry counter, maximum attempts,
-and backoff strategy. It does not patch IHP or implement a parallel scheduler.
+Bepis uses IHP's unmodified job workers, retry counter, maximum attempts and
+backoff strategy. Ordinary `AppJob` work has four slots per worker process;
+`DaysheetCaptureJob` has eight dedicated slots so pre-cutoff waits cannot occupy
+the ordinary/mail pool. Both are registered in `Web.Worker`. It does not patch IHP
+or implement a parallel scheduler. Database and host resources remain shared.
 
-`Application.Async.Registry.dispatchAppJob` is the final application boundary.
-Known job and provider outcomes are projected to payload-free `AppJobError`
+`Application.Async.Registry.dispatchAppJob` is the ordinary application boundary.
+The dedicated Daysheet instance enters the same telemetry/safe-error boundary;
+legacy AppJob capture tasks perform only an atomic queue handoff. Known job and provider outcomes are projected to payload-free `AppJobError`
 classifications. The boundary records bounded `AppError` telemetry and throws one
 private exception whose `Show` value contains only the generated code and safe
 message. Unexpected synchronous exceptions are replaced by the generic safe

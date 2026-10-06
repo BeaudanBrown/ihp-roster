@@ -3672,3 +3672,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER daysheet_report_snapshot_guard BEFORE INSERT OR UPDATE OR DELETE ON daysheet_report_snapshots FOR EACH ROW EXECUTE FUNCTION enforce_daysheet_report_snapshot();
+
+CREATE TABLE daysheet_capture_jobs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,
+    last_error TEXT DEFAULT NULL,
+    attempts_count INT DEFAULT 0 NOT NULL,
+    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    locked_by UUID DEFAULT NULL,
+    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    daysheet_id UUID NOT NULL,
+    cutoff_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    result JSONB DEFAULT '{}'::JSONB NOT NULL,
+    CONSTRAINT daysheet_capture_jobs_cutoff_unique UNIQUE (daysheet_id, cutoff_at),
+    CONSTRAINT daysheet_capture_jobs_attempts_nonnegative CHECK (attempts_count >= 0)
+);
+ALTER TABLE daysheet_capture_jobs ADD CONSTRAINT daysheet_capture_jobs_ref_daysheet FOREIGN KEY (daysheet_id) REFERENCES daysheets (id) ON DELETE RESTRICT;
+CREATE INDEX daysheet_capture_jobs_pending ON daysheet_capture_jobs (run_at) WHERE status IN ('job_status_not_started', 'job_status_retry');

@@ -4,7 +4,6 @@ module Application.Daysheet.CutoffJob
     ( cutoffJobKind, CutoffJobPayload (..), enqueueCutoffCapture
     ) where
 
-import Application.Async.Queue
 import qualified Application.Daysheet.Cutoff as Cutoff
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -30,15 +29,11 @@ instance Aeson.FromJSON CutoffJobPayload where
 -- day from a timer, and never enqueue historical catch-up work.
 enqueueCutoffCapture :: (?modelContext :: ModelContext) => UTCTime -> Daysheet -> Cutoff.CutoffPlan -> IO ()
 enqueueCutoffCapture now record plan = when (now < Cutoff.cutoffAt plan) do
-    _ <- enqueueAppJob AppJobRequest
-        { jobKind = cutoffJobKind
-        , payload = Aeson.toJSON (CutoffJobPayload (unpackId record.id) record.operationalDate (Cutoff.cutoffAt plan))
-        , payloadSchemaVersion = 1
-        , requestedByUserId = Nothing
-        , venueId = Just (unpackId record.venueId)
-        , relatedTable = Just "daysheets"
-        , relatedId = Just (unpackId record.id)
-        , dedupeKey = Just ("daysheet-cutoff:" <> tshow (unpackId record.id) <> ":" <> tshow (Cutoff.cutoffAt plan))
-        , runAt = Just (Cutoff.armAt plan)
-        }
-    pure ()
+    -- Callers hold the venue lock, including legacy handoff. Keep terminal jobs
+    -- too: a retry never creates a second capture task for this day/cutoff.
+    existing <- query @DaysheetCaptureJob |> filterWhere (#daysheetId, record.id)
+        |> filterWhere (#cutoffAt, Cutoff.cutoffAt plan) |> fetchExists
+    unless existing do
+        _ <- newRecord @DaysheetCaptureJob |> set #daysheetId record.id
+            |> set #cutoffAt (Cutoff.cutoffAt plan) |> set #runAt (Cutoff.armAt plan) |> createRecord
+        pure ()
