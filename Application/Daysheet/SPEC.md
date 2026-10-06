@@ -185,8 +185,11 @@ transaction. Any failure rolls back the entire run/batch. Scheduled capture uses
 no fabricated account and also refuses source timestamps after cutoff, including
 clock-anomaly cases. The immutable scheduled row is its background provenance;
 manual capture additionally emits the typed report-captured audit event.
-Transport is not invoked by capture. Mail resolver, history and scheduler wiring
-remain separate integration work.
+Transport is not invoked by capture. The installed frozen-mail resolver reads
+only retained selected content and immutable capture metadata; it verifies the
+exact captured recipient set as well as current recipient eligibility through the
+shared pipeline. Later edits, recipient additions and retries cannot select new
+values/destinations. History and scheduler wiring remain integration work.
 
 `daysheet_report_snapshots` stores the captured definition link, saved revision,
 selected versioned content and distinct intended recipient identities. Recipient

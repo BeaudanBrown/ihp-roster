@@ -7,6 +7,8 @@ import Application.Daysheet.Storage
 import Application.EmailDelivery.Envelope (ExternalRecipient (..), ExternalEmailPayload (..))
 import Application.EmailDelivery
 import Application.Daysheet.EmailContract
+import Application.Async.Boundary (throwAppJobError)
+import Application.Async.Error (AppJobError (JobConfigurationUnavailable))
 import Config
 import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
@@ -132,7 +134,8 @@ tests = aroundAll withDatabaseTestContext do
                 EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    missingResolver <- try @SomeException (performEmailDeliveryJobWith enabledEmailDeliveryRuntime queued)
+                    missingResolver <- try @SomeException (performEmailDeliveryJobWithReportResolver enabledEmailDeliveryRuntime
+                        (\_ -> throwAppJobError JobConfigurationUnavailable) queued)
                     either (const True) (const False) missingResolver `shouldBe` True
                     failed <- try @SomeException (performEmailDeliveryJobWithReportResolver
                         (failingEmailDeliveryRuntime "private SMTP diagnostic external@example.test")

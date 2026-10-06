@@ -53,12 +53,14 @@ nothing. Results/logs contain bounded statuses/reasons, never the destination or
 rendered report. Provider correlation, safe transport errors, and retries remain
 shared.
 
-The report workflow must install a resolver which verifies the frozen reference's
-venue/report and exact captured recipient membership before returning selected
-HTML/plain-text content. This domain renderer/capture integration belongs to
-Daysheets #636/#639. Until installed, active v2 delivery fails closed with a
-retryable configuration error; it does not silently discard a report. Recipient
-management UI integration belongs to the Daysheet designer/daily workflow.
+The installed `Application.Daysheet.ReportDelivery` resolver verifies the frozen
+reference's venue/report, exact captured recipient membership and immutable
+address before returning selected HTML/plain-text content. It reads the sealed
+selected document and definition-capture identity, never live Daysheet values or
+current calculations. Missing references skip; malformed retained content fails
+closed rather than reconstructing a report. The explicit resolver injection seam
+remains for controlled transport tests. Recipient management UI integration
+belongs to the Daysheet designer/daily workflow.
 
 Removal waits for an already in-flight delivery holding its lock. Provider
 acceptance cannot be recalled; at-least-once delivery remains possible across a

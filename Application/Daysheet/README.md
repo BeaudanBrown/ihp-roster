@@ -128,7 +128,16 @@ capture current saved data. Scheduled capture uses `withScheduledDaily`, skips
 missing/unsubmitted days and captures all configured formatted reports under one
 cutoff transaction. The database seals snapshots against mutation/deletion and
 checks submitted source/venue/revision and active scoped recipient identities.
-This service is not yet connected to the scheduler, Send UI or delivery resolver.
+This service is not yet connected to the scheduler or Send UI.
+
+`ReportDelivery` is installed in the shared mail pipeline. It verifies frozen
+venue/report identity, exact captured recipient membership and address, then
+renders retained selected content without loading the live Daysheet/evaluator.
+Missing references skip and corrupt documents fail closed. Shared recipient
+locking, cancellation, provider correlation and retries remain transport-owned.
+`Application.Helper.View.DaysheetReport` supplies common escaped HTML and explicit
+plain-text statuses; `Web.Mail.DaysheetReport` adds frozen origin and actual
+capture/cutoff identity, without attachments or authenticated URLs.
 
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence

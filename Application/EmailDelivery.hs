@@ -26,6 +26,7 @@ import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Correlation
 import Application.EmailDelivery.Enqueue
 import Application.EmailDelivery.Envelope
+import Application.Daysheet.ReportDelivery (resolveFrozenReport)
 import Application.Daysheet.EmailContract
 import Application.Daysheet.Recipients (RecipientEligibilityFailure (..), withEligibleReportRecipient)
 import Application.Feedback.Email (feedbackSubmittedMailKind,
@@ -83,10 +84,7 @@ performEmailDeliveryJobWith ::
     AppJob ->
     IO ()
 performEmailDeliveryJobWith runtime =
-    -- The frozen-report workflow installs its resolver before producing report
-    -- jobs. Fail closed/retry, never silently mark a report sent or skipped when
-    -- that domain integration is unavailable. Legacy handlers are unchanged.
-    performEmailDeliveryJobWithReportResolver runtime (\_ -> throwAppJobError JobConfigurationUnavailable)
+    performEmailDeliveryJobWithReportResolver runtime resolveFrozenReport
 
 performEmailDeliveryJobWithReportResolver ::
     (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
