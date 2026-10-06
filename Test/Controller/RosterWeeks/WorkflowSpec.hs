@@ -170,10 +170,16 @@ tests = aroundAll withDatabaseTestContext do
                 timelineDialog `responseBodyShouldContain` "rosterView=timeline"
                 timelineStaffDialog `responseBodyShouldContain` "value=\"09:05\""
                 timelineStaffDialog `responseBodyShouldContain` ("value=\"" <> cs (tshow staff.id) <> "\" selected")
-                forM_ ["malformed", "instant:" <> tshow requestedDayId <> ":" <> tshow targetLane.id <> ":" <> tshow (epoch + 1)] \badToken -> do
+                let tokenAt offset = "instant:" <> tshow requestedDayId <> ":" <> tshow targetLane.id <> ":" <> tshow (epoch + offset)
+                forM_ ["malformed", tokenAt 1, tokenAt (475 * 60), tokenAt (480 * 60)] \badToken -> do
                     rejected <- withUserAndCurrentVenue manager venue.id do
                         callActionWithParams (NewRosterTimelineShiftDialogAction badToken) timelineParams
                     rejected `responseBodyShouldContain` "Choose an available time"
+                rejectedStaffCreation <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction (timelineParams <>
+                            [("sourceItemKey", cs sourceToken), ("targetDropzoneKey", cs (tokenAt (475 * 60)))])
+                rejectedStaffCreation `responseBodyShouldContain` "Drop eligible staff onto an available timeline time."
                 dayCountAfterDialogs <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
                 laneCountAfterDialogs <- query @RosterLane |> fetchCount
                 slotCountAfterDialogs <- query @RosterSlot |> fetchCount

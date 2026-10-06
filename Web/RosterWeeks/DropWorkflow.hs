@@ -40,6 +40,8 @@ import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
                                   resolveRosterLaneReference,
                                   rosterWindowTarget)
+import Web.RosterWeeks.DefaultDuration (defaultRosterEnd,
+                                        rosterCreationDefaults)
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
                                 fetchActiveStaffForCurrentVenue,
                                 rosterSlotCopyAmbiguousEndpoints)
@@ -291,6 +293,7 @@ validateRosterTimelineCreateTarget scope token = do
                             venueConfig.timePickerStartMinuteOfDay venueConfig.timePickerFinalSelectableMinuteOfDay
                             [(authoritativeStartsAt bounds, authoritativeEndsAt bounds) | bounds <- intervals])
                         guard (target.timelineTargetStartsAt `elem` timelineCreateInstants scale day.operationalDate)
+                        guard (isJust (defaultRosterEnd (rosterCreationDefaults venueConfig) day.operationalDate target.timelineTargetStartsAt 5))
                         (_, rowIndex) <- firstAvailableRosterDayPlacement day [lane] slots
                         pure (RosterTimelineCreateTarget day lane rowIndex target.timelineTargetStartsAt)
                 _ -> pure Nothing

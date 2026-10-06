@@ -197,6 +197,9 @@ retain their actual occurrence. Ordinary creation uses the first occurrence of
 an ambiguous configured start, and leaves nonexistent starts for explicit user
 selection. Copies, templates, existing shifts and Timesheet defaults are unchanged.
 The duration resource invalidates timeline previews only within the owning venue.
+Saved out-of-window shifts may expand display and movement targets, never new-shift
+creation availability. Creation launchers, keyboard entry and staff-drop validation
+require a real default endpoint inside the configured window.
 Creation previews paint above shift cards and below sticky labels, without
 intercepting pointers. Move/copy previews reuse the generic interval projection:
 source-card cross-axis dimensions (including overlap tracks), exact elapsed

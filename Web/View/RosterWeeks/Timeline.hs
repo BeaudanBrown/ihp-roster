@@ -140,7 +140,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
         assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
         dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
         canFillPublishedOpen = hasManagementMode && rosterDay.publicationState == Published && not rosterDay.isClosed
-        addShiftButton = case listToMaybe dropzones of
+        addShiftButton = case find (\(instant, _) -> isJust (defaultRosterEnd timelineWindow.timelineWindowCreationPolicy rosterDay.operationalDate instant 5)) dropzones of
             Nothing -> mempty
             Just (_, key) -> [hsx|
                 <button {...(rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (rosterTimelineCreateDialogUrl rosterDay.operationalDate (Id rosterDay.rosterGroupId) calendarRevision key)))}
@@ -172,16 +172,20 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
 
 renderTimelineDropzone :: TimelineWindow -> RosterDay -> Int -> (UTCTime, Text) -> Html
 renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
-    let label = "Add shift at " <> timelineClockLabel instant
+    let creationEnd = defaultRosterEnd timelineWindow.timelineWindowCreationPolicy day.operationalDate instant 5
+        label = (if isJust creationEnd then "Add shift at " else "Drop shift at ") <> timelineClockLabel instant
+        creationAttrs = if isJust creationEnd
+            then rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (rosterTimelineCreateDialogUrl day.operationalDate (Id day.rosterGroupId) revision targetKey))
+            else []
      in [hsx|
         <button {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)}
                 {...(Drag.dragPositionAttrs (timelineCoordinate timelineWindow.timelineWindowScale instant))}
-                {...(rosterShiftDialogLauncherAttrs (withTimelineOrientation timelineWindow.timelineWindowOrientation (rosterTimelineCreateDialogUrl day.operationalDate (Id day.rosterGroupId) revision targetKey)))}
+                {...creationAttrs}
                 type="button" tabindex="-1" class="roster-day-timeline-dropzone"
                 style={timelineDropzoneStyle timelineWindow instant}
                 data-roster-timeline-minute={tshow (timelineOperationalMinute day.operationalDate instant)}
                 aria-label={label} title={label}>
-            {forEach (maybeToList (defaultRosterEnd timelineWindow.timelineWindowCreationPolicy day.operationalDate instant 5)) (renderTimelineCreationPreview timelineWindow instant)}
+            {forEach (maybeToList creationEnd) (renderTimelineCreationPreview timelineWindow instant)}
         </button>
     |]
 

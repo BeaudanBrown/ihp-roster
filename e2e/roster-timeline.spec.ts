@@ -99,7 +99,19 @@ for (const orientation of ['horizontal', 'vertical']) {
                 VALUES ('a6540000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000061', 'Duration defaults', 10)
                 ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`);
             await openCanonicalTimeline(page, orientation);
+            // A historical out-of-window shift expands display and move targets,
+            // but must not expand the allowed new-shift creation window.
+            runSql(`UPDATE roster_slots SET starts_at = starts_at - INTERVAL '2 hours'
+                WHERE id = 'a1000000-0000-0000-0000-000000000071'`);
+            await page.reload();
             const lane = page.getByRole('region', { name: 'Duration defaults', exact: true });
+            for (const minute of [425, 1020]) {
+                const unavailable = lane.locator(`.roster-day-timeline-dropzone[data-roster-timeline-minute="${minute}"]`);
+                await expect(unavailable).not.toHaveAttribute('hx-get', /.+/);
+                await expect(unavailable).toHaveAttribute(InteractionDom.attributes.dropzoneKey, /^instant:/);
+                await unavailable.click();
+                await expect(page.getByRole('dialog')).toHaveCount(0);
+            }
             const target = lane.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="900"]');
             await target.hover();
             const preview = target.locator('.roster-day-timeline-create-preview');
@@ -110,10 +122,10 @@ for (const orientation of ['horizontal', 'vertical']) {
             const previewBox = await preview.boundingBox();
             expect(scaleBox).not.toBeNull();
             expect(previewBox).not.toBeNull();
-            // Display includes the final 15-minute cell: 09:00 through 17:15.
+            // Display includes the saved 07:00 start and final 15-minute cell.
             const extent = orientation === 'horizontal' ? previewBox!.width : previewBox!.height;
             const scaleExtent = orientation === 'horizontal' ? scaleBox!.width : scaleBox!.height;
-            expect(extent / scaleExtent).toBeCloseTo(120 / 495, 2);
+            expect(extent / scaleExtent).toBeCloseTo(120 / 615, 2);
             await target.click();
             const dialog = page.getByRole('dialog', { name: 'Add shift' });
             await expect(dialog.locator('input[name="startTime"]')).toHaveValue('15:00');
@@ -132,6 +144,7 @@ for (const orientation of ['horizontal', 'vertical']) {
             await expect(dialog.locator('input[name="endTime"]')).toHaveValue('10:30');
             await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
         } finally {
+            resetTimelineShiftInterval();
             runSql(`UPDATE roster_lanes SET deleted_at = NOW() WHERE id = 'a6540000-0000-0000-0000-000000000081';
                 UPDATE venue_config SET default_roster_shift_duration_minutes = ${original.duration},
                 time_picker_start_minute_of_day = ${original.start}, time_picker_final_selectable_minute_of_day = ${original.end}
