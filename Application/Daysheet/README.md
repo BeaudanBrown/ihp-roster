@@ -114,6 +114,13 @@ authored/entered money still requires whole cents. Unknown versions, unresolved
 choice identities, NUL and oversized documents fail closed. Frozen persistence,
 capture authority and delivery must wrap this codec; it alone creates no report.
 
+`Cutoff` owns venue-local deadline, early arming and strict post-lock timing
+admission. `CutoffCapture` provides the real venue-lock/transaction boundary with
+an injectable clock: preparation waits outside locks, capture waits at most one
+second beforehand, late attempts skip, and callback failures roll back. It does
+not yet register jobs, persist report snapshots or invoke mail transport. See the
+scheduled-cutoff contract in `SPEC.md` and the committed concurrency tests.
+
 `EntryLayout` binds authored occurrences to authorized root/row cells without
 exposing a render document to JavaScript. `Mutations` composes daily persistence
 with the shared durable live publisher. `Entry.deletionToken` fingerprints scope,

@@ -143,6 +143,35 @@ The canonical daily document cap is 4 MiB; the SQL JSONB text cap is 8 MiB to
 allow PostgreSQL's representation whitespace. NUL text is rejected before SQL.
 No per-field before/after values are written to the audit stream.
 
+## Scheduled Cutoff Boundary
+
+The operator-approved mechanism pre-arms one venue/day capture task before the
+cutoff, waits outside the database transaction, then acquires the existing venue
+serialization lock at most one second before the following venue-local 06:00.
+One task must capture all eligible configured reports for that day; independent
+per-report workers would contend across the same deadline. The queue's default
+future-job polling interval is 60 seconds, so the plan arms two minutes early.
+No active scheduler registration or snapshot persistence is implied by this
+boundary alone.
+
+`Cutoff` resolves the civil boundary through the shared timezone authority,
+including DST, with no UTC fallback. `CutoffCapture` rechecks live venue state and
+configured timezone under the same lock used by daily saves and recipient
+changes. It rechecks time after lock acquisition: a delayed worker or contended
+lock arriving at/after cutoff skips without invoking capture. Clock rollback
+never extends the deliberate lock wait. Callback writes share one transaction;
+exceptions or typed errors roll back the whole capture. An outer transaction is
+rejected so preparation cannot accidentally retain database locks.
+
+The lock remains held through the callback and commit. Edits saved before
+acquisition are included; waiting edits resume afterward and affect only live
+data. The snapshot must store actual capture time separately from its scheduled
+cutoff, never backdate a late observation. Admission is transaction-local and
+cannot be persisted/reused by retries after failure. Delivery runs only after
+commit through the shared mail pipeline. Submission eligibility, immutable
+snapshot storage and recipient/job creation belong to the capture callback, not
+the clock policy; blank figures and advisory concerns are not eligibility gates.
+
 ## Daily Entry Boundary
 
 Daily entry stays on one page with related figures together. Engine ceilings
