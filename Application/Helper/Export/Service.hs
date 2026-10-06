@@ -43,6 +43,8 @@ requestFixedExport = requestFixedExportWithSelection AllEligible
 requestFixedExportWithSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     TimesheetSelection -> ExportJobType -> Day -> Day -> IO (Either Text ExportJob)
+requestFixedExportWithSelection _ DaysheetWorkbookXlsx _ _ =
+    pure (Left "Select an existing Daysheet report to download its workbook.")
 requestFixedExportWithSelection selection exportType rangeStart rangeEnd =
     withExportTelemetrySpan (exportJobTypeToText exportType) isRight $
         withExportSelection selection exportType rangeStart rangeEnd \entries ->

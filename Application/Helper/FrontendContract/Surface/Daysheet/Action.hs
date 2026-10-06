@@ -17,5 +17,6 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Action
     , openDaysheetRowDeletionAction, openDaysheetRowDeletionActionFields
     , openDaysheetDesignerAction, openDaysheetDesignerActionFields
     , openDaysheetReportAction, openDaysheetReportActionFields, parseOpenDaysheetReportActionParams
+    , downloadDaysheetWorkbookAction, downloadDaysheetWorkbookActionFields
     ) where
 import Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action

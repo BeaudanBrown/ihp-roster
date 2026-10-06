@@ -8,7 +8,8 @@ download authorization, and controller-facing orchestration.
 
 ## Start Here
 
-- `Service.hs` — controller-facing generation and download boundary.
+- `Service.hs` — fixed payroll generation boundary; rejects Daysheet requests without their own source scope.
+- `Daysheet.hs`/`DaysheetSource.hs` — synchronous selected-report generation and fresh membership/provenance checks for the Daysheet-specific export capability. Shared job persistence, download and expiry remain in `Persistence.hs`.
 - `Types.hs` and `Definitions.hs` — fixed catalog and date/week rules.
 - `ReadModel.hs` and `Payloads.hs` — authoritative export inputs and payloads.
 - `PayrollWorkbook.hs` — versioned ordered definitions for Summary, hourly-row Staff and shift-type Hours/Wages families; collision-safe Staff/pay-bucket columns with hidden identity mappings; the implementation-owned hidden Data worksheet; formulas, typed XLSX cells, formatting, and worksheet primitives.

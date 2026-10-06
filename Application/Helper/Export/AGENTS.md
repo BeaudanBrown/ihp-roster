@@ -14,7 +14,8 @@ Read this before editing fixed export helpers or export tests.
 
 ## Gotchas
 
-- Managers are denied export generation/download despite superseded proposals.
+- Managers are denied payroll export generation/download. Daysheet XLSX has an
+  explicit separate capability; never infer payroll access from Daysheet access.
 - ZIP contents are base64 in `export_jobs.file_contents`.
 - `day_names.weekday_index` is real SQL weekday numbering; report columns must
   still follow the selected week order.

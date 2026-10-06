@@ -6,6 +6,7 @@ module Application.Helper.Export.DaysheetWorkbook
     ) where
 
 import Prelude
+import Control.Monad (foldM)
 import Application.Daysheet.Report
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Saved as Saved
@@ -29,7 +30,7 @@ buildDaysheetWorkbook identity (ReportContent title sections)
         let sheets = zipWith makeSheet (sheetNames sections) sections
         let cells = take 1000001 (concatMap (.cells) sheets)
         if length cells > 1000000 then Left "The report exceeds the supported workbook size." else Right ()
-        mapM_ validateCell cells
+        _ <- foldM validateCell (0 :: Int) cells
         pure (DaysheetWorkbook (PayrollWorkbook sheets))
   where
     makeSheet name (ReportSection label blocks) = PayrollWorkbookSheet
@@ -40,12 +41,15 @@ buildDaysheetWorkbook identity (ReportContent title sections)
     renderRow row (bold, values) = zipWith (renderCell row bold) [1 ..] values
     renderCell row bold column (value, format) = PayrollWorkbookCell row column value
         (defaultPayrollWorkbookCellStyle { bold, numberFormat = format })
-    validateCell cell
+    validateCell total cell
         | cell.row > 1048576 || cell.column > 16384 = Left "The report exceeds Excel worksheet dimensions."
         | otherwise = case cell.value of
-            PayrollWorkbookText text | not (validCellText text) -> Left "Selected report text exceeds Excel limits or contains an unsupported control character."
+            PayrollWorkbookText text
+                | not (validCellText text) -> Left "Selected report text exceeds Excel limits or contains an unsupported control character."
+                | total + Text.length text > 16777216 -> Left "The report exceeds the supported workbook text size."
+                | otherwise -> Right (total + Text.length text)
             PayrollWorkbookFormula _ -> Left "Daysheet workbooks cannot contain formulas."
-            _ -> Right ()
+            _ -> Right total
 
 renderDaysheetWorkbook :: DaysheetWorkbook -> LBS.ByteString
 renderDaysheetWorkbook (DaysheetWorkbook workbook) = renderPayrollWorkbook workbook
@@ -123,12 +127,22 @@ sheetNames = go Set.empty
             usable = if Text.null base || Text.toCaseFold base == "history" then "Section" else base
             choose number =
                 let suffix = if number == 1 then "" else " (" <> Text.pack (show number) <> ")"
-                    candidate = Text.dropAround (== '\'') (Text.take (31 - Text.length suffix) usable) <> suffix
+                    candidate = Text.dropAround (== '\'') (takeSheetName (31 - Text.length suffix) usable) <> suffix
                 in if Set.member (Text.toCaseFold candidate) used then choose (number + 1) else candidate
             name = choose (1 :: Int)
         in name : go (Set.insert (Text.toCaseFold name) used) rest
     safe char | char `elem` ("[]:*?/\\" :: String) || Char.isControl char || not (xmlCharacter char) = '-'
               | otherwise = char
+
+-- Conservative UTF-16 bound also covers Excel versions counting surrogate pairs.
+takeSheetName :: Int -> Text -> Text
+takeSheetName capacity = Text.pack . takeUnits capacity . Text.unpack
+  where
+    takeUnits _ [] = []
+    takeUnits remaining (char : rest)
+        | remaining < width = []
+        | otherwise = char : takeUnits (remaining - width) rest
+      where width = if Char.ord char > 65535 then 2 else 1
 
 daysheetWorkbookFileName :: WorkbookIdentity -> Text -> Text
 daysheetWorkbookFileName identity label = "daysheet-" <> name <> "-" <> Text.pack (show day) <> "-" <> kind <> ".xlsx"

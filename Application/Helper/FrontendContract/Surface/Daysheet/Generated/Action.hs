@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     ( AddDaysheetRowActionOperation
     , ConfirmDaysheetRowDeletionActionOperation
     , CreateDaysheetActionOperation
+    , DownloadDaysheetWorkbookActionOperation
     , KeepSavedDaysheetCellActionOperation
     , OpenDaysheetDesignerActionOperation
     , OpenDaysheetReportActionOperation
@@ -28,6 +29,8 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , confirmDaysheetRowDeletionActionFields
     , createDaysheetAction
     , createDaysheetActionFields
+    , downloadDaysheetWorkbookAction
+    , downloadDaysheetWorkbookActionFields
     , keepSavedDaysheetCellAction
     , keepSavedDaysheetCellActionFields
     , openDaysheetDesignerAction
@@ -186,6 +189,25 @@ parseCreateDaysheetActionParams ::
 parseCreateDaysheetActionParams =
     parseActionParams
         @CreateDaysheetActionOperation
+
+data DownloadDaysheetWorkbookActionOperation
+
+type instance ActionSurface DownloadDaysheetWorkbookActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
+type instance ActionMarker DownloadDaysheetWorkbookActionOperation = Types2.DownloadDaysheetWorkbook
+type instance ActionFieldSpecs DownloadDaysheetWorkbookActionOperation =
+    '[]
+
+downloadDaysheetWorkbookActionFields :: ActionFields DownloadDaysheetWorkbookActionOperation
+downloadDaysheetWorkbookActionFields =
+    noActionFields
+
+downloadDaysheetWorkbookActionEvidence :: ActionEvidence DownloadDaysheetWorkbookActionOperation
+downloadDaysheetWorkbookActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DownloadDaysheetWorkbook" "download-daysheet-workbook" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+downloadDaysheetWorkbookAction :: ActionFields DownloadDaysheetWorkbookActionOperation -> FrontendSurfaceAction
+downloadDaysheetWorkbookAction =
+    frontendSurfaceActionFromEvidence downloadDaysheetWorkbookActionEvidence
 
 data KeepSavedDaysheetCellActionOperation
 

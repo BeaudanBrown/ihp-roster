@@ -318,6 +318,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.AddDaysheetRow allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ConfirmDaysheetRowDeletion allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetReport allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.DownloadDaysheetWorkbook
+        (requestAdapterOperationsWithoutParser "Generate only the scoped captured report; no replacement data payload")
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.KeepSavedDaysheetCell
         (requestAdapterOperationsWithoutParser "Explicitly discard local input in favour of the scoped saved cell; route identity only")
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SubmitDaysheet

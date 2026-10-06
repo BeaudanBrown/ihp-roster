@@ -62,6 +62,12 @@ tests = describe "Daysheet Excel workbook" do
         let labels = ["'Bad/name:*?[]\\'", "SAME", "same", Text.replicate 50 "x", Text.replicate 50 "x", "History"]
         parsed <- parseWorkbook (DraftWorkbook (fromGregorian 2026 10 1)) (ReportContent "Names" [ReportSection label [] | label <- labels])
         map fst (X._xlSheets parsed) `shouldBe` ["Bad-name------", "SAME", "same (2)", Text.replicate 31 "x", Text.replicate 27 "x" <> " (2)", "Section"]
+    it "bounds Unicode worksheet names and total selected text before ZIP generation" do
+        let day = fromGregorian 2026 10 1
+        parsed <- parseWorkbook (DraftWorkbook day) (ReportContent "Unicode" [ReportSection (Text.replicate 31 "😀") []])
+        map fst (X._xlSheets parsed) `shouldBe` [Text.replicate 15 "😀"]
+        let oversized = ReportContent "Large" [ReportSection "Selected" (replicate 1700 (ReportInstructions (Text.replicate 10000 "x")))]
+        isLeft (buildDaysheetWorkbook (DraftWorkbook day) oversized) `shouldBe` True
     it "identifies frozen captures and makes filenames safe" do
         let day = fromGregorian 2026 10 1
             identity = FrozenWorkbook day (UTCTime day 21600)

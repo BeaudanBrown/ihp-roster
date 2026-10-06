@@ -2,11 +2,14 @@ module Application.Helper.Export.Persistence where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Types
+import Application.Helper.Export.DaysheetSource (canDownloadDaysheetExport)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
 import Generated.Types
 import IHP.ControllerPrelude
+import qualified Network.Wai as Wai
+import Network.HTTP.Types.Status (status403)
 
 persistReadyExportJobForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -106,8 +109,14 @@ authorizeExportDownload ::
     UUID ->
     IO ExportJob
 authorizeExportDownload exportJobId downloadToken = do
-    exportJob <- fetch exportJobId
-    ensureRecordInCurrentVenue exportJob.venueId
+    stored <- query @ExportJob
+        |> filterWhere (#id, exportJobId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> fetchOneOrNothing
+    exportJob <- maybe (respondAndExit (Wai.responseLBS status403 [("Content-Type", "text/plain")] "Export is not available.")) pure stored
+    if exportJob.exportType == exportJobTypeToText DaysheetWorkbookXlsx
+        then canDownloadDaysheetExport exportJob >>= accessDeniedUnless
+        else ensureAdminRole
     accessDeniedUnless (exportJob.downloadToken == downloadToken)
 
     now <- getCurrentTime

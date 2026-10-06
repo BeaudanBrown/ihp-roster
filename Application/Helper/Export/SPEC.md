@@ -6,10 +6,18 @@ cross-module safety and payroll contracts.
 
 ## Access And Lifecycle
 
-- Export generation and download are venue-scoped admin capabilities for venue
-  admins, owners, and founder super admins. Managers are denied.
+- Payroll export generation and download remain venue-scoped admin capabilities
+  for venue admins, owners, and founder super admins. Managers are denied payroll
+  formats. Daysheet XLSX is a separate membership-scoped capability for managers,
+  admins and owners, including before submission; it never uses payroll selection.
 - Every format uses the shared `export_jobs` persistence, expiry, authorization,
   download, and audit lifecycle. Controllers must not hand-roll export endpoints.
+  Daysheet artifacts record the pinned capture, configured report and saved
+  revision in job scope; download rechecks live membership, venue, source and
+  enabled Excel output before token/status/expiry checks. Generation is
+  synchronous under authority with atomic artifact/audit/publication writes.
+  Existing TEXT format and JSON scope columns support this extension without a
+  schema change. File expiry does not delete its Daysheet or captured definition.
 - The fixed backend catalog is defined in `Types.hs`; the current UI exposes
   configured Payroll Workbooks for one URL-selected roster week. Payroll Earnings
   CSV generation is hidden pending a later retirement decision. Export history is

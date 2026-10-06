@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
 import { daysheetTest as test, openDaysheet, openDaysheetDate, saveDaysheetText, saveDaysheetChange } from './support/daysheet';
 import { expectNoHorizontalViewportOverflow } from './support/responsive';
@@ -9,7 +10,7 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
     await page.getByRole('link', { name: 'Add report', exact: true }).click();
     await page.getByLabel('Report name', { exact: true }).fill('Manager preview');
-    await page.getByLabel('Report targets', { exact: true }).selectOption('formatted');
+    await page.getByLabel('Report targets', { exact: true }).selectOption('formatted-and-excel');
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     const report = page.getByRole('region', { name: 'Report: Manager preview', exact: true });
     await report.getByRole('link', { name: 'Add report section', exact: true }).click();
@@ -42,6 +43,13 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     const literal = '<script>unsafe()</script> =HYPERLINK(plain text)';
     await saveDaysheetText(page, page.getByLabel('Comments', { exact: true }), literal);
     await saveDaysheetText(page, page.getByLabel('Count', { exact: true }), '0');
+    const draftDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download Excel: Manager preview', exact: true }).click();
+    const draftDownload = await draftDownloadPromise;
+    expect(draftDownload.suggestedFilename()).toBe('daysheet-manager-preview-2026-10-02-draft.xlsx');
+    expect(await draftDownload.failure()).toBeNull();
+    const draftBytes = await readFile((await draftDownload.path())!);
+    expect(draftBytes.subarray(0, 2).toString()).toBe('PK');
     await page.getByRole('button', { name: 'Preview: Manager preview', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Manager preview', exact: true })).toBeVisible();
     await expect(page.getByText('Draft preview', { exact: true })).toBeVisible();
@@ -80,6 +88,11 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     const native = await browser.newContext({ storageState: await page.context().storageState(), javaScriptEnabled: false, viewport: page.viewportSize() });
     const nativePage = await native.newPage();
     await nativePage.goto(dailyUrl);
+    const liveDownloadPromise = nativePage.waitForEvent('download');
+    await nativePage.getByRole('button', { name: 'Download Excel: Manager preview', exact: true }).click();
+    const liveDownload = await liveDownloadPromise;
+    expect(liveDownload.suggestedFilename()).toBe('daysheet-manager-preview-2026-10-02-live.xlsx');
+    expect(await liveDownload.failure()).toBeNull();
     await nativePage.getByRole('button', { name: 'Preview: Manager preview', exact: true }).click();
     await expect(nativePage.getByRole('heading', { name: 'Manager preview', exact: true })).toBeVisible();
     await expect(nativePage.getByText('Live preview', { exact: true })).toBeVisible();

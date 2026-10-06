@@ -9,6 +9,7 @@ import Application.Daysheet.References
 import Application.Daysheet.Storage (saveDraft, publishDraft)
 import Application.Helper.NominalText (renderNominalText)
 import qualified Data.UUID as UUID
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Data.Data (toConstr)
 import qualified IHP.RouterSupport as Router
@@ -128,6 +129,69 @@ tests = aroundAll withDatabaseTestContext do
                 forM_ [ShowDaysheetReportAction state.daysheet.id report, ShowDaysheetReportBodyAction state.daysheet.id report] \action -> do
                     denied <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action []
                     responseStatus denied `shouldSatisfy` (`elem` [status302, status303, status403])
+
+        it "lets managers generate and download only scoped Daysheet workbooks through shared expiry" $ withContext do
+            withCleanDb do
+                let report = UUID.fromWords 0 0 0 920
+                    definition = Fixture.entryDefinition { D.reports = [D.Report (D.ReportId report) "Closing workbook"
+                        [D.Section (D.SectionId (UUID.fromWords 0 0 0 921)) "Summary" [D.FieldBlock (Fixture.field 1)]] [D.ExcelDownload]] }
+                (venue, user, member) <- setupWithDefinition definition
+                Right state <- Storage.createDailySheet member day
+                _ <- member |> set #venueRole Manager |> updateRecord
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    withRequestHeaders [("HX-Request", "true")] $
+                        callActionWithParams (DownloadDaysheetWorkbookAction state.daysheet.id report) []
+                response `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders response) `shouldSatisfy` isJust
+                job <- query @ExportJob |> fetchOne
+                job.exportType `shouldBe` "daysheet_workbook_xlsx"
+                job.requestedByUserId `shouldBe` unpackId user.id
+                job.venueId `shouldBe` unpackId venue.id
+                job.status `shouldBe` "ready"
+                job.fileEncoding `shouldBe` "base64"
+                query @ExportJobEntry |> fetchCount >>= (`shouldBe` 0)
+                downloaded <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                downloaded `responseStatusShouldBe` status200
+                lookup "Content-Type" (responseHeaders downloaded) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                downloadedJob <- fetch job.id
+                downloadedJob.downloadedByUserId `shouldBe` Just (unpackId user.id)
+                badToken <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow UUID.nil))]
+                badToken `responseStatusShouldBe` status403
+                _ <- job |> set #scope (Aeson.object []) |> updateRecord
+                stale <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                stale `responseStatusShouldBe` status403
+                _ <- job |> set #scope job.scope |> updateRecord
+                _ <- member |> set #venueRole Worker |> updateRecord
+                revoked <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                responseStatus revoked `shouldSatisfy` (`elem` [status302, status303, status403])
+                _ <- member |> set #venueRole Manager |> updateRecord
+                other <- createVenueWithConfig "Different export venue"
+                _ <- createVenueMembershipRecord other user Manager
+                foreignDownload <- withPasskeyVerifiedUserAndCurrentVenue user other.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                foreignDownload `responseStatusShouldBe` status403
+                foreignGeneration <- withPasskeyVerifiedUserAndCurrentVenue user other.id $
+                    callActionWithParams (DownloadDaysheetWorkbookAction state.daysheet.id report) []
+                foreignGeneration `responseStatusShouldBe` status404
+                query @ExportJob |> fetchCount >>= (`shouldBe` 1)
+                _ <- job |> set #exportType "payroll_workbook_xlsx" |> updateRecord
+                payroll <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                responseStatus payroll `shouldSatisfy` (`elem` [status302, status303, status403])
+                now <- getCurrentTime
+                _ <- job |> set #exportType "daysheet_workbook_xlsx" |> set #expiresAt (addUTCTime (-1) now) |> updateRecord
+                expired <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                responseStatus expired `shouldSatisfy` (`elem` [status302, status303, status403])
+                expiredJob <- fetch job.id
+                expiredJob.status `shouldBe` "expired"
+                retained <- fetch state.daysheet.id
+                retained.submittedAt `shouldBe` Nothing
+                query @DaysheetDefinitionCapture |> fetchCount >>= (`shouldBe` 1)
 
         it "reads an absent date without creation and creates only on explicit POST" $ withContext do
             withCleanDb do

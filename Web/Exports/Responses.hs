@@ -3,7 +3,8 @@
 -- | Saved Workbook feedback and dialog completion. Passive publication remains
 -- exclusively with the durable mutation; these responses only refresh the actor.
 module Web.Exports.Responses
-    ( adminExportsPath
+    ( respondWithGeneratedExportDownload
+    , adminExportsPath
     , payrollWorkbookConfigurationErrorMessage
     , respondWithNewWorkbookEditor
     , respondWithWorkbookEditor
@@ -27,6 +28,16 @@ import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.Exports.WorkbookConfigurations (WorkbookEditorOutcome (..))
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
+
+respondWithGeneratedExportDownload ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => ExportJob -> IO ResponseReceived
+respondWithGeneratedExportDownload job =
+    let url = appendQueryParams (pathTo (DownloadExportJobAction job.id)) [("token", tshow job.downloadToken)]
+    in if isHtmxRequest then do
+        setHeader ("HX-Redirect", cs url)
+        setHeader ("HX-Reswap", "none")
+        respondHtml mempty
+    else redirectToPath url
 
 respondWithWorkbookEditorOutcome ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>

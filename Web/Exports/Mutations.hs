@@ -4,6 +4,7 @@ module Web.Exports.Mutations
     , deletePayrollWorkbookConfigurationMutation
     , exportJobTouchedResources
     , recordExportDownloadMutation
+    , requestDaysheetExportMutation
     , requestFixedExportMutation
     , requestSelectedExportMutation
     , requestFixedExportWithPayrollWorkbookDefinitionMutation
@@ -11,6 +12,7 @@ module Web.Exports.Mutations
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
+import Application.Helper.Export.Daysheet (requestDaysheetWorkbook)
 import Application.Helper.TimesheetSelection (TimesheetSelection)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
@@ -19,6 +21,9 @@ import qualified Data.Set as Set
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
+
+requestDaysheetExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id Daysheet -> UUID -> IO (Either Text (LiveMutationResult ExportJob))
+requestDaysheetExportMutation key report = requestExportMutation (requestDaysheetWorkbook key report)
 
 requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
 requestFixedExportMutation exportType rangeStart rangeEnd =

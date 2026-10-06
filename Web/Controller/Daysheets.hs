@@ -40,6 +40,8 @@ import Web.Daysheets.ReadModel
 import Web.View.Daysheets.Cell
 import Web.View.Daysheets.Deletion
 import Web.View.Daysheets.Index
+import Web.Exports.Mutations (requestDaysheetExportMutation)
+import Web.Exports.Responses (respondWithGeneratedExportDownload)
 import Web.View.Daysheets.Report
 
 type DaysheetRequest = (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond)
@@ -92,6 +94,16 @@ instance Controller DaysheetsController where
             setHeader ("HX-Redirect", cs (pathTo (ShowDaysheetReportAction key report)))
             respondHtml mempty
         else render ReportView { record, report, content }
+
+    action current@DownloadDaysheetWorkbookAction { daysheetId, configuredReportId } = runBepis current BepisExportAction do
+        ensureWrite
+        model <- loadModel daysheetId
+        requestDaysheetExportMutation daysheetId configuredReportId >>= \case
+            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
+            Left message -> if isHtmxRequest then do
+                setHeader ("HX-Reswap", "none")
+                respondHtml (renderToastOob ToastBottomCenter (errorToast message))
+            else setErrorMessage message >> navigate model.state.daysheet.operationalDate
 
     action current@ShowDaysheetReportBodyAction { daysheetId, configuredReportId } = runBepis current BepisFragmentAction do
         ensureRead

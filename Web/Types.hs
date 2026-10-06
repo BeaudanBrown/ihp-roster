@@ -285,6 +285,7 @@ data DaysheetsController
     | CreateDaysheetAction
     | ShowDaysheetBodyAction { daysheetId :: Id Daysheet }
     | ShowDaysheetReportAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | DownloadDaysheetWorkbookAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     | ShowDaysheetReportBodyAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     -- IHP AutoRoute supports Maybe Text, not Maybe UUID. The controller
     -- validates this raw route token before resolving the typed cell scope.

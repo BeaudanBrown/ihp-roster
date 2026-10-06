@@ -18,6 +18,7 @@ data DaysheetReport
 data DaysheetReportTarget
 data ConfiguredReportId
 data OpenDaysheetReport
+data DownloadDaysheetWorkbook
 data Occurrence
 data RowId
 data OperationalDate
@@ -74,6 +75,7 @@ type DaysheetSurface = Surface Daysheet
           , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
      , Action OpenDaysheetReport '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
          '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
+     , Action DownloadDaysheetWorkbook '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
      , DomToken DaysheetCellFormTarget
      , DomToken DialogOverlayMount
      , BrowserRole DaysheetFinalAction

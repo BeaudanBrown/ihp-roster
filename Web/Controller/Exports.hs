@@ -32,12 +32,6 @@ import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
                                            editSavedWorkbookFromRequest)
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
-exportDownloadUrl :: ExportJob -> Text
-exportDownloadUrl exportJob =
-    appendQueryParams
-        (pathTo (DownloadExportJobAction exportJob.id))
-        [("token", tshow exportJob.downloadToken)]
-
 respondWithExportGenerationError ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
@@ -50,18 +44,6 @@ respondWithExportGenerationError message =
         else do
             setErrorMessage message
             redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
-
-respondWithGeneratedExportDownload ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
-    ExportJob ->
-    IO ResponseReceived
-respondWithGeneratedExportDownload exportJob =
-    if isHtmxRequest
-        then do
-            setHeader ("HX-Redirect", cs (exportDownloadUrl exportJob))
-            setHeader ("HX-Reswap", "none")
-            respondHtml mempty
-        else redirectToPath (exportDownloadUrl exportJob)
 
 generateFixedExportDownload ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
@@ -151,12 +133,16 @@ swapAt leftIndex rightIndex values =
         | otherwise = value
 
 instance Controller ExportsController where
-    beforeAction = bepisBeforeAction BepisAdminVenueController do
+    beforeAction = bepisBeforeAction (case ?theAction of
+        DownloadExportJobAction {} -> BepisAuthenticatedVenueController
+        _ -> BepisAdminVenueController) do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted
-        ensureAdminRole
+        case ?theAction of
+            DownloadExportJobAction {} -> ensureManagerRole
+            _ -> ensureAdminRole
 
     action currentAction@ExportJobsAction = runBepis currentAction BepisExportAction do
         redirectToPath (pathTo AdminAction <> "#exports")

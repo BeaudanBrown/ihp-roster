@@ -354,14 +354,14 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 125
+        length actionDeclarations `shouldBe` 126
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 120
+        length generatedActionOperations `shouldBe` 121
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 120
+            `shouldBe` 121
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 120
+            `shouldBe` 121
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
             `shouldBe` 84
         let actionIdentity registration =
@@ -419,6 +419,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("staff", "open-staff-leave-delete-confirmation")
                 , ("staff", "delete-staff-leave-request")
                 , ("daysheet", "open-daysheet-designer")
+                , ("daysheet", "download-daysheet-workbook")
                 , ("daysheet", "keep-saved-daysheet-cell")
                 , ("daysheet", "submit-daysheet")
                 , ("daysheet", "open-daysheet-row-deletion")
