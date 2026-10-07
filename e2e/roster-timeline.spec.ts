@@ -62,22 +62,27 @@ async function openCanonicalTimeline(page: Page, orientation = 'horizontal') {
 async function expectDestinationPaint(page: Page, sourceBox: { width: number; height: number }) {
     const highlight = page.locator('.bepis-dropzone-highlight');
     await expect(highlight).toHaveCount(1);
-    const paint = await highlight.evaluate((element) => {
-        const painted = getComputedStyle(element, '::after');
+    await expect(highlight.locator('.roster-day-timeline-create-preview')).toBeVisible();
+    // Resolve the active target and read its paint in one browser task: an
+    // autoscroll frame can replace the active target between locator RPCs.
+    const paint = await page.evaluate((labelAttr) => {
+        const element = document.querySelector('.bepis-dropzone-highlight')!;
+        const preview = element.querySelector('.roster-day-timeline-create-preview')!;
+        const shape = preview.getBoundingClientRect();
         const box = element.getBoundingClientRect();
-        const shadow = document.querySelector('.bepis-pointer-clone-shadow')!.getBoundingClientRect();
         const vertical = document.querySelector('[data-roster-timeline-orientation]')!.getAttribute('data-roster-timeline-orientation') === 'vertical';
-        const shape = painted.content === 'none'
-            ? { width: box.width, height: box.height, x: box.left, y: box.top, pointerEvents: '' }
-            : { width: parseFloat(painted.width), height: parseFloat(painted.height),
-                x: box.left + parseFloat(painted.left), y: box.top + parseFloat(painted.top), pointerEvents: painted.pointerEvents };
-        return { ...shape, shadowX: shadow.x, shadowY: shadow.y, hitExtent: vertical ? box.height : box.width,
-            paintExtent: vertical ? shape.height : shape.width };
-    });
+        return { width: shape.width, height: shape.height, pointerEvents: getComputedStyle(preview).pointerEvents,
+            labelMatches: preview.textContent === document.querySelector(`[${labelAttr}]`)!.textContent,
+            crossOffset: vertical ? shape.left - box.left : shape.top - box.top,
+            snapOffset: vertical ? shape.top - box.top : shape.left - box.left,
+            hitExtent: vertical ? box.height : box.width, paintExtent: vertical ? shape.height : shape.width };
+    }, InteractionDom.attributes.dragPreviewLabel);
     expect(Math.abs(paint.width - sourceBox.width), 'painted destination highlight width').toBeLessThan(1);
     expect(Math.abs(paint.height - sourceBox.height), 'painted destination highlight height').toBeLessThan(1);
-    expect(Math.abs(paint.x - paint.shadowX), 'highlight agrees with snapped preview start').toBeLessThan(1);
-    expect(Math.abs(paint.y - paint.shadowY), 'highlight agrees with snapped preview start').toBeLessThan(1);
+    expect(Math.abs(paint.crossOffset), 'landing preview stays anchored to the lane, not the pointer').toBeLessThan(1);
+    expect(paint.snapOffset).toBeGreaterThanOrEqual(0);
+    expect(paint.snapOffset).toBeLessThanOrEqual(paint.hitExtent);
+    expect(paint.labelMatches, 'landing label agrees with the server-owned snapped interval').toBe(true);
     expect(paint.pointerEvents).toBe('none');
     expect(paint.hitExtent, 'hit target stays one snap step').toBeLessThan(paint.paintExtent / 2);
 }
@@ -85,7 +90,7 @@ async function expectDestinationPaint(page: Page, sourceBox: { width: number; he
 async function expectDestinationCleanup(page: Page) {
     await expect(page.locator('.bepis-dropzone-highlight')).toHaveCount(0);
     await expect(page.locator('.bepis-dropzone-highlight-projected')).toHaveCount(0);
-    await expect(page.locator('[style*="--bepis-dropzone-paint-"]')).toHaveCount(0);
+    await expect(page.locator(`[${InteractionDom.attributes.dragTargetPreview}][style*="width:"]`)).toHaveCount(0);
 }
 
 test('opens snapped empty-space creation and a keyboard alternative without writing drafts', async ({ page }) => {
@@ -187,6 +192,7 @@ for (const orientation of ['horizontal', 'vertical']) {
         await page.setViewportSize({ width: 1280, height: 900 });
         await openCanonicalTimeline(page, orientation);
         const overlapId = 'a6550000-0000-0000-0000-000000000071';
+        runSql("UPDATE roster_slots SET ends_at = starts_at + INTERVAL '5 hours 30 minutes' WHERE id = 'a1000000-0000-0000-0000-000000000071'");
         runSql(`INSERT INTO roster_slots (id, roster_day_id, roster_lane_id, staff_id, assignment_state, row_index, starts_at, ends_at, timezone, shift_type_id)
             SELECT '${overlapId}', roster_day_id, roster_lane_id, NULL, 'open', 1, starts_at + INTERVAL '1 hour', ends_at + INTERVAL '1 hour', timezone, shift_type_id
             FROM roster_slots WHERE id = 'a1000000-0000-0000-0000-000000000071'
@@ -214,6 +220,7 @@ for (const orientation of ['horizontal', 'vertical']) {
             }, point)).toBe(true);
             await expect(preview).toHaveCSS('pointer-events', 'none');
             await testInfo.attach(`creation-${orientation}`, { body: await page.screenshot(), contentType: 'image/png' });
+            const previewState = await lane.locator('.roster-day-timeline-create-preview').evaluateAll(elements => elements.map(element => [element.getAttribute('style'), element.getAttribute('class'), element.textContent]));
             await source.scrollIntoViewIfNeeded();
             const sourceBox = (await source.boundingBox())!;
             const labelBox = (await lane.locator('.roster-day-timeline-lane-label').boundingBox())!;
@@ -231,36 +238,26 @@ for (const orientation of ['horizontal', 'vertical']) {
                 if (copy) await expect(shadow).toHaveClass(/bepis-pointer-clone-shadow-copy/);
                 await expectDestinationPaint(page, sourceBox);
                 const targetKey = await page.locator('.bepis-dropzone-highlight').getAttribute(InteractionDom.attributes.dropzoneKey);
-                await page.mouse.move(grab.x + (orientation === 'horizontal' ? 20 : 2), grab.y + (orientation === 'vertical' ? 20 : 2));
+                // Move the pointer into the other overlap track without changing the
+                // destination time/lane. The landing hover must stay at the lane origin.
+                await page.mouse.move(grab.x + (orientation === 'horizontal' ? 20 : sourceBox.width + 8), grab.y + (orientation === 'vertical' ? 20 : sourceBox.height + 8));
                 await expect(page.locator('.bepis-dropzone-highlight')).toHaveAttribute(InteractionDom.attributes.dropzoneKey, targetKey!);
                 await expectDestinationPaint(page, sourceBox);
                 expect(await page.locator('.bepis-dropzone-highlight').evaluate((element) => {
-                    const box = element.getBoundingClientRect();
-                    const paint = getComputedStyle(element, '::after');
+                    const preview = element.querySelector<HTMLElement>('.roster-day-timeline-create-preview')!;
+                    const box = preview.getBoundingClientRect();
                     const owner = element.closest('.roster-day-timeline-scroller')!.getBoundingClientRect();
-                    const left = box.left + parseFloat(paint.left);
-                    const top = box.top + parseFloat(paint.top);
-                    const x = (Math.max(left, owner.left, 0) + Math.min(left + parseFloat(paint.width), owner.right, innerWidth)) / 2;
-                    const y = (Math.max(top, owner.top, 0) + Math.min(top + parseFloat(paint.height), owner.bottom, innerHeight)) / 2;
-                    const probe = document.createElement('style');
-                    probe.textContent = '.bepis-dropzone-highlight-projected::after { pointer-events: auto !important; }';
-                    document.head.append(probe);
-                    try { return document.elementFromPoint(x, y) === element; }
-                    finally { probe.remove(); }
+                    const x = (Math.max(box.left, owner.left, 0) + Math.min(box.right, owner.right, innerWidth)) / 2;
+                    const y = (Math.max(box.top, owner.top, 0) + Math.min(box.bottom, owner.bottom, innerHeight)) / 2;
+                    const previous = preview.style.pointerEvents;
+                    preview.style.pointerEvents = 'auto';
+                    try { return document.elementFromPoint(x, y) === preview; }
+                    finally { preview.style.pointerEvents = previous; }
                 }), 'full destination paint is above overlapping cards').toBe(true);
                 const shadowBox = (await shadow.boundingBox())!;
                 expect(Math.abs(shadowBox.width - sourceBox.width)).toBeLessThan(1);
                 expect(Math.abs(shadowBox.height - sourceBox.height)).toBeLessThan(1);
                 await expect(shadow).toHaveCSS('pointer-events', 'none');
-                expect(await shadow.evaluate((element) => {
-                    const box = element.getBoundingClientRect();
-                    const style = (element as HTMLElement).style;
-                    const previous = style.pointerEvents;
-                    style.pointerEvents = 'auto';
-                    const topmost = document.elementFromPoint(box.left + 5, box.top + 5) === element;
-                    style.pointerEvents = previous;
-                    return topmost;
-                })).toBe(true);
                 await testInfo.attach(`${copy ? 'copy' : 'move'}-${orientation}`, { body: await page.screenshot(), contentType: 'image/png' });
             }
             await page.keyboard.up('Control');
@@ -268,12 +265,14 @@ for (const orientation of ['horizontal', 'vertical']) {
             await page.mouse.up();
             await expect(shadow).toHaveCount(0);
             await expectDestinationCleanup(page);
+            expect(await lane.locator('.roster-day-timeline-create-preview').evaluateAll(elements => elements.map(element => [element.getAttribute('style'), element.getAttribute('class'), element.textContent]))).toEqual(previewState);
             await expect(page.getByRole('dialog')).toHaveCount(0);
         } finally {
             await page.keyboard.press('Escape');
             await page.keyboard.up('Control');
             await page.mouse.up();
             runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id = '${overlapId}'`);
+            resetTimelineShiftInterval();
         }
     });
 }

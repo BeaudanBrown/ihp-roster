@@ -3,7 +3,7 @@ import { readIntervalDrag } from "../interaction/interval-drag";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
-import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollDragContainer, scrollHorizontalDragContainer } from "../interaction/pointer-session";
+import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollDragContainer, scrollHorizontalDragContainer, targetPreviewWithinMount } from "../interaction/pointer-session";
 import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, dispatchInteractionSessionStart } from "../interaction/session-state";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
@@ -432,6 +432,19 @@ test("generated pointer sessions start only from enabled mounted handles", () =>
     assertEqual(session?.startClientX, 10);
 });
 
+test("landing preview discovery stays within its mount and exact target", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const target = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone" }));
+    const nestedMount = target.append(new MiniElement({ [attrs.surface]: "roster" }));
+    nestedMount.append(new MiniElement({ [attrs.dragTargetPreview]: "true" }));
+    const nestedTarget = target.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone" }));
+    nestedTarget.append(new MiniElement({ [attrs.dragTargetPreview]: "true" }));
+    const resolve = () => targetPreviewWithinMount(target as unknown as Element, mount as unknown as Element);
+    assertEqual(resolve(), null);
+    const own = target.append(new MiniElement({ [attrs.dragTargetPreview]: "true" }));
+    assertEqual(resolve(), own as unknown as HTMLElement);
+});
+
 test("interval projection preserves grab offset, clamps to allowed starts and shares opaque targets across lanes", () => {
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const config = { rangeSize: 1000, extent: 400, positions: [0, 250, 500], labels: ["early", "middle", "late"] };
@@ -440,7 +453,10 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     const second = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
     second.rect = { left: 100, top: 100, width: 1000, height: 100 };
     for (const [lane, axis] of [first, second].entries()) {
-        for (const position of config.positions) axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+        for (const position of config.positions) {
+            const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+            target.rect = { left: 100 + position, top: axis.rect.top + 8, width: 5, height: 84 };
+        }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
     marker.rect = { left: 350, top: 10, width: 400, height: 50 };
@@ -450,6 +466,9 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     assertEqual(drag.project(2000, 50)?.left, 600);
     assertEqual(drag.project(2000, 50)?.width, 400);
     assertEqual(drag.project(400, 150)?.target.getAttribute(attrs.dropzoneKey), "1/250");
+    assertEqual(drag.project(400, 150)?.landingLeft, 350);
+    assertEqual(drag.project(400, 150)?.landingTop, 108);
+    assertEqual(drag.project(400, 170)?.landingTop, 108);
     assertEqual(drag.project(400, 300), null);
     first.rect.left = -150;
     assertEqual(drag.project(400, 50)?.label, "late");
@@ -477,7 +496,10 @@ test("vertical interval projection preserves duration and grab offset, crosses l
     second.rect = { left: 100, top: 100, width: 100, height: 1000 };
     for (const [lane, axis] of [first, second].entries()) {
         axis.ownerDocument = doc;
-        for (const position of config.positions) axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+        for (const position of config.positions) {
+            const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
+            target.rect = { left: axis.rect.left, top: 100 + position, width: 100, height: 5 };
+        }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
     marker.ownerDocument = doc;
@@ -488,6 +510,9 @@ test("vertical interval projection preserves duration and grab offset, crosses l
     assertEqual(drag.project(50, 2000)?.top, 600);
     assertEqual(drag.project(50, 2000)?.height, 400);
     assertEqual(drag.project(150, 400)?.target.getAttribute(attrs.dropzoneKey), "1/250");
+    assertEqual(drag.project(150, 400)?.landingLeft, 100);
+    assertEqual(drag.project(170, 400)?.landingLeft, 100);
+    assertEqual(drag.project(150, 400)?.landingTop, 350);
     assertEqual(drag.project(300, 400), null);
     first.rect.top = -150;
     assertEqual(drag.project(50, 400)?.label, "late");

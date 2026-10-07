@@ -669,8 +669,30 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
     let label: HTMLElement | null = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
+    let landing: HTMLElement | null = null;
+    let restoreLanding: (() => void) | null = null;
+
+    const setLanding = (next: HTMLElement | null) => {
+        if (next === landing) return;
+        restoreLanding?.();
+        restoreLanding = null;
+        landing = next;
+        if (!next) return;
+        const text = next.textContent;
+        const style = next.getAttribute("style");
+        const classes = next.getAttribute("class");
+        addClass(next, effect.className);
+        restoreLanding = () => {
+            next.textContent = text;
+            if (style === null) next.removeAttribute("style");
+            else next.setAttribute("style", style);
+            if (classes === null) next.removeAttribute("class");
+            else next.setAttribute("class", classes);
+        };
+    };
 
     const cleanup = () => {
+        setLanding(null);
         if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
         shadow = null;
         label?.remove();
@@ -681,13 +703,24 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
         if (!shadow) return;
         const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
         if (session.intervalDrag) {
-            (shadow as HTMLElement).hidden = !projection;
+            setLanding(targetPreviewWithinMount(projection?.target ?? null, session.mount));
+            (shadow as HTMLElement).hidden = !projection || !!landing;
+            if (landing) removeClass(shadow, effect.className);
+            else addClass(shadow, effect.className);
             if (label) label.hidden = !projection;
             if (!projection) return;
-            const style = (shadow as HTMLElement).style;
+            const style = (landing ?? shadow as HTMLElement).style;
             style.width = `${projection.width}px`;
             style.height = `${projection.height}px`;
-            style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+            if (landing) {
+                const target = projection.target as HTMLElement;
+                const rect = target.getBoundingClientRect();
+                style.left = `${projection.landingLeft - rect.left - target.clientLeft}px`;
+                style.top = `${projection.landingTop - rect.top - target.clientTop}px`;
+                landing.textContent = projection.label;
+            } else {
+                style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+            }
             if (label) {
                 label.textContent = projection.label;
                 const viewport = label.ownerDocument.documentElement;
@@ -730,17 +763,21 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
     };
 }
 
+export function targetPreviewWithinMount(target: Element | null, mount: Element): HTMLElement | null {
+    return Array.from(target?.querySelectorAll<HTMLElement>(`[${attrs.dragTargetPreview}="${values.enabled}"]`) ?? [])
+        .find(preview => preview.closest(`[${attrs.surface}]`) === mount
+            && preview.closest(`[${attrs.dropzoneRef}]`) === target) ?? null;
+}
+
 function createDropzoneHighlightEffect(className: string): ContextualEffectHandler {
     let activeTarget: Element | null = null;
-    let restoreProjection: (() => void) | null = null;
-    // Adapter-local paint geometry, not target identity or domain coordinates.
     const projectedClass = "bepis-dropzone-highlight-projected";
-    const properties = ["--bepis-dropzone-paint-left", "--bepis-dropzone-paint-top", "--bepis-dropzone-paint-width", "--bepis-dropzone-paint-height"];
 
     const clear = () => {
-        restoreProjection?.();
-        restoreProjection = null;
-        if (activeTarget) removeClass(activeTarget, className);
+        if (activeTarget) {
+            removeClass(activeTarget, className);
+            removeClass(activeTarget, projectedClass);
+        }
         activeTarget = null;
     };
 
@@ -751,27 +788,9 @@ function createDropzoneHighlightEffect(className: string): ContextualEffectHandl
                 activeTarget = target;
                 if (activeTarget) addClass(activeTarget, className);
             }
-            const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
-            if (!activeTarget || !projection || projection.target !== activeTarget) return;
-            const element = activeTarget as HTMLElement;
-            if (!restoreProjection) {
-                const previous = properties.map((property) => [element.style.getPropertyValue(property), element.style.getPropertyPriority(property)] as const);
-                addClass(element, projectedClass);
-                restoreProjection = () => {
-                    removeClass(element, projectedClass);
-                    properties.forEach((property, index) => {
-                        const [value, priority] = previous[index]!;
-                        if (value) element.style.setProperty(property, value, priority);
-                        else element.style.removeProperty(property);
-                    });
-                };
+            if (session.intervalDrag && activeTarget && targetPreviewWithinMount(activeTarget, session.mount)) {
+                addClass(activeTarget, projectedClass);
             }
-            // Paint a full interval without enlarging the five-minute hit target.
-            // Recompute even for the same target: cross-axis movement and scroll
-            // can change its viewport geometry without changing the opaque key.
-            const rect = element.getBoundingClientRect();
-            const values = [projection.left - rect.left - element.clientLeft, projection.top - rect.top - element.clientTop, projection.width, projection.height];
-            properties.forEach((property, index) => element.style.setProperty(property, `${values[index]}px`));
         },
         cleanup() {
             clear();

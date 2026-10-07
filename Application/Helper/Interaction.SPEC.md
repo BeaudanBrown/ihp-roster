@@ -119,11 +119,17 @@ target for the disposable preview and committed intent. It never derives domain
 times or parses target keys. Malformed configuration refuses the gesture.
 The generated drag-axis CSS property selects horizontal or vertical geometry;
 missing means horizontal, unknown values refuse the gesture. The browser reads
-computed geometry for preview, grab offsets and cross-axis targeting. Interval
-destination highlighting paints that same full projected rectangle, not the
-individual snap target. Hit targets retain their server-rendered geometry; the
-pointer-transparent paint follows scrolling and cross-axis movement, including
-movement within one target. All temporary paint styles clear with the session.
+computed geometry for preview, grab offsets and cross-axis targeting. Haskell may
+mark a plain-text hover preview with `DragTargetPreview`. Interval dragging then
+reuses that element at the destination lane origin and snapped start, with the
+source interval's extent and server-supplied proposed label. It replaces the
+floating rectangle rather than duplicating it underneath. The preview stays
+anchored when the pointer moves across a lane; crossing lanes selects a new
+preview. Copy feedback still uses the declared effect classes. Hit targets retain
+their server-rendered geometry; previews remain pointer-transparent and follow
+scrolling. Cleanup restores the original hover text, styles and classes, including
+when changing targets or modifiers. This indicates the destination lane/interval,
+not an optimistic recomputation of the server's eventual overlap-track packing.
 Viewport resizes cancel active sessions; changing axis direction invalidates projection.
 
 Two-axis drag scrolling is opt-in on a typed scroll owner within the same

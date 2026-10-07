@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Interaction.Runtime
     ( dragIntervalAttrs
     , dragAxisAttrs
     , dragPositionAttrs
+    , dragTargetPreviewAttrs
     , nativeContextMenuDisabledAttrs
     ) where
 
@@ -36,6 +37,10 @@ nativeContextMenuDisabledAttrs = [(domAttrValue @Contract.NativeContextMenuDisab
 
 dragAxisAttrs :: [(Text, Text)]
 dragAxisAttrs = [(domAttrValue @Contract.DragAxis, "true")]
+
+-- | Opt a plain-text hover preview into disposable interval landing feedback.
+dragTargetPreviewAttrs :: [(Text, Text)]
+dragTargetPreviewAttrs = [(domAttrValue @Contract.DragTargetPreview, "true")]
 
 dragPositionAttrs :: Int -> [(Text, Text)]
 dragPositionAttrs position = [(domAttrValue @Contract.DragPosition, tshow position)]

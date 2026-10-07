@@ -241,6 +241,7 @@
   }
   var dragIntervalConfigDomAttr = "data-bepis-drag-interval-config";
   var dragPreviewLabelDomAttr = "data-bepis-drag-preview-label";
+  var dragTargetPreviewDomAttr = "data-bepis-drag-target-preview";
   var dragAxisDomAttr = "data-bepis-drag-axis";
   var dragAxisDirectionProperty = "--bepis-drag-axis-direction";
   var dragPositionDomAttr = "data-bepis-drag-position";
@@ -268,7 +269,7 @@
   var deltaXFieldName = "deltaX";
   var deltaYFieldName = "deltaY";
   var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragTargetPreview: dragTargetPreviewDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
@@ -4142,6 +4143,8 @@
             label: config.labels[index],
             left: vertical ? x - grabX : snapped,
             top: vertical ? snapped : y - grabY,
+            landingLeft: vertical ? target.getBoundingClientRect().left : snapped,
+            landingTop: vertical ? snapped : target.getBoundingClientRect().top,
             width: vertical ? sourceRect.width : extent,
             height: vertical ? extent : sourceRect.height
           };
@@ -4644,7 +4647,28 @@
     let label = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
+    let landing = null;
+    let restoreLanding = null;
+    const setLanding = (next) => {
+      if (next === landing) return;
+      restoreLanding?.();
+      restoreLanding = null;
+      landing = next;
+      if (!next) return;
+      const text = next.textContent;
+      const style = next.getAttribute("style");
+      const classes = next.getAttribute("class");
+      addClass(next, effect.className);
+      restoreLanding = () => {
+        next.textContent = text;
+        if (style === null) next.removeAttribute("style");
+        else next.setAttribute("style", style);
+        if (classes === null) next.removeAttribute("class");
+        else next.setAttribute("class", classes);
+      };
+    };
     const cleanup = () => {
+      setLanding(null);
       if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
       shadow = null;
       label?.remove();
@@ -4654,13 +4678,24 @@
       if (!shadow) return;
       const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
       if (session.intervalDrag) {
-        shadow.hidden = !projection;
+        setLanding(targetPreviewWithinMount(projection?.target ?? null, session.mount));
+        shadow.hidden = !projection || !!landing;
+        if (landing) removeClass(shadow, effect.className);
+        else addClass(shadow, effect.className);
         if (label) label.hidden = !projection;
         if (!projection) return;
-        const style = shadow.style;
+        const style = (landing ?? shadow).style;
         style.width = `${projection.width}px`;
         style.height = `${projection.height}px`;
-        style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+        if (landing) {
+          const target = projection.target;
+          const rect = target.getBoundingClientRect();
+          style.left = `${projection.landingLeft - rect.left - target.clientLeft}px`;
+          style.top = `${projection.landingTop - rect.top - target.clientTop}px`;
+          landing.textContent = projection.label;
+        } else {
+          style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+        }
         if (label) {
           label.textContent = projection.label;
           const viewport = label.ownerDocument.documentElement;
@@ -4699,15 +4734,17 @@
       cleanup
     };
   }
+  function targetPreviewWithinMount(target, mount) {
+    return Array.from(target?.querySelectorAll(`[${attrs6.dragTargetPreview}="${values.enabled}"]`) ?? []).find((preview) => preview.closest(`[${attrs6.surface}]`) === mount && preview.closest(`[${attrs6.dropzoneRef}]`) === target) ?? null;
+  }
   function createDropzoneHighlightEffect(className) {
     let activeTarget = null;
-    let restoreProjection = null;
     const projectedClass = "bepis-dropzone-highlight-projected";
-    const properties = ["--bepis-dropzone-paint-left", "--bepis-dropzone-paint-top", "--bepis-dropzone-paint-width", "--bepis-dropzone-paint-height"];
     const clear = () => {
-      restoreProjection?.();
-      restoreProjection = null;
-      if (activeTarget) removeClass(activeTarget, className);
+      if (activeTarget) {
+        removeClass(activeTarget, className);
+        removeClass(activeTarget, projectedClass);
+      }
       activeTarget = null;
     };
     return {
@@ -4717,24 +4754,9 @@
           activeTarget = target;
           if (activeTarget) addClass(activeTarget, className);
         }
-        const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
-        if (!activeTarget || !projection || projection.target !== activeTarget) return;
-        const element = activeTarget;
-        if (!restoreProjection) {
-          const previous = properties.map((property) => [element.style.getPropertyValue(property), element.style.getPropertyPriority(property)]);
-          addClass(element, projectedClass);
-          restoreProjection = () => {
-            removeClass(element, projectedClass);
-            properties.forEach((property, index) => {
-              const [value, priority] = previous[index];
-              if (value) element.style.setProperty(property, value, priority);
-              else element.style.removeProperty(property);
-            });
-          };
+        if (session.intervalDrag && activeTarget && targetPreviewWithinMount(activeTarget, session.mount)) {
+          addClass(activeTarget, projectedClass);
         }
-        const rect = element.getBoundingClientRect();
-        const values2 = [projection.left - rect.left - element.clientLeft, projection.top - rect.top - element.clientTop, projection.width, projection.height];
-        properties.forEach((property, index) => element.style.setProperty(property, `${values2[index]}px`));
       },
       cleanup() {
         clear();

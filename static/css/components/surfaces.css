@@ -108,27 +108,10 @@
 
 /* Interval targets retain their hit geometry; only the disposable paint grows. */
 .bepis-dropzone-highlight-projected {
-    --bepis-dropzone-paint-left: 0px;
-    --bepis-dropzone-paint-top: 0px;
-    --bepis-dropzone-paint-width: 100%;
-    --bepis-dropzone-paint-height: 100%;
-    position: relative;
     background: transparent !important;
     box-shadow: none !important;
 }
 
-.bepis-dropzone-highlight-projected::after {
-    content: "";
-    position: absolute;
-    left: var(--bepis-dropzone-paint-left, 0px);
-    top: var(--bepis-dropzone-paint-top, 0px);
-    width: var(--bepis-dropzone-paint-width, 100%);
-    height: var(--bepis-dropzone-paint-height, 100%);
-    box-sizing: border-box;
-    border-radius: inherit;
-    pointer-events: none;
-    background: var(--bepis-dropzone-highlight-background);
-    box-shadow:
-        0 0 0 var(--bepis-dropzone-highlight-ring-width) var(--bepis-dropzone-highlight-color),
-        var(--bepis-dropzone-highlight-elevation);
+.bepis-dropzone-highlight-projected [data-bepis-drag-target-preview="true"] {
+    display: block;
 }

@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Interaction
     , SessionLongPressMs
     , DragIntervalConfig
     , DragPreviewLabel
+    , DragTargetPreview
     , DragAxis
     , DragAxisDirectionProperty
     , DragPosition
@@ -89,6 +90,7 @@ data NativeContextMenuDisabled
 data SessionLongPressMs
 data DragIntervalConfig
 data DragPreviewLabel
+data DragTargetPreview
 data DragAxis
 data DragAxisDirectionProperty
 data DragPosition
@@ -159,6 +161,7 @@ type InteractionContract =
              ])
          , DomAttr DragIntervalConfig
          , DomAttr DragPreviewLabel
+         , DomAttr DragTargetPreview
          , DomAttr DragAxis
          , Constant DragAxisDirectionProperty "--bepis-drag-axis-direction"
          , DomAttr DragPosition

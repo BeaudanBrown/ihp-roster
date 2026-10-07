@@ -185,14 +185,16 @@ renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
                 style={timelineDropzoneStyle timelineWindow instant}
                 data-roster-timeline-minute={tshow (timelineOperationalMinute day.operationalDate instant)}
                 aria-label={label} title={label}>
-            {forEach (maybeToList creationEnd) (renderTimelineCreationPreview timelineWindow instant)}
+            {renderTimelineCreationPreview timelineWindow instant creationEnd}
         </button>
     |]
 
-renderTimelineCreationPreview :: TimelineWindow -> UTCTime -> UTCTime -> Html
-renderTimelineCreationPreview window start end =
-    [hsx|<span class="roster-day-timeline-create-preview" aria-hidden="true" style={previewStyle}>{timelineClockLabel start <> "–" <> timelineClockLabel end}</span>|]
+renderTimelineCreationPreview :: TimelineWindow -> UTCTime -> Maybe UTCTime -> Html
+renderTimelineCreationPreview window start maybeEnd =
+    [hsx|<span {...Drag.dragTargetPreviewAttrs} class="roster-day-timeline-create-preview" aria-hidden="true" style={previewStyle}>{label}</span>|]
   where
+    end = fromMaybe start maybeEnd
+    label = maybe "" (\value -> timelineClockLabel start <> "–" <> timelineClockLabel value) maybeEnd
     scale = window.timelineWindowScale
     minute = timelineOffsetMinutes scale start
     cellStart = max 0 (minute - 2.5)

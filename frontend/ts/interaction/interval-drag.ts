@@ -2,7 +2,7 @@ import { InteractionDom, dragAxisDirectionProperty, parseDragIntervalConfig, typ
 
 const attrs = InteractionDom.attributes;
 
-export type IntervalProjection = { target: Element; label: string; left: number; top: number; width: number; height: number };
+export type IntervalProjection = { target: Element; label: string; left: number; top: number; landingLeft: number; landingTop: number; width: number; height: number };
 
 function verticalAxis(element: Element): boolean | null {
     const value = element.ownerDocument?.defaultView?.getComputedStyle(element).getPropertyValue(dragAxisDirectionProperty).trim() ?? "";
@@ -81,6 +81,8 @@ export function readIntervalDrag(marker: Element, mount: Element, targetSelector
                     target, label: config.labels[index]!,
                     left: vertical ? x - grabX : snapped,
                     top: vertical ? snapped : y - grabY,
+                    landingLeft: vertical ? target.getBoundingClientRect().left : snapped,
+                    landingTop: vertical ? snapped : target.getBoundingClientRect().top,
                     width: vertical ? sourceRect.width : extent,
                     height: vertical ? extent : sourceRect.height,
                 };

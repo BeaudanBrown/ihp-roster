@@ -183,9 +183,19 @@
     white-space: nowrap;
 }
 
-.roster-day-timeline-dropzone:hover:not(.bepis-dropzone-highlight) .roster-day-timeline-create-preview {
+html:not([data-bepis-interaction-active]) .roster-day-timeline-dropzone:hover .roster-day-timeline-create-preview:not(:empty),
+.roster-day-timeline-dropzone.bepis-dropzone-highlight-projected .roster-day-timeline-create-preview {
     display: block;
 }
+
+/* Moving reuses the hover preview at the lane origin, not a floating duplicate. */
+.roster-day-timeline-create-preview.bepis-pointer-clone-shadow {
+    opacity: 1;
+    border: 0;
+    box-shadow: none;
+    box-sizing: border-box;
+}
+
 
 .roster-day-timeline-shift-position {
     z-index: 2;
