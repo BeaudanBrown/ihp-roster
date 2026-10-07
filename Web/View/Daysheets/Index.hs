@@ -55,6 +55,8 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
             <div class="app-page-stack">
                 {designerLink}
                 {reportPreviews}
+                {reportSends}
+                {reportHistory}
                 {reportDownloads}
                 {dateNavigation record.operationalDate (isJust feedback)}
                 <p>Changes save when a field changes or you leave it. Amounts are AUD; enter percentages such as 1.6 for 1.6%.</p>
@@ -72,6 +74,15 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
             (Action.openDaysheetReportAction (Action.openDaysheetReportActionFields (unpackId record.id) key))
             ((defaultFrontendSurfaceActionRoute (pathTo (ShowDaysheetReportAction record.id key))) { actionRouteExtraAttrs = finalActionAttrs })
             [hsx|<button type="submit" class="btn btn-outline-secondary text-break" disabled={isJust feedback}>Preview: {label}</button>|]
+    reportSends = forEach [report | report@(D.Report _ _ _ outputs) <- D.reports model.state.definition, D.FormattedReport `elem` outputs] \(D.Report (D.ReportId key) label _ _) ->
+        renderFrontendSurfaceActionFormWithHiddenFields
+            (Action.openDaysheetSendAction (Action.openDaysheetSendActionFields (unpackId record.id) key))
+            ((defaultFrontendSurfaceActionRoute (pathTo (ShowDaysheetSendAction record.id key))) { actionRouteExtraAttrs = finalActionAttrs })
+            [hsx|<button type="submit" class="btn btn-outline-primary text-break" disabled={isJust feedback}>Send: {label}</button>|]
+    reportHistory = renderFrontendSurfaceActionFormWithHiddenFields
+        (Action.openDaysheetHistoryAction (Action.openDaysheetHistoryActionFields (unpackId record.id) Nothing))
+        ((defaultFrontendSurfaceActionRoute (pathTo (ShowDaysheetHistoryAction record.id Nothing))) { actionRouteExtraAttrs = finalActionAttrs })
+        [hsx|<button type="submit" class="btn btn-outline-secondary" disabled={isJust feedback}>Report-send history</button>|]
     reportDownloads = forEach [report | report@(D.Report _ _ _ outputs) <- D.reports model.state.definition, D.ExcelDownload `elem` outputs] download
     download (D.Report (D.ReportId key) label _ _) =
         renderFrontendSurfaceActionForm

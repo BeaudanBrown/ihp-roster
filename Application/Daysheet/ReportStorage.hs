@@ -17,6 +17,9 @@ import Application.Daysheet.ReportError
 import qualified Application.Daysheet.Saved as Saved
 import Application.EmailDelivery.Envelope
 import Application.EmailDelivery.Enqueue (enqueueExternalEmailDeliveryWithStatus)
+import Application.Helper.FrontendContract.Surface.Daysheet.Resource (daysheetDataResource)
+import Application.Helper.LiveUpdate.DurablePublisher (persistDurableInvalidationInCurrentTransaction)
+import qualified Data.Set as Set
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types
 import Application.Helper.Audit (recordAuditEvent)
@@ -49,13 +52,14 @@ captureManualReport member key report@(D.ReportId reportId) requestKey = withAut
             _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetReportCapturedAudit
                 daysheetReportReferenceTable (unpackId snapshot.id)
                 (Aeson.object ["daysheetId" Aeson..= unpackId key, "reportId" Aeson..= reportId, "sourceRevision" Aeson..= state.daysheet.revision]) ApplicationAuditSource)
+            liftIO (publishCapture state)
             pure snapshot
 
 -- One task captures all formatted reports in one transaction. A failed report
 -- rolls back every snapshot/job from this cutoff; a late retry never rebuilds.
 captureScheduledReports :: (?modelContext :: ModelContext) => CutoffClock -> UUID -> Cutoff.CutoffPlan -> IO (AppResult (Maybe [DaysheetReportSnapshot]))
 captureScheduledReports clock venueId plan = withScheduledDaily clock venueId plan \state capturedAt -> runExceptT do
-    forM [key | D.Report key _ _ outputs <- D.reports state.definition, D.FormattedReport `elem` outputs] \report@(D.ReportId reportId) -> do
+    snapshots <- forM [key | D.Report key _ _ outputs <- D.reports state.definition, D.FormattedReport `elem` outputs] \report@(D.ReportId reportId) -> do
         existing <- liftIO (query @DaysheetReportSnapshot
             |> filterWhere (#daysheetId, state.daysheet.id) |> filterWhere (#reportId, reportId)
             |> filterWhere (#cutoffAt, Just (Cutoff.cutoffAt plan)) |> fetchOneOrNothing)
@@ -64,6 +68,14 @@ captureScheduledReports clock venueId plan = withScheduledDaily clock venueId pl
             Nothing -> do
                 requestKey <- liftIO UUID.nextRandom
                 persistReport state report requestKey Nothing (Just (Cutoff.cutoffAt plan)) capturedAt
+    unless (null snapshots) (liftIO (publishCapture state))
+    pure snapshots
+
+publishCapture :: (?modelContext :: ModelContext) => DailyState -> IO ()
+publishCapture state = do
+    _ <- persistDurableInvalidationInCurrentTransaction "daysheet.report-captured"
+        (Set.singleton (daysheetDataResource (unpackId state.daysheet.venueId) (unpackId state.daysheet.id)))
+    pure ()
 
 -- Private: both callers already own the venue serialization transaction. The
 -- immutable selected-content record and its permanently deduplicated jobs commit

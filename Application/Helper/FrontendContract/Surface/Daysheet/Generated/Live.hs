@@ -5,10 +5,12 @@
 module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Live
     ( daysheetBodyLiveFragment
     , daysheetCellLiveFragment
+    , daysheetHistoryLiveFragment
     , daysheetLiveScope
     , daysheetReportLiveFragment
     , matchDaysheetBodyLiveFragment
     , matchDaysheetCellLiveFragment
+    , matchDaysheetHistoryLiveFragment
     , matchDaysheetLiveScope
     , matchDaysheetReportLiveFragment
     ) where
@@ -60,6 +62,23 @@ matchDaysheetCellLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
         @Types1.DaysheetCell
+
+daysheetHistoryLiveFragment ::
+    Maybe UUID.UUID ->
+    SurfaceFragmentKey
+daysheetHistoryLiveFragment frozenReportId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetHistory
+        ( surfaceOptionalField @Types1.FrozenReportId frozenReportId
+            &: noSurfaceFields
+        )
+
+matchDaysheetHistoryLiveFragment :: SurfaceFragmentKey -> Maybe (Maybe UUID.UUID, ())
+matchDaysheetHistoryLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetHistory
 
 daysheetLiveScope ::
     UUID.UUID ->

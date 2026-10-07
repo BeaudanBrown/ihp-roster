@@ -1,7 +1,7 @@
 -- | Authorized frozen-run detail. No live evaluator, current definition or
 -- current recipient list is allowed to substitute for the retained report.
 module Application.Daysheet.ReportHistory
-    ( FrozenReport (..), FrozenRecipient (..), readFrozenReport
+    ( FrozenReport (..), FrozenRecipient (..), FrozenHistory (..), readFrozenReport, readFrozenHistory
     ) where
 
 import Application.Daysheet.Authority (withAuthority)
@@ -41,6 +41,47 @@ data FrozenReport = FrozenReport
     , content :: !ReportContent
     , recipients :: ![FrozenRecipient]
     }
+
+-- One immutable run at a time, with stable chronological neighbours. History
+-- navigation never loads an unbounded list of retained report documents.
+data FrozenHistory = FrozenHistory
+    { venueId :: !UUID
+    , daysheetId :: !(Id Daysheet)
+    , operationalDate :: !Day
+    , selected :: !(Maybe FrozenReport)
+    , older :: !(Maybe (Id DaysheetReportSnapshot))
+    , newer :: !(Maybe (Id DaysheetReportSnapshot))
+    }
+
+readFrozenHistory :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> Maybe UUID -> IO (AppResult FrozenHistory)
+readFrozenHistory member day requested = do
+    navigation <- withAuthority member [Manager, VenueAdmin, VenueOwner] do
+        source <- liftIO (query @Daysheet |> filterWhere (#id, day) |> filterWhere (#venueId, Id member.venueId) |> fetchOneOrNothing)
+        record <- maybe unavailable pure source
+        let scoped = query @DaysheetReportSnapshot |> filterWhere (#daysheetId, day) |> filterWhere (#venueId, Id member.venueId)
+        snapshot <- liftIO (case requested of
+            Nothing -> scoped |> orderByDesc #capturedAt |> orderByDesc #id |> fetchOneOrNothing
+            Just key -> scoped |> filterWhere (#id, Id key) |> fetchOneOrNothing)
+        when (isJust requested && isNothing snapshot) unavailable
+        (older, newer) <- case snapshot of
+            Nothing -> pure (Nothing, Nothing)
+            Just value -> liftIO do
+                older <- scoped |> queryOr (filterWhereLessThan (#capturedAt, value.capturedAt))
+                    (filterWhere (#capturedAt, value.capturedAt) . filterWhereLessThan (#id, value.id))
+                    |> orderByDesc #capturedAt |> orderByDesc #id |> fetchOneOrNothing
+                newer <- scoped |> queryOr (filterWhereGreaterThan (#capturedAt, value.capturedAt))
+                    (filterWhere (#capturedAt, value.capturedAt) . filterWhereGreaterThan (#id, value.id))
+                    |> orderByAsc #capturedAt |> orderByAsc #id |> fetchOneOrNothing
+                pure ((.id) <$> older, (.id) <$> newer)
+        pure (record.operationalDate, (.id) <$> snapshot, older, newer)
+    case navigation of
+        Left failure -> pure (Left failure)
+        Right (date, Nothing, older, newer) -> pure (Right (FrozenHistory member.venueId day date Nothing older newer))
+        Right (date, Just key, older, newer) -> do
+            detail <- readFrozenReport member key
+            pure ((\value -> FrozenHistory member.venueId day date (Just value) older newer) <$> detail)
+  where
+    unavailable = throwE (projectDomainError ReportHistoryUnavailable)
 
 readFrozenReport :: (?modelContext :: ModelContext) => VenueMembership -> Id DaysheetReportSnapshot -> IO (AppResult FrozenReport)
 readFrozenReport member key = withAuthority member [Manager, VenueAdmin, VenueOwner] do

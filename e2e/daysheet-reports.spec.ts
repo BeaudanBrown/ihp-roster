@@ -84,6 +84,24 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     await saveDaysheetText(editor, editor.getByLabel('Comments', { exact: true }), 'After submission');
     await expect(page.getByText('After submission', { exact: true })).toBeVisible();
     await expectNoHorizontalViewportOverflow(page);
+    // Send stays gated until this client's focused edit is saved and acknowledged.
+    await saveDaysheetChange(editor, editor.getByLabel('Comments', { exact: true }), async () => {
+        await editor.getByLabel('Comments', { exact: true }).fill('Frozen from settled entry');
+        await expect(editor.getByRole('button', { name: 'Send: Manager preview', exact: true })).toBeDisabled();
+    });
+    await editor.getByRole('button', { name: 'Send: Manager preview', exact: true }).click();
+    await expect(editor.getByRole('heading', { name: 'Send report: Manager preview', exact: true })).toBeVisible();
+    await expect(editor.getByText('No recipients are configured. This captures a report but sends no email.', { exact: true })).toBeVisible();
+    await editor.getByRole('button', { name: 'Capture and send report', exact: true }).click();
+    await expect(editor.getByText('Frozen report', { exact: true })).toBeVisible();
+    await expect(editor.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
+    await expectNoHorizontalViewportOverflow(editor);
+    await page.goto(dailyUrl);
+    const historyRefresh = editor.waitForResponse(response => response.url().includes('/ShowDaysheetHistoryBody') && response.status() === 200);
+    await saveDaysheetText(page, page.getByLabel('Comments', { exact: true }), 'New live value after capture');
+    await historyRefresh;
+    await expect(editor.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
+    await expect(editor.getByText('New live value after capture', { exact: true })).toHaveCount(0);
     await editor.close();
     const native = await browser.newContext({ storageState: await page.context().storageState(), javaScriptEnabled: false, viewport: page.viewportSize() });
     const nativePage = await native.newPage();
@@ -96,5 +114,13 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     await nativePage.getByRole('button', { name: 'Preview: Manager preview', exact: true }).click();
     await expect(nativePage.getByRole('heading', { name: 'Manager preview', exact: true })).toBeVisible();
     await expect(nativePage.getByText('Live preview', { exact: true })).toBeVisible();
+    await nativePage.getByRole('link', { name: 'Return to Daysheet', exact: true }).click();
+    await nativePage.getByRole('button', { name: 'Send: Manager preview', exact: true }).click();
+    await nativePage.getByRole('button', { name: 'Capture and send report', exact: true }).click();
+    await expect(nativePage.getByText('Frozen report', { exact: true })).toBeVisible();
+    await expect(nativePage.getByText('New live value after capture', { exact: true })).toBeVisible();
+    await nativePage.getByRole('link', { name: 'Older report', exact: true }).click();
+    await expect(nativePage.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
+    await expect(nativePage.getByText('New live value after capture', { exact: true })).toHaveCount(0);
     await native.close();
 });

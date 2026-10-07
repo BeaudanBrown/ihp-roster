@@ -57,9 +57,9 @@ Application/Daysheet/References.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Report.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportDelivery.hs	production	runtime	Main	Reachable from Main
-Application/Daysheet/ReportError.hs	production	runtime	WorkerMain	Reachable from WorkerMain
-Application/Daysheet/ReportHistory.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/Daysheet/ReportStorage.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/Daysheet/ReportError.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/ReportHistory.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/ReportStorage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main
@@ -75,7 +75,7 @@ Application/EmailDelivery/Envelope.hs	production	runtime	Main	Reachable from Mai
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main
-Application/EmailDelivery/Status.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/EmailDelivery/Status.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Support.hs	production	runtime	Main	Reachable from Main
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
@@ -680,9 +680,11 @@ Web/View/Daysheets/CalculationDesigner.hs	production	runtime	Main	Reachable from
 Web/View/Daysheets/Cell.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Deletion.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Designer.hs	production	runtime	Main	Reachable from Main
+Web/View/Daysheets/History.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/LayoutDesigner.hs	production	runtime	Main	Reachable from Main
 Web/View/Daysheets/Report.hs	production	runtime	Main	Reachable from Main
+Web/View/Daysheets/Send.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Card.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Index.hs	production	runtime	Main	Reachable from Main

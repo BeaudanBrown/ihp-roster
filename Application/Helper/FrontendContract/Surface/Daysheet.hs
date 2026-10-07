@@ -15,9 +15,16 @@ data DaysheetBodyTarget
 data DaysheetCell
 data DaysheetCellTarget
 data DaysheetReport
+data DaysheetHistory
+data DaysheetHistoryTarget
 data DaysheetReportTarget
 data ConfiguredReportId
 data OpenDaysheetReport
+data OpenDaysheetSend
+data SendDaysheetReport
+data OpenDaysheetHistory
+data SendRequestKey
+data FrozenReportId
 data DownloadDaysheetWorkbook
 data Occurrence
 data RowId
@@ -73,7 +80,16 @@ type DaysheetSurface = Surface Daysheet
      , Fragment DaysheetReport '[Field ConfiguredReportId 'WireUUID]
          '[ 'MountTarget DaysheetReportTarget '[Field ConfiguredReportId 'WireUUID], 'Eager, 'Live
           , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
+     , Fragment DaysheetHistory '[OptionalField FrozenReportId 'WireUUID]
+         '[ 'MountTarget DaysheetHistoryTarget '[OptionalField FrozenReportId 'WireUUID], 'Eager, 'Live
+          , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
      , Action OpenDaysheetReport '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
+         '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
+     , Action OpenDaysheetSend '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
+         '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
+     , Action SendDaysheetReport '[Field SendRequestKey 'WireUUID]
+         '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
+     , Action OpenDaysheetHistory '[Field DaysheetId 'WireUUID, OptionalField FrozenReportId 'WireUUID]
          '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
      , Action DownloadDaysheetWorkbook '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
      , DomToken DaysheetCellFormTarget

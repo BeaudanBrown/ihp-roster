@@ -118,6 +118,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetBody
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetCell
      , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetReport
+     , SurfaceFragmentAdapterHome DaysheetAdapterFamily Daysheet.DaysheetHistory
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
@@ -319,6 +320,9 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.AddDaysheetRow allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ConfirmDaysheetRowDeletion allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetReport allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetSend allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SendDaysheetReport allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetHistory allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.DownloadDaysheetWorkbook
         (requestAdapterOperationsWithoutParser "Generate only the scoped captured report; no replacement data payload")
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.KeepSavedDaysheetCell

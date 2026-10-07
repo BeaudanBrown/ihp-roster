@@ -10,6 +10,7 @@ import Application.EmailDelivery.Correlation (prepareProviderCorrelation, markSm
 import Application.EmailDelivery.Status
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
+import Data.List (sortOn)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
@@ -21,6 +22,33 @@ import qualified Test.Support.Daysheet as Fixture
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Daysheet frozen report history" do
+        it "navigates one scoped run at a time, including deterministic timestamp ties and empty days" $ withContext do
+            withCleanDb do
+                (_, manager, _, state) <- setup
+                Right empty <- readFrozenHistory manager state.daysheet.id Nothing
+                (.snapshotId) <$> empty.selected `shouldBe` Nothing
+                Right _ <- submitDailySheet manager state.daysheet.id
+                Right first <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                second <- newRecord @DaysheetReportSnapshot
+                    |> set #id (Id (nonce 900)) |> set #requestKey (nonce 901)
+                    |> set #venueId first.venueId |> set #daysheetId first.daysheetId
+                    |> set #definitionCaptureId first.definitionCaptureId |> set #reportId first.reportId
+                    |> set #origin first.origin |> set #senderId first.senderId |> set #cutoffAt first.cutoffAt
+                    |> set #capturedAt first.capturedAt |> set #sourceRevision first.sourceRevision
+                    |> set #content first.content |> set #recipientIds first.recipientIds |> createRecord
+                let [older, newer] = sortOn (.id) [first, second]
+                Right latest <- readFrozenHistory manager state.daysheet.id Nothing
+                (.snapshotId) <$> latest.selected `shouldBe` Just newer.id
+                latest.older `shouldBe` Just older.id
+                latest.newer `shouldBe` Nothing
+                Right previous <- readFrozenHistory manager state.daysheet.id (Just (unpackId older.id))
+                previous.older `shouldBe` Nothing
+                previous.newer `shouldBe` Just newer.id
+                Right other <- createDailySheet manager (addDays 1 day)
+                wrongDay <- readFrozenHistory manager other.daysheet.id (Just (unpackId older.id))
+                isLeft wrongDay `shouldBe` True
+                missing <- readFrozenHistory manager state.daysheet.id (Just (nonce 999))
+                isLeft missing `shouldBe` True
         it "reads the frozen content, sender and exact old recipients after corrections and replacement" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup

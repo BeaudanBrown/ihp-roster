@@ -13,14 +13,17 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , DownloadDaysheetWorkbookActionOperation
     , KeepSavedDaysheetCellActionOperation
     , OpenDaysheetDesignerActionOperation
+    , OpenDaysheetHistoryActionOperation
     , OpenDaysheetReportActionOperation
     , OpenDaysheetRowDeletionActionOperation
+    , OpenDaysheetSendActionOperation
     , SaveDaysheetBooleanActionOperation
     , SaveDaysheetClockActionOperation
     , SaveDaysheetDateActionOperation
     , SaveDaysheetNumberActionOperation
     , SaveDaysheetSelectionActionOperation
     , SaveDaysheetTextActionOperation
+    , SendDaysheetReportActionOperation
     , SubmitDaysheetActionOperation
     , ViewDaysheetDateActionOperation
     , addDaysheetRowAction
@@ -35,20 +38,27 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , keepSavedDaysheetCellActionFields
     , openDaysheetDesignerAction
     , openDaysheetDesignerActionFields
+    , openDaysheetHistoryAction
+    , openDaysheetHistoryActionFields
     , openDaysheetReportAction
     , openDaysheetReportActionFields
     , openDaysheetRowDeletionAction
     , openDaysheetRowDeletionActionFields
+    , openDaysheetSendAction
+    , openDaysheetSendActionFields
     , parseAddDaysheetRowActionParams
     , parseConfirmDaysheetRowDeletionActionParams
     , parseCreateDaysheetActionParams
+    , parseOpenDaysheetHistoryActionParams
     , parseOpenDaysheetReportActionParams
+    , parseOpenDaysheetSendActionParams
     , parseSaveDaysheetBooleanActionParams
     , parseSaveDaysheetClockActionParams
     , parseSaveDaysheetDateActionParams
     , parseSaveDaysheetNumberActionParams
     , parseSaveDaysheetSelectionActionParams
     , parseSaveDaysheetTextActionParams
+    , parseSendDaysheetReportActionParams
     , parseViewDaysheetDateActionParams
     , saveDaysheetBooleanAction
     , saveDaysheetBooleanActionFields
@@ -62,6 +72,8 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Action
     , saveDaysheetSelectionActionFields
     , saveDaysheetTextAction
     , saveDaysheetTextActionFields
+    , sendDaysheetReportAction
+    , sendDaysheetReportActionFields
     , submitDaysheetAction
     , submitDaysheetActionFields
     , viewDaysheetDateAction
@@ -247,6 +259,41 @@ openDaysheetDesignerAction :: ActionFields OpenDaysheetDesignerActionOperation -
 openDaysheetDesignerAction =
     frontendSurfaceActionFromEvidence openDaysheetDesignerActionEvidence
 
+data OpenDaysheetHistoryActionOperation
+
+type instance ActionSurface OpenDaysheetHistoryActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
+type instance ActionMarker OpenDaysheetHistoryActionOperation = Types2.OpenDaysheetHistory
+type instance ActionFieldSpecs OpenDaysheetHistoryActionOperation =
+    '[ 'Field Types2.DaysheetId 'WireUUID
+     , 'OptionalField Types2.FrozenReportId 'WireUUID
+     ]
+
+openDaysheetHistoryActionFields ::
+    UUID.UUID ->
+    Maybe UUID.UUID ->
+    ActionFields OpenDaysheetHistoryActionOperation
+openDaysheetHistoryActionFields daysheetId frozenReportId =
+    actionFields
+        (surfaceField @Types2.DaysheetId daysheetId)
+        ( surfaceOptionalField @Types2.FrozenReportId frozenReportId
+            &: noSurfaceFields
+        )
+
+openDaysheetHistoryActionEvidence :: ActionEvidence OpenDaysheetHistoryActionOperation
+openDaysheetHistoryActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenDaysheetHistory" "open-daysheet-history" [SurfaceIR.FieldIR "DaysheetId" "daysheetId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "FrozenReportId" "frozenReportId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" []))])
+
+openDaysheetHistoryAction :: ActionFields OpenDaysheetHistoryActionOperation -> FrontendSurfaceAction
+openDaysheetHistoryAction =
+    frontendSurfaceActionFromEvidence openDaysheetHistoryActionEvidence
+
+parseOpenDaysheetHistoryActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields OpenDaysheetHistoryActionOperation)
+parseOpenDaysheetHistoryActionParams =
+    parseActionParams
+        @OpenDaysheetHistoryActionOperation
+
 data OpenDaysheetReportActionOperation
 
 type instance ActionSurface OpenDaysheetReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
@@ -300,6 +347,41 @@ openDaysheetRowDeletionActionEvidence =
 openDaysheetRowDeletionAction :: ActionFields OpenDaysheetRowDeletionActionOperation -> FrontendSurfaceAction
 openDaysheetRowDeletionAction =
     frontendSurfaceActionFromEvidence openDaysheetRowDeletionActionEvidence
+
+data OpenDaysheetSendActionOperation
+
+type instance ActionSurface OpenDaysheetSendActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
+type instance ActionMarker OpenDaysheetSendActionOperation = Types2.OpenDaysheetSend
+type instance ActionFieldSpecs OpenDaysheetSendActionOperation =
+    '[ 'Field Types2.DaysheetId 'WireUUID
+     , 'Field Types2.ConfiguredReportId 'WireUUID
+     ]
+
+openDaysheetSendActionFields ::
+    UUID.UUID ->
+    UUID.UUID ->
+    ActionFields OpenDaysheetSendActionOperation
+openDaysheetSendActionFields daysheetId configuredReportId =
+    actionFields
+        (surfaceField @Types2.DaysheetId daysheetId)
+        ( surfaceField @Types2.ConfiguredReportId configuredReportId
+            &: noSurfaceFields
+        )
+
+openDaysheetSendActionEvidence :: ActionEvidence OpenDaysheetSendActionOperation
+openDaysheetSendActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenDaysheetSend" "open-daysheet-send" [SurfaceIR.FieldIR "DaysheetId" "daysheetId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ConfiguredReportId" "configuredReportId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" []))])
+
+openDaysheetSendAction :: ActionFields OpenDaysheetSendActionOperation -> FrontendSurfaceAction
+openDaysheetSendAction =
+    frontendSurfaceActionFromEvidence openDaysheetSendActionEvidence
+
+parseOpenDaysheetSendActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields OpenDaysheetSendActionOperation)
+parseOpenDaysheetSendActionParams =
+    parseActionParams
+        @OpenDaysheetSendActionOperation
 
 data SaveDaysheetBooleanActionOperation
 
@@ -510,6 +592,37 @@ parseSaveDaysheetTextActionParams ::
 parseSaveDaysheetTextActionParams =
     parseActionParams
         @SaveDaysheetTextActionOperation
+
+data SendDaysheetReportActionOperation
+
+type instance ActionSurface SendDaysheetReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.DaysheetAdapterFamily)
+type instance ActionMarker SendDaysheetReportActionOperation = Types2.SendDaysheetReport
+type instance ActionFieldSpecs SendDaysheetReportActionOperation =
+    '[ 'Field Types2.SendRequestKey 'WireUUID
+     ]
+
+sendDaysheetReportActionFields ::
+    UUID.UUID ->
+    ActionFields SendDaysheetReportActionOperation
+sendDaysheetReportActionFields sendRequestKey =
+    actionFields
+        (surfaceField @Types2.SendRequestKey sendRequestKey)
+        noSurfaceFields
+
+sendDaysheetReportActionEvidence :: ActionEvidence SendDaysheetReportActionOperation
+sendDaysheetReportActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SendDaysheetReport" "send-daysheet-report" [SurfaceIR.FieldIR "SendRequestKey" "sendRequestKey" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+sendDaysheetReportAction :: ActionFields SendDaysheetReportActionOperation -> FrontendSurfaceAction
+sendDaysheetReportAction =
+    frontendSurfaceActionFromEvidence sendDaysheetReportActionEvidence
+
+parseSendDaysheetReportActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SendDaysheetReportActionOperation)
+parseSendDaysheetReportActionParams =
+    parseActionParams
+        @SendDaysheetReportActionOperation
 
 data SubmitDaysheetActionOperation
 

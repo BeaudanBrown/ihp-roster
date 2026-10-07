@@ -148,7 +148,11 @@ capture current saved data. Scheduled capture uses `withScheduledDaily`, skips
 missing/unsubmitted days and captures all configured formatted reports under one
 cutoff transaction. The database seals snapshots against mutation/deletion and
 checks submitted source/venue/revision and active scoped recipient identities.
-The Send UI remains separate integration work.
+Capture invalidation commits in the same transaction. Public Send confirmation
+uses a server-generated nonce; native and enhanced retries retain that identity.
+The entry settled-form gate blocks opening Send while saves/conflicts remain.
+Confirmation lists configured recipients, never accepts replacement selections,
+and capture freshly enforces submission and venue membership.
 
 `CutoffJob` atomically enqueues one pre-armed `DaysheetCaptureJob` with explicit
 creation of a day whose cutoff is still ahead. The dedicated IHP queue has eight
@@ -170,7 +174,12 @@ sealed document and exact captured recipient identities. It never reconstructs
 from a current definition, live data or replacement recipient list. Queue and
 provider facts are independent: a retry/cancellation can coexist with earlier
 provider acceptance or confirmed delivery. Missing/mismatched job provenance
-shows unavailable status, not invented success. History routes/UI remain pending.
+shows unavailable status, not invented success. `readFrozenHistory` loads one run
+with stable `(capturedAt, id)` neighbours, scoped to its venue and Daysheet.
+History routes share one generated read-only fragment: live invalidations refresh
+status without substituting current values for retained content. Native refresh
+and chronological navigation work without JavaScript. Recipient controls and
+transport-status invalidation remain separate integration work.
 
 `ReportDelivery` is installed in the shared mail pipeline. It verifies frozen
 venue/report identity, exact captured recipient membership and address, then

@@ -286,6 +286,10 @@ data DaysheetsController
     | CreateDaysheetAction
     | ShowDaysheetBodyAction { daysheetId :: Id Daysheet }
     | ShowDaysheetReportAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | ShowDaysheetSendAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | SendDaysheetReportAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | ShowDaysheetHistoryAction { daysheetId :: Id Daysheet, frozenReportId :: Maybe UUID }
+    | ShowDaysheetHistoryBodyAction { daysheetId :: Id Daysheet, frozenReportId :: Maybe UUID }
     | DownloadDaysheetWorkbookAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     | ShowDaysheetReportBodyAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     -- IHP AutoRoute supports Maybe Text, not Maybe UUID. The controller
