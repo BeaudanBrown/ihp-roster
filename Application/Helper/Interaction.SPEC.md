@@ -121,8 +121,11 @@ The generated drag-axis CSS property selects horizontal or vertical geometry;
 missing means horizontal, unknown values refuse the gesture. The browser reads
 computed geometry for preview, grab offsets and cross-axis targeting. Haskell may
 mark a plain-text hover preview with `DragTargetPreview`. Interval dragging then
-reuses that element at the destination lane origin and snapped start, with the
-source interval's extent and server-supplied proposed label. It replaces the
+reuses that element at the destination origin and snapped start, with the source
+interval's time-axis extent and server-supplied proposed label. Its cross-axis
+extent fills the compatible target's bounds, independently of the source card's
+size or the pointer's position within that target. This generic target-preview
+primitive does not select or persist display overlap tracks. It replaces the
 floating rectangle rather than duplicating it underneath. The preview stays
 anchored when the pointer moves across a lane; crossing lanes selects a new
 preview. Copy feedback still uses the declared effect classes. Hit targets retain

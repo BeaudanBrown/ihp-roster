@@ -71,14 +71,15 @@ async function expectDestinationPaint(page: Page, sourceBox: { width: number; he
         const shape = preview.getBoundingClientRect();
         const box = element.getBoundingClientRect();
         const vertical = document.querySelector('[data-roster-timeline-orientation]')!.getAttribute('data-roster-timeline-orientation') === 'vertical';
-        return { width: shape.width, height: shape.height, pointerEvents: getComputedStyle(preview).pointerEvents,
+        return { vertical, crossExtent: vertical ? shape.width : shape.height, targetCrossExtent: vertical ? box.width : box.height,
+            pointerEvents: getComputedStyle(preview).pointerEvents,
             labelMatches: preview.textContent === document.querySelector(`[${labelAttr}]`)!.textContent,
             crossOffset: vertical ? shape.left - box.left : shape.top - box.top,
             snapOffset: vertical ? shape.top - box.top : shape.left - box.left,
             hitExtent: vertical ? box.height : box.width, paintExtent: vertical ? shape.height : shape.width };
     }, InteractionDom.attributes.dragPreviewLabel);
-    expect(Math.abs(paint.width - sourceBox.width), 'painted destination highlight width').toBeLessThan(1);
-    expect(Math.abs(paint.height - sourceBox.height), 'painted destination highlight height').toBeLessThan(1);
+    expect(Math.abs(paint.paintExtent - (paint.vertical ? sourceBox.height : sourceBox.width)), 'landing preview preserves source duration').toBeLessThan(1);
+    expect(Math.abs(paint.crossExtent - paint.targetCrossExtent), 'landing preview spans the full destination lane').toBeLessThan(1);
     expect(Math.abs(paint.crossOffset), 'landing preview stays anchored to the lane, not the pointer').toBeLessThan(1);
     expect(paint.snapOffset).toBeGreaterThanOrEqual(0);
     expect(paint.snapOffset).toBeLessThanOrEqual(paint.hitExtent);
@@ -188,18 +189,22 @@ for (const orientation of ['horizontal', 'vertical']) {
 }
 
 for (const orientation of ['horizontal', 'vertical']) {
-    test(`paints creation and full-size move/copy previews above overlapping cards (${orientation})`, async ({ page }, testInfo) => {
+    test(`paints creation and full-lane move/copy previews above three overlapping cards (${orientation})`, async ({ page }, testInfo) => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await openCanonicalTimeline(page, orientation);
         const overlapId = 'a6550000-0000-0000-0000-000000000071';
+        const thirdId = 'a6550000-0000-0000-0000-000000000072';
         runSql("UPDATE roster_slots SET ends_at = starts_at + INTERVAL '5 hours 30 minutes' WHERE id = 'a1000000-0000-0000-0000-000000000071'");
         runSql(`INSERT INTO roster_slots (id, roster_day_id, roster_lane_id, staff_id, assignment_state, row_index, starts_at, ends_at, timezone, shift_type_id)
-            SELECT '${overlapId}', roster_day_id, roster_lane_id, NULL, 'open', 1, starts_at + INTERVAL '1 hour', ends_at + INTERVAL '1 hour', timezone, shift_type_id
-            FROM roster_slots WHERE id = 'a1000000-0000-0000-0000-000000000071'
+            SELECT fixture.id, roster_day_id, roster_lane_id, NULL, 'open', fixture.ordinal,
+                starts_at + fixture.ordinal * INTERVAL '1 hour', ends_at + fixture.ordinal * INTERVAL '1 hour', timezone, shift_type_id
+            FROM roster_slots CROSS JOIN (VALUES ('${overlapId}'::uuid, 1), ('${thirdId}'::uuid, 2)) AS fixture(id, ordinal)
+            WHERE roster_slots.id = 'a1000000-0000-0000-0000-000000000071'
             ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`);
         try {
             await page.reload();
             const lane = page.getByRole('region', { name: 'Early', exact: true });
+            await expect(lane.locator('.roster-day-timeline-shift')).toHaveCount(3);
             const target = lane.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="535"]');
             await target.hover();
             const preview = target.locator('.roster-day-timeline-create-preview');
@@ -254,9 +259,6 @@ for (const orientation of ['horizontal', 'vertical']) {
                     try { return document.elementFromPoint(x, y) === preview; }
                     finally { preview.style.pointerEvents = previous; }
                 }), 'full destination paint is above overlapping cards').toBe(true);
-                const shadowBox = (await shadow.boundingBox())!;
-                expect(Math.abs(shadowBox.width - sourceBox.width)).toBeLessThan(1);
-                expect(Math.abs(shadowBox.height - sourceBox.height)).toBeLessThan(1);
                 await expect(shadow).toHaveCSS('pointer-events', 'none');
                 await testInfo.attach(`${copy ? 'copy' : 'move'}-${orientation}`, { body: await page.screenshot(), contentType: 'image/png' });
             }
@@ -271,7 +273,7 @@ for (const orientation of ['horizontal', 'vertical']) {
             await page.keyboard.press('Escape');
             await page.keyboard.up('Control');
             await page.mouse.up();
-            runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id = '${overlapId}'`);
+            runSql(`UPDATE roster_slots SET deleted_at = NOW() WHERE id IN ('${overlapId}', '${thirdId}')`);
             resetTimelineShiftInterval();
         }
     });

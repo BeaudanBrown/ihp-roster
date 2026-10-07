@@ -451,11 +451,11 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     const first = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
     first.rect = { left: 100, top: 0, width: 1000, height: 100 };
     const second = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
-    second.rect = { left: 100, top: 100, width: 1000, height: 100 };
+    second.rect = { left: 100, top: 100, width: 1000, height: 150 };
     for (const [lane, axis] of [first, second].entries()) {
         for (const position of config.positions) {
             const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
-            target.rect = { left: 100 + position, top: axis.rect.top + 8, width: 5, height: 84 };
+            target.rect = { left: 100 + position, top: axis.rect.top + 8, width: 5, height: axis.rect.height - 16 };
         }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
@@ -469,6 +469,10 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     assertEqual(drag.project(400, 150)?.landingLeft, 350);
     assertEqual(drag.project(400, 150)?.landingTop, 108);
     assertEqual(drag.project(400, 170)?.landingTop, 108);
+    assertEqual(drag.project(400, 50)?.landingHeight, 84);
+    assertEqual(drag.project(400, 150)?.landingHeight, 134);
+    assertEqual(drag.project(400, 150)?.landingWidth, 400);
+    assertEqual(drag.project(400, 150)?.height, 50); // Unopted floating feedback retains source size.
     assertEqual(drag.project(400, 300), null);
     first.rect.left = -150;
     assertEqual(drag.project(400, 50)?.label, "late");
@@ -493,12 +497,12 @@ test("vertical interval projection preserves duration and grab offset, crosses l
     const first = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
     first.rect = { left: 0, top: 100, width: 100, height: 1000 };
     const second = mount.append(new MiniElement({ [attrs.dragAxis]: "true" }));
-    second.rect = { left: 100, top: 100, width: 100, height: 1000 };
+    second.rect = { left: 100, top: 100, width: 150, height: 1000 };
     for (const [lane, axis] of [first, second].entries()) {
         axis.ownerDocument = doc;
         for (const position of config.positions) {
             const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
-            target.rect = { left: axis.rect.left, top: 100 + position, width: 100, height: 5 };
+            target.rect = { left: axis.rect.left, top: 100 + position, width: axis.rect.width, height: 5 };
         }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
@@ -513,6 +517,10 @@ test("vertical interval projection preserves duration and grab offset, crosses l
     assertEqual(drag.project(150, 400)?.landingLeft, 100);
     assertEqual(drag.project(170, 400)?.landingLeft, 100);
     assertEqual(drag.project(150, 400)?.landingTop, 350);
+    assertEqual(drag.project(50, 400)?.landingWidth, 100);
+    assertEqual(drag.project(150, 400)?.landingWidth, 150);
+    assertEqual(drag.project(150, 400)?.landingHeight, 400);
+    assertEqual(drag.project(150, 400)?.width, 50);
     assertEqual(drag.project(300, 400), null);
     first.rect.top = -150;
     assertEqual(drag.project(50, 400)?.label, "late");

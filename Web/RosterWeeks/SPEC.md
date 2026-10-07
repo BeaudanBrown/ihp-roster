@@ -201,9 +201,13 @@ Saved out-of-window shifts may expand display and movement targets, never new-sh
 creation availability. Creation launchers, keyboard entry and staff-drop validation
 require a real default endpoint inside the configured window.
 Creation previews paint above shift cards and below sticky labels, without
-intercepting pointers. Move/copy previews reuse the generic interval projection:
-source-card cross-axis dimensions (including overlap tracks), exact elapsed
-long-axis extent and the original grab offset; no new layout or duration authority.
+intercepting pointers. Move/copy previews reuse the hover affordance through the
+generic typed target-preview and interval-axis primitives. They cover the full
+named lane's editable cross-axis (height horizontally, width vertically), not a
+single overlap track, while preserving exact elapsed time-axis extent and the
+original grab offset for snapping. Display-track packing remains server-owned;
+the preview indicates only the destination named lane and interval. No roster
+meaning or persisted placement policy is added to the browser.
 Staff drops on existing shifts preserve lane/time and save immediately; published
 rosters permit only the existing authorized Open-to-Staff fill. Timeline and
 staff interactions share the roster scope, while day-content refreshes preserve

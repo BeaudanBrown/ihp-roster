@@ -4138,13 +4138,16 @@
           if (!target || target.isConnected === false) return null;
           const snapped = start + position * length / config.rangeSize;
           const extent = config.extent * length / config.rangeSize;
+          const targetRect = target.getBoundingClientRect();
           return {
             target,
             label: config.labels[index],
             left: vertical ? x - grabX : snapped,
             top: vertical ? snapped : y - grabY,
-            landingLeft: vertical ? target.getBoundingClientRect().left : snapped,
-            landingTop: vertical ? snapped : target.getBoundingClientRect().top,
+            landingLeft: vertical ? targetRect.left : snapped,
+            landingTop: vertical ? snapped : targetRect.top,
+            landingWidth: vertical ? targetRect.width : extent,
+            landingHeight: vertical ? extent : targetRect.height,
             width: vertical ? sourceRect.width : extent,
             height: vertical ? extent : sourceRect.height
           };
@@ -4685,8 +4688,8 @@
         if (label) label.hidden = !projection;
         if (!projection) return;
         const style = (landing ?? shadow).style;
-        style.width = `${projection.width}px`;
-        style.height = `${projection.height}px`;
+        style.width = `${landing ? projection.landingWidth : projection.width}px`;
+        style.height = `${landing ? projection.landingHeight : projection.height}px`;
         if (landing) {
           const target = projection.target;
           const rect = target.getBoundingClientRect();

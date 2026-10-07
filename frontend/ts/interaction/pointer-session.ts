@@ -710,8 +710,8 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
             if (label) label.hidden = !projection;
             if (!projection) return;
             const style = (landing ?? shadow as HTMLElement).style;
-            style.width = `${projection.width}px`;
-            style.height = `${projection.height}px`;
+            style.width = `${landing ? projection.landingWidth : projection.width}px`;
+            style.height = `${landing ? projection.landingHeight : projection.height}px`;
             if (landing) {
                 const target = projection.target as HTMLElement;
                 const rect = target.getBoundingClientRect();
