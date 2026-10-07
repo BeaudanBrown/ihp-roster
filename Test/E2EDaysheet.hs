@@ -21,10 +21,12 @@ seedDaysheetFixture = do
     user <- createUserRecord email "manager" True
     member <- createVenueMembershipRecord venue user VenueOwner
     _ <- createTestPasskeyRecord user "E2E Daysheet passkey"
-    draft <- saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
-    either (const (die "Daysheet fixture draft rejected")) (const (pure ())) draft
-    published <- publishDraft member 0 0
-    either (const (die "Daysheet fixture publication rejected")) (const (pure ())) published
+    pristine <- Env.lookupEnv "IHP_ROSTER_E2E_DAYSHEET_PRISTINE"
+    unless (pristine == Just "1") do
+        draft <- saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+        either (const (die "Daysheet fixture draft rejected")) (const (pure ())) draft
+        published <- publishDraft member 0 0
+        either (const (die "Daysheet fixture publication rejected")) (const (pure ())) published
     LBS.putStrLn (Aeson.encode (Aeson.object
         [ "venueId" Aeson..= venue.id
         , "email" Aeson..= email

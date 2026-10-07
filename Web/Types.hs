@@ -277,6 +277,7 @@ data DaysheetDesignerController
     | SaveDesignerListAction
     | RemoveDesignerFieldAction
     | RemoveDesignerListAction
+    | StageDesignerStarterAction
     | PublishDesignerDraftAction
     deriving (Eq, Show, Data)
 

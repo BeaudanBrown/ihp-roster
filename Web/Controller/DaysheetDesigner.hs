@@ -345,6 +345,15 @@ instance Controller DaysheetDesignerController where
             (Designer.RemoveList (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)))
         finish member state DesignerIndexPage result
 
+    action current@StageDesignerStarterAction = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- author
+        state <- loadState member
+        fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseStageDesignerStarterActionParams
+        result <- Mutations.stageStarter member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
+        finish member state DesignerIndexPage result
+
     action current@PublishDesignerDraftAction = runBepis current BepisMutationAction do
         ensureWrite
         member <- author

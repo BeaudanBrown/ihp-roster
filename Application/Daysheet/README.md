@@ -67,6 +67,26 @@ part stages it immediately; visible example constants remain editable before
 explicit publication. Calculation pages refresh semantically at the same saved
 location. No expression document or evaluator is sent to the browser.
 
+`Starter.starterTemplate` is an ordinary editable definition/reference document:
+example Areas, three POS registers and eight Terminals; per-area float-excluded
+note/coin counts; one preserved rate; linked customer cashout; independently
+reconciled POS/terminal card totals; POS sales breakdown; operational notes and
+two selected report layouts. It adds no evaluator operations, fixed venue names,
+provider parser, payroll coupling or workbook dependency. Every calculation part
+uses the public edit algebra; advisories select ordinary calculated boolean
+fields, just like the public layout editor.
+
+The designer's explicit **Start with editable starter template** action is offered
+only for pristine configuration. Normal locked revision checks reject competing
+setup and prevent replacing staged/published work. It stages rather than publishes;
+admins then use the normal reference, calculation and layout controls. Later
+publication/retirement affects only new captures. The provider-input assumptions
+are visible in the template; actual POS/EFTPOS reconciliation remains #641.
+`Test/DaysheetStarterSpec.hs` evaluates the supplied graph against worked cases;
+`e2e/daysheet-starter.spec.ts` exercises pristine installation, public reference
+edits, publication, responsive entry/preview and historical isolation. The fixture
+creates only the venue/account when pristine mode is selected, never the starter.
+
 `Storage` owns membership-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved

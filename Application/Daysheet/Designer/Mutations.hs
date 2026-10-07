@@ -1,9 +1,12 @@
 {-# LANGUAGE RankNTypes #-}
-module Application.Daysheet.Designer.Mutations (edit, editReferences, publish) where
+module Application.Daysheet.Designer.Mutations (edit, editReferences, publish, stageStarter) where
 
 import qualified Application.Daysheet.Designer as Designer
 import qualified Application.Daysheet.Storage as Storage
 import Application.Daysheet.References (ReferenceEdit)
+import Application.Daysheet.Starter (starterTemplate)
+import Application.Daysheet.StorageError (StorageError (RevisionConflict, StoredDocumentInvalid))
+import Application.Error.Domain (projectDomainError)
 import Application.Error.Types (AppResult)
 import Application.Helper.FrontendContract.Surface.DaysheetDesigner.Resource
 import Application.Helper.SurfaceResource
@@ -29,6 +32,15 @@ edit member base revision change = mutate member "daysheet.designer.edit" (Stora
 
 editReferences :: MutationContext => VenueMembership -> Integer -> Maybe Integer -> ReferenceEdit -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
 editReferences member base revision change = mutate member "daysheet.designer.edit-references" (Storage.editDraftReferences member base revision change)
+
+-- Initial setup only: never replace a venue's published or staged work. The
+-- normal locked revision guard makes competing setup actions fail safely.
+stageStarter :: MutationContext => VenueMembership -> Integer -> Maybe Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
+stageStarter member base revision = mutate member "daysheet.designer.starter" do
+    if base /= 0 || isJust revision then pure (Left (projectDomainError RevisionConflict)) else
+        case starterTemplate of
+            Left _ -> pure (Left (projectDomainError StoredDocumentInvalid))
+            Right (definition, references) -> Storage.saveDraft member 0 Nothing definition references
 
 publish :: MutationContext => VenueMembership -> Integer -> Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionVersion))
 publish member base revision = mutate member "daysheet.designer.publish" (Storage.publishDraft member base revision)

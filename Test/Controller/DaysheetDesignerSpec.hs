@@ -52,6 +52,31 @@ tests = aroundAll withDatabaseTestContext do
                 query @DaysheetConfiguration |> fetchCount >>= (`shouldBe` 0)
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
 
+        it "stages the starter only into pristine setup and leaves publication explicit" $ withContext do
+            withCleanDb do
+                (venue, user, member) <- setup
+                let post params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams StageDesignerStarterAction params
+                malformed <- post []
+                malformed `responseStatusShouldBe` status400
+                saved <- post [("expectedBase", "0")]
+                saved `responseStatusShouldBe` status200
+                lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
+                Right initial <- Storage.readDesignerState member
+                forM_ ["Terminals", "POS readings", "Cash in / cash out"] \label ->
+                    map D.listLabel (D.recordLists initial.designerDefinition) `shouldContain` [label]
+                query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 0)
+                before <- query @LiveInvalidationEvent |> fetchCount
+                repeated <- post [("expectedBase", "0")]
+                lookup "X-Bepis-Form-Saved" (responseHeaders repeated) `shouldBe` Nothing
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
+                Right unchanged <- Storage.readDesignerState member
+                unchanged.designerDefinition `shouldBe` initial.designerDefinition
+                published <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams PublishDesignerDraftAction [("expectedBase", "0"), ("expectedDraft", "0")]
+                responseStatus published `shouldSatisfy` (`elem` [status200, status302, status303])
+                query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 1)
+                replacement <- post [("expectedBase", "1")]
+                lookup "X-Bepis-Form-Saved" (responseHeaders replacement) `shouldBe` Nothing
+
         it "creates typed fields with durable invalidation and requires explicit publication" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
@@ -251,7 +276,7 @@ tests = aroundAll withDatabaseTestContext do
                     report <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                         callActionWithParams SaveDesignerReportAction [("expectedBase", "0"), ("label", "Forged report"), ("targets", "formatted")]
                     responseStatus report `shouldSatisfy` (`elem` [status302, status303, status403])
-                    forM_ [SaveDesignerChoiceAction, RemoveDesignerChoiceAction, MoveDesignerChoiceAction, UseDesignerCalculationPartAction, SaveDesignerConstantAction, MakeDesignerFieldEnteredAction] \action -> do
+                    forM_ [StageDesignerStarterAction, SaveDesignerChoiceAction, RemoveDesignerChoiceAction, MoveDesignerChoiceAction, UseDesignerCalculationPartAction, SaveDesignerConstantAction, MakeDesignerFieldEnteredAction] \action -> do
                         choice <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams action
                             [("expectedBase", "0"), ("definitionFieldId", "00000000-0000-0000-0000-000000000001"), ("definitionChoiceId", "00000000-0000-0000-0000-000000000002"), ("label", "Forged option"), ("toPosition", "0"), ("calculationGroup", "values"), ("candidateIndex", "0"), ("enteredValue", "2")]
                         responseStatus choice `shouldSatisfy` (`elem` [status302, status303, status403])

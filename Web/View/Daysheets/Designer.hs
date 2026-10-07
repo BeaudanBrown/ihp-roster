@@ -127,6 +127,7 @@ renderDesigner venue state page problem = case page of
             <div class="d-flex gap-2 flex-wrap">
                 <a class="btn btn-outline-primary" href={ShowDesignerFieldAction Nothing Nothing}>Add root field</a>
                 <a class="btn btn-outline-primary" href={ShowDesignerListAction Nothing}>Add list</a>
+                {starterButton}
                 {publishButton}
             </div>
             <section><h2 class="h4">Root fields</h2>{forEach (zip [0 ..] (D.rootFields definition)) (fieldSummary Nothing (length (D.rootFields definition)))}</section>
@@ -149,6 +150,12 @@ renderDesigner venue state page problem = case page of
         DesignerReportPage fields -> Layout.reportForm fields problem
         DesignerSectionPage fields -> Layout.sectionForm fields problem
         DesignerBlockPage fields -> Layout.blockForm definition fields problem
+    starterButton = if state.designerCurrentRevision == 0 && isNothing state.designerDraftRevision
+        then let fields = Action.stageDesignerStarterActionFields base revision
+            in renderFrontendSurfaceActionFormWithHiddenFields (Action.stageDesignerStarterAction fields)
+                ((defaultFrontendSurfaceActionRoute (pathTo StageDesignerStarterAction)) { actionRouteExtraAttrs = finalAttrs })
+                [hsx|<button class="btn btn-primary" type="submit">Start with editable starter template</button><p class="text-muted">Stages example areas, three POS registers and eight terminals. Review names, assignments, rate and provider assumptions, then publish explicitly.</p>|]
+        else mempty
     publishButton = case state.designerDraftRevision of
         Nothing -> [hsx|<p class="text-muted">No unpublished changes.</p>|]
         Just _ -> let fields = Action.publishDesignerDraftActionFields base revision

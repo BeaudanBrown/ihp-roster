@@ -43,6 +43,7 @@ data SaveDesignerField
 data SaveDesignerList
 data RemoveDesignerField
 data RemoveDesignerList
+data StageDesignerStarter
 data PublishDesignerDraft
 data DefinitionReportId
 data DefinitionSectionId
@@ -182,5 +183,6 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
           , OptionalField ExpressionSlots ('WireList ('WireClosed Designer.ExpressionSlot)), Field EnteredValue 'WireText] SaveOptions
      , Action MakeDesignerFieldEntered
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionFieldId 'WireUUID] SaveOptions
+     , Action StageDesignerStarter Revisions SaveOptions
      , Action PublishDesignerDraft Revisions SaveOptions
      ]

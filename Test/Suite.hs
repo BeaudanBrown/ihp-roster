@@ -49,6 +49,7 @@ import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.DaysheetNumberSpec
+import qualified Test.DaysheetStarterSpec
 import qualified Test.DaysheetContractSpec
 import qualified Test.DaysheetEvaluationSpec
 import qualified Test.DaysheetDailySpec
@@ -486,6 +487,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetCutoffCapture", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetCutoffCaptureSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetDailyStorage", definitionEstimatedRuntimeSeconds = 2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetDailyStorageSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "DaysheetRecipients", definitionEstimatedRuntimeSeconds = 1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetRecipientsSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "DaysheetStarter", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetStarterSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "DaysheetNumber", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DaysheetNumberSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "EmailDeliveryStatus", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.EmailDeliveryStatusSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "EmailEnvelope", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.EmailEnvelopeSpec.tests

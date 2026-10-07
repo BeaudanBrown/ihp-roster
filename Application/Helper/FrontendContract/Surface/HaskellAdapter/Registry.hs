@@ -301,6 +301,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.UseDesignerCalculationPart allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerConstant allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.MakeDesignerFieldEntered allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.StageDesignerStarter allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.PublishDesignerDraft allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.AddDesignerReference allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetDesignerAdapterFamily @Designer.SaveDesignerReferenceValue allRequestAdapterOperations

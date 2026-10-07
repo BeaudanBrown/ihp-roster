@@ -74,6 +74,7 @@ Data.Traversable	base	Web/Controller/Daysheets.hs via Main
 Data.Typeable	base	Application/Helper/FrontendContract/Reflect.hs via Main
 Data.UUID	uuid	Application/Helper/Profiling.hs via Main
 Data.UUID.V4	uuid	Application/Helper/Profiling.hs via Main
+Data.UUID.V5	uuid	Application/Daysheet/Starter.hs via Main
 Data.Validation	validation	Web/Controller/Auth.hs via Main
 Data.Vault.Lazy	vault	Application/Helper/Profiling.hs via Main
 Data.Vector	vector	Application/Billing/Webhook.hs via Main

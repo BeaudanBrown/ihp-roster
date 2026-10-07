@@ -11,11 +11,12 @@ export interface DaysheetFixture {
     operationalDate: string;
 }
 
-export const daysheetTest = base.extend<{ daysheet: DaysheetFixture }>({
-    daysheet: async ({}, use) => {
+export const daysheetTest = base.extend<{ daysheet: DaysheetFixture; pristineDaysheet: boolean }>({
+    pristineDaysheet: [false, { option: true }],
+    daysheet: async ({ pristineDaysheet }, use) => {
         const seedBinary = process.env.E2E_SEED_BIN;
         if (!seedBinary) throw new Error('Use the E2E runner for Daysheet browser fixtures');
-        const fixture: DaysheetFixture = JSON.parse(execFileSync(seedBinary, ['seed-daysheet'], { encoding: 'utf8' }));
+        const fixture: DaysheetFixture = JSON.parse(execFileSync(seedBinary, ['seed-daysheet'], { encoding: 'utf8', env: { ...process.env, IHP_ROSTER_E2E_DAYSHEET_PRISTINE: pristineDaysheet ? '1' : '0' } }));
         await use(fixture);
     },
 });

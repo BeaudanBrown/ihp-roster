@@ -27,6 +27,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Ac
     , SaveDesignerReferenceValueActionOperation
     , SaveDesignerReportActionOperation
     , SaveDesignerSectionActionOperation
+    , StageDesignerStarterActionOperation
     , UseDesignerCalculationPartActionOperation
     , addDesignerReferenceAction
     , addDesignerReferenceActionFields
@@ -56,6 +57,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Ac
     , parseSaveDesignerReferenceValueActionParams
     , parseSaveDesignerReportActionParams
     , parseSaveDesignerSectionActionParams
+    , parseStageDesignerStarterActionParams
     , parseUseDesignerCalculationPartActionParams
     , publishDesignerDraftAction
     , publishDesignerDraftActionFields
@@ -89,6 +91,8 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Ac
     , saveDesignerReportActionFields
     , saveDesignerSectionAction
     , saveDesignerSectionActionFields
+    , stageDesignerStarterAction
+    , stageDesignerStarterActionFields
     , useDesignerCalculationPartAction
     , useDesignerCalculationPartActionFields
     ) where
@@ -1009,6 +1013,41 @@ parseSaveDesignerSectionActionParams ::
 parseSaveDesignerSectionActionParams =
     parseActionParams
         @SaveDesignerSectionActionOperation
+
+data StageDesignerStarterActionOperation
+
+type instance ActionSurface StageDesignerStarterActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+type instance ActionMarker StageDesignerStarterActionOperation = Types3.StageDesignerStarter
+type instance ActionFieldSpecs StageDesignerStarterActionOperation =
+    '[ 'Field Types3.ExpectedBase 'WireInt
+     , 'OptionalField Types3.ExpectedDraft 'WireInt
+     ]
+
+stageDesignerStarterActionFields ::
+    Int ->
+    Maybe Int ->
+    ActionFields StageDesignerStarterActionOperation
+stageDesignerStarterActionFields expectedBase expectedDraft =
+    actionFields
+        (surfaceField @Types3.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
+            &: noSurfaceFields
+        )
+
+stageDesignerStarterActionEvidence :: ActionEvidence StageDesignerStarterActionOperation
+stageDesignerStarterActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "StageDesignerStarter" "stage-designer-starter" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+stageDesignerStarterAction :: ActionFields StageDesignerStarterActionOperation -> FrontendSurfaceAction
+stageDesignerStarterAction =
+    frontendSurfaceActionFromEvidence stageDesignerStarterActionEvidence
+
+parseStageDesignerStarterActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields StageDesignerStarterActionOperation)
+parseStageDesignerStarterActionParams =
+    parseActionParams
+        @StageDesignerStarterActionOperation
 
 data UseDesignerCalculationPartActionOperation
 

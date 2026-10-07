@@ -63,6 +63,7 @@ Application/Daysheet/ReportStorage.hs	production	runtime	WorkerMain	Reachable fr
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Schema.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/Starter.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Storage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/StorageError.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Validation.hs	production	runtime	Main	Reachable from Main

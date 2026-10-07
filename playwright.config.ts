@@ -20,6 +20,7 @@ if (!['fast', 'full'].includes(e2eTier)) {
 const mobileTestFiles = [
     /.*daysheet-entry\.spec\.ts/,
     /.*daysheet-designer\.spec\.ts/,
+    /.*daysheet-starter\.spec\.ts/,
     /.*daysheet-reports\.spec\.ts/,
     /.*mobile-experience\.spec\.ts/,
     /.*pwa-install\.spec\.ts/,
