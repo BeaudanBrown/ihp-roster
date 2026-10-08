@@ -125,7 +125,13 @@ reuses that element at the destination origin and snapped start, with the source
 interval's time-axis extent and server-supplied proposed label. Its cross-axis
 extent fills the compatible target's bounds, independently of the source card's
 size or the pointer's position within that target. This generic target-preview
-primitive does not select or persist display overlap tracks. It replaces the
+primitive does not select or persist display overlap tracks. One shared CSS
+renderer consumes generated `DragPreviewOffsetProperty` and
+`DragPreviewExtentProperty` percentage inputs for both native hover and dragging.
+Haskell renders creation defaults through `dragTargetPreviewStyle`; dragging
+changes only these interval inputs and the supplied label, never inline physical
+left/top/width/height. Feature CSS supplies orientation and appearance, not a
+second geometry implementation. It replaces the
 floating rectangle rather than duplicating it underneath. The preview stays
 anchored when the pointer moves across a lane; crossing lanes selects a new
 preview. Copy feedback still uses the declared effect classes. Hit targets retain

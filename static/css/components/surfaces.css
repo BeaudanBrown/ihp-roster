@@ -112,6 +112,22 @@
     box-shadow: none !important;
 }
 
+/* One interval renderer for server-provided hover defaults and live drag inputs.
+   Features supply orientation/presentation; neither state sets physical sizes. */
+[data-bepis-drag-target-preview="true"] {
+    --bepis-drag-preview-offset: 0%;
+    --bepis-drag-preview-extent: 0%;
+    --bepis-drag-preview-x: 1;
+    --bepis-drag-preview-y: 0;
+    position: absolute;
+    left: calc(var(--bepis-drag-preview-offset) * var(--bepis-drag-preview-x));
+    top: calc(var(--bepis-drag-preview-offset) * var(--bepis-drag-preview-y));
+    width: calc(var(--bepis-drag-preview-extent) * var(--bepis-drag-preview-x) + 100% * var(--bepis-drag-preview-y));
+    height: calc(100% * var(--bepis-drag-preview-x) + var(--bepis-drag-preview-extent) * var(--bepis-drag-preview-y));
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
 .bepis-dropzone-highlight-projected [data-bepis-drag-target-preview="true"] {
     display: block;
 }

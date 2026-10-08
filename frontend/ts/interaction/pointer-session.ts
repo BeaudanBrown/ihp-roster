@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionRegistry, InteractionDom, nativeContextMenuDisabledDomAttr, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionRegistry, InteractionDom, dragPreviewOffsetProperty, dragPreviewExtentProperty, nativeContextMenuDisabledDomAttr, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
@@ -709,16 +709,16 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
             else addClass(shadow, effect.className);
             if (label) label.hidden = !projection;
             if (!projection) return;
-            const style = (landing ?? shadow as HTMLElement).style;
-            style.width = `${landing ? projection.landingWidth : projection.width}px`;
-            style.height = `${landing ? projection.landingHeight : projection.height}px`;
             if (landing) {
-                const target = projection.target as HTMLElement;
-                const rect = target.getBoundingClientRect();
-                style.left = `${projection.landingLeft - rect.left - target.clientLeft}px`;
-                style.top = `${projection.landingTop - rect.top - target.clientTop}px`;
+                // Change interval inputs only. The same renderer owns empty
+                // hover and drag geometry, including the full cross-axis span.
+                landing.style.setProperty(dragPreviewOffsetProperty, `${projection.previewOffsetPercent}%`);
+                landing.style.setProperty(dragPreviewExtentProperty, `${projection.previewExtentPercent}%`);
                 landing.textContent = projection.label;
             } else {
+                const style = (shadow as HTMLElement).style;
+                style.width = `${projection.width}px`;
+                style.height = `${projection.height}px`;
                 style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
             }
             if (label) {

@@ -599,6 +599,10 @@ export const dragPreviewLabelDomAttr = "data-bepis-drag-preview-label" as const;
 
 export const dragTargetPreviewDomAttr = "data-bepis-drag-target-preview" as const;
 
+export const dragPreviewOffsetProperty = "--bepis-drag-preview-offset" as const;
+
+export const dragPreviewExtentProperty = "--bepis-drag-preview-extent" as const;
+
 export const dragAxisDomAttr = "data-bepis-drag-axis" as const;
 
 export const dragAxisDirectionProperty = "--bepis-drag-axis-direction" as const;

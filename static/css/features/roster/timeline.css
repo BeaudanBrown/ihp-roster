@@ -168,14 +168,10 @@
 /* Keep layer wrappers unstacked: disposable creation previews paint above
    cards, but below sticky labels. Only the five-minute button is interactive. */
 .roster-day-timeline-create-preview {
+    --bepis-drag-preview-x: var(--roster-timeline-x);
+    --bepis-drag-preview-y: var(--roster-timeline-y);
     z-index: 3;
     display: none;
-    position: absolute;
-    left: calc(var(--roster-create-offset) * var(--roster-timeline-x));
-    top: calc(var(--roster-create-offset) * var(--roster-timeline-y));
-    width: calc(var(--roster-create-extent) * var(--roster-timeline-x) + 100% * var(--roster-timeline-y));
-    height: calc(var(--roster-timeline-track-height) * var(--roster-timeline-x) + var(--roster-create-extent) * var(--roster-timeline-y));
-    pointer-events: none;
     padding: 0.4rem;
     border-radius: 0.55rem;
     background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
@@ -193,7 +189,6 @@ html:not([data-bepis-interaction-active]) .roster-day-timeline-dropzone:hover .r
     opacity: 1;
     border: 0;
     box-shadow: none;
-    box-sizing: border-box;
 }
 
 

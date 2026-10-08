@@ -3,11 +3,12 @@ module Application.Helper.FrontendContract.Interaction.Runtime
     , dragAxisAttrs
     , dragPositionAttrs
     , dragTargetPreviewAttrs
+    , dragTargetPreviewStyle
     , nativeContextMenuDisabledAttrs
     ) where
 
 import qualified Application.Helper.FrontendContract.Interaction as Contract
-import Application.Helper.FrontendContract.Values (domAttrValue)
+import Application.Helper.FrontendContract.Values (constantValue, domAttrValue)
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -41,6 +42,13 @@ dragAxisAttrs = [(domAttrValue @Contract.DragAxis, "true")]
 -- | Opt a plain-text hover preview into disposable interval landing feedback.
 dragTargetPreviewAttrs :: [(Text, Text)]
 dragTargetPreviewAttrs = [(domAttrValue @Contract.DragTargetPreview, "true")]
+
+-- | Interval offset/extent as percentages of the target's time-axis size.
+-- Native hover and pointer sessions supply these same inputs to one CSS renderer.
+dragTargetPreviewStyle :: Double -> Double -> Text
+dragTargetPreviewStyle offsetPercent extentPercent =
+    constantValue @Contract.DragPreviewOffsetProperty <> ":" <> tshow offsetPercent <> "%;"
+        <> constantValue @Contract.DragPreviewExtentProperty <> ":" <> tshow extentPercent <> "%;"
 
 dragPositionAttrs :: Int -> [(Text, Text)]
 dragPositionAttrs position = [(domAttrValue @Contract.DragPosition, tshow position)]

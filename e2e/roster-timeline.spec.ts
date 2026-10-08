@@ -73,6 +73,7 @@ async function expectDestinationPaint(page: Page, sourceBox: { width: number; he
         const vertical = document.querySelector('[data-roster-timeline-orientation]')!.getAttribute('data-roster-timeline-orientation') === 'vertical';
         return { vertical, crossExtent: vertical ? shape.width : shape.height, targetCrossExtent: vertical ? box.width : box.height,
             pointerEvents: getComputedStyle(preview).pointerEvents,
+            inlinePhysicalSize: ['left', 'top', 'width', 'height'].some(property => (preview as HTMLElement).style.getPropertyValue(property) !== ''),
             labelMatches: preview.textContent === document.querySelector(`[${labelAttr}]`)!.textContent,
             crossOffset: vertical ? shape.left - box.left : shape.top - box.top,
             snapOffset: vertical ? shape.top - box.top : shape.left - box.left,
@@ -85,6 +86,7 @@ async function expectDestinationPaint(page: Page, sourceBox: { width: number; he
     expect(paint.snapOffset).toBeLessThanOrEqual(paint.hitExtent);
     expect(paint.labelMatches, 'landing label agrees with the server-owned snapped interval').toBe(true);
     expect(paint.pointerEvents).toBe('none');
+    expect(paint.inlinePhysicalSize, 'shared renderer owns geometry in both hover and drag states').toBe(false);
     expect(paint.hitExtent, 'hit target stays one snap step').toBeLessThan(paint.paintExtent / 2);
 }
 
@@ -212,6 +214,9 @@ for (const orientation of ['horizontal', 'vertical']) {
             const source = lane.locator(`[${InteractionDom.attributes.sourceKey}="existing:a1000000-0000-0000-0000-000000000071"]`);
             const cardBox = (await source.boundingBox())!;
             const previewBox = (await preview.boundingBox())!;
+            const targetBox = (await target.boundingBox())!;
+            expect(Math.abs(orientation === 'horizontal' ? previewBox.height - targetBox.height : previewBox.width - targetBox.width), 'empty hover fills the same full lane as dragging').toBeLessThan(1);
+            expect((orientation === 'horizontal' ? previewBox.width / cardBox.width : previewBox.height / cardBox.height)).toBeCloseTo(8 / 5.5, 2);
             const point = { x: Math.max(cardBox.x, previewBox.x) + 5, y: Math.max(cardBox.y, previewBox.y) + 5 };
             // Temporarily include the pointer-transparent preview in hit testing
             // to observe real paint order, then restore it before interactions.

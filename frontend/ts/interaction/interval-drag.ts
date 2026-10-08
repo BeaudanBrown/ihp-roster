@@ -5,7 +5,7 @@ const attrs = InteractionDom.attributes;
 export type IntervalProjection = {
     target: Element; label: string;
     left: number; top: number; width: number; height: number;
-    landingLeft: number; landingTop: number; landingWidth: number; landingHeight: number;
+    previewOffsetPercent: number; previewExtentPercent: number;
 };
 
 function verticalAxis(element: Element): boolean | null {
@@ -82,14 +82,14 @@ export function readIntervalDrag(marker: Element, mount: Element, targetSelector
                 const snapped = start + position * length / config.rangeSize;
                 const extent = config.extent * length / config.rangeSize;
                 const targetRect = target.getBoundingClientRect();
+                const targetLength = vertical ? targetRect.height : targetRect.width;
+                if (targetLength <= 0) return null;
                 return {
                     target, label: config.labels[index]!,
                     left: vertical ? x - grabX : snapped,
                     top: vertical ? snapped : y - grabY,
-                    landingLeft: vertical ? targetRect.left : snapped,
-                    landingTop: vertical ? snapped : targetRect.top,
-                    landingWidth: vertical ? targetRect.width : extent,
-                    landingHeight: vertical ? extent : targetRect.height,
+                    previewOffsetPercent: (snapped - (vertical ? targetRect.top : targetRect.left)) * 100 / targetLength,
+                    previewExtentPercent: extent * 100 / targetLength,
                     width: vertical ? sourceRect.width : extent,
                     height: vertical ? extent : sourceRect.height,
                 };

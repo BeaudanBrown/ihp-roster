@@ -199,8 +199,9 @@ renderTimelineCreationPreview window start maybeEnd =
     minute = timelineOffsetMinutes scale start
     cellStart = max 0 (minute - 2.5)
     cellExtent = min scale.scaleMinutes (minute + 2.5) - cellStart
-    previewStyle = "--roster-create-offset:" <> tshow ((minute - cellStart) * 100 / cellExtent) <> "%;--roster-create-extent:"
-        <> tshow ((timelineOffsetMinutes scale end - minute) * 100 / cellExtent) <> "%;"
+    previewStyle = Drag.dragTargetPreviewStyle
+        ((minute - cellStart) * 100 / cellExtent)
+        ((timelineOffsetMinutes scale end - minute) * 100 / cellExtent)
 
 renderTimelineShift :: TimelineWindow -> Bool -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
 renderTimelineShift timelineWindow editable canFillPublishedOpen staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =

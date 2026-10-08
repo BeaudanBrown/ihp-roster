@@ -8,6 +8,7 @@ module Test.FrontendContractSpec
 
 import Application.Helper.FrontendContract.DSL hiding (Enum)
 import qualified Application.Helper.FrontendContract.DSL as DSL
+import qualified Application.Helper.FrontendContract.Interaction.Runtime as Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Registry (validateFrontendContractStartup)
@@ -127,6 +128,12 @@ type DuplicateCaseContracts =
 
 tests :: Spec
 tests = describe "FrontendContract foundation" do
+    it "renders hover interval inputs for the shared target-preview renderer without physical dimensions" do
+        Interaction.dragTargetPreviewStyle 50 9600
+            `shouldBe` "--bepis-drag-preview-offset:50.0%;--bepis-drag-preview-extent:9600.0%;"
+        Interaction.dragTargetPreviewStyle 0 0
+            `shouldBe` "--bepis-drag-preview-offset:0.0%;--bepis-drag-preview-extent:0.0%;"
+
     it "reflects fixture names, primitive kinds, ordered fields, recursive wires, presence and union cases into semantic IR" do
         reflectFrontendContracts @FixtureContracts `shouldBe` expectedFixtureIR
 

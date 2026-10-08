@@ -455,7 +455,7 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     for (const [lane, axis] of [first, second].entries()) {
         for (const position of config.positions) {
             const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
-            target.rect = { left: 100 + position, top: axis.rect.top + 8, width: 5, height: axis.rect.height - 16 };
+            target.rect = { left: 100 + position - 2.5, top: axis.rect.top + 8, width: 5, height: axis.rect.height - 16 };
         }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
@@ -466,14 +466,15 @@ test("interval projection preserves grab offset, clamps to allowed starts and sh
     assertEqual(drag.project(2000, 50)?.left, 600);
     assertEqual(drag.project(2000, 50)?.width, 400);
     assertEqual(drag.project(400, 150)?.target.getAttribute(attrs.dropzoneKey), "1/250");
-    assertEqual(drag.project(400, 150)?.landingLeft, 350);
-    assertEqual(drag.project(400, 150)?.landingTop, 108);
-    assertEqual(drag.project(400, 170)?.landingTop, 108);
-    assertEqual(drag.project(400, 50)?.landingHeight, 84);
-    assertEqual(drag.project(400, 150)?.landingHeight, 134);
-    assertEqual(drag.project(400, 150)?.landingWidth, 400);
+    assertEqual(drag.project(400, 150)?.previewOffsetPercent, 50);
+    assertEqual(drag.project(400, 170)?.previewOffsetPercent, 50);
+    assertEqual(drag.project(400, 50)?.previewExtentPercent, 8000);
+    assertEqual(drag.project(400, 150)?.previewExtentPercent, 8000);
     assertEqual(drag.project(400, 150)?.height, 50); // Unopted floating feedback retains source size.
     assertEqual(drag.project(400, 300), null);
+    first.children[1]!.rect.width = 0;
+    assertEqual(drag.project(400, 50), null);
+    first.children[1]!.rect.width = 5;
     first.rect.left = -150;
     assertEqual(drag.project(400, 50)?.label, "late");
     first.rect.left = 100;
@@ -502,7 +503,7 @@ test("vertical interval projection preserves duration and grab offset, crosses l
         axis.ownerDocument = doc;
         for (const position of config.positions) {
             const target = axis.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: `${lane}/${position}`, [attrs.dragPosition]: String(position) }));
-            target.rect = { left: axis.rect.left, top: 100 + position, width: axis.rect.width, height: 5 };
+            target.rect = { left: axis.rect.left, top: 100 + position - 2.5, width: axis.rect.width, height: 5 };
         }
     }
     const marker = first.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.dragIntervalConfig]: JSON.stringify(config) }));
@@ -514,12 +515,10 @@ test("vertical interval projection preserves duration and grab offset, crosses l
     assertEqual(drag.project(50, 2000)?.top, 600);
     assertEqual(drag.project(50, 2000)?.height, 400);
     assertEqual(drag.project(150, 400)?.target.getAttribute(attrs.dropzoneKey), "1/250");
-    assertEqual(drag.project(150, 400)?.landingLeft, 100);
-    assertEqual(drag.project(170, 400)?.landingLeft, 100);
-    assertEqual(drag.project(150, 400)?.landingTop, 350);
-    assertEqual(drag.project(50, 400)?.landingWidth, 100);
-    assertEqual(drag.project(150, 400)?.landingWidth, 150);
-    assertEqual(drag.project(150, 400)?.landingHeight, 400);
+    assertEqual(drag.project(150, 400)?.previewOffsetPercent, 50);
+    assertEqual(drag.project(170, 400)?.previewOffsetPercent, 50);
+    assertEqual(drag.project(50, 400)?.previewExtentPercent, 8000);
+    assertEqual(drag.project(150, 400)?.previewExtentPercent, 8000);
     assertEqual(drag.project(150, 400)?.width, 50);
     assertEqual(drag.project(300, 400), null);
     first.rect.top = -150;

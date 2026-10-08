@@ -200,9 +200,11 @@ The duration resource invalidates timeline previews only within the owning venue
 Saved out-of-window shifts may expand display and movement targets, never new-shift
 creation availability. Creation launchers, keyboard entry and staff-drop validation
 require a real default endpoint inside the configured window.
-Creation previews paint above shift cards and below sticky labels, without
-intercepting pointers. Move/copy previews reuse the hover affordance through the
-generic typed target-preview and interval-axis primitives. They cover the full
+Creation and move/copy previews paint above shift cards and below sticky labels,
+without intercepting pointers. Empty hover and dragging use one generic renderer
+through the typed target-preview and interval-axis primitives, differing only in
+the supplied interval and label: venue creation defaults versus the existing
+shift's duration. No feature-local hover geometry or separate drag sizing. Both cover the full
 named lane's editable cross-axis (height horizontally, width vertically), not a
 single overlap track, while preserving exact elapsed time-axis extent and the
 original grab offset for snapping. Display-track packing remains server-owned;

@@ -242,6 +242,8 @@
   var dragIntervalConfigDomAttr = "data-bepis-drag-interval-config";
   var dragPreviewLabelDomAttr = "data-bepis-drag-preview-label";
   var dragTargetPreviewDomAttr = "data-bepis-drag-target-preview";
+  var dragPreviewOffsetProperty = "--bepis-drag-preview-offset";
+  var dragPreviewExtentProperty = "--bepis-drag-preview-extent";
   var dragAxisDomAttr = "data-bepis-drag-axis";
   var dragAxisDirectionProperty = "--bepis-drag-axis-direction";
   var dragPositionDomAttr = "data-bepis-drag-position";
@@ -4139,15 +4141,15 @@
           const snapped = start + position * length / config.rangeSize;
           const extent = config.extent * length / config.rangeSize;
           const targetRect = target.getBoundingClientRect();
+          const targetLength = vertical ? targetRect.height : targetRect.width;
+          if (targetLength <= 0) return null;
           return {
             target,
             label: config.labels[index],
             left: vertical ? x - grabX : snapped,
             top: vertical ? snapped : y - grabY,
-            landingLeft: vertical ? targetRect.left : snapped,
-            landingTop: vertical ? snapped : targetRect.top,
-            landingWidth: vertical ? targetRect.width : extent,
-            landingHeight: vertical ? extent : targetRect.height,
+            previewOffsetPercent: (snapped - (vertical ? targetRect.top : targetRect.left)) * 100 / targetLength,
+            previewExtentPercent: extent * 100 / targetLength,
             width: vertical ? sourceRect.width : extent,
             height: vertical ? extent : sourceRect.height
           };
@@ -4687,16 +4689,14 @@
         else addClass(shadow, effect.className);
         if (label) label.hidden = !projection;
         if (!projection) return;
-        const style = (landing ?? shadow).style;
-        style.width = `${landing ? projection.landingWidth : projection.width}px`;
-        style.height = `${landing ? projection.landingHeight : projection.height}px`;
         if (landing) {
-          const target = projection.target;
-          const rect = target.getBoundingClientRect();
-          style.left = `${projection.landingLeft - rect.left - target.clientLeft}px`;
-          style.top = `${projection.landingTop - rect.top - target.clientTop}px`;
+          landing.style.setProperty(dragPreviewOffsetProperty, `${projection.previewOffsetPercent}%`);
+          landing.style.setProperty(dragPreviewExtentProperty, `${projection.previewExtentPercent}%`);
           landing.textContent = projection.label;
         } else {
+          const style = shadow.style;
+          style.width = `${projection.width}px`;
+          style.height = `${projection.height}px`;
           style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
         }
         if (label) {
