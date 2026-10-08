@@ -8,6 +8,11 @@ import Application.Daysheet.ReportHistory
 import Application.Daysheet.ReportStorage
 import Application.EmailDelivery.Correlation (prepareProviderCorrelation, markSmtpAccepted)
 import Application.EmailDelivery.Status
+import Application.Helper.FrontendContract.Surface.Daysheet.Generated.Live
+import Application.Helper.FrontendContract.Surface.Daysheet.Resource
+import Application.Helper.FrontendContract.Surface.DependencyPlanner
+import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..))
+import qualified Data.Set as Set
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.List (sortOn)
@@ -22,6 +27,15 @@ import qualified Test.Support.Daysheet as Fixture
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Daysheet frozen report history" do
+        it "maps venue delivery changes only to subscribed history fragments" $ \_ -> do
+            let venue = nonce 1
+            let scope = daysheetLiveScope venue (nonce 2)
+            let history = daysheetHistoryLiveFragment (Just (nonce 3))
+            let subscription = SurfaceSubscription scope "history" [history, daysheetBodyLiveFragment] 0
+            planFrontendSurfaceInvalidations (Set.singleton (daysheetDeliveryResource venue)) [subscription]
+                `shouldBe` [SurfaceInvalidationTarget scope [history]]
+            planFrontendSurfaceInvalidations (Set.singleton (daysheetDeliveryResource (nonce 4))) [subscription]
+                `shouldBe` []
         it "navigates one scoped run at a time, including deterministic timestamp ties and empty days" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup

@@ -9,6 +9,7 @@ import Application.Daysheet.Authority (withAuthority)
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.DefinitionCodec (decodeDefinition)
 import Application.Daysheet.RecipientError
+import Application.Daysheet.ReportLiveUpdates (publishReportDelivery)
 import Application.Daysheet.RecipientLocks
 import Application.EmailDelivery.Envelope (ExternalRecipient (..))
 import Application.Error.Domain (projectDomainError)
@@ -42,6 +43,7 @@ addReportRecipient member versionId (D.ReportId reportId) submittedAddress = wit
                 |> set #definitionVersionId (unpackId published.id)
                 |> set #address address |> set #createdBy member.userId |> createRecord)
             _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetRecipientAddedAudit "daysheet_report_recipients" (unpackId recipient.id) (Aeson.object ["reportId" Aeson..= reportId]) ApplicationAuditSource)
+            liftIO (publishReportDelivery member.venueId)
             pure recipient
 
 removeReportRecipient :: (?modelContext :: ModelContext) => VenueMembership -> D.ReportId -> Id DaysheetReportRecipient -> IO (AppResult DaysheetReportRecipient)
@@ -55,6 +57,7 @@ removeReportRecipient member (D.ReportId reportId) recipientId = withAuthority m
             now <- liftIO getCurrentTime
             removed <- liftIO (recipient |> set #removedAt (Just now) |> set #removedBy (Just member.userId) |> updateRecord)
             _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetRecipientRemovedAudit "daysheet_report_recipients" (unpackId recipient.id) (Aeson.object ["reportId" Aeson..= reportId]) ApplicationAuditSource)
+            liftIO (publishReportDelivery member.venueId)
             pure removed
 
 -- Capture orchestration owns its venue transaction/lock. This read never adds

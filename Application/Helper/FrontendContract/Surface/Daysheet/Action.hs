@@ -18,6 +18,8 @@ module Application.Helper.FrontendContract.Surface.Daysheet.Action
     , openDaysheetDesignerAction, openDaysheetDesignerActionFields
     , openDaysheetReportAction, openDaysheetReportActionFields, parseOpenDaysheetReportActionParams
     , openDaysheetSendAction, openDaysheetSendActionFields, parseOpenDaysheetSendActionParams
+    , addDaysheetRecipientAction, addDaysheetRecipientActionFields, parseAddDaysheetRecipientActionParams
+    , removeDaysheetRecipientAction, removeDaysheetRecipientActionFields, parseRemoveDaysheetRecipientActionParams
     , sendDaysheetReportAction, sendDaysheetReportActionFields, parseSendDaysheetReportActionParams
     , openDaysheetHistoryAction, openDaysheetHistoryActionFields, parseOpenDaysheetHistoryActionParams
     , downloadDaysheetWorkbookAction, downloadDaysheetWorkbookActionFields

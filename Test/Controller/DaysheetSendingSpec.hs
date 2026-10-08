@@ -67,10 +67,55 @@ tests = aroundAll withDatabaseTestContext do
                 history `responseBodyShouldContain` "Queued."
                 history `responseBodyShouldNotContain` "Later correction"
                 history `responseBodyShouldNotContain` "forged@example.test"
+                fragment <- withPasskeyVerifiedUserAndCurrentVenue user state.daysheet.venueId $
+                    callActionWithQueryParams (ShowDaysheetHistoryBodyAction key Nothing) [("daysheetId", cs (tshow key)), ("frozenReportId", cs (tshow snapshot.id))]
+                fragment `responseStatusShouldBe` status200
+                fragment `responseBodyShouldContain` cs ("&quot;frozenReportId&quot;:&quot;" <> tshow snapshot.id)
                 fresh <- withPasskeyVerifiedUserAndCurrentVenue user state.daysheet.venueId $
                     callActionWithParams (SendDaysheetReportAction key report) [("sendRequestKey", cs (tshow (nonce 2)))]
                 responseStatus fresh `shouldSatisfy` (`elem` [status302, status303])
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 2)
+        it "restricts recipient controls to admins/owners and retains invalid native input without writes" $ withContext do
+            withCleanDb do
+                (owner, manager, _, state) <- setup
+                adminUser <- fetch (Id owner.userId :: Id User)
+                managerUser <- fetch (Id manager.userId :: Id User)
+                let D.ReportId report = reportKey
+                let key = state.daysheet.id
+                let scope = [("daysheetId", cs (tshow key)), ("configuredReportId", cs (tshow report))]
+                managerPage <- withPasskeyVerifiedUserAndCurrentVenue managerUser state.daysheet.venueId $
+                    callActionWithQueryParams (ShowDaysheetSendAction key report) scope
+                managerPage `responseBodyShouldNotContain` "Add report recipient"
+                denied <- withPasskeyVerifiedUserAndCurrentVenue managerUser state.daysheet.venueId $
+                    callActionWithParams (AddDaysheetRecipientAction key report) [("recipientAddress", "manager-forged@example.test")]
+                denied `responseBodyShouldContain` "permission"
+                query @DaysheetReportRecipient |> fetchCount >>= (`shouldBe` 0)
+                invalid <- withPasskeyVerifiedUserAndCurrentVenue adminUser state.daysheet.venueId $
+                    callActionWithParams (AddDaysheetRecipientAction key report) [("recipientAddress", "not-an-address")]
+                invalid `responseBodyShouldContain` "Enter a valid email address."
+                invalid `responseBodyShouldContain` "not-an-address"
+                enhancedInvalid <- withPasskeyVerifiedUserAndCurrentVenue adminUser state.daysheet.venueId $
+                    withRequestHeaders [("HX-Request", "true")] $ callActionWithParams (AddDaysheetRecipientAction key report) [("recipientAddress", "not-an-address")]
+                enhancedInvalid `responseBodyShouldContain` "Enter a valid email address."
+                enhancedInvalid `responseBodyShouldContain` "not-an-address"
+                enhancedInvalid `responseBodyShouldNotContain` "Send report:"
+                lookup "HX-Reswap" (responseHeaders enhancedInvalid) `shouldBe` Nothing
+                query @DaysheetReportRecipient |> fetchCount >>= (`shouldBe` 0)
+                added <- withPasskeyVerifiedUserAndCurrentVenue adminUser state.daysheet.venueId $
+                    callActionWithParams (AddDaysheetRecipientAction key report) [("recipientAddress", "EXTERNAL@example.test")]
+                responseStatus added `shouldSatisfy` (`elem` [status302, status303])
+                recipient <- query @DaysheetReportRecipient |> fetchOne
+                recipient.address `shouldBe` "external@example.test"
+                deniedRemoval <- withPasskeyVerifiedUserAndCurrentVenue managerUser state.daysheet.venueId $
+                    callActionWithParams (RemoveDaysheetRecipientAction key report) [("recipientId", cs (tshow recipient.id))]
+                deniedRemoval `responseBodyShouldContain` "permission"
+                _ <- owner |> set #venueRole VenueAdmin |> updateRecord
+                removed <- withPasskeyVerifiedUserAndCurrentVenue adminUser state.daysheet.venueId $
+                    callActionWithParams (RemoveDaysheetRecipientAction key report) [("recipientId", cs (tshow recipient.id))]
+                responseStatus removed `shouldSatisfy` (`elem` [status302, status303])
+                refreshed <- fetch recipient.id
+                refreshed.removedAt `shouldSatisfy` isJust
+                query @User |> filterWhere (#email, recipient.address) |> fetchCount >>= (`shouldBe` 0)
         it "scopes confirmation, history and fragments and rejects unconfigured sends and GET mutations" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup

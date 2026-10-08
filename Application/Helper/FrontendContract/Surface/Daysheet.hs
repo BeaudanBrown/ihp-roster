@@ -23,6 +23,11 @@ data OpenDaysheetReport
 data OpenDaysheetSend
 data SendDaysheetReport
 data OpenDaysheetHistory
+data AddDaysheetRecipient
+data RemoveDaysheetRecipient
+data RecipientSettingsTarget
+data RecipientAddress
+data RecipientId
 data SendRequestKey
 data FrozenReportId
 data DownloadDaysheetWorkbook
@@ -58,8 +63,15 @@ data DaysheetFinalAction
 data DaysheetPendingNotice
 data DaysheetPendingGate
 
+data DaysheetDelivery
+type DaysheetDeliveryResource = Resource DaysheetDelivery '[Field VenueId 'WireUUID]
+
 type DaysheetDataResource = Resource DaysheetData '[Field VenueId 'WireUUID, Field DaysheetId 'WireUUID]
 type CellParams = '[Field Occurrence 'WireInt, OptionalField RowId 'WireUUID]
+type RecipientOptions =
+    '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxOuterHTML
+     , 'HtmxTarget ('HtmxClosest ('HtmxClass RecipientSettingsTarget))
+     , 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
 type SaveOptions =
     '[ 'HtmxMethod 'HtmxPost
      , 'HtmxTrigger ('HtmxRawTrigger "change, submit" "Native field change/blur autosave and explicit retry use the same ordinary form")
@@ -82,11 +94,15 @@ type DaysheetSurface = Surface Daysheet
           , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
      , Fragment DaysheetHistory '[OptionalField FrozenReportId 'WireUUID]
          '[ 'MountTarget DaysheetHistoryTarget '[OptionalField FrozenReportId 'WireUUID], 'Eager, 'Live
-          , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]]
+          , 'DependsOn DaysheetDataResource '[ 'FromScope VenueId, 'FromScope DaysheetId]
+          , 'DependsOn DaysheetDeliveryResource '[ 'FromScope VenueId]]
      , Action OpenDaysheetReport '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
          '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
      , Action OpenDaysheetSend '[Field DaysheetId 'WireUUID, Field ConfiguredReportId 'WireUUID]
          '[ 'HtmxMethod 'HtmxGet, 'HtmxSwap 'HtmxNoSwap]
+     , DomToken RecipientSettingsTarget
+     , Action AddDaysheetRecipient '[Field RecipientAddress 'WireText] RecipientOptions
+     , Action RemoveDaysheetRecipient '[Field RecipientId 'WireUUID] RecipientOptions
      , Action SendDaysheetReport '[Field SendRequestKey 'WireUUID]
          '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap, 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncDrop)]
      , Action OpenDaysheetHistory '[Field DaysheetId 'WireUUID, OptionalField FrozenReportId 'WireUUID]

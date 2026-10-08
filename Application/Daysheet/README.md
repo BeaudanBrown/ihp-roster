@@ -178,8 +178,14 @@ shows unavailable status, not invented success. `readFrozenHistory` loads one ru
 with stable `(capturedAt, id)` neighbours, scoped to its venue and Daysheet.
 History routes share one generated read-only fragment: live invalidations refresh
 status without substituting current values for retained content. Native refresh
-and chronological navigation work without JavaScript. Recipient controls and
-transport-status invalidation remain separate integration work.
+and chronological navigation work without JavaScript. Send confirmation exposes
+recipient settings only to admins/owners; their mutations freshly recheck that
+membership authority. `ReportLiveUpdates` publishes recipient changes, completed
+transport attempts and verified provider callbacks transactionally through the
+generated venue delivery resource. Framework-owned running/retry/timeout changes
+are read on explicit status refresh; no second queue lifecycle is invented.
+Fragment requests use the generated optional snapshot parser so replacement
+mounts retain the selected run, not an accidental switch to latest history.
 
 `ReportDelivery` is installed in the shared mail pipeline. It verifies frozen
 venue/report identity, exact captured recipient membership and address, then

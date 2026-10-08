@@ -10,7 +10,7 @@ import qualified Application.Daysheet.Evaluation as E
 import qualified Application.Daysheet.Mutations as Mutations
 import Application.Daysheet.References
 import qualified Application.Daysheet.Report as Report
-import Application.Daysheet.Recipients (activeReportRecipients)
+import Application.Daysheet.Recipients (activeReportRecipients, addReportRecipient, removeReportRecipient)
 import Application.Daysheet.ReportStorage (captureManualReport)
 import Application.Daysheet.ReportHistory (readFrozenHistory)
 import qualified Application.Daysheet.Saved as Saved
@@ -112,6 +112,23 @@ instance Controller DaysheetsController where
             respondHtml mempty
         else render view
 
+    action current@AddDaysheetRecipientAction { daysheetId, configuredReportId } = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- manager
+        fields <- either (badRequest . surfaceRequestFieldErrorsMessage) pure Action.parseAddDaysheetRecipientActionParams
+        let address = surfaceFieldValue @Surface.RecipientAddress fields
+        state <- Storage.readDailySheet member daysheetId >>= either readFailure pure
+        result <- addReportRecipient member (Id state.captured.definitionVersionId) (D.ReportId configuredReportId) address
+        recipientResponse daysheetId configuredReportId address result
+
+    action current@RemoveDaysheetRecipientAction { daysheetId, configuredReportId } = runBepis current BepisMutationAction do
+        ensureWrite
+        member <- manager
+        fields <- either (badRequest . surfaceRequestFieldErrorsMessage) pure Action.parseRemoveDaysheetRecipientActionParams
+        _ <- loadReport daysheetId configuredReportId
+        result <- removeReportRecipient member (D.ReportId configuredReportId) (Id (surfaceFieldValue @Surface.RecipientId fields))
+        recipientResponse daysheetId configuredReportId "" result
+
     action current@SendDaysheetReportAction { daysheetId, configuredReportId } = runBepis current BepisMutationAction do
         ensureWrite
         member <- manager
@@ -134,11 +151,14 @@ instance Controller DaysheetsController where
         history <- readFrozenHistory member key snapshot >>= either readFailure pure
         if isHtmxRequest then navigateHistory key snapshot else render HistoryView { history, requested = snapshot }
 
-    action current@ShowDaysheetHistoryBodyAction { daysheetId, frozenReportId } = runBepis current BepisFragmentAction do
+    action current@ShowDaysheetHistoryBodyAction {} = runBepis current BepisFragmentAction do
         ensureRead
         member <- manager
-        history <- readFrozenHistory member daysheetId frozenReportId >>= either readFailure pure
-        respondHtml (renderHistoryBody history frozenReportId)
+        fields <- either (badRequest . surfaceRequestFieldErrorsMessage) pure Action.parseOpenDaysheetHistoryActionParams
+        let key = Id (surfaceFieldValue @Surface.DaysheetId fields)
+        let snapshot = surfaceFieldValue @Surface.FrozenReportId fields
+        history <- readFrozenHistory member key snapshot >>= either readFailure pure
+        respondHtml (renderHistoryBody history snapshot)
 
     action current@DownloadDaysheetWorkbookAction { daysheetId, configuredReportId } = runBepis current BepisExportAction do
         ensureWrite
@@ -326,7 +346,20 @@ prepareSend key report requestKey problem = do
     (record, Report.ReportContent label _) <- loadReport key report
     member <- manager
     recipients <- activeReportRecipients member.venueId (D.ReportId report)
-    pure SendView { record, report, requestKey, label, recipients, problem }
+    pure SendView { record, report, requestKey, label, recipients, problem
+        , canManageRecipients = member.venueRole `elem` [VenueAdmin, VenueOwner], recipientAddress = "", recipientProblem = Nothing }
+
+recipientResponse :: DaysheetRequest => Id Daysheet -> UUID -> Text -> AppResult DaysheetReportRecipient -> IO ResponseReceived
+recipientResponse key report address = \case
+    Right _ -> if isHtmxRequest then do
+        setHeader ("HX-Redirect", cs (pathTo (ShowDaysheetSendAction key report)))
+        respondHtml mempty
+        else redirectTo (ShowDaysheetSendAction key report)
+    Left failure -> do
+        nonce <- UUIDv4.nextRandom
+        initial <- prepareSend key report nonce Nothing
+        let view = initial { Web.View.Daysheets.Send.recipientAddress = address, recipientProblem = Just (appErrorSafeMessage failure) }
+        if isHtmxRequest then respondHtml (renderRecipientSettings view) else render view
 
 navigateHistory :: DaysheetRequest => Id Daysheet -> Maybe UUID -> IO ResponseReceived
 navigateHistory key snapshot =

@@ -57,6 +57,7 @@ import Web.Mail.DaysheetReport
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
+import Application.Daysheet.ReportLiveUpdates (publishReportDelivery)
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
@@ -137,7 +138,13 @@ performExternalPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } 
         Left RecipientVenueInactive -> complete "delivery_skipped" (Just "venue_inactive")
   where
     complete :: (?modelContext :: ModelContext) => Text -> Maybe Text -> IO ()
-    complete = completeEmailDeliveryResult appJob payload.externalMailKind payload.externalDomainReferenceId
+    complete status reason =
+        if isJust ?modelContext.transactionRunner then finish else withTransaction finish
+      where
+        finish :: (?modelContext :: ModelContext) => IO ()
+        finish = do
+            completeEmailDeliveryResult appJob payload.externalMailKind payload.externalDomainReferenceId status reason
+            publishReportDelivery payload.externalRecipient.externalVenueId
 
 handleAccountSecurityCipherError :: AccountSecurityTokenCipherError -> IO value
 handleAccountSecurityCipherError = \case

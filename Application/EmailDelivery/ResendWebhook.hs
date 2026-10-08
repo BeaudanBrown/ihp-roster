@@ -6,6 +6,7 @@ module Application.EmailDelivery.ResendWebhook
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (PersistedRuntimeInvariant), externalRuntimeInvariantFailure)
+import Application.Daysheet.ReportLiveUpdates (publishReportJobDelivery)
 import Application.OperationalIncident
 import qualified "crypton" Crypto.Hash as Hash
 import qualified "crypton" Crypto.MAC.HMAC as HMAC
@@ -123,6 +124,7 @@ processVerifiedWebhook now headers payload = do
                                 |> set #providerEmailId (Just payload.providerEmailId)
                                 |> applyProviderStatus incomingStatus payload.eventAt isOlder
                                 |> updateRecord
+                        unless isOlder (publishReportJobDelivery (Id (unpackId updated.emailDeliveryJobId)))
                         pure (ResendWebhookProcessed event, if isOlder then Nothing else Just updated)
     forM_ changedState reconcileProviderIncident
     pure result

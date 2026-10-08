@@ -178,6 +178,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
 type RegisteredSurfaceResourceAdapterHomes =
     '[ SurfaceResourceAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerConfiguration
      , SurfaceResourceAdapterHome DaysheetAdapterFamily Daysheet.DaysheetData
+     , SurfaceResourceAdapterHome DaysheetAdapterFamily Daysheet.DaysheetDelivery
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
@@ -321,6 +322,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.ConfirmDaysheetRowDeletion allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetReport allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetSend allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.AddDaysheetRecipient allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.RemoveDaysheetRecipient allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.SendDaysheetReport allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.OpenDaysheetHistory allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @DaysheetAdapterFamily @Daysheet.DownloadDaysheetWorkbook

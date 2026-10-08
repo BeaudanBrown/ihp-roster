@@ -1721,6 +1721,7 @@ export type DaysheetId = FrontendContractUuid;
 export type RowId = FrontendContractUuid;
 export type ConfiguredReportId = FrontendContractUuid;
 export type FrozenReportId = FrontendContractUuid;
+export type RecipientId = FrontendContractUuid;
 export type SendRequestKey = FrontendContractUuid;
 export type EnteredSelection = FrontendContractUuid;
 export type RowKey = FrontendContractUuid;

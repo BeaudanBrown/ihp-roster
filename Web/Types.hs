@@ -287,6 +287,8 @@ data DaysheetsController
     | ShowDaysheetBodyAction { daysheetId :: Id Daysheet }
     | ShowDaysheetReportAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     | ShowDaysheetSendAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | AddDaysheetRecipientAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
+    | RemoveDaysheetRecipientAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     | SendDaysheetReportAction { daysheetId :: Id Daysheet, configuredReportId :: UUID }
     | ShowDaysheetHistoryAction { daysheetId :: Id Daysheet, frozenReportId :: Maybe UUID }
     | ShowDaysheetHistoryBodyAction { daysheetId :: Id Daysheet, frozenReportId :: Maybe UUID }

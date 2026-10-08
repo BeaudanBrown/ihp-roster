@@ -4,7 +4,9 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.Daysheet.Generated.Resource
     ( daysheetDataResource
+    , daysheetDeliveryResource
     , matchDaysheetDataResource
+    , matchDaysheetDeliveryResource
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Daysheet as Types1
@@ -36,3 +38,20 @@ matchDaysheetDataResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
         @Types1.DaysheetData
+
+daysheetDeliveryResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+daysheetDeliveryResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetDelivery
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchDaysheetDeliveryResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchDaysheetDeliveryResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.DaysheetAdapterFamily)
+        @Types1.DaysheetDelivery

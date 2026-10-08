@@ -59,6 +59,7 @@ Application/Daysheet/ReportCodec.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportDelivery.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportError.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportHistory.hs	production	runtime	Main	Reachable from Main
+Application/Daysheet/ReportLiveUpdates.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/ReportStorage.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Results.hs	production	runtime	Main	Reachable from Main
 Application/Daysheet/Saved.hs	production	runtime	Main	Reachable from Main

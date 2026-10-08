@@ -3,8 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
 import { daysheetTest as test, openDaysheet, openDaysheetDate, saveDaysheetText, saveDaysheetChange } from './support/daysheet';
 import { expectNoHorizontalViewportOverflow } from './support/responsive';
+import { E2E_TIMEOUT } from './timeouts';
 
 test('previews selected saved reports, refreshes across tabs and distinguishes Draft from Live', async ({ page, daysheet, browser }) => {
+    test.setTimeout(E2E_TIMEOUT.slowTest);
     await openDaysheet(page, daysheet);
     const originalUrl = page.url();
     await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
@@ -92,16 +94,32 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     await editor.getByRole('button', { name: 'Send: Manager preview', exact: true }).click();
     await expect(editor.getByRole('heading', { name: 'Send report: Manager preview', exact: true })).toBeVisible();
     await expect(editor.getByText('No recipients are configured. This captures a report but sends no email.', { exact: true })).toBeVisible();
+    const recipientAddress = editor.getByLabel('Recipient email address', { exact: true });
+    await recipientAddress.fill('not-an-address');
+    // Bypass native validation only to exercise authoritative server rejection.
+    await recipientAddress.evaluate(input => { (input as HTMLInputElement).form!.noValidate = true; });
+    await editor.getByRole('button', { name: 'Add report recipient', exact: true }).click();
+    await expect(editor.getByRole('region', { name: 'Report recipients', exact: true }).getByRole('alert')).toHaveText('Enter a valid email address.');
+    await expect(recipientAddress).toHaveValue('not-an-address');
+    await recipientAddress.fill('external-report@example.test');
+    await editor.getByRole('button', { name: 'Add report recipient', exact: true }).click();
+    await expect(editor.getByRole('button', { name: 'Remove recipient external-report@example.test', exact: true })).toBeVisible();
     await editor.getByRole('button', { name: 'Capture and send report', exact: true }).click();
     await expect(editor.getByText('Frozen report', { exact: true })).toBeVisible();
     await expect(editor.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
+    // Canonical E2E uses isolated local Mailhog; disabled transport is also supported.
+    await expect(editor.getByText(/Skipped\.|Transport attempt completed\./)).toBeVisible();
     await expectNoHorizontalViewportOverflow(editor);
     await page.goto(dailyUrl);
-    const historyRefresh = editor.waitForResponse(response => response.url().includes('/ShowDaysheetHistoryBody') && response.status() === 200);
+    const historyRefresh = editor.waitForResponse(response => response.url().includes('/ShowDaysheetHistoryBody') && response.status() === 200, { timeout: E2E_TIMEOUT.liveUpdate });
     await saveDaysheetText(page, page.getByLabel('Comments', { exact: true }), 'New live value after capture');
     await historyRefresh;
     await expect(editor.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
     await expect(editor.getByText('New live value after capture', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Send: Manager preview', exact: true }).click();
+    await page.getByRole('button', { name: 'Remove recipient external-report@example.test', exact: true }).click();
+    await expect(page.getByText('No recipients are configured. This captures a report but sends no email.', { exact: true })).toBeVisible();
+    await expect(editor.getByText('Recipient removed. No further attempts; accepted or in-flight mail cannot be recalled.', { exact: true })).toBeVisible();
     await editor.close();
     const native = await browser.newContext({ storageState: await page.context().storageState(), javaScriptEnabled: false, viewport: page.viewportSize() });
     const nativePage = await native.newPage();

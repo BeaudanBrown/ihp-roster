@@ -8,6 +8,11 @@ import Application.Daysheet.Recipients
 import Application.Daysheet.ReportDelivery
 import Application.Daysheet.ReportStorage
 import Application.EmailDelivery
+import Application.EmailDelivery.ResendWebhook
+import Application.Daysheet.ReportHistory (readFrozenReport, FrozenReport (..), FrozenRecipient (..))
+import Application.EmailDelivery.Status
+import Test.ResendWebhookSpec (signedFixture, webhookBody)
+import Data.Either (isRight)
 import Application.EmailDelivery.Envelope
 import Config
 import Control.Exception (SomeException, try)
@@ -43,6 +48,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right _ <- submitDailySheet manager state.daysheet.id
                 Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
                 queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
+                before <- query @LiveInvalidationEvent |> fetchCount
                 bodies <- newIORef ([] :: [(Text, Text)])
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
@@ -51,6 +57,7 @@ tests = aroundAll withDatabaseTestContext do
                     failed <- try @SomeException (performEmailDeliveryJobWith
                         (capturingEmailDeliveryRuntime (\mail -> record mail >> ioError (userError "private provider failure"))) queued)
                     either (const True) (const False) failed `shouldBe` True
+                    query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
                     Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 1 (Fixture.text "Later correction")
                     performEmailDeliveryJobWith (capturingEmailDeliveryRuntime record) queued
                 [first, retried] <- readIORef bodies
@@ -62,7 +69,30 @@ tests = aroundAll withDatabaseTestContext do
                 snd first `shouldSatisfy` (not . Text.isInfixOf "Later correction")
                 completed <- fetch queued.id
                 completed.status `shouldBe` JobStatusSucceeded
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
                 completed.result `shouldBe` Aeson.object ["deliveryStatus" Aeson..= ("sent" :: Text), "mailKind" Aeson..= daysheetReportMailKind, "domainReferenceId" Aeson..= unpackId snapshot.id]
+        it "publishes verified provider updates once, retaining independent queue and provider facts" $ withContext do
+            withCleanDb do
+                (owner, manager, version, state) <- setup
+                Right _ <- addReportRecipient owner version.id reportKey "external@example.test"
+                Right _ <- submitDailySheet manager state.daysheet.id
+                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith (capturingEmailDeliveryRuntime (\_ -> pure ())) queued
+                provider <- query @EmailDeliveryProviderState |> fetchOne
+                now <- getCurrentTime
+                before <- query @LiveInvalidationEvent |> fetchCount
+                let body = webhookBody "email.delivered" now "safe-report-fixture" (Just provider.messageId)
+                let (secret, headers) = signedFixture now body "safe-report-delivered"
+                handleResendWebhook now secret headers body >>= (`shouldSatisfy` isRight)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
+                handleResendWebhook now secret headers body >>= (`shouldSatisfy` isRight)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
+                Right history <- readFrozenReport manager snapshot.id
+                map ((.provider) . (.delivery)) history.recipients `shouldBe` [ProviderConfirmed]
+                map ((.queue) . (.delivery)) history.recipients `shouldBe` [DeliveryFinished]
         it "requires the exact captured recipient, address, venue and report" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
