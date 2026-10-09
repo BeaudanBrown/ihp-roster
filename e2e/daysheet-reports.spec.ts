@@ -108,7 +108,13 @@ test('previews selected saved reports, refreshes across tabs and distinguishes D
     await expect(editor.getByText('Frozen report', { exact: true })).toBeVisible();
     await expect(editor.getByText('Frozen from settled entry', { exact: true })).toBeVisible();
     // Canonical E2E uses isolated local Mailhog; disabled transport is also supported.
-    await expect(editor.getByText(/Skipped\.|Transport attempt completed\./)).toBeVisible();
+    await expect(editor.getByText(/Skipped\.|Provider accepted; delivery not confirmed\./)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+    // Transport facts publish live; the later framework queue transition is
+    // deliberately read through the explicit status refresh, not another event.
+    await expect(async () => {
+        await editor.getByRole('link', { name: 'Refresh delivery status', exact: true }).click();
+        await expect(editor.getByText(/Skipped\.|Transport attempt completed\./)).toBeVisible({ timeout: E2E_TIMEOUT.quick });
+    }).toPass({ timeout: E2E_TIMEOUT.liveUpdate });
     await expectNoHorizontalViewportOverflow(editor);
     await page.goto(dailyUrl);
     const historyRefresh = editor.waitForResponse(response => response.url().includes('/ShowDaysheetHistoryBody') && response.status() === 200, { timeout: E2E_TIMEOUT.liveUpdate });

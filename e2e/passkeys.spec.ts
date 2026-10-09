@@ -290,10 +290,12 @@ test.describe('Venue-admin passkeys', () => {
         await expect(confirmation).toHaveCount(0);
         await expect(passkeyRows).toHaveCount(1);
         await deleteButton.click();
+        const deleted = page.waitForResponse(response => response.request().method() === 'DELETE' && new URL(response.url()).pathname === '/DeletePasskey');
         await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
-
+        expect((await deleted).status()).toBe(200);
+        // Let the action's redirect finish; another helper GET can race the delete.
+        await expect(page.getByText('No passkeys registered yet.', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
-        await openProfileSecuritySection(page);
         await expect(passkeyRows).toHaveCount(0);
         await expect(page.locator('body')).toContainText('No passkeys registered yet.');
     });
