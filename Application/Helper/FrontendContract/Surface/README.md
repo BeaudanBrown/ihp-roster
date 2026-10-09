@@ -86,6 +86,14 @@ server needs it. Every fragment has one typed `MountTarget`; views and mounted
 descriptors derive the same target through marker-indexed helpers rather than
 repeating IDs.
 
+Parent replacement for child-refresh batching is server-owned and opt-in:
+add `'CoalesceChildRefreshes` to a fragment only when replacing that container
+is safe. The planner may then replace the nearest opted-in mounted parent for
+at least two distinct affected children in one event. Scope and containment
+parameters still constrain selection. Leave scroll/lifecycle owners unopted-in;
+their own structural dependencies can still request replacement. No batching
+option is sent to or interpreted by the browser.
+
 Shared declaration groups are type aliases composed with approved `Append` and
 `Concat` helpers, not secondary registries. Reflection must have an explicit
 instance for every supported constructor. Add vocabulary to the DSL,

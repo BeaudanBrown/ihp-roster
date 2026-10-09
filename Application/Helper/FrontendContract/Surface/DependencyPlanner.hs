@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Surface.DependencyPlanner
     ( SurfaceInvalidationTarget (..)
     , surfaceSubscriptionDependencyIdentities
     , planFrontendSurfaceInvalidations
+    , planFrontendSurfaceInvalidationsFor
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -29,8 +30,12 @@ data SurfaceInvalidationTarget = SurfaceInvalidationTarget
 -- exact semantic keys currently mounted or subscribed; the reflected Surface
 -- dependency graph selects and coalesces concrete refresh targets.
 planFrontendSurfaceInvalidations :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
-planFrontendSurfaceInvalidations touchedResources subscriptions =
-    [ SurfaceInvalidationTarget scope (normalizeContainedFragmentKeys (promoteSiblingFragments mountedFragments affectedFragments))
+planFrontendSurfaceInvalidations = planFrontendSurfaceInvalidationsFor registeredFrontendSurfaceContractIR
+
+-- | Evaluate a closed reflected contract, including test-only Surface declarations.
+planFrontendSurfaceInvalidationsFor :: SurfaceIR.SurfaceContractIR -> Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
+planFrontendSurfaceInvalidationsFor contract touchedResources subscriptions =
+    [ SurfaceInvalidationTarget scope (normalizeContainedFragmentKeys contract (promoteSiblingFragments contract mountedFragments affectedFragments))
     | (scope, (affectedFragments, mountedFragments)) <- Map.toAscList grouped
     ]
   where
@@ -40,40 +45,39 @@ planFrontendSurfaceInvalidations touchedResources subscriptions =
         | subscription <- subscriptions
         , let affectedFragments =
                 filter
-                    (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities subscription.subscriptionScope)
+                    (frontendSurfaceFragmentKeyDependsOnTouchedResource contract touchedIdentities subscription.subscriptionScope)
                     subscription.subscriptionFragmentKeys
         , not (null affectedFragments)
         ]
 
--- When two or more selected siblings are already represented by a mounted
--- typed ancestor, fetch that nearest ancestor once. A single selected child
--- remains narrow. This uses only declared containment and mounted semantic
--- keys, so browser transport still carries no executable batching authority.
-promoteSiblingFragments :: [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
-promoteSiblingFragments mountedFragmentKeys affectedFragmentKeys =
+-- Only explicitly opted-in mounted ancestors may replace multiple distinct
+-- affected children in this event. Containment alone does not authorize losing
+-- a parent's scroll/lifecycle state. No timing window or client policy is used.
+promoteSiblingFragments :: SurfaceIR.SurfaceContractIR -> [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+promoteSiblingFragments contract mountedFragmentKeys affectedFragmentKeys =
     coalescedAffected <> nearestPromotions
   where
-    coalescedAffected = coalesceSurfaceFragmentKeys affectedFragmentKeys
+    coalescedAffected = normalizeContainedFragmentKeys contract affectedFragmentKeys
     promotionCandidates =
         [ candidate
         | candidate <- coalesceSurfaceFragmentKeys mountedFragmentKeys
         , candidate `notElem` coalescedAffected
-        , let containedKinds =
-                [ fragmentKind
-                | affected <- coalescedAffected
-                , candidate `fragmentKeyContains` affected
-                , let (_, fragmentKind, _) = LiveUpdateInternal.surfaceFragmentKeyIdentity affected
-                ]
-        , any ((>= 2) . length) (List.group (List.sort containedKinds))
+        , permitsChildCoalescing candidate
+        , length (filter (fragmentKeyContains contract candidate) coalescedAffected) >= 2
         ]
     nearestPromotions =
         filter
-            (\candidate -> not (any (\other -> other /= candidate && candidate `fragmentKeyContains` other) promotionCandidates))
+            (\candidate -> not (any (\other -> other /= candidate && fragmentKeyContains contract candidate other) promotionCandidates))
             promotionCandidates
+    permitsChildCoalescing key = fromMaybe False do
+        let (surfaceName, kind, _) = LiveUpdateInternal.surfaceFragmentKeyIdentity key
+        surface <- findSurface contract surfaceName
+        fragment <- findFragment kind surface
+        pure (SurfaceIR.CoalesceChildRefreshesOption `elem` fragment.fragmentOptions)
 
-frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set (Text, Aeson.Value) -> SurfaceScope -> SurfaceFragmentKey -> Bool
-frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities scope fragmentKey =
-    any (`Set.member` touchedIdentities) (fragmentKeyDependencyIdentities scope fragmentKey)
+frontendSurfaceFragmentKeyDependsOnTouchedResource :: SurfaceIR.SurfaceContractIR -> Set.Set (Text, Aeson.Value) -> SurfaceScope -> SurfaceFragmentKey -> Bool
+frontendSurfaceFragmentKeyDependsOnTouchedResource contract touchedIdentities scope fragmentKey =
+    any (`Set.member` touchedIdentities) (fragmentKeyDependencyIdentities contract scope fragmentKey)
 
 -- Dependency identities are projected directly from checked reflected IR and
 -- exact live identities. The planner never constructs a free resource value;
@@ -81,21 +85,21 @@ frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities scope fragm
 surfaceSubscriptionDependencyIdentities :: SurfaceSubscription -> [(Text, Aeson.Value)]
 surfaceSubscriptionDependencyIdentities subscription =
     Set.toAscList . Set.fromList $
-        concatMap (fragmentKeyDependencyIdentities subscription.subscriptionScope) subscription.subscriptionFragmentKeys
+        concatMap (fragmentKeyDependencyIdentities registeredFrontendSurfaceContractIR subscription.subscriptionScope) subscription.subscriptionFragmentKeys
 
-fragmentKeyDependencyIdentities :: SurfaceScope -> SurfaceFragmentKey -> [(Text, Aeson.Value)]
-fragmentKeyDependencyIdentities scope fragmentKey = do
+fragmentKeyDependencyIdentities :: SurfaceIR.SurfaceContractIR -> SurfaceScope -> SurfaceFragmentKey -> [(Text, Aeson.Value)]
+fragmentKeyDependencyIdentities contract scope fragmentKey = do
     let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire scope
     let (fragmentSurface, fragmentKind, fragmentParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity fragmentKey
     True <- pure (fragmentSurface == scopeSurface)
-    surface <- maybeToList (findSurface scopeSurface)
+    surface <- maybeToList (findSurface contract scopeSurface)
     fragmentIR <- maybeToList (findFragment fragmentKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragmentIR.fragmentOptions
     maybeToList (resourceIdentityFromDependency scopePayload fragmentParams dependency)
 
-findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
-findSurface surfaceName =
-    List.find ((== surfaceName) . (.surfaceName)) registeredFrontendSurfaceContractIR.contractSurfaces
+findSurface :: SurfaceIR.SurfaceContractIR -> Text -> Maybe SurfaceIR.SurfaceIR
+findSurface contract surfaceName =
+    List.find ((== surfaceName) . (.surfaceName)) contract.contractSurfaces
 
 findFragment :: Text -> SurfaceIR.SurfaceIR -> Maybe SurfaceIR.FragmentIR
 findFragment fragmentKind surface =
@@ -105,20 +109,20 @@ findFragment fragmentKind surface =
 -- on the server. This prevents the browser from receiving overlapping swaps.
 -- Parameter matching matters for repeated fragments: a day section contains
 -- only rows carrying that same day id, not every row of the same kind.
-normalizeContainedFragmentKeys :: [SurfaceFragmentKey] -> [SurfaceFragmentKey]
-normalizeContainedFragmentKeys fragmentKeys =
+normalizeContainedFragmentKeys :: SurfaceIR.SurfaceContractIR -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+normalizeContainedFragmentKeys contract fragmentKeys =
     filter (not . hasSelectedAncestor) coalescedKeys
   where
     coalescedKeys = coalesceSurfaceFragmentKeys fragmentKeys
     hasSelectedAncestor descendantKey =
-        any (`fragmentKeyContains` descendantKey) coalescedKeys
+        any (\ancestorKey -> fragmentKeyContains contract ancestorKey descendantKey) coalescedKeys
 
-fragmentKeyContains :: SurfaceFragmentKey -> SurfaceFragmentKey -> Bool
-fragmentKeyContains ancestorKey descendantKey
+fragmentKeyContains :: SurfaceIR.SurfaceContractIR -> SurfaceFragmentKey -> SurfaceFragmentKey -> Bool
+fragmentKeyContains contract ancestorKey descendantKey
     | ancestorKey == descendantKey = False
     | ancestorSurface /= descendantSurface = False
     | otherwise = fromMaybe False do
-        surface <- findSurface ancestorSurface
+        surface <- findSurface contract ancestorSurface
         ancestorFragment <- findFragment ancestorKind surface
         descendantFragment <- findFragment descendantKind surface
         pure

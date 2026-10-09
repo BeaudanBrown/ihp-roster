@@ -59,10 +59,14 @@ second passive broadcast.
 `Surface.DependencyPlanner` is the singular pure actor/passive planner. It
 matches concrete resources to exact mounted/subscribed semantic keys using
 checked `DependsOn` metadata, collapses duplicates, and applies typed containment
-so a selected ancestor suppresses its matching descendant. One selected
-parameterized child remains narrow; two or more selected siblings of the same
-fragment kind promote to the nearest mounted typed ancestor, avoiding parallel
-requests that repeat the same parent read without introducing a second planner.
+so a selected ancestor suppresses its matching descendant. Child refreshes stay
+narrow by default. Within one invalidation event, two or more distinct affected
+children may promote only to a mounted ancestor explicitly declaring
+`CoalesceChildRefreshes`; the nearest eligible ancestor wins, with matching
+containment parameters. Duplicate keys do not count as multiple children.
+There is no timing window or client-side batching policy. A parent's own touched
+structural dependency still selects it without this opt-in. Do not opt stable
+scroll/lifecycle containers in merely to reduce request counts.
 
 Broad domain effects expand to concrete resources in the producer or a focused
 feature helper. Cross-process effects must not depend only on the producer's

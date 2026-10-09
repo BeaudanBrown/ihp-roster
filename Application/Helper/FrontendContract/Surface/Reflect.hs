@@ -686,6 +686,7 @@ class ReflectOption (option :: PrimitiveOption) where
     reflectOption :: OptionIR
 
 instance ReflectOption 'Eager where reflectOption = EagerOption
+instance ReflectOption 'CoalesceChildRefreshes where reflectOption = CoalesceChildRefreshesOption
 instance ReflectOption 'Live where reflectOption = LiveOption
 instance ReflectOption 'ResyncOnly where reflectOption = ResyncOnlyOption
 instance ReflectOptionList options => ReflectOption ('Lazy options) where reflectOption = LazyOption (reflectOptionList @options)

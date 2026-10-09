@@ -296,6 +296,7 @@ data ResourceDependencyIR = ResourceDependencyIR
 
 data OptionIR
     = EagerOption
+    | CoalesceChildRefreshesOption
     | LazyOption ![OptionIR]
     | LiveOption
     | ResyncOnlyOption

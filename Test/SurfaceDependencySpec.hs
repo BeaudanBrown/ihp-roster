@@ -1,6 +1,12 @@
 module Test.SurfaceDependencySpec where
 
 import Application.Feedback.LiveUpdates
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidationsFor)
+import qualified Application.Helper.FrontendContract.Surface.DSL as DSL
+import Application.Helper.FrontendContract.Surface.Reflect (reflectFragmentPrimitive)
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
@@ -320,7 +326,7 @@ tests = do
                     , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
                     ]
 
-        it "promotes repeated roster day siblings to one mounted grid frame while one day stays narrow" do
+        it "keeps repeated roster day siblings narrow without parent batching opt-in" do
             let venueId = fromWords 24 0 0 0
             let rosterGroupUuid = fromWords 25 0 0 0
             let firstDayUuid = fromWords 26 0 0 0
@@ -336,7 +342,68 @@ tests = do
             passiveFragmentKeys (Set.singleton (rosterDayResource firstDayUuid)) scope candidates
                 `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDayUuid]
             passiveFragmentKeys (Set.fromList [rosterDayResource firstDayUuid, rosterDayResource secondDayUuid]) scope candidates
-                `shouldBe` [RosterLive.rosterGridFrameLiveFragment]
+                `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDayUuid, RosterLive.rosterDaySectionLiveFragment secondDayUuid]
+
+        it "batches distinct children only into an explicitly opted-in mounted parent" do
+            let venueId = fromWords 24 0 0 0
+            let groupId = Id (fromWords 25 0 0 0) :: Id RosterGroup
+            let firstDay = fromWords 26 0 0 0
+            let secondDay = fromWords 27 0 0 0
+            let scopeValue = rosterScopeValue venueId groupId 3
+            let scope = rosterSurfaceScope scopeValue
+            let parent = RosterLive.rosterGridFrameLiveFragment
+            let children = map RosterLive.rosterDaySectionLiveFragment [firstDay, secondDay]
+            let resources = Set.fromList (map rosterDayResource [firstDay, secondDay])
+            -- Counterfactual test-only contract: production scroll owners do not opt in.
+            let options = (reflectFragmentPrimitive @('DSL.Fragment RosterSurface.RosterGridFrame '[] '[ 'DSL.CoalesceChildRefreshes ])).fragmentOptions
+            options `shouldBe` [SurfaceIR.CoalesceChildRefreshesOption]
+            let enable fragment
+                    | fragment.fragmentName == "roster-grid-frame" = fragment { SurfaceIR.fragmentOptions = fragment.fragmentOptions <> options }
+                    | otherwise = fragment
+            let contract = registeredFrontendSurfaceContractIR
+                    { SurfaceIR.contractSurfaces = map (\surface -> surface { SurfaceIR.surfaceFragments = map enable surface.surfaceFragments }) registeredFrontendSurfaceContractIR.contractSurfaces }
+            fmap (const ()) (SurfaceIR.checkedSurfaceContractIR contract) `shouldBe` Right ()
+            let plan touched keys =
+                    planFrontendSurfaceInvalidationsFor contract touched [liveTestSubscription scope keys]
+                        |> concatMap (.targetFragments)
+            plan resources (parent : children) `shouldBe` [parent]
+            plan (Set.singleton (rosterDayResource firstDay)) (parent : children)
+                `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDay]
+            plan resources children `shouldBe` children
+            plan (Set.fromList [rosterDayResource firstDay, rosterWeekResource (fromWords 25 0 0 0) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))])
+                [parent, RosterLive.rosterDaySectionLiveFragment firstDay, RosterLive.rosterDayColumnsLiveFragment]
+                `shouldBe` [parent]
+            plan resources [parent, RosterLive.rosterDaySectionLiveFragment firstDay, RosterLive.rosterDaySectionLiveFragment firstDay]
+                `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDay]
+            -- Structural dependencies select a parent even without batching opt-in.
+            let candidates = rosterCandidateMountedFragments scopeValue RosterMountedFragmentPlan
+                    { rosterMountedDayIds = map Id [firstDay, secondDay], rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
+            passiveFragmentKeys (Set.singleton (rosterLayoutConfigResource venueId)) scope candidates
+                `shouldBe` [parent, RosterLive.rosterSettingsContentLiveFragment]
+
+        it "chooses nearest opted-in parents without crossing their parameter instances" do
+            let firstDay = fromWords 26 0 0 0
+            let secondDay = fromWords 27 0 0 0
+            let scope = rosterSurfaceScope (rosterScopeValue (fromWords 24 0 0 0) (Id (fromWords 25 0 0 0)) 3)
+            let dayKeys = map RosterLive.rosterDaySectionLiveFragment [firstDay, secondDay]
+            let rows day = map (RosterLive.rosterRowLiveFragment day) [0, 1]
+            -- Test-only dependency graph: days batch row-only changes rather than
+            -- directly depending on the same resource. Both ancestor levels opt in.
+            let enable fragment
+                    | fragment.fragmentName == "roster-grid-frame" = fragment { SurfaceIR.fragmentOptions = SurfaceIR.CoalesceChildRefreshesOption : fragment.fragmentOptions }
+                    | fragment.fragmentName == "roster-day-section" = fragment
+                        { SurfaceIR.fragmentOptions = SurfaceIR.CoalesceChildRefreshesOption : filter (\case SurfaceIR.DependsOnOption dependency -> dependency.dependencyResource.resourceName /= "roster-day"; _ -> True) fragment.fragmentOptions }
+                    | otherwise = fragment
+            let contract = registeredFrontendSurfaceContractIR
+                    { SurfaceIR.contractSurfaces = map (\surface -> surface { SurfaceIR.surfaceFragments = map enable surface.surfaceFragments }) registeredFrontendSurfaceContractIR.contractSurfaces }
+            fmap (const ()) (SurfaceIR.checkedSurfaceContractIR contract) `shouldBe` Right ()
+            let plan keys = planFrontendSurfaceInvalidationsFor contract
+                    (Set.fromList (map rosterDayResource [firstDay, secondDay]))
+                    [liveTestSubscription scope keys] |> concatMap (.targetFragments)
+            plan (RosterLive.rosterGridFrameLiveFragment : dayKeys <> rows firstDay <> rows secondDay)
+                `shouldBe` dayKeys
+            plan (RosterLive.rosterDaySectionLiveFragment firstDay : rows secondDay)
+                `shouldBe` rows secondDay
 
         it "selects the slots scroll owner only for slots-structure changes" do
             let venueId = fromWords 10 0 0 0

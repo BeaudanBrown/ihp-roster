@@ -228,6 +228,7 @@ data CompleteSetSortDirection
 
 data PrimitiveOption
     = Eager
+    | CoalesceChildRefreshes
     | Lazy [PrimitiveOption]
     | Live
     | ResyncOnly
