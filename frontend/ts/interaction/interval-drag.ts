@@ -14,7 +14,7 @@ function verticalAxis(element: Element): boolean | null {
     if (value === "" || value === "horizontal") return false;
     return null;
 }
-export type IntervalDrag = { project: (x: number, y: number) => IntervalProjection | null };
+export type IntervalDrag = { project: (x: number, y: number, hitTarget?: Element | null) => IntervalProjection | null };
 
 export function nearestIntervalChoice(config: DragIntervalConfig, position: number): number {
     let best = 0;
@@ -63,9 +63,10 @@ export function readIntervalDrag(marker: Element, mount: Element, targetSelector
             return { axis, targets };
         });
     return {
-        project(x, y) {
+        project(x, y, hitTarget) {
             if (verticalAxis(marker) !== vertical) return null;
             for (const { axis, targets } of axes) {
+                if (hitTarget && hitTarget.closest(`[${attrs.dragAxis}]`) !== axis) continue;
                 if (verticalAxis(axis) !== vertical) continue;
                 const rect = axis.getBoundingClientRect();
                 const length = vertical ? rect.height : rect.width;

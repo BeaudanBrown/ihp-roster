@@ -173,19 +173,23 @@
     z-index: 3;
     display: none;
     padding: 0.4rem;
-    border-radius: 0.55rem;
-    background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
-    outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
     white-space: nowrap;
 }
 
-html:not([data-bepis-interaction-active]) .roster-day-timeline-dropzone:hover .roster-day-timeline-create-preview:not(:empty),
+/* Copy presentation belongs entirely to the shared row/column effect. */
+.roster-day-timeline-create-preview:not(.bepis-pointer-clone-shadow-copy) {
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
+}
+
+html:not([data-bepis-interaction-active]) .roster-day-timeline-dropzone:hover [data-bepis-drag-target-preview-default="true"],
 .roster-day-timeline-dropzone.bepis-dropzone-highlight-projected .roster-day-timeline-create-preview {
     display: block;
 }
 
 /* Moving reuses the hover preview at the lane origin, not a floating duplicate. */
-.roster-day-timeline-create-preview.bepis-pointer-clone-shadow {
+.roster-day-timeline-create-preview.bepis-pointer-clone-shadow:not(.bepis-pointer-clone-shadow-copy) {
     opacity: 1;
     border: 0;
     box-shadow: none;

@@ -108,6 +108,9 @@
 
 /* Interval targets retain their hit geometry; only the disposable paint grows. */
 .bepis-dropzone-highlight-projected {
+    /* Raising the hit target would let it steal an existing card's priority.
+       Only its pointer-transparent preview is elevated. */
+    z-index: auto;
     background: transparent !important;
     box-shadow: none !important;
 }

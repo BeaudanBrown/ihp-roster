@@ -1,9 +1,10 @@
 import { InteractionDom, nativeContextMenuDisabledDomAttr } from "../generated/contracts";
 import { readIntervalDrag } from "../interaction/interval-drag";
+import { createDestinationFeedback, resolveDropFeedback, targetPreviewWithinMount } from "../interaction/drop-feedback";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
-import { createPointerSessionController, hitTestClosest, readPointerSessionStart, scrollDragContainer, scrollHorizontalDragContainer, targetPreviewWithinMount } from "../interaction/pointer-session";
+import { createPointerSessionController, readPointerSessionStart, scrollDragContainer, scrollHorizontalDragContainer } from "../interaction/pointer-session";
 import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, dispatchInteractionSessionStart } from "../interaction/session-state";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
@@ -19,7 +20,7 @@ class MiniElement extends SharedMiniElement {
     rect = { left: 0, top: 0, width: 0, height: 0 };
     capturedPointerId: number | null = null;
     releasedPointerId: number | null = null;
-    ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null; createElement?: (tag: string) => MiniElement };
+    ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null; elementsFromPoint?: (x: number, y: number) => MiniElement[]; createElement?: (tag: string) => MiniElement };
 
     matches(selector: string): boolean {
         const fixtureTag = this.getAttribute("tag");
@@ -430,6 +431,97 @@ test("generated pointer sessions start only from enabled mounted handles", () =>
     assertEqual(session?.sessionKind, "drag");
     assertEqual(session?.pointerId, 7);
     assertEqual(session?.startClientX, 10);
+});
+
+test("drop feedback follows paint order and declared compatibility, without crossing mounts", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const card = mount.append(new MiniElement({ [attrs.dropzoneRef]: "existing-shift-dropzone", [attrs.dropzoneKey]: "card" }));
+    const time = mount.append(new MiniElement({ [attrs.dropzoneRef]: "timeline-time-dropzone", [attrs.dropzoneKey]: "time" }));
+    let hits = [card, time];
+    mount.ownerDocument = { elementFromPoint: () => hits[0] ?? null, elementsFromPoint: () => hits };
+    const input = { mount: mount as unknown as Element, currentClientX: 10, currentClientY: 20, intervalDrag: undefined };
+    assertEqual(resolveDropFeedback(input, `[${attrs.dropzoneRef}]`).target, card as unknown as Element);
+    assertEqual(resolveDropFeedback(input, `[${attrs.dropzoneRef}="timeline-time-dropzone"]`).target, time as unknown as Element);
+    hits = [time, card];
+    assertEqual(resolveDropFeedback(input, `[${attrs.dropzoneRef}]`).target, time as unknown as Element);
+    const nested = mount.append(new MiniElement({ [attrs.surface]: "roster" }));
+    hits = [nested.append(new MiniElement({ [attrs.dropzoneRef]: "timeline-time-dropzone" })), time];
+    assertEqual(resolveDropFeedback(input, `[${attrs.dropzoneRef}]`).target, null);
+});
+
+test("target defaults and source intervals share feedback without deriving availability from copy", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const target = mount.append(new MiniElement({ [attrs.dropzoneRef]: "target" }));
+    const preview = target.append(new MiniElement({ [attrs.dragTargetPreview]: "true" }));
+    preview.textContent = "not an availability flag";
+    mount.ownerDocument = { elementFromPoint: () => target };
+    const input = { mount: mount as unknown as Element, currentClientX: 10, currentClientY: 20, intervalDrag: undefined };
+    const selector = `[${attrs.dropzoneRef}]`;
+    assertEqual(resolveDropFeedback(input, selector).target, null);
+    preview.setAttribute(attrs.dragTargetPreviewDefault, "true");
+    assertEqual(resolveDropFeedback(input, selector).preview, preview as unknown as HTMLElement);
+    preview.removeAttribute(attrs.dragTargetPreviewDefault);
+    let projections = 0;
+    const projection = { target: target as unknown as Element, label: "source interval", left: 0, top: 0, width: 100, height: 30, previewOffsetPercent: 50, previewExtentPercent: 8000 };
+    const feedback = resolveDropFeedback({ ...input, intervalDrag: { project: (_x, _y, hit) => { projections++; assertEqual(hit, target as unknown as Element); return projection; } } }, selector);
+    assertEqual(projections, 1);
+    assertEqual(feedback.preview, preview as unknown as HTMLElement);
+    assertEqual(feedback.projection, projection);
+    const renderer = createDestinationFeedback("preview-effect");
+    Object.defineProperty(preview.style, "setProperty", { value: (name: string, value: string) => preview.setAttribute("style", `${name}:${value}`) });
+    preview.setAttribute("style", "original-defaults");
+    preview.setAttribute("class", "original-class");
+    renderer.update({ ...feedback, projection: null });
+    assertEqual(preview.textContent, "not an availability flag");
+    assertEqual(preview.getAttribute("style"), "original-defaults");
+    renderer.update(feedback);
+    assertEqual(preview.textContent, "source interval");
+    renderer.cleanup();
+    assertEqual(preview.textContent, "not an availability flag");
+    assertEqual(preview.getAttribute("style"), "original-defaults");
+    assertEqual(preview.getAttribute("class"), "original-class");
+});
+
+test("each update shares one projection between effects and intent fields, including release", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+    const source = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "source" }));
+    const target = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "destination" }));
+    mount.ownerDocument = { elementFromPoint: () => target };
+    const committed: string[] = [];
+    const controller = createPointerSessionController({ runtime: { emit: payload => {
+        if (payload.phase === "commit") committed.push(payload.fields?.targetDropzoneKey ?? "");
+        return { canceled: false };
+    } } });
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", source, 1, 0, 0));
+    let projections = 0;
+    controller.currentSession()!.intervalDrag = { project: () => {
+        projections++;
+        return { target: target as unknown as Element, label: "interval", left: 0, top: 0, width: 100, height: 30, previewOffsetPercent: 0, previewExtentPercent: 100 };
+    } };
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", source, 1, 20, 20));
+    assertEqual(projections, 1);
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", source, 1, 20, 20));
+    assertEqual(projections, 2);
+    assertEqual(committed.join(), "destination");
+    controller.stop();
+});
+
+test("a rejected staff assignment commits only the selected card, never the time underneath", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const source = mount.append(new MiniElement({ [attrs.sourceRef]: "staff-drag-source", [attrs.sourceKey]: "person" }));
+    const card = mount.append(new MiniElement({ [attrs.dropzoneRef]: "existing-shift-dropzone", [attrs.dropzoneKey]: "card" }));
+    const time = mount.append(new MiniElement({ [attrs.dropzoneRef]: "timeline-time-dropzone", [attrs.dropzoneKey]: "time" }));
+    mount.ownerDocument = { elementFromPoint: () => card, elementsFromPoint: () => [card, time] };
+    const commits: string[] = [];
+    const controller = createPointerSessionController({ runtime: { emit: payload => {
+        if (payload.phase === "commit") commits.push(payload.fields?.targetDropzoneKey ?? "");
+        return { canceled: payload.phase === "commit" };
+    } } });
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", source, 1, 0, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", source, 1, 20, 20));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", source, 1, 20, 20));
+    assertEqual(commits.join(), "card");
+    controller.stop();
 });
 
 test("landing preview discovery stays within its mount and exact target", () => {
@@ -1166,13 +1258,13 @@ test("pointer sessions ignore disabled markers and hit-test under disposable ove
         [attrs.sourceKey]: "shift:1",
         [attrs.sessionDisabled]: "true",
     }));
-    const dropzone = new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone" });
+    const dropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone" }));
     const doc = { elementFromPoint: (_x: number, _y: number) => dropzone };
     mount.ownerDocument = doc;
     dropzone.ownerDocument = doc;
 
     assertEqual(readPointerSessionStart(pointerEventWithTarget("pointerdown", disabled, 1, 0, 0)), null);
-    assertEqual(hitTestClosest(mount as unknown as Element, 12, 34, `[${attrs.dropzoneRef}=\"shift-slot-dropzone\"]`), dropzone as unknown as Element);
+    assertEqual(resolveDropFeedback({ mount: mount as unknown as Element, currentClientX: 12, currentClientY: 34, intervalDrag: undefined }, `[${attrs.dropzoneRef}=\"shift-slot-dropzone\"]`).target, dropzone as unknown as Element);
 });
 
 test("live fragment conflicts defer matching active interaction sessions and ignore unrelated mounts", () => {

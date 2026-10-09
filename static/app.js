@@ -242,6 +242,7 @@
   var dragIntervalConfigDomAttr = "data-bepis-drag-interval-config";
   var dragPreviewLabelDomAttr = "data-bepis-drag-preview-label";
   var dragTargetPreviewDomAttr = "data-bepis-drag-target-preview";
+  var dragTargetPreviewDefaultDomAttr = "data-bepis-drag-target-preview-default";
   var dragPreviewOffsetProperty = "--bepis-drag-preview-offset";
   var dragPreviewExtentProperty = "--bepis-drag-preview-extent";
   var dragAxisDomAttr = "data-bepis-drag-axis";
@@ -271,7 +272,7 @@
   var deltaXFieldName = "deltaX";
   var deltaYFieldName = "deltaY";
   var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragTargetPreview: dragTargetPreviewDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, dragScrollContainer: dragScrollContainerDomAttr, nativeContextMenuDisabled: nativeContextMenuDisabledDomAttr, sessionLongPressMs: sessionLongPressMsDomAttr, dragIntervalConfig: dragIntervalConfigDomAttr, dragPreviewLabel: dragPreviewLabelDomAttr, dragTargetPreview: dragTargetPreviewDomAttr, dragTargetPreviewDefault: dragTargetPreviewDefaultDomAttr, dragAxis: dragAxisDomAttr, dragPosition: dragPositionDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
@@ -4122,9 +4123,10 @@
       return { axis, targets };
     });
     return {
-      project(x, y) {
+      project(x, y, hitTarget2) {
         if (verticalAxis(marker) !== vertical) return null;
         for (const { axis, targets } of axes) {
+          if (hitTarget2 && hitTarget2.closest(`[${attrs5.dragAxis}]`) !== axis) continue;
           if (verticalAxis(axis) !== vertical) continue;
           const rect = axis.getBoundingClientRect();
           const length = vertical ? rect.height : rect.width;
@@ -4159,16 +4161,82 @@
     };
   }
 
-  // frontend/ts/interaction/pointer-session.ts
+  // frontend/ts/interaction/drop-feedback.ts
   var attrs6 = InteractionDom.attributes;
+  var enabled = InteractionDom.values.enabled;
+  var noFeedback = { target: null, projection: null, preview: null };
+  function hitTarget(mount, x, y, selector2) {
+    const doc = mount.ownerDocument;
+    const hits = doc?.elementsFromPoint?.(x, y) ?? [doc?.elementFromPoint?.(x, y)];
+    for (const hit of hits) {
+      if (!hit?.closest) continue;
+      const owner = hit.closest(`[${attrs6.surface}]`);
+      if (owner && owner !== mount) return { target: null, blocked: true };
+      const target = hit.closest(selector2);
+      if (target?.closest(`[${attrs6.surface}]`) === mount) return { target, blocked: false };
+    }
+    return { target: null, blocked: false };
+  }
+  function resolveDropFeedback(session, selector2) {
+    const hit = hitTarget(session.mount, session.currentClientX, session.currentClientY, selector2);
+    if (hit.blocked) return noFeedback;
+    const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY, hit.target) ?? null;
+    const target = session.intervalDrag ? projection?.target ?? null : hit.target;
+    const preview = targetPreviewWithinMount(target, session.mount);
+    if (preview && !projection && preview.getAttribute(attrs6.dragTargetPreviewDefault) !== enabled) return noFeedback;
+    return { target, projection, preview };
+  }
+  function targetPreviewWithinMount(target, mount) {
+    return Array.from(target?.querySelectorAll(`[${attrs6.dragTargetPreview}="${enabled}"]`) ?? []).find((preview) => preview.closest(`[${attrs6.surface}]`) === mount && preview.closest(`[${attrs6.dropzoneRef}]`) === target) ?? null;
+  }
+  function createDestinationFeedback(className) {
+    let preview = null;
+    let restore = null;
+    const cleanup = () => {
+      restore?.();
+      restore = null;
+      preview = null;
+    };
+    return {
+      update(feedback) {
+        if (feedback.preview !== preview) {
+          cleanup();
+          preview = feedback.preview;
+          if (preview) {
+            const element = preview;
+            const text = element.textContent;
+            const style = element.getAttribute("style");
+            const classes = element.getAttribute("class");
+            if (className) element.classList.add(...className.split(/\s+/).filter(Boolean));
+            restore = () => {
+              element.textContent = text;
+              if (style === null) element.removeAttribute("style");
+              else element.setAttribute("style", style);
+              if (classes === null) element.removeAttribute("class");
+              else element.setAttribute("class", classes);
+            };
+          }
+        }
+        if (preview && feedback.projection) {
+          preview.style.setProperty(dragPreviewOffsetProperty, `${feedback.projection.previewOffsetPercent}%`);
+          preview.style.setProperty(dragPreviewExtentProperty, `${feedback.projection.previewExtentPercent}%`);
+          preview.textContent = feedback.projection.label;
+        }
+      },
+      cleanup
+    };
+  }
+
+  // frontend/ts/interaction/pointer-session.ts
+  var attrs7 = InteractionDom.attributes;
   var values = InteractionDom.values;
-  var sourceRefSelector = `[${attrs6.sourceRef}]`;
+  var sourceRefSelector = `[${attrs7.sourceRef}]`;
   var interactiveControlSelector = "button,a,input,select,textarea,[role=button],[role=link]";
-  var disposableLayerSelector = `[${attrs6.disposableLayer}]`;
+  var disposableLayerSelector = `[${attrs7.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
   var minimumTouchHoldTolerancePx = 10;
-  var activeSourceRefAttribute = attrs6.activeSourceRef;
+  var activeSourceRefAttribute = attrs7.activeSourceRef;
   var noOpEffectRunner = {
     activate: () => void 0,
     update: () => void 0,
@@ -4230,8 +4298,8 @@
       lastScrollFrameTime = null;
     };
     const startEdgeScrolling = (session) => {
-      const owner = session.marker.closest(`[${attrs6.dragScrollContainer}]`);
-      if (!owner || owner.getAttribute(attrs6.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
+      const owner = session.marker.closest(`[${attrs7.dragScrollContainer}]`);
+      if (!owner || owner.getAttribute(attrs7.dragScrollContainer) !== values.enabled || closestInteractionMount3(owner) !== session.mount || typeof requestAnimationFrame !== "function") return;
       const container = owner;
       let observedScrollLeft = container.scrollLeft;
       let observedScrollTop = container.scrollTop;
@@ -4262,7 +4330,7 @@
     };
     const scheduleTimeout = (session) => {
       clearTimeoutHandle();
-      const timeoutMs = numberAttribute(session.marker, attrs6.sessionTimeoutMs);
+      const timeoutMs = numberAttribute(session.marker, attrs7.sessionTimeoutMs);
       if (timeoutMs === null || timeoutMs <= 0) return;
       timeoutHandle = setTimeout(() => {
         if (activeSession === session) cancelSession(session, null);
@@ -4313,6 +4381,7 @@
     const updateSession = (session, event) => {
       session.currentClientX = numberValue(event.clientX);
       session.currentClientY = numberValue(event.clientY);
+      session.dropFeedback = null;
       if (!session.activated && session.pointerType === "touch") {
         if (movementDistance(session) >= session.holdThresholdPx) cancelSession(session, event);
         return;
@@ -4475,18 +4544,18 @@
     const pointerEvent = event;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
-    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs6.sessionLongPressMs) ?? 0) <= 0) return null;
+    if (pointerEvent.pointerType === "touch" && (numberAttribute(marker, attrs7.sessionLongPressMs) ?? 0) <= 0) return null;
     if (isDisabled(marker)) return null;
     const interactiveControl = closestInteractiveControl(event.target);
     if (interactiveControl && interactiveControl !== marker) return null;
     const mount = closestInteractionMount3(marker);
     if (!mount) return null;
-    const surface = mount.getAttribute(attrs6.surface);
+    const surface = mount.getAttribute(attrs7.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
-    const sourceRef = marker.getAttribute(attrs6.sourceRef);
+    const sourceRef = marker.getAttribute(attrs7.sourceRef);
     const source = FrontendSurfaceInteractionRegistry[surface].sourceRefs.find((candidate) => candidate.ref === sourceRef);
     if (!source) return null;
-    const sourceKey = marker.getAttribute(attrs6.sourceKey);
+    const sourceKey = marker.getAttribute(attrs7.sourceKey);
     if (!sourceKey) return null;
     const compatibleDropzoneRefs = compatibleDropzoneRefsForSource(surface, source);
     const targetField = FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
@@ -4495,7 +4564,7 @@
   function buildPointerSession(input) {
     const startClientX = numberValue(input.event.clientX);
     const startClientY = numberValue(input.event.clientY);
-    const thresholdPx = Math.max(0, numberAttribute(input.marker, attrs6.sessionThreshold) ?? input.fallbackThresholdPx);
+    const thresholdPx = Math.max(0, numberAttribute(input.marker, attrs7.sessionThreshold) ?? input.fallbackThresholdPx);
     const viewportScale = input.marker.ownerDocument?.defaultView?.visualViewport?.scale ?? 1;
     const scale = input.event.pointerType === "touch" && Number.isFinite(viewportScale) && viewportScale > 0 ? viewportScale : 1;
     const session = {
@@ -4520,9 +4589,10 @@
       thresholdPx: thresholdPx / scale,
       holdThresholdPx: Math.max(minimumTouchHoldTolerancePx, thresholdPx) / scale,
       activated: false,
-      longPressMs: numberAttribute(input.marker, attrs6.sessionLongPressMs),
+      longPressMs: numberAttribute(input.marker, attrs7.sessionLongPressMs),
       hasMoved: false,
       intervalDrag: void 0,
+      dropFeedback: null,
       effects: noOpEffectRunner
     };
     const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX, startClientY);
@@ -4537,17 +4607,21 @@
     const globalHandlers = sessionEffects.global.map(createGlobalEffectHandler).filter((handler) => handler !== null);
     const contextualHandlers = sessionEffects.contextual.map(createContextualEffectHandler).filter((handler) => handler !== null);
     if (globalHandlers.length === 0 && contextualHandlers.length === 0) return noOpEffectRunner;
+    const destination = createDestinationFeedback(sessionEffects.global.find((effect) => effect.kind === "clone-shadow")?.className);
+    const update = (activeSession) => {
+      const feedback = resolveDropFeedback(activeSession, surfaceDropzoneSelectorForSession(activeSession));
+      activeSession.dropFeedback = feedback;
+      destination.update(feedback);
+      for (const handler of globalHandlers) handler.update(activeSession, feedback);
+      for (const handler of contextualHandlers) handler.update(activeSession, feedback);
+    };
     return {
       activate(activeSession) {
         for (const handler of globalHandlers) handler.activate(activeSession);
       },
-      update(activeSession) {
-        for (const handler of globalHandlers) handler.update(activeSession);
-        if (contextualHandlers.length === 0) return;
-        const target = activeDropzone(activeSession);
-        for (const handler of contextualHandlers) handler.update(activeSession, target);
-      },
+      update,
       cleanup(activeSession) {
+        destination.cleanup();
         for (const handler of contextualHandlers) handler.cleanup(activeSession);
         for (const handler of globalHandlers) handler.cleanup(activeSession);
       }
@@ -4573,14 +4647,6 @@
     const before = container.scrollLeft;
     container.scrollLeft = Math.max(0, Math.min(container.scrollWidth - container.clientWidth, before + direction * 0.48 * elapsedMs));
     return container.scrollLeft !== before;
-  }
-  function hitTestClosest(root, clientX, clientY, selector2) {
-    const doc = ownerDocumentFor(root);
-    const elementFromPoint = doc?.elementFromPoint?.bind(doc);
-    if (!elementFromPoint) return null;
-    const hit = elementFromPoint(clientX, clientY);
-    if (!isElementLike4(hit)) return null;
-    return hit.closest(selector2);
   }
   function activeSessionEffects(session) {
     const variant = activeModifierVariant(session);
@@ -4623,7 +4689,7 @@
     return /mac|iphone|ipad|ipod/i.test(`${platform} ${userAgentDataPlatform}`);
   }
   function interactionSessionDefinitionFor(session) {
-    const family = session.mount.getAttribute(attrs6.surfaceFamily);
+    const family = session.mount.getAttribute(attrs7.surfaceFamily);
     if (!isFrontendSurfaceInteractionSurfaceName(family)) return null;
     return FrontendSurfaceInteractionRegistry[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
   }
@@ -4652,62 +4718,42 @@
     let label = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
-    let landing = null;
-    let restoreLanding = null;
-    const setLanding = (next) => {
-      if (next === landing) return;
-      restoreLanding?.();
-      restoreLanding = null;
-      landing = next;
-      if (!next) return;
-      const text = next.textContent;
-      const style = next.getAttribute("style");
-      const classes = next.getAttribute("class");
-      addClass(next, effect.className);
-      restoreLanding = () => {
-        next.textContent = text;
-        if (style === null) next.removeAttribute("style");
-        else next.setAttribute("style", style);
-        if (classes === null) next.removeAttribute("class");
-        else next.setAttribute("class", classes);
-      };
-    };
     const cleanup = () => {
-      setLanding(null);
       if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
       shadow = null;
       label?.remove();
       label = null;
     };
-    const update = (session) => {
+    const update = (session, feedback) => {
       if (!shadow) return;
-      const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
-      if (session.intervalDrag) {
-        setLanding(targetPreviewWithinMount(projection?.target ?? null, session.mount));
-        shadow.hidden = !projection || !!landing;
-        if (landing) removeClass(shadow, effect.className);
-        else addClass(shadow, effect.className);
-        if (label) label.hidden = !projection;
-        if (!projection) return;
-        if (landing) {
-          landing.style.setProperty(dragPreviewOffsetProperty, `${projection.previewOffsetPercent}%`);
-          landing.style.setProperty(dragPreviewExtentProperty, `${projection.previewExtentPercent}%`);
-          landing.textContent = projection.label;
-        } else {
-          const style = shadow.style;
-          style.width = `${projection.width}px`;
-          style.height = `${projection.height}px`;
-          style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
-        }
-        if (label) {
-          label.textContent = projection.label;
+      const { projection, preview } = feedback;
+      shadow.hidden = !!preview || !!session.intervalDrag && !projection;
+      if (preview) removeClass(shadow, effect.className);
+      else addClass(shadow, effect.className);
+      if (!preview && projection) {
+        const style = shadow.style;
+        style.width = `${projection.width}px`;
+        style.height = `${projection.height}px`;
+        style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+      } else if (!preview && !session.intervalDrag) {
+        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+      }
+      const text = projection?.label ?? preview?.textContent;
+      if (!label && text != null && shadow.parentNode) {
+        label = shadow.ownerDocument.createElement("div");
+        label.setAttribute(attrs7.dragPreviewLabel, values.enabled);
+        label.setAttribute("aria-hidden", "true");
+        shadow.parentNode.appendChild(label);
+      }
+      if (label) {
+        label.hidden = text == null;
+        if (text != null) {
+          label.textContent = text;
           const viewport = label.ownerDocument.documentElement;
           const x = Math.max(4, Math.min(session.currentClientX + 12, viewport.clientWidth - label.offsetWidth - 4));
           const y = Math.max(4, Math.min(session.currentClientY + 20, viewport.clientHeight - label.offsetHeight - 4));
           label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         }
-      } else {
-        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
       }
     };
     return {
@@ -4725,20 +4771,10 @@
         applyShadowBaseStyle(proxy, rect);
         layer.appendChild(proxy);
         shadow = proxy;
-        if (session.intervalDrag) {
-          label = layer.ownerDocument.createElement("div");
-          label.setAttribute(attrs6.dragPreviewLabel, values.enabled);
-          label.setAttribute("aria-hidden", "true");
-          layer.appendChild(label);
-        }
-        update(session);
       },
       update,
       cleanup
     };
-  }
-  function targetPreviewWithinMount(target, mount) {
-    return Array.from(target?.querySelectorAll(`[${attrs6.dragTargetPreview}="${values.enabled}"]`) ?? []).find((preview) => preview.closest(`[${attrs6.surface}]`) === mount && preview.closest(`[${attrs6.dropzoneRef}]`) === target) ?? null;
   }
   function createDropzoneHighlightEffect(className) {
     let activeTarget = null;
@@ -4751,14 +4787,16 @@
       activeTarget = null;
     };
     return {
-      update(session, target) {
+      update(_session, feedback) {
+        const { target, preview } = feedback;
         if (target !== activeTarget) {
           clear();
           activeTarget = target;
           if (activeTarget) addClass(activeTarget, className);
         }
-        if (session.intervalDrag && activeTarget && targetPreviewWithinMount(activeTarget, session.mount)) {
-          addClass(activeTarget, projectedClass);
+        if (activeTarget) {
+          if (preview) addClass(activeTarget, projectedClass);
+          else removeClass(activeTarget, projectedClass);
         }
       },
       cleanup() {
@@ -4805,13 +4843,12 @@
     return fields;
   }
   function activeDropzone(session) {
-    if (session.intervalDrag) return session.intervalDrag.project(session.currentClientX, session.currentClientY)?.target ?? null;
-    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
+    return (session.dropFeedback ?? resolveDropFeedback(session, surfaceDropzoneSelectorForSession(session))).target;
   }
   function surfaceDropzoneSelectorForSession(session) {
     const compatibleRefs = session.compatibleDropzoneRefs;
-    if (compatibleRefs.length === 0) return `[${attrs6.dropzoneRef}]`;
-    return compatibleRefs.map((ref) => `[${attrs6.dropzoneRef}="${cssString(ref)}"]`).join(",");
+    if (compatibleRefs.length === 0) return `[${attrs7.dropzoneRef}]`;
+    return compatibleRefs.map((ref) => `[${attrs7.dropzoneRef}="${cssString(ref)}"]`).join(",");
   }
   function compatibleDropzoneRefsForSource(surface, source) {
     const explicitRefs = source.compatibleDropzones ?? [];
@@ -4820,22 +4857,22 @@
   }
   function targetDropzoneFieldForSession(session, target) {
     if (!target) return null;
-    const surface = session.mount.getAttribute(attrs6.surface);
+    const surface = session.mount.getAttribute(attrs7.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
-    const ref = target.getAttribute(attrs6.dropzoneRef);
+    const ref = target.getAttribute(attrs7.dropzoneRef);
     if (!ref) return null;
     return FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
   }
   function targetDropzoneKeyForTarget(target) {
     if (!target) return null;
-    return target.getAttribute(attrs6.dropzoneKey);
+    return target.getAttribute(attrs7.dropzoneKey);
   }
   function cssString(value) {
     return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
   }
   function disposableLayerByName(mount, layerName) {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) {
-      if (layer.getAttribute(attrs6.disposableLayer) === layerName) return layer;
+      if (layer.getAttribute(attrs7.disposableLayer) === layerName) return layer;
     }
     return null;
   }
@@ -4884,7 +4921,7 @@
     return isElementLike4(control) ? control : null;
   }
   function closestInteractionMount3(marker) {
-    const mount = marker.closest(`[${attrs6.surface}]`);
+    const mount = marker.closest(`[${attrs7.surface}]`);
     return isElementLike4(mount) ? mount : null;
   }
   function clearDisposableLayers(mount) {
@@ -4894,10 +4931,10 @@
     const root = session.mount.ownerDocument?.documentElement;
     if (!root) return;
     if (active) {
-      root.setAttribute(attrs6.interactionActive, values.enabled);
+      root.setAttribute(attrs7.interactionActive, values.enabled);
       root.setAttribute(activeSourceRefAttribute, session.sourceRef);
     } else {
-      root.removeAttribute(attrs6.interactionActive);
+      root.removeAttribute(attrs7.interactionActive);
       root.removeAttribute(activeSourceRefAttribute);
     }
   }
@@ -4931,7 +4968,7 @@
     else element.removeAttribute("class");
   }
   function isDisabled(marker) {
-    return marker.getAttribute(attrs6.sessionDisabled) === values.enabled || marker.getAttribute(attrs6.sessionReadOnly) === values.enabled;
+    return marker.getAttribute(attrs7.sessionDisabled) === values.enabled || marker.getAttribute(attrs7.sessionReadOnly) === values.enabled;
   }
   function isMatchingPointerEvent(event, session) {
     return numberValue(event.pointerId) === session.pointerId;
@@ -4959,10 +4996,6 @@
   }
   function numberValue(value) {
     return typeof value === "number" && Number.isFinite(value) ? value : 0;
-  }
-  function ownerDocumentFor(root) {
-    if ("elementFromPoint" in root) return root;
-    return root.ownerDocument ?? (typeof document !== "undefined" ? document : null);
   }
   function isElementLike4(value) {
     if (value === null || typeof value !== "object") return false;
@@ -5284,8 +5317,8 @@
     function reconcile() {
       if (document.body === null) return;
       const all = shelves();
-      const enabled = mobile.matches && all.length > 0;
-      document.body.classList.toggle("app-has-mobile-shelf", enabled);
+      const enabled2 = mobile.matches && all.length > 0;
+      document.body.classList.toggle("app-has-mobile-shelf", enabled2);
       const nextHeader = document.querySelector(`[${appNavigationHeaderDomAttr}]`);
       if (nextHeader !== header) {
         headerObserver?.disconnect();
@@ -5806,10 +5839,10 @@
       event.preventDefault();
       event.returnValue = "";
     }
-    function setBeforeUnloadInstalled(enabled) {
-      if (enabled === beforeUnloadInstalled) return;
-      beforeUnloadInstalled = enabled;
-      if (enabled) window.addEventListener("beforeunload", handleBeforeUnload);
+    function setBeforeUnloadInstalled(enabled2) {
+      if (enabled2 === beforeUnloadInstalled) return;
+      beforeUnloadInstalled = enabled2;
+      if (enabled2) window.addEventListener("beforeunload", handleBeforeUnload);
       else window.removeEventListener("beforeunload", handleBeforeUnload);
     }
     function getMount() {

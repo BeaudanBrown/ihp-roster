@@ -39,9 +39,12 @@ nativeContextMenuDisabledAttrs = [(domAttrValue @Contract.NativeContextMenuDisab
 dragAxisAttrs :: [(Text, Text)]
 dragAxisAttrs = [(domAttrValue @Contract.DragAxis, "true")]
 
--- | Opt a plain-text hover preview into disposable interval landing feedback.
-dragTargetPreviewAttrs :: [(Text, Text)]
-dragTargetPreviewAttrs = [(domAttrValue @Contract.DragTargetPreview, "true")]
+-- | Opt into interval feedback, declaring whether a target-owned default is
+-- available. Without one, only sources carrying their own interval can use it.
+dragTargetPreviewAttrs :: Bool -> [(Text, Text)]
+dragTargetPreviewAttrs hasDefault =
+    [(domAttrValue @Contract.DragTargetPreview, "true")]
+        <> if hasDefault then [(domAttrValue @Contract.DragTargetPreviewDefault, "true")] else []
 
 -- | Interval offset/extent as percentages of the target's time-axis size.
 -- Native hover and pointer sessions supply these same inputs to one CSS renderer.

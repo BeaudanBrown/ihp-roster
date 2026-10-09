@@ -128,6 +128,12 @@ type DuplicateCaseContracts =
 
 tests :: Spec
 tests = describe "FrontendContract foundation" do
+    it "declares target defaults explicitly while retaining source-only interval targets" do
+        Interaction.dragTargetPreviewAttrs True `shouldBe`
+            [("data-bepis-drag-target-preview", "true"), ("data-bepis-drag-target-preview-default", "true")]
+        Interaction.dragTargetPreviewAttrs False `shouldBe`
+            [("data-bepis-drag-target-preview", "true")]
+
     it "renders hover interval inputs for the shared target-preview renderer without physical dimensions" do
         Interaction.dragTargetPreviewStyle 50 9600
             `shouldBe` "--bepis-drag-preview-offset:50.0%;--bepis-drag-preview-extent:9600.0%;"

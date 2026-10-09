@@ -185,8 +185,11 @@ Copies leave their source untouched, preserve staff/type and exact duration, and
 choose an unoccupied persisted row even at the same lane and instant. Published
 windows cannot be copied into or used as timeline copy sources.
 
-Empty-space selection and staff drops open the existing editor without
-materializing projected dates or lanes until a valid save. Timeline creation
+Empty-space selection and staff drops onto time positions use the same targets
+and creation preparation, opening the existing editor without materializing
+projected dates or lanes until a valid save. Staff drops additionally preselect
+the dragged person. A source with no interval uses the target's declared default
+preview; move-only historical targets explicitly have no creation default. Timeline creation
 accepts five-minute times even when the ordinary editor uses quarter-hours.
 Every newly created roster shift uses the venue's default duration (initially
 480 minutes; configurable by Venue Admins/Owners from 15 to 1440 minutes in
@@ -201,15 +204,24 @@ Saved out-of-window shifts may expand display and movement targets, never new-sh
 creation availability. Creation launchers, keyboard entry and staff-drop validation
 require a real default endpoint inside the configured window.
 Creation and move/copy previews paint above shift cards and below sticky labels,
-without intercepting pointers. Empty hover and dragging use one generic renderer
+without intercepting pointers. Empty hover, staff placement and shift dragging
+use one generic renderer
 through the typed target-preview and interval-axis primitives, differing only in
 the supplied interval and label: venue creation defaults versus the existing
-shift's duration. No feature-local hover geometry or separate drag sizing. Both cover the full
+shift's duration. No feature-local hover geometry or separate drag sizing. All
+interval previews cover the full
 named lane's editable cross-axis (height horizontally, width vertically), not a
 single overlap track, while preserving exact elapsed time-axis extent and the
 original grab offset for snapping. Display-track packing remains server-owned;
 the preview indicates only the destination named lane and interval. No roster
-meaning or persisted placement policy is added to the browser.
+meaning or persisted placement policy is added to the browser. Timeline copies
+reuse the unchanged row/column copy appearance, including its green treatment,
+border/shadow and badge.
+Staff sources declare both existing-card and time-position compatibility. Browser
+paint order gives an existing card preference over the time underneath; interval
+shift sources do not accept assignment cards. Staff assignment highlights only
+the selected card, not a new lane interval. Rejection never creates a shift at an
+underlying time instead.
 Staff drops on existing shifts preserve lane/time and save immediately; published
 rosters permit only the existing authorized Open-to-Staff fill. Timeline and
 staff interactions share the roster scope, while day-content refreshes preserve

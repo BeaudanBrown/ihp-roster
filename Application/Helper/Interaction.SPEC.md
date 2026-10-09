@@ -105,6 +105,14 @@ keys. Shared DSL aliases define common drag/drop shapes. Modifier variants are
 semantic, Haskell-declared intents/effects; TypeScript maps platform keys to those
 variants but does not send raw modifier state as business authority.
 
+Source refs may declare multiple compatible dropzone refs. The generic resolver
+uses browser paint order to select the topmost compatible target in the owning
+mount; it never assigns a separate numeric priority or crosses a nested Surface.
+Interval sources refine the selected axis using their preserved grab offset and
+allowed positions. One resolved target/preview feeds destination feedback,
+floating feedback and the emitted intent fields for each update. A rejected
+commit does not fall through to a target underneath it.
+
 Effects come from the closed semantic interaction IR. Session-global and
 contextual-target effects must clean up on commit, cancel, Escape,
 `pointercancel`, timeout, HTMX cleanup, and runtime stop. Unknown effects fail at
@@ -120,7 +128,12 @@ times or parses target keys. Malformed configuration refuses the gesture.
 The generated drag-axis CSS property selects horizontal or vertical geometry;
 missing means horizontal, unknown values refuse the gesture. The browser reads
 computed geometry for preview, grab offsets and cross-axis targeting. Haskell may
-mark a plain-text hover preview with `DragTargetPreview`. Interval dragging then
+mark a plain-text hover preview with `DragTargetPreview`, and declare a usable
+target-owned default with `DragTargetPreviewDefault`. Discrete sources reuse
+that default; a marked preview without a default accepts source intervals only.
+Availability is explicit metadata, never inferred from label text or CSS.
+Destination feedback owns this preview independently of the floating-source
+effect. Interval dragging then
 reuses that element at the destination origin and snapped start, with the source
 interval's time-axis extent and server-supplied proposed label. Its cross-axis
 extent fills the compatible target's bounds, independently of the source card's
@@ -134,7 +147,9 @@ left/top/width/height. Feature CSS supplies orientation and appearance, not a
 second geometry implementation. It replaces the
 floating rectangle rather than duplicating it underneath. The preview stays
 anchored when the pointer moves across a lane; crossing lanes selects a new
-preview. Copy feedback still uses the declared effect classes. Hit targets retain
+preview. Copy feedback uses the same declared effect classes and appearance for
+interval destinations and ordinary floating copies, without feature overrides.
+Hit targets retain
 their server-rendered geometry; previews remain pointer-transparent and follow
 scrolling. Cleanup restores the original hover text, styles and classes, including
 when changing targets or modifiers. This indicates the destination lane/interval,

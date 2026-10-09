@@ -1,8 +1,9 @@
-import { FrontendSurfaceInteractionRegistry, InteractionDom, dragPreviewOffsetProperty, dragPreviewExtentProperty, nativeContextMenuDisabledDomAttr, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionRegistry, InteractionDom, nativeContextMenuDisabledDomAttr, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
 import { readIntervalDrag, type IntervalDrag } from "./interval-drag";
+import { createDestinationFeedback, resolveDropFeedback, type DropFeedback } from "./drop-feedback";
 import {
     dispatchInteractionSessionEnd,
     dispatchInteractionSessionStart,
@@ -80,17 +81,18 @@ export type ActivePointerSession = {
     longPressMs: number | null;
     hasMoved: boolean;
     intervalDrag: IntervalDrag | undefined;
+    dropFeedback: DropFeedback | null;
     effects: PointerSessionEffectRunner;
 };
 
 type GlobalEffectHandler = {
     activate: (session: ActivePointerSession) => void;
-    update: (session: ActivePointerSession) => void;
+    update: (session: ActivePointerSession, feedback: DropFeedback) => void;
     cleanup: (session: ActivePointerSession) => void;
 };
 
 type ContextualEffectHandler = {
-    update: (session: ActivePointerSession, target: Element | null) => void;
+    update: (session: ActivePointerSession, feedback: DropFeedback) => void;
     cleanup: (session: ActivePointerSession) => void;
 };
 
@@ -264,6 +266,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     const updateSession = (session: ActivePointerSession, event: PointerEventLike) => {
         session.currentClientX = numberValue(event.clientX);
         session.currentClientY = numberValue(event.clientY);
+        session.dropFeedback = null;
         if (!session.activated && session.pointerType === "touch") {
             if (movementDistance(session) >= session.holdThresholdPx) cancelSession(session, event);
             return;
@@ -510,6 +513,7 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         longPressMs: numberAttribute(input.marker, attrs.sessionLongPressMs),
         hasMoved: false,
         intervalDrag: undefined,
+        dropFeedback: null,
         effects: noOpEffectRunner,
     };
     const interval = readIntervalDrag(input.marker, input.mount, surfaceDropzoneSelectorForSession(session), startClientX, startClientY);
@@ -532,17 +536,21 @@ export function createPointerSessionEffectRunner(session: ActivePointerSession):
 
     if (globalHandlers.length === 0 && contextualHandlers.length === 0) return noOpEffectRunner;
 
+    const destination = createDestinationFeedback(sessionEffects.global.find(effect => effect.kind === "clone-shadow")?.className);
+    const update = (activeSession: ActivePointerSession) => {
+        const feedback = resolveDropFeedback(activeSession, surfaceDropzoneSelectorForSession(activeSession));
+        activeSession.dropFeedback = feedback;
+        destination.update(feedback);
+        for (const handler of globalHandlers) handler.update(activeSession, feedback);
+        for (const handler of contextualHandlers) handler.update(activeSession, feedback);
+    };
     return {
         activate(activeSession) {
             for (const handler of globalHandlers) handler.activate(activeSession);
         },
-        update(activeSession) {
-            for (const handler of globalHandlers) handler.update(activeSession);
-            if (contextualHandlers.length === 0) return;
-            const target = activeDropzone(activeSession);
-            for (const handler of contextualHandlers) handler.update(activeSession, target);
-        },
+        update,
         cleanup(activeSession) {
+            destination.cleanup();
             for (const handler of contextualHandlers) handler.cleanup(activeSession);
             for (const handler of globalHandlers) handler.cleanup(activeSession);
         },
@@ -576,16 +584,6 @@ export function scrollHorizontalDragContainer(container: HTMLElement, clientX: n
     const before = container.scrollLeft;
     container.scrollLeft = Math.max(0, Math.min(container.scrollWidth - container.clientWidth, before + direction * 0.48 * elapsedMs));
     return container.scrollLeft !== before;
-}
-
-export function hitTestClosest(root: Document | Element, clientX: number, clientY: number, selector: string): Element | null {
-    const doc = ownerDocumentFor(root);
-    const elementFromPoint = doc?.elementFromPoint?.bind(doc);
-    if (!elementFromPoint) return null;
-
-    const hit = elementFromPoint(clientX, clientY);
-    if (!isElementLike(hit)) return null;
-    return hit.closest(selector);
 }
 
 function activeSessionEffects(session: ActivePointerSession): { global: ReadonlyArray<InteractionSessionEffect>; contextual: ReadonlyArray<InteractionSessionEffect> } | null {
@@ -669,67 +667,43 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
     let label: HTMLElement | null = null;
     let grabOffsetX = 0;
     let grabOffsetY = 0;
-    let landing: HTMLElement | null = null;
-    let restoreLanding: (() => void) | null = null;
-
-    const setLanding = (next: HTMLElement | null) => {
-        if (next === landing) return;
-        restoreLanding?.();
-        restoreLanding = null;
-        landing = next;
-        if (!next) return;
-        const text = next.textContent;
-        const style = next.getAttribute("style");
-        const classes = next.getAttribute("class");
-        addClass(next, effect.className);
-        restoreLanding = () => {
-            next.textContent = text;
-            if (style === null) next.removeAttribute("style");
-            else next.setAttribute("style", style);
-            if (classes === null) next.removeAttribute("class");
-            else next.setAttribute("class", classes);
-        };
-    };
-
     const cleanup = () => {
-        setLanding(null);
         if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
         shadow = null;
         label?.remove();
         label = null;
     };
 
-    const update = (session: ActivePointerSession) => {
+    const update = (session: ActivePointerSession, feedback: DropFeedback) => {
         if (!shadow) return;
-        const projection = session.intervalDrag?.project(session.currentClientX, session.currentClientY);
-        if (session.intervalDrag) {
-            setLanding(targetPreviewWithinMount(projection?.target ?? null, session.mount));
-            (shadow as HTMLElement).hidden = !projection || !!landing;
-            if (landing) removeClass(shadow, effect.className);
-            else addClass(shadow, effect.className);
-            if (label) label.hidden = !projection;
-            if (!projection) return;
-            if (landing) {
-                // Change interval inputs only. The same renderer owns empty
-                // hover and drag geometry, including the full cross-axis span.
-                landing.style.setProperty(dragPreviewOffsetProperty, `${projection.previewOffsetPercent}%`);
-                landing.style.setProperty(dragPreviewExtentProperty, `${projection.previewExtentPercent}%`);
-                landing.textContent = projection.label;
-            } else {
-                const style = (shadow as HTMLElement).style;
-                style.width = `${projection.width}px`;
-                style.height = `${projection.height}px`;
-                style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
-            }
-            if (label) {
-                label.textContent = projection.label;
+        const { projection, preview } = feedback;
+        (shadow as HTMLElement).hidden = !!preview || (!!session.intervalDrag && !projection);
+        if (preview) removeClass(shadow, effect.className);
+        else addClass(shadow, effect.className);
+        if (!preview && projection) {
+            const style = (shadow as HTMLElement).style;
+            style.width = `${projection.width}px`;
+            style.height = `${projection.height}px`;
+            style.transform = `translate3d(${projection.left}px, ${projection.top}px, 0)`;
+        } else if (!preview && !session.intervalDrag) {
+            moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+        }
+        const text = projection?.label ?? preview?.textContent;
+        if (!label && text != null && shadow.parentNode) {
+            label = shadow.ownerDocument.createElement("div");
+            label.setAttribute(attrs.dragPreviewLabel, values.enabled);
+            label.setAttribute("aria-hidden", "true");
+            shadow.parentNode.appendChild(label);
+        }
+        if (label) {
+            label.hidden = text == null;
+            if (text != null) {
+                label.textContent = text;
                 const viewport = label.ownerDocument.documentElement;
                 const x = Math.max(4, Math.min(session.currentClientX + 12, viewport.clientWidth - label.offsetWidth - 4));
                 const y = Math.max(4, Math.min(session.currentClientY + 20, viewport.clientHeight - label.offsetHeight - 4));
                 label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
             }
-        } else {
-            moveShadow(shadow, session, grabOffsetX, grabOffsetY);
         }
     };
 
@@ -750,23 +724,10 @@ function createCloneShadowEffect(effect: Extract<InteractionSessionEffect, { kin
             applyShadowBaseStyle(proxy, rect);
             layer.appendChild(proxy);
             shadow = proxy;
-            if (session.intervalDrag) {
-                label = layer.ownerDocument.createElement("div");
-                label.setAttribute(attrs.dragPreviewLabel, values.enabled);
-                label.setAttribute("aria-hidden", "true");
-                layer.appendChild(label);
-            }
-            update(session);
         },
         update,
         cleanup,
     };
-}
-
-export function targetPreviewWithinMount(target: Element | null, mount: Element): HTMLElement | null {
-    return Array.from(target?.querySelectorAll<HTMLElement>(`[${attrs.dragTargetPreview}="${values.enabled}"]`) ?? [])
-        .find(preview => preview.closest(`[${attrs.surface}]`) === mount
-            && preview.closest(`[${attrs.dropzoneRef}]`) === target) ?? null;
 }
 
 function createDropzoneHighlightEffect(className: string): ContextualEffectHandler {
@@ -782,14 +743,16 @@ function createDropzoneHighlightEffect(className: string): ContextualEffectHandl
     };
 
     return {
-        update(session, target) {
+        update(_session, feedback) {
+            const { target, preview } = feedback;
             if (target !== activeTarget) {
                 clear();
                 activeTarget = target;
                 if (activeTarget) addClass(activeTarget, className);
             }
-            if (session.intervalDrag && activeTarget && targetPreviewWithinMount(activeTarget, session.mount)) {
-                addClass(activeTarget, projectedClass);
+            if (activeTarget) {
+                if (preview) addClass(activeTarget, projectedClass);
+                else removeClass(activeTarget, projectedClass);
             }
         },
         cleanup() {
@@ -843,8 +806,7 @@ function pointerSessionFields(session: ActivePointerSession): Record<string, str
 }
 
 function activeDropzone(session: ActivePointerSession): Element | null {
-    if (session.intervalDrag) return session.intervalDrag.project(session.currentClientX, session.currentClientY)?.target ?? null;
-    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
+    return (session.dropFeedback ?? resolveDropFeedback(session, surfaceDropzoneSelectorForSession(session))).target;
 }
 
 function surfaceDropzoneSelectorForSession(session: ActivePointerSession): string {
@@ -1029,11 +991,6 @@ function numberAttribute(element: ElementLike, attribute: string): number | null
 
 function numberValue(value: unknown): number {
     return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function ownerDocumentFor(root: Document | Element): Document | null {
-    if ("elementFromPoint" in root) return root as Document;
-    return (root as Element).ownerDocument ?? (typeof document !== "undefined" ? document : null);
 }
 
 function isElementLike(value: unknown): value is ElementLike {

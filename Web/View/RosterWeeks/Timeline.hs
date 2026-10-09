@@ -191,7 +191,7 @@ renderTimelineDropzone timelineWindow day revision (instant, targetKey) =
 
 renderTimelineCreationPreview :: TimelineWindow -> UTCTime -> Maybe UTCTime -> Html
 renderTimelineCreationPreview window start maybeEnd =
-    [hsx|<span {...Drag.dragTargetPreviewAttrs} class="roster-day-timeline-create-preview" aria-hidden="true" style={previewStyle}>{label}</span>|]
+    [hsx|<span {...(Drag.dragTargetPreviewAttrs (isJust maybeEnd))} class="roster-day-timeline-create-preview" aria-hidden="true" style={previewStyle}>{label}</span>|]
   where
     end = fromMaybe start maybeEnd
     label = maybe "" (\value -> timelineClockLabel start <> "–" <> timelineClockLabel value) maybeEnd

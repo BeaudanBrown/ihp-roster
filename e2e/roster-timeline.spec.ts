@@ -245,7 +245,23 @@ for (const orientation of ['horizontal', 'vertical']) {
             for (const copy of [false, true]) {
                 if (copy) await page.keyboard.down('Control');
                 await expect(shadow).toBeVisible();
-                if (copy) await expect(shadow).toHaveClass(/bepis-pointer-clone-shadow-copy/);
+                if (copy) {
+                    await expect(shadow).toHaveClass(/bepis-pointer-clone-shadow-copy/);
+                    const parity = await shadow.evaluate(element => {
+                        const reference = document.createElement('div');
+                        reference.className = 'bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy';
+                        document.body.appendChild(reference);
+                        try {
+                            const properties = ['background-image', 'background-color', 'border', 'border-radius', 'box-shadow', 'opacity'];
+                            const differences = properties.filter(property => getComputedStyle(element).getPropertyValue(property) !== getComputedStyle(reference).getPropertyValue(property));
+                            for (const property of ['content', 'background-color', 'color', 'border-radius']) {
+                                if (getComputedStyle(element, '::after').getPropertyValue(property) !== getComputedStyle(reference, '::after').getPropertyValue(property)) differences.push(`badge:${property}`);
+                            }
+                            return differences;
+                        } finally { reference.remove(); }
+                    });
+                    expect(parity, 'timeline copy uses the unchanged shared row/column copy appearance').toEqual([]);
+                }
                 await expectDestinationPaint(page, sourceBox);
                 const targetKey = await page.locator('.bepis-dropzone-highlight').getAttribute(InteractionDom.attributes.dropzoneKey);
                 // Move the pointer into the other overlap track without changing the
@@ -323,6 +339,8 @@ test(`drops staff into empty time and replaces a shift immediately, including to
         if (await open.isVisible()) await open.click();
         await page.getByRole('tab', { name: 'Staff', exact: true }).click();
         await source.scrollIntoViewIfNeeded();
+        const preview = target.locator(`[${attrs.dragTargetPreview}]`);
+        const snapshot = await preview.count() ? await preview.evaluate(element => [element.getAttribute('style'), element.getAttribute('class'), element.textContent]) : null;
         const targetBox = (await target.boundingBox())!;
         const label = (await page.locator('.roster-day-timeline-lane-label').first().boundingBox())!;
         const viewport = (await owner.boundingBox())!;
@@ -332,21 +350,50 @@ test(`drops staff into empty time and replaces a shift immediately, including to
         const box = (await source.boundingBox())!;
         const start = { x: box.x + 60, y: box.y + box.height / 2 };
         const response = page.waitForResponse((result) => result.url().includes('/DropRosterStaff'));
+        async function expectFeedback() {
+            await expect(target).toHaveClass(/bepis-dropzone-highlight/);
+            if (await target.getAttribute(attrs.dragPosition) !== null) {
+                const preview = target.locator(`[${attrs.dragTargetPreview}]`);
+                await expect(preview).toBeVisible();
+                await expect(preview).toHaveText('07:05–15:05');
+                const paint = (await preview.boundingBox())!;
+                const bounds = (await target.boundingBox())!;
+                expect(Math.abs(orientation === 'horizontal' ? paint.height - bounds.height : paint.width - bounds.width)).toBeLessThan(1);
+            } else {
+                await expect(page.locator('.bepis-dropzone-highlight-projected')).toHaveCount(0);
+            }
+        }
+        const move = async (point: { x: number; y: number }) => {
+            if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point] });
+            else await page.mouse.move(point.x, point.y, { steps: 10 });
+        };
         if (cdp) {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
             await expect(page.locator('html')).toHaveAttribute(attrs.interactionActive, 'true');
             await expect(page.getByRole('button', { name: 'Open Roster tools' })).toBeVisible();
-            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] });
-            await expect(target).toHaveClass(/bepis-dropzone-highlight/);
-            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         } else {
             await page.mouse.move(start.x, start.y);
             await page.mouse.down();
-            await page.mouse.move(end.x, end.y, { steps: 10 });
-            await expect(target).toHaveClass(/bepis-dropzone-highlight/);
-            await page.mouse.up();
         }
+        if (!snapshot) {
+            // Enter a gap first, then cross into the card at the same time.
+            // Highlighting must not raise the empty target above that card.
+            const underneath = page.locator('.roster-day-timeline-dropzone[data-roster-timeline-minute="545"]').first();
+            const bounds = (await underneath.boundingBox())!;
+            const gap = orientation === 'horizontal'
+                ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height - 2 }
+                : { x: bounds.x + bounds.width - 2, y: bounds.y + bounds.height / 2 };
+            await move(gap);
+            await expect(underneath).toHaveClass(/bepis-dropzone-highlight-projected/);
+            if (orientation === 'horizontal') end.x = gap.x;
+            else end.y = gap.y;
+        }
+        await move(end);
+        await expectFeedback();
+        if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else await page.mouse.up();
         expect((await response).ok()).toBe(true);
+        if (snapshot) expect(await preview.evaluate(element => [element.getAttribute('style'), element.getAttribute('class'), element.textContent])).toEqual(snapshot);
     }
     try {
         const countBefore = querySql('SELECT count(*) FROM roster_slots');

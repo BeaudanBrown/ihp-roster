@@ -16,6 +16,7 @@ module Application.Helper.FrontendContract.Interaction
     , DragIntervalConfig
     , DragPreviewLabel
     , DragTargetPreview
+    , DragTargetPreviewDefault
     , DragPreviewOffsetProperty
     , DragPreviewExtentProperty
     , DragAxis
@@ -93,6 +94,7 @@ data SessionLongPressMs
 data DragIntervalConfig
 data DragPreviewLabel
 data DragTargetPreview
+data DragTargetPreviewDefault
 data DragPreviewOffsetProperty
 data DragPreviewExtentProperty
 data DragAxis
@@ -166,6 +168,7 @@ type InteractionContract =
          , DomAttr DragIntervalConfig
          , DomAttr DragPreviewLabel
          , DomAttr DragTargetPreview
+         , DomAttr DragTargetPreviewDefault
          , Constant DragPreviewOffsetProperty "--bepis-drag-preview-offset"
          , Constant DragPreviewExtentProperty "--bepis-drag-preview-extent"
          , DomAttr DragAxis
