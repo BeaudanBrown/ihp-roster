@@ -13,7 +13,6 @@ module Web.RosterWeeks.DirectReadModel
     , decodeRosterConflictType
     , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
-    , fetchRosterBaseFactsForAuthorizedScopeDirect
     , fetchRosterBaseFactsForAuthorizedWindowDirect
     , fetchPublishedRosterDayFactsForAuthorizedScopeDirect
     , fetchRosterDisplayFactsForAuthorizedWindowDirect
@@ -107,12 +106,6 @@ fetchRosterBaseFactsDirect scope = do
         else do
             windowFacts <- fetchRosterWindowFactsForScopeDirect scope
             Just <$> fetchRosterBaseFactsForWindowDirect scope windowFacts
-
--- Only the authorization seam can construct the nominal scope accepted here.
-fetchRosterBaseFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterBaseFacts
-fetchRosterBaseFactsForAuthorizedScopeDirect authorizedScope = do
-    windowFacts <- fetchRosterWindowFactsForAuthorizedScopeDirect authorizedScope
-    fetchRosterBaseFactsForAuthorizedWindowDirect authorizedScope windowFacts
 
 fetchRosterWindowFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterWindowFacts
 fetchRosterWindowFactsForAuthorizedScopeDirect authorizedScope =

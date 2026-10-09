@@ -6,9 +6,6 @@ module Application.Helper.UserPreferences
     , UserTimesheetPreferences (..)
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
-    , fetchCurrentUserShowRosterWarnings
-    , fetchCurrentUserRosterPayDisplayMode
-    , fetchCurrentUserHighlightOwnLiveShifts
     , fetchCurrentUserTimesheetPreferences
     , rosterLayoutModeIsDayColumns
     , rosterLayoutModeLabel
@@ -22,8 +19,7 @@ module Application.Helper.UserPreferences
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
-import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
-                                      hasManagementMode)
+import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig)
 import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
 import Generated.Types
@@ -79,19 +75,6 @@ fetchCurrentUserRosterPreferences =
 fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterLayoutModeEnum
 fetchCurrentRosterLayoutMode =
     (.rosterLayoutMode) <$> fetchVenueConfig
-
-fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentUserShowRosterWarnings
-    | not hasManagementMode = pure False
-    | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
-
-fetchCurrentUserRosterPayDisplayMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterPayDisplayMode
-fetchCurrentUserRosterPayDisplayMode =
-    (.userRosterPayDisplayMode) <$> fetchCurrentUserRosterPreferences
-
-fetchCurrentUserHighlightOwnLiveShifts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentUserHighlightOwnLiveShifts =
-    (.userHighlightOwnLiveShifts) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserTimesheetPreferences
 fetchCurrentUserTimesheetPreferences = do

@@ -49,6 +49,10 @@ failures = []
 direct_throw_owners = {
     'Application/Error/Runtime.hs': {'throwExternalRuntime', 'throwExternalRuntimeMessage'},
     'Application/Error/Transaction.hs': {'withAppResultTransaction'},
+    # Request initialization owns single-flight exception propagation, including
+    # async cancellation. BoundaryUtilities exercises owner and waiter failures;
+    # it must rethrow the original exception, never classify/wrap it as business failure.
+    'Application/Helper/NavigationContextInitialization.hs': {'ensureNavigationContextInitialized'},
     'Application/Error/Boundary.hs': {'respondAndStop', 'withSynchronousAppErrorFallback'},
     'Application/Async/Boundary.hs': {'runAppJobBoundary', 'trySynchronousAppJobAction', 'throwProjectedAppError'},
     'Application/Bepis/Action.hs': {'runBepisActionSpan'},

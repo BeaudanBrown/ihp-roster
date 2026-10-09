@@ -6,7 +6,6 @@ module Web.RosterWeeks.Responses
     , respondToRosterTimelineSlotMove
     , respondToRosterSlotUpdate
     , respondToRosterShiftEdit
-    , respondWithRosterContent
     , respondWithRosterContentForAuthorizedScope
     , respondWithRosterContentError
     , respondWithRosterContentOob
@@ -56,7 +55,6 @@ import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                    rosterMutationMountedProjections)
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
-                                   renderVisibleRosterReadModelFragment,
                                    renderVisibleRosterReadModelFragmentForAuthorizedScope,
                                    rosterGridRenderModelFromProjection)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
@@ -120,13 +118,6 @@ sourceTimesheetWarningToast shouldWarn =
     if shouldWarn
         then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
-
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ResponseReceived
-respondWithRosterContent scope = do
-    maybeHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionContent
-    when (isNothing maybeHtml) do
-        TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow scope.rosterWindowRosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
-    respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithRosterContentForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => AuthorizedRosterScope -> IO ResponseReceived
 respondWithRosterContentForAuthorizedScope authorizedScope = do

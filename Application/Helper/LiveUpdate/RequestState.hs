@@ -39,4 +39,4 @@ requestLivePublicationVersion resources = do
     pure $ maximumMaybe [publication.version | publication <- publications, publication.resources == resources]
   where
     maximumMaybe []     = Nothing
-    maximumMaybe values = Just (maximum values)
+    maximumMaybe (value : values) = Just (foldl' max value values)

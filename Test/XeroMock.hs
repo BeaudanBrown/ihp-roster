@@ -1016,10 +1016,6 @@ timesheetsFixture :: Aeson.Value
 timesheetsFixture =
     Aeson.object ["Timesheets" Aeson..= [timesheetObjectFixture]]
 
-timesheetFixture :: Aeson.Value
-timesheetFixture =
-    Aeson.object ["Timesheet" Aeson..= timesheetObjectFixture]
-
 timesheetsV2Fixture :: Aeson.Value
 timesheetsV2Fixture =
     Aeson.object

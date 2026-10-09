@@ -9,10 +9,8 @@ module Web.RosterWeeks.RenderData
     , currentRosterTimelineDate
     , fetchVisibleRosterReadModel
     , fetchVisibleRosterReadModelForAuthorizedScope
-    , fetchVisibleRosterStaffPanelRenderModel
     , fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope
     , renderRosterProjectionFragmentWithMode
-    , renderVisibleRosterReadModelFragment
     , renderVisibleRosterReadModelFragmentForAuthorizedScope
     , rosterGridRenderModelFromProjection
     )
@@ -73,11 +71,6 @@ data AuthorizedRosterSnapshot = AuthorizedRosterSnapshot
     , snapshotWindowFacts       :: !RosterWindowFacts
     }
 
-fetchAuthorizedRosterSnapshot :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO AuthorizedRosterSnapshot
-fetchAuthorizedRosterSnapshot requestedScope = do
-    authorizedScope <- authorizeRosterScope requestedScope
-    fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope
-
 fetchAuthorizedRosterSnapshotForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterScope -> IO AuthorizedRosterSnapshot
 fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope =
     profileActionSpan "roster.snapshot.fetch_authorized" do
@@ -113,11 +106,6 @@ fetchRosterPublicHolidayMap venueConfig weekStartDate = do
             [ (holiday.holidayDate, holiday.name)
             | holiday <- holidays
             ]
-
-renderVisibleRosterReadModelFragment :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
-renderVisibleRosterReadModelFragment scope fragment = do
-    authorizedScope <- authorizeRosterScope scope
-    renderVisibleRosterReadModelFragmentForAuthorizedScope authorizedScope fragment
 
 renderVisibleRosterReadModelFragmentForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
 renderVisibleRosterReadModelFragmentForAuthorizedScope authorizedScope fragment =
@@ -732,11 +720,6 @@ renderFullProjectionFragment snapshot fragment = do
                     }
             Just _ -> rosterData
     pure (renderRosterProjectionFragment (Just visibleData) fragment)
-
-fetchVisibleRosterStaffPanelRenderModel :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> RosterWindowScope -> IO RosterStaffPanelRenderModel
-fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
-    authorizedScope <- authorizeRosterScope scope
-    fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope panelScope authorizedScope
 
 fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> AuthorizedRosterScope -> IO RosterStaffPanelRenderModel
 fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope panelScope authorizedScope = do

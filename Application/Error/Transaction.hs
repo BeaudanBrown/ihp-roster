@@ -29,8 +29,9 @@ withAppResultTransaction operation = do
         Right value                       -> Right value
         Left (AppResultRollback appError) -> Left appError
 
-rollbackOnLeft :: AppResult value -> IO value
-rollbackOnLeft = either (Exception.throwIO . AppResultRollback) pure
+  where
+    rollbackOnLeft :: AppResult value -> IO value
+    rollbackOnLeft = either (Exception.throwIO . AppResultRollback) pure
 
 -- IHP rejects nested withTransaction calls. A local typed operation composed
 -- inside a durable mutation must roll back its own Left without committing or
