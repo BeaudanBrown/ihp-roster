@@ -69,7 +69,7 @@ test.describe('Super-admin venue and user switchers', () => {
         await expect(fallbackToast).toContainText('That page is not available for the resulting account. Showing its Roster instead.');
     });
 
-    test('passkey overlay keeps context and requires the blocked switch to be repeated', async ({ page }) => {
+    test('honours configured strong-auth policy when switching impersonation', async ({ page }) => {
         clearE2EUserPasskeys('e2e-super-admin@example.com');
         await enableVirtualPasskeyAuthenticator(page);
         await loginAsWithFreshBrowserSession(page, 'e2e-super-admin@example.com', 'test-password-123');
@@ -84,6 +84,15 @@ test.describe('Super-admin venue and user switchers', () => {
         await clearCurrentSessionPasskeyVerification(page);
         const rosterUrl = page.url();
         const userSwitcher = page.locator('#support-impersonation-user');
+        // The development shell explicitly disables privileged strong auth.
+        // Also run this scenario with the flag enabled to cover the overlay.
+        if (process.env.IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH === 'false') {
+            await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+            await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+            await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
+            await expect(page).toHaveURL(rosterUrl);
+            return;
+        }
         const finishStepUpResponse = page.waitForResponse(
             (response) => new URL(response.url()).pathname === '/FinishPasskeyStepUpAuthentication',
             { timeout: E2E_TIMEOUT.passkey },

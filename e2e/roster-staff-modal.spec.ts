@@ -192,7 +192,8 @@ test.describe('Roster Staff Modal', () => {
             { action: formAction ?? '' },
         );
 
-        expect(validationResponse).toContain('Edit Staff Member');
+        expect(validationResponse).toContain('id="staff-profile-details"');
+        await expect(modalMount).toContainText('Edit Staff Member');
         expect(validationResponse).toContain('This field cannot be empty');
         expect(validationResponse).not.toContain('Roster App');
 
@@ -202,13 +203,9 @@ test.describe('Roster Staff Modal', () => {
             const url = new URL(response.url());
             return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'profile';
         });
-        const preferencesRefreshPromise = page.waitForResponse((response) => {
-            const url = new URL(response.url());
-            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'preferences';
-        });
         await modalMount.getByRole('button', { name: 'Save' }).click();
-        const [profileRefresh, preferencesRefresh] = await Promise.all([profileRefreshPromise, preferencesRefreshPromise]);
-        await Promise.all([profileRefresh.finished(), preferencesRefresh.finished()]);
+        const profileRefresh = await profileRefreshPromise;
+        await profileRefresh.finished();
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();
@@ -216,6 +213,7 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator('#staff-edit-form #firstName')).toHaveValue('Roster');
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
 
+        // A name-only update refreshes profile, not unrelated preferences.
         await modalMount.getByRole('button', { name: 'Shift Preferences', exact: true }).click();
         const preferenceForm = modalMount.locator('#staff-shift-preferences-form');
         await expect(preferenceForm).toBeVisible();

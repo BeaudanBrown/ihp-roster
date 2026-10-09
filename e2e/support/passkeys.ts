@@ -89,7 +89,9 @@ export async function openProfileSecuritySection(page: Page) {
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
         await securityToggle.click();
     }
-    await expect(page.locator('#profile-security-collapse')).toBeVisible();
+    const sectionId = await securityToggle.getAttribute('aria-controls');
+    expect(sectionId).not.toBeNull();
+    await expect(page.locator(`[id="${sectionId}"]`)).toBeVisible();
 }
 
 async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {
