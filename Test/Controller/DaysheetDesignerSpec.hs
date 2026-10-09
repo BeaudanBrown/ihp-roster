@@ -91,7 +91,7 @@ tests = aroundAll withDatabaseTestContext do
                     dependent = References.ReferenceKey (Fixture.list 50) (Fixture.row 60)
                     definition = Fixture.definition { D.recordLists = D.recordLists Fixture.definition <> [D.RecordList (Fixture.list 50) "Counters" D.VenueReference [D.Field (Fixture.field 51) "Terminal" (D.ReferenceType (Fixture.list 10)) D.Entered]] }
                     references = References.ReferenceData
-                        [ References.ReferenceList (Fixture.list 10) [References.ReferenceRecord (Fixture.row n) False [(Fixture.field 9, References.ReferenceScalar (D.TextLiteral ("Terminal " <> tshow n)))] | n <- [1, 3]]
+                        [ References.ReferenceList (Fixture.list 10) [References.ReferenceRecord (Fixture.row n) False [(Fixture.field 9, References.ReferenceScalar (D.TextLiteral ("Terminal " <> tshow n)))] | n <- [1, 3, 4]]
                         , References.ReferenceList (Fixture.list 50) [References.ReferenceRecord (Fixture.row 60) False [(Fixture.field 51, References.ReferenceLink target)]] ]
                     choice = renderNominalText (ResolveReference (References.ReassignReference dependent (Fixture.field 51) replacement))
                     params = [("expectedBase", "0"), ("expectedDraft", "0"), ("definitionListId", cs (tshow sourceId)), ("referenceRecordId", cs (tshow rowId))]
@@ -109,11 +109,15 @@ tests = aroundAll withDatabaseTestContext do
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
                 forged <- post (("referenceResolutions", cs (renderNominalText (ResolveReference (References.RetireReference replacement)))) : params)
                 lookup "X-Bepis-Form-Saved" (responseHeaders forged) `shouldBe` Nothing
+                conflicting <- post (("referenceResolutions", cs choice) : ("referenceResolutions", cs (renderNominalText (ResolveReference (References.ReassignReference dependent (Fixture.field 51) (References.ReferenceKey (Fixture.list 10) (Fixture.row 4)))))) : params)
+                lookup "X-Bepis-Form-Saved" (responseHeaders conflicting) `shouldBe` Nothing
                 malformed <- post (("referenceResolutions", "{\"resolution\":[\"unknown\"]}") : params)
                 malformed `responseStatusShouldBe` status400
                 stale <- post (("referenceResolutions", cs choice) : filter ((/= "expectedDraft") . fst) params)
                 lookup "X-Bepis-Form-Saved" (responseHeaders stale) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
+                Right afterRejected <- Storage.readDesignerState member
+                afterRejected.designerReferences `shouldBe` references
                 saved <- post (("referenceResolutions", cs choice) : params)
                 lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
                 Right changed <- Storage.readDesignerState member

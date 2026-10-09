@@ -68,8 +68,10 @@ retirementEdit references target resolutions = do
     let allowed = retirementDependants references target
         changes = nub [change | ResolveReference change <- resolutions]
         retired = [key | RetireReference key <- changes]
+        reassigned = [Dependency source field | ReassignReference source field _ <- changes]
+        uniqueReassignments = length reassigned == Set.size (Set.fromList reassigned)
         valid (RetireReference key) = any (\(Dependency source _) -> source == key) allowed
         valid (ReassignReference source field _) = Dependency source field `elem` allowed && source `notElem` retired
-    if all valid changes
+    if uniqueReassignments && all valid changes
         then Right (RetireReferenceRecord target changes)
         else Left InvalidReferenceChange

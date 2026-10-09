@@ -69,6 +69,8 @@ tests = describe "Daysheet reference staging" do
         retirementEdit references target [KeepReference] `shouldBe` Right (RetireReferenceRecord target [])
         retirementEdit references target [retire, retire] `shouldBe` Right (RetireReferenceRecord target [RetireReference dependent])
         retirementEdit references target [retire, reassign] `shouldBe` Left InvalidReferenceChange
+        retirementEdit references target [ResolveReference (ReassignReference dependent areaField target), reassign] `shouldBe` Left InvalidReferenceChange
+        retirementEdit references target [reassign, reassign] `shouldBe` retirementEdit references target [reassign]
         retirementEdit references target [ResolveReference (RetireReference (ReferenceKey areaList areaB))] `shouldBe` Left InvalidReferenceChange
         Right edit <- pure (retirementEdit references target [reassign])
         editReferenceData definition owner references edit `shouldSatisfy` either (const False) (const True)
