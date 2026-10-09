@@ -52,8 +52,6 @@ table :: Text -> [Text] -> Block
 table source columns = TableBlock (list source) (map field columns) Nothing []
 fields :: [Text] -> [Block]
 fields = map (FieldBlock . field)
-movementIs :: Text -> Expression
-movementIs key = Binary Equal (here "movement.kind") (Constant (ChoiceLiteral (choice key)))
 
 starterTemplate :: Either N.NumberError (Definition, ReferenceData)
 starterTemplate = do
@@ -78,7 +76,7 @@ starterTemplate = do
         cashMovement incoming = matchingSum "movements"
             (If (sameArea ["movement.area"])
                 (Binary (if incoming then Equal else NotEqual) (item "movement.kind") (Constant (ChoiceLiteral (choice "cash-in"))))
-                (Constant (BooleanLiteral False))) "movement.amount"
+                (Constant (BooleanLiteral False))) "movement.adjustment"
         varianceLabel expression = If (Binary Less expression zeroMoney) (Constant (TextLiteral "Shortage"))
             (If (Binary Greater expression zeroMoney) (Constant (TextLiteral "Surplus")) (Constant (TextLiteral "Balanced")))
         areaMoney key label expression = calculated ("area." <> key) label MoneyType expression
@@ -94,10 +92,12 @@ starterTemplate = do
             , nameFrom "pos.name" "Register" ["pos.reference", "register.name"]
             , nameFrom "pos.area" "Area" ["pos.reference", "register.area", "area.name"]
             , entered "pos.sales" "POS-recorded sales" MoneyType
-            , entered "pos.cash" "POS cash sales" MoneyType
-            , entered "pos.card" "POS card including surcharge" MoneyType
-            , calculated "pos.expectedCard" "Expected card sales, rounded per register" MoneyType
+            , entered "pos.cash" "Impos cash Payment Summary" MoneyType
+            , entered "pos.card" "Integrated EFTPOS including surcharge, excluding cashout" MoneyType
+            , calculated "pos.integrated" "Integrated card sales, rounded per register" MoneyType
                 (Unary RoundCents (Binary Divide (here "pos.card") (add (Constant (DecimalLiteral one)) (Unary PercentageRatio (root "surcharge")))))
+            , entered "pos.roaming" "POS roaming sales excluding surcharge" MoneyType
+            , calculated "pos.expectedCard" "POS card sales total" MoneyType (add (here "pos.integrated") (here "pos.roaming"))
             , entered "pos.kitchen" "Kitchen sales" MoneyType
             , entered "pos.tickets" "Ticket sales" MoneyType
             , calculated "pos.bar" "Bar sales" MoneyType (minus (minus (here "pos.sales") (here "pos.kitchen")) (here "pos.tickets"))
@@ -107,26 +107,23 @@ starterTemplate = do
             [ entered "movement.label" "Label / reason" TextType
             , entered "movement.kind" "Movement type" (ChoiceType
                 [Choice (choice "cash-in") "Cash-in", Choice (choice "cash-out") "Cash-out / expense", Choice (choice "customer-cashout") "Customer cashout"])
-            , entered "movement.enteredArea" "Area (cash-in / expenses)" (refType "areas")
-            , entered "movement.terminal" "Terminal (customer cashout)" (refType "terminals")
-            , calculated "movement.area" "Effective area" (refType "areas")
-                (If (movementIs "customer-cashout") (readAt Current ["movement.terminal", "terminal.area"]) (here "movement.enteredArea"))
+            , entered "movement.enteredArea" "Area" (refType "areas")
+            , entered "movement.recorded" "Already included in Impos cash Payment Summary?" BooleanType
+            , calculated "movement.area" "Effective area" (refType "areas") (here "movement.enteredArea")
             , nameFrom "movement.areaName" "Area" ["movement.area", "area.name"]
             , entered "movement.amount" "Amount" MoneyType
+            , calculated "movement.adjustment" "Additional cash adjustment" MoneyType
+                (If (here "movement.recorded") zeroMoney (here "movement.amount"))
             , calculated "movement.nonnegative" "Amount is non-negative" BooleanType (Binary GreaterOrEqual (here "movement.amount") zeroMoney)
             ]
         terminalFields =
             [ reference "receipt.reference" "terminals"
             , nameFrom "receipt.name" "Terminal" ["receipt.reference", "terminal.name"]
             , nameFrom "receipt.area" "Area" ["receipt.reference", "terminal.area", "area.name"]
-            , entered "receipt.total" "Terminal receipt total" MoneyType
+            , entered "receipt.total" "Roaming terminal sales excluding surcharge" MoneyType
             , entered "receipt.surcharge" "Actual reported surcharge" MoneyType
-            , calculated "receipt.cashout" "Linked customer cashout" MoneyType
-                (matchingSum "movements"
-                    (If (Binary Equal (item "movement.kind") (Constant (ChoiceLiteral (choice "customer-cashout"))))
-                        (Binary Equal (item "movement.terminal") (here "receipt.reference")) (Constant (BooleanLiteral False))) "movement.amount")
-            , calculated "receipt.actualCard" "Actual terminal card sales" MoneyType
-                (minus (minus (here "receipt.total") (here "receipt.surcharge")) (here "receipt.cashout"))
+            , calculated "receipt.gross" "Roaming gross receipts including surcharge" MoneyType (add (here "receipt.total") (here "receipt.surcharge"))
+            , calculated "receipt.actualCard" "Actual roaming card sales" MoneyType (here "receipt.total")
             ]
         countFields =
             [ reference "area.reference" "areas", nameFrom "area.label" "Area" ["area.reference", "area.name"] ]
@@ -134,16 +131,18 @@ starterTemplate = do
             [ areaMoney "notes" "Notes total" (sumAmounts [here (noteKey "area.noteAmount" denomination) | denomination <- denominations])
             , entered "area.coins" "Coins total (after float removal)" MoneyType
             , areaMoney "counted" "Counted cash (after float removal)" (add (here "area.notes") (here "area.coins"))
-            , areaMoney "posCash" "POS cash sales" (posSum "pos.cash")
+            , areaMoney "posCash" "Impos cash Payment Summary" (posSum "pos.cash")
             , areaMoney "cashIn" "Cash-in" (cashMovement True)
             , areaMoney "cashOut" "Cash-out including customer cashout" (cashMovement False)
             , areaMoney "expectedCash" "Expected counted cash" (minus (add (here "area.posCash") (here "area.cashIn")) (here "area.cashOut"))
             , areaMoney "cashVariance" "Cash variance — actual minus expected" (minus (here "area.counted") (here "area.expectedCash"))
             , calculated "area.cashDirection" "Cash result" TextType (varianceLabel (here "area.cashVariance"))
             , calculated "area.withinTolerance" "Cash variance within tolerance" BooleanType (Binary LessOrEqual (Unary Absolute (here "area.cashVariance")) (root "tolerance"))
-            , areaMoney "expectedCard" "Expected POS card sales" (posSum "pos.expectedCard")
-            , areaMoney "actualCard" "Actual terminal card sales" (matchingSum "receipts" (sameArea ["receipt.reference", "terminal.area"]) "receipt.actualCard")
-            , areaMoney "cardVariance" "Card variance — actual minus expected" (minus (here "area.actualCard") (here "area.expectedCard"))
+            , areaMoney "integrated" "Integrated card sales from POS (not independently reconciled)" (posSum "pos.integrated")
+            , areaMoney "expectedCard" "Expected roaming card sales" (posSum "pos.roaming")
+            , areaMoney "actualCard" "Actual roaming card sales" (matchingSum "receipts" (sameArea ["receipt.reference", "terminal.area"]) "receipt.actualCard")
+            , areaMoney "combinedCard" "Card takings: integrated POS plus roaming actual" (add (here "area.integrated") (here "area.actualCard"))
+            , areaMoney "cardVariance" "Roaming card variance — actual minus expected" (minus (here "area.actualCard") (here "area.expectedCard"))
             , calculated "area.cardDirection" "Card result" TextType (varianceLabel (here "area.cardVariance"))
             , areaMoney "sales" "POS-recorded sales" (posSum "pos.sales")
             , areaMoney "kitchen" "Kitchen sales" (posSum "pos.kitchen")
@@ -161,8 +160,8 @@ starterTemplate = do
                 [entered "security.guard" "Guard label" TextType, entered "security.finish" "Finish time" OperationalTimeType]
             ]
         financialSummary = section "financial-summary" "Financial summary"
-            (fields ["sales", "kitchen", "tickets", "bar", "counted", "expectedCash", "cashVariance", "cashDirection", "actualCard", "expectedCard", "cardVariance", "cardDirection", "average"] <>
-                [ table "counts" ["area.label", "area.counted", "area.expectedCash", "area.cashVariance", "area.cashDirection", "area.actualCard", "area.expectedCard", "area.cardVariance", "area.cardDirection"]
+            (fields ["sales", "kitchen", "tickets", "bar", "counted", "expectedCash", "cashVariance", "cashDirection", "integrated", "actualCard", "expectedCard", "combinedCard", "cardVariance", "cardDirection", "average"] <>
+                [ table "counts" ["area.label", "area.counted", "area.expectedCash", "area.cashVariance", "area.cashDirection", "area.integrated", "area.actualCard", "area.expectedCard", "area.combinedCard", "area.cardVariance", "area.cardDirection"]
                 , RowAdvisoryBlock (list "counts") (Advisory (here "area.withinTolerance") "Within tolerance" "Cash shortage or surplus exceeds the configured tolerance.") ])
         salesBreakdown = section "sales-breakdown" "POS sales breakdown"
             [Instructions "Kitchen and ticket sales are portions of POS-recorded sales; bar is the remainder. Takings and variances do not change recorded sales. Do not add this breakdown to payment totals again."
@@ -173,15 +172,15 @@ starterTemplate = do
             [Instructions "Remove the retained till float before counting. Enter whole note counts and one monetary coin total. Blank means not entered; enter zero only after checking."
             , table "counts" (["area.label"] <> concatMap (\denomination -> [noteKey "area.noteCount" denomination, noteKey "area.noteAmount" denomination]) denominations <> ["area.notes", "area.coins", "area.counted"])]
         movements = section "cash-movements" "Cash in / cash out"
-            [Instructions "Enter positive amounts and a label. Select Area for cash-in/expenses; for Customer cashout select its Terminal, which determines the area. Customer cashout reduces physical cash once and is excluded from that terminal's card sales. Do not enter it again elsewhere. An empty list means none."
-            , table "movements" ["movement.label", "movement.kind", "movement.enteredArea", "movement.terminal", "movement.areaName", "movement.amount"]
+            [Instructions "Enter positive amounts, a label and the area. Explicitly say whether each movement is already included in Impos cash Payment Summary: only additional movements adjust expected cash. Leave the answer blank if unknown; do not guess. Customer cashout is integrated EFTPOS only, assumed already reflected in Impos cash and excluded from the integrated card input. Record it once here if needed, marked already included; never subtract it from roaming sales. An empty list means none."
+            , table "movements" ["movement.label", "movement.kind", "movement.enteredArea", "movement.recorded", "movement.amount", "movement.adjustment"]
             , RowAdvisoryBlock (list "movements") (Advisory (here "movement.nonnegative") "Amount is non-negative" "Use a positive amount and choose the movement type.")]
         registers = section "pos" "POS registers"
-            [Instructions "Use each register's POS-recorded figures. Card figures include surcharge; Bepis removes the preserved rate and rounds each register before summing. Provider field meanings still require source-report validation."
-            , table "pos" ["pos.name", "pos.area", "pos.sales", "pos.cash", "pos.card", "pos.expectedCard", "pos.kitchen", "pos.tickets", "pos.bar", "pos.customers"]]
+            [Instructions "Assumption-based starter, not a verified provider mapping. Copy Impos cash Payment Summary, including movements already recorded in Impos. Integrated EFTPOS is assumed to include surcharge but exclude cashout: remove the preserved rate and round per register. Roaming POS sales exclude surcharge and have no cashout. Integrated figures are POS-sourced, not independently reconciled; only roaming sales are compared with terminal reports. Review and edit the template if your report meanings differ."
+            , table "pos" ["pos.name", "pos.area", "pos.sales", "pos.cash", "pos.card", "pos.integrated", "pos.roaming", "pos.expectedCard", "pos.kitchen", "pos.tickets", "pos.bar", "pos.customers"]]
         receipts = section "receipts" "Terminal Receipts"
-            [Instructions "Enter each terminal's receipt total and actual separately reported surcharge, including explicit zero where checked. Working assumption: the EFTPOS report supplies these inputs without already performing this reconciliation. Confirm actual provider semantics before relying on the template."
-            , table "receipts" ["receipt.name", "receipt.area", "receipt.total", "receipt.surcharge", "receipt.cashout", "receipt.actualCard"]]
+            [Instructions "Separate/roaming terminals only: enter Sales excluding surcharge, and the separately reported surcharge. Sales is already net: do not subtract surcharge again. Roaming terminals do not offer cashout. Surcharge is used only to reconstruct gross receipts; a missing surcharge leaves gross receipts incomplete, not net sales. Integrated card sales come from POS readings, not this checklist."
+            , table "receipts" ["receipt.name", "receipt.area", "receipt.total", "receipt.surcharge", "receipt.gross", "receipt.actualCard"]]
         comments = section "comments" "Comments" (fields ["financialComments", "kitchenComments", "generalComments"])
         bands = section "bands" "Bands" [Instructions "Informational only. Presales and door information do not create daily receipts; enter financial ticket sales separately in POS figures.", table "bands" ["band.name", "band.presales", "band.door"]]
         noise = section "noise" "dB readings" [Instructions "Record observations at any times. Readings do not establish noise compliance and generate no compliance judgments or alerts.", TableBlock (list "noise") (map field ["noise.time", "noise.reading", "noise.note"]) Nothing [(field "noise.time", Ascending)]]
@@ -192,7 +191,8 @@ starterTemplate = do
             <> [calculated key label MoneyType expression | (key, label, expression) <-
                 [("sales", "POS-recorded sales", sumList "pos" "pos.sales"), ("kitchen", "Kitchen sales", sumList "pos" "pos.kitchen"), ("tickets", "Ticket sales", sumList "pos" "pos.tickets"), ("bar", "Bar sales", sumList "pos" "pos.bar")
                 , ("counted", "Counted cash", areaSum "area.counted"), ("expectedCash", "Expected cash", areaSum "area.expectedCash"), ("cashVariance", "Cash variance — actual minus expected", areaSum "area.cashVariance")
-                , ("actualCard", "Actual card sales", areaSum "area.actualCard"), ("expectedCard", "Expected card sales", areaSum "area.expectedCard"), ("cardVariance", "Card variance — actual minus expected", areaSum "area.cardVariance")
+                , ("integrated", "Integrated card sales from POS (not independently reconciled)", areaSum "area.integrated"), ("combinedCard", "Card takings: integrated POS plus roaming actual", areaSum "area.combinedCard")
+                , ("actualCard", "Actual roaming card sales", areaSum "area.actualCard"), ("expectedCard", "Expected roaming card sales", areaSum "area.expectedCard"), ("cardVariance", "Roaming card variance — actual minus expected", areaSum "area.cardVariance")
                 , ("average", "Average spend", Binary Divide (root "sales") (sumList "pos" "pos.customers"))]]
             <> [calculated "cashDirection" "Cash result" TextType (varianceLabel (root "cashVariance")), calculated "cardDirection" "Card result" TextType (varianceLabel (root "cardVariance"))]
             <> [entered "financialComments" "Financial comments" TextType, entered "kitchenComments" "Kitchen comments" TextType, entered "generalComments" "General comments" TextType])

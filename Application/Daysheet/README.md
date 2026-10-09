@@ -69,8 +69,9 @@ location. No expression document or evaluator is sent to the browser.
 
 `Starter.starterTemplate` is an ordinary editable definition/reference document:
 example Areas, three POS registers and eight Terminals; per-area float-excluded
-note/coin counts; one preserved rate; linked customer cashout; independently
-reconciled POS/terminal card totals; POS sales breakdown; operational notes and
+note/coin counts; one preserved rate; explicit already-recorded cash movements;
+POS-sourced integrated card sales and independently reconciled net roaming sales;
+POS sales breakdown; operational notes and
 two selected report layouts. It adds no evaluator operations, fixed venue names,
 provider parser, payroll coupling or workbook dependency. Every calculation part
 uses the public edit algebra; advisories select ordinary calculated boolean
@@ -80,8 +81,10 @@ The designer's explicit **Start with editable starter template** action is offer
 only for pristine configuration. Normal locked revision checks reject competing
 setup and prevent replacing staged/published work. It stages rather than publishes;
 admins then use the normal reference, calculation and layout controls. Later
-publication/retirement affects only new captures. The provider-input assumptions
-are visible in the template; actual POS/EFTPOS reconciliation remains #641.
+publication/retirement affects only new captures. Operator-confirmed inputs and
+remaining defaults are distinguished in the product spec's Starter Provenance
+And Limits. The template visibly disclaims verified provider mapping; synthetic
+fixtures establish its formulas, not a provider contract.
 `Test/DaysheetStarterSpec.hs` evaluates the supplied graph against worked cases;
 `e2e/daysheet-starter.spec.ts` exercises pristine installation, public reference
 edits, publication, responsive entry/preview and historical isolation. The fixture

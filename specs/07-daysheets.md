@@ -317,32 +317,35 @@ surcharges, and labelled cash-in/out entries.
   and none. Dependent totals/variances remain visibly incomplete, including in
   reports. An empty Cash in / cash out list means none and contributes zero
   without a confirmation step.
-- **Cash in / cash out:** that is the user-facing section name. Entries belong
-  to an area and represent cash outside ordinary POS cash sales and the retained
-  float. Cash-in increases expected counted cash; cash-out reduces it. Neither
-  changes sales totals.
+- **Cash in / cash out:** entries belong to an area and explicitly identify
+  whether they are already included in Impos cash Payment Summary. Start with
+  that payment total; add only unrecorded cash-in and subtract only unrecorded
+  cash-out. Recorded movements contribute no further adjustment. An unknown
+  recording status leaves dependent cash reconciliation unavailable. Neither
+  kind changes sales totals.
 - **Cash count:** enter whole-number counts for each note denomination; Bepis
   calculates each denomination's monetary amount. Enter coins as one monetary
   total. Sum note amounts and the coin total to obtain counted cash. These
   entries represent cash after removing the retained till float; entry guidance
   must say so. No dedicated float or deposit workflow is supplied.
-- **Customer cashout:** use the same cash-out list, with a customer-cashout
-  distinction and terminal link. The matching money is already in the terminal
-  receipt. Reduce expected physical cash once and exclude that amount from card
-  sales. Do not enter a second standalone cashout amount.
-- **Actual terminal card sales:** receipt total less separately reported surcharge
-  less linked customer cashout. Use the terminal's actual reported surcharge,
-  not the percentage calculation used for POS totals. For starter design, assume
-  the EFTPOS report supplies input figures without performing the reconciliation
-  calculations itself; Bepis owns those calculations. This is an operator-supplied
-  working assumption, not verification of a provider's report semantics.
-- **Expected POS card sales:** remove the configured surcharge percentage from
-  each register's surcharge-inclusive card figure. Round each result to cents,
-  with exact half-cent ties away from zero, then sum into area/venue totals.
-  Preserve the rate on the Daysheet.
-- **Independent reconciliation:** terminal figures provide actual card takings;
-  POS figures provide expected card takings. Never substitute POS figures on the
-  actual side or add both sides together as separate sales.
+- **Customer cashout:** integrated EFTPOS only; roaming terminals have none.
+  Assume integrated cashout is already reflected in cash Payment Summary and
+  excluded from the integrated card input. If retained as a cash-movement note,
+  mark it already included; only an explicitly unrecorded movement adjusts cash.
+  It is not linked to a roaming receipt or subtracted from roaming sales.
+- **Roaming terminal sales:** enter net Sales excluding surcharge. Retain the
+  actual separately reported surcharge only to reconstruct gross receipts:
+  gross = net Sales + surcharge. Missing surcharge makes gross unavailable but
+  does not make entered net sales unavailable. Never subtract surcharge twice.
+- **Integrated POS card sales:** assume the input includes surcharge but excludes
+  cashout. Divide each register's amount by (1 + preserved surcharge rate), round
+  each to cents with half-cent ties away from zero, then sum. The initial rate is
+  1.6%. Label this component POS-sourced and not independently reconciled.
+- **Independent roaming reconciliation:** compare POS roaming sales (excluding
+  surcharge) against net roaming terminal sales. Do not substitute POS for actual
+  roaming input. Combined card takings = integrated POS net + actual roaming net;
+  do not add the expected roaming figure again. Integrated POS is not evidence
+  of an independent terminal match.
 - **Variance:** actual minus expected. Positive means surplus; negative means
   shortage. Show explicit Surplus or Shortage labels, not just a signed number.
 - **Sales breakdown:** POS-recorded sales drive the headline and area breakdown.
@@ -350,6 +353,35 @@ surcharges, and labelled cash-in/out entries.
   remainder after subtracting both. Actual takings and variances are separate.
   A shortage does not reduce recorded sales. Do not add the breakdown to payment
   totals a second time.
+
+### Starter Provenance And Limits
+
+The operator approved an assumption-based first template in #641, superseding
+mandatory verified-provider samples as its release gate. This changes starter
+content only, not generic evaluator semantics. Existing publications and captured
+Daysheets retain their prior rules; the corrected starter stages only in pristine
+configuration.
+
+Operator confirmations: Impos is the POS; Cash Total comes from Cashier Report
+Payment Summary; EFTPOS is integrated and ROAMING EFTPOS is separate; roaming
+sales exclude surcharge and roaming offers no cashout; terminal Sales is already
+net of surcharge; customer cashout is integrated only. Whether staff record cash
+expenses in Impos varies or is unknown, hence the explicit per-movement status.
+
+The workbook supports the two payment lanes, actual-minus-expected variance and
+1.6% conversion. It is context, not a test dependency or provider contract.
+[Impos Sales vs Payments](https://knowledge.impos.com.au/hc/en-us/articles/115000739667-sales-vs-payments)
+distinguishes sales from payment totals and says Payment Summary includes cash
+in/out and surcharges. This does not independently verify a venue's exact report.
+
+Remaining defaults are explicit assumptions: integrated input excludes cashout;
+recorded integrated cashout is already reflected in cash Payment Summary; one
+rate applies across integrated payments; float is removed before counting; kitchen
+and ticket sales are non-overlapping portions of POS sales. Other payment methods,
+refund/tip-specific workflows and provider exceptions require ordinary template
+customization, not silent inference. Synthetic acceptance fixtures prove these
+rules, not independent provider semantics. Show the limitation in entry and
+financial reporting; no further provider identity is required for this starter.
 
 ### Operational Information
 
@@ -377,18 +409,21 @@ shortage labels.
 | Case | Saved input | Required result |
 | --- | --- | --- |
 | Note counts and coins | Three twenty-dollar notes; other note counts explicitly 0; coins 7.50, all after float removal | Notes 60; counted cash 67.50 |
-| Cash expense | POS cash 500; cash-in 0; cash-out 50; counted cash 450 after float removal | Expected cash 450; no shortage; POS cash sales remain 500 |
-| Extra cash | POS cash 500; cash-in 20; cash-out 0; counted cash 520 | Expected cash 520; no surplus; POS cash sales remain 500 |
+| Unrecorded cash expense | Impos cash 500; cash-out 50 marked not already included; counted cash 450 | Expected cash 450; no shortage; POS sales unchanged |
+| Recorded cash expense | Impos cash 450 already reflects expense 50; movement marked included; counted cash 450 | Expected cash 450, not 400 |
+| Unknown movement status | Cash-out 50; already-included answer blank | Expected cash unavailable; no assumed deduction |
+| Extra cash | Impos cash 500; cash-in 20 marked not already included; counted cash 520 | Expected cash 520; no surplus; POS sales unchanged |
 | Shortage sign | Expected cash 500; counted cash 490 | Variance -10, labelled Shortage |
 | Surplus sign | Expected cash 500; counted cash 510 | Variance +10, labelled Surplus |
-| Customer cashout once | POS cash 500; one linked customer cashout 50; counted cash 450; terminal receipt 253.20; reported surcharge 3.20 | Expected cash 450; terminal sales 200; the same 50 is neither a sale nor a second cash-out entry |
-| Independent card comparison | POS card figure 203.20 at 1.6%; terminal receipt 253.20, surcharge 3.20, linked cashout 50 | Expected and actual card sales both 200; combined sales are not 400 |
+| Customer cashout once | Impos cash 450 already reflects integrated cashout 50; movement marked included; counted cash 450; integrated EFTPOS 203.20 excludes cashout | Expected cash 450; integrated net 200; no second deduction or roaming cashout |
+| Independent roaming comparison | POS roaming 200; terminal net Sales 200; separately reported surcharge 3.20 | Expected and actual roaming sales both 200; gross 203.20; combined roaming is not 400 |
+| Two distinct card lanes | Integrated EFTPOS 203.20 at 1.6%; actual roaming net 200 | Integrated net 200; combined card takings 400, with no claim of independent integrated verification |
 | Round before summing | Two registers each report 0.32 at 1.6% | Each yields rounded sales 0.31; combined sales 0.62, not aggregate-then-round 0.63 |
 | Explicit intermediate rounding | Formula divides AUD 1.00 by 3, then multiplies by 3, then rounds to cents | AUD 1.00, not AUD 0.99 from prematurely rounding the division |
 | Half-cent ties | Rounding operation receives 1.005 or -1.005 | Results 1.01 or -1.01 respectively |
 | Sales breakdown | POS-recorded sales 1,000; kitchen 300; tickets 100; reconciled receipts show a cash shortage of 10 | Headline 1,000; bar 600; shortage 10 shown separately, not headline 990 |
-| Missing surcharge | Terminal receipt 253.20; surcharge blank; linked cashout 50 | Terminal sales unavailable with a reason; not assumed 203.20 |
-| Explicit zero surcharge | Same receipt and cashout, surcharge explicitly 0 | Terminal sales 203.20 |
+| Missing surcharge | Roaming net Sales 200; surcharge blank | Net sales 200; gross receipts unavailable with a reason |
+| Explicit zero surcharge | Roaming net Sales 200; surcharge explicitly 0 | Net sales and gross receipts both 200 |
 | Empty cash-out list | No entries | Cash-out sum 0, no explicit none-confirmation required |
 | Missing count | Average-spend formula has sales but no customer count | Unavailable with a reason, not zero |
 | Zero count | Average-spend formula has customer count 0 | Unavailable with a reason, not division failure or zero average |
@@ -409,7 +444,7 @@ shortage labels.
    changed formula/layout and updates venue reference data. Day A retains its
    captured definition and data, even while still Draft. A newly created Day B
    uses the new configuration. Day A cannot migrate in v1.
-5. The starter's cashout filtering, surcharge conversion, grouped totals, and
+5. The starter's recorded-movement filtering, surcharge conversion, grouped totals, and
    layouts can be authored using the same public builder as a custom venue
    template; no special hidden evaluator is needed.
 6. A worker cannot access the financial form by direct request. A manager can
@@ -475,12 +510,11 @@ to change scope. Resolve each before its dependent implementation or release;
 they do not all block starting the generic builder. New product choices must
 still be brought back for approval. GitHub, not this section, owns task status.
 
-- **Starter inputs and complete equations (starter release validation):** map
-  actual POS report fields to expected cash, card, and kitchen sales; establish
-  whether the source POS figures already include/exclude customer cashout.
-  Define full venue reconciliation equations with representative receipts. Use
-  the approved EFTPOS working assumption to proceed with design; do not present
-  it as verified provider behavior or block generic foundations on report samples.
+- **Starter inputs and equations:** the first template uses the confirmed
+  workflow and explicit defaults in Starter Provenance And Limits above. Validate
+  these equations with synthetic fixtures and entry/preview/Excel evidence. Do
+  not describe those fixtures as verified source reports or claim independent
+  reconciliation for the integrated POS component.
 - **Numeric and operator contract:** enumerate the exact operation/type matrix,
   bounded arithmetic representation and supported rounding operations consistent
   with AUD cent-precision entry and preserved intermediate precision, safe
