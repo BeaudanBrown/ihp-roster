@@ -33,8 +33,12 @@ discard. Saved changes and durable configuration invalidation commit together;
 clean observers refetch while dirty editors retain their input. Navigation from
 daily entry uses its existing pending-edit gate. Venue reference lists expose
 single-cell editors using saved field types, explicit blank clearing and
-retirement controls. Dependent links must be reassigned or explicitly cleared
-before retirement; active reference lists cannot be removed or repurposed first.
+retirement controls. **Resolve dependencies and retire** presents direct and
+indirect dependants with explicit per-link reassignment or per-record retirement
+choices. One revision-bound operation validates and stages the complete result;
+unresolved links, conflicting choices and unrelated changes reject the entire
+operation. No retirement cascade is inferred. Active reference lists cannot be
+removed or repurposed first.
 Obsolete staged values have explicit clear controls. Reference edits and
 retirement remain draft-only until publication.
 

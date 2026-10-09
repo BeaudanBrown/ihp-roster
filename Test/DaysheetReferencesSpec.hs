@@ -5,6 +5,8 @@ import Application.Daysheet.Contract
 import Application.Daysheet.DefinitionCodec
 import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
+import Application.Daysheet.Designer.ReferenceRetirement
+import Application.Helper.NominalText
 import qualified Application.Daysheet.Evaluation as E
 import qualified Data.Map.Strict as Map
 import Data.Either (isLeft)
@@ -54,6 +56,39 @@ tests = describe "Daysheet reference staging" do
         let target = ReferenceKey areaList areaA
         let captured = retireReferences definition owner references target [RetireReference (ReferenceKey terminalList terminal)] >>= captureReferences definition owner
         fmap (Map.size . Map.findWithDefault Map.empty terminalList . E.savedRows) captured `shouldBe` Right 0
+    it "round-trips bounded opaque retirement choices and rejects malformed requests" do
+        let choices = [KeepReference, ResolveReference (RetireReference (ReferenceKey terminalList terminal)), ResolveReference (ReassignReference (ReferenceKey terminalList terminal) areaField (ReferenceKey areaList areaB))]
+        mapM_ (\choice -> parseNominalText (renderNominalText choice) `shouldBe` Right choice) choices
+        mapM_ (\raw -> parseNominalText @ReferenceResolution raw `shouldSatisfy` isLeft)
+            ["", "{}", "[\"keep\",\"extra\"]", "[\"retire\",\"invalid\",\"invalid\"]"]
+    it "accepts only explicit dependency resolutions and rejects conflicting or unrelated edits" do
+        let target = ReferenceKey areaList areaA
+            dependent = ReferenceKey terminalList terminal
+            retire = ResolveReference (RetireReference dependent)
+            reassign = ResolveReference (ReassignReference dependent areaField (ReferenceKey areaList areaB))
+        retirementEdit references target [KeepReference] `shouldBe` Right (RetireReferenceRecord target [])
+        retirementEdit references target [retire, retire] `shouldBe` Right (RetireReferenceRecord target [RetireReference dependent])
+        retirementEdit references target [retire, reassign] `shouldBe` Left InvalidReferenceChange
+        retirementEdit references target [ResolveReference (RetireReference (ReferenceKey areaList areaB))] `shouldBe` Left InvalidReferenceChange
+        Right edit <- pure (retirementEdit references target [reassign])
+        editReferenceData definition owner references edit `shouldSatisfy` either (const False) (const True)
+    it "lists indirect dependants without implicitly cascading their retirement" do
+        let extraList = ListId (UUID.fromWords 0 0 0 3)
+            extraRow = E.RowId (UUID.fromWords 0 0 0 4)
+            extraField = FieldId (UUID.fromWords 0 0 0 5)
+            target = ReferenceKey areaList areaA
+            dependent = ReferenceKey terminalList terminal
+            indirect = ReferenceKey extraList extraRow
+            ReferenceData lists = references
+            expanded = ReferenceData (lists <> [ReferenceList extraList [ReferenceRecord extraRow False [(extraField, ReferenceLink dependent)]]])
+            expandedDefinition = definition { recordLists = recordLists definition <> [RecordList extraList "Indirect" VenueReference [Field extraField "Terminal" (ReferenceType terminalList) Entered]] }
+        retirementDependants expanded target `shouldBe` [Dependency dependent areaField, Dependency indirect extraField]
+        Right incomplete <- pure (retirementEdit expanded target [ResolveReference (RetireReference dependent)])
+        editReferenceData expandedDefinition owner expanded incomplete `shouldSatisfy` isLeft
+        Right complete <- pure (retirementEdit expanded target (map (ResolveReference . RetireReference) [dependent, indirect]))
+        editReferenceData expandedDefinition owner expanded complete `shouldSatisfy` either (const False) (const True)
+        let cycle = ReferenceData [ReferenceList areaList [ReferenceRecord areaA False [(areaField, ReferenceLink dependent)]], ReferenceList terminalList [ReferenceRecord terminal False [(areaField, ReferenceLink target)]]]
+        retirementDependants cycle target `shouldBe` [Dependency dependent areaField]
     it "keeps incompatible staged values editable but forbids their publication" do
         let changed = definition { recordLists = [RecordList areaList "Areas" VenueReference [], RecordList terminalList "Terminals" VenueReference [Field areaField "Area text" TextType Entered]] }
         (encodeDefinition changed >>= decodeDefinition) `shouldBe` Right changed

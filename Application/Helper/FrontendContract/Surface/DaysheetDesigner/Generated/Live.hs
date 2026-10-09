@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , designerListEditorLiveFragment
     , designerLiveScope
     , designerReferenceEditorLiveFragment
+    , designerReferenceRetirementLiveFragment
     , designerReportEditorLiveFragment
     , designerSectionEditorLiveFragment
     , matchDesignerBlockEditorLiveFragment
@@ -23,6 +24,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Li
     , matchDesignerListEditorLiveFragment
     , matchDesignerLiveScope
     , matchDesignerReferenceEditorLiveFragment
+    , matchDesignerReferenceRetirementLiveFragment
     , matchDesignerReportEditorLiveFragment
     , matchDesignerSectionEditorLiveFragment
     ) where
@@ -217,6 +219,25 @@ matchDesignerReferenceEditorLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
         @Types3.DesignerReferenceEditor
+
+designerReferenceRetirementLiveFragment ::
+    UUID.UUID ->
+    UUID.UUID ->
+    SurfaceFragmentKey
+designerReferenceRetirementLiveFragment definitionListId referenceRecordId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReferenceRetirement
+        ( surfaceField @Types3.DefinitionListId definitionListId
+            &: surfaceField @Types3.ReferenceRecordId referenceRecordId
+            &: noSurfaceFields
+        )
+
+matchDesignerReferenceRetirementLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (UUID.UUID, ()))
+matchDesignerReferenceRetirementLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
+        @Types3.DesignerReferenceRetirement
 
 designerReportEditorLiveFragment ::
     Maybe UUID.UUID ->

@@ -3,6 +3,8 @@ module Web.View.Daysheets.Designer
 
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.Designer.Controls
+import Application.Daysheet.Designer.ReferenceRetirement
+import Application.Helper.NominalText (renderNominalText)
 import Application.Daysheet.Validation (referenceTargets)
 import Data.Either (fromRight)
 import Application.Daysheet.Storage (DesignerState (..))
@@ -30,6 +32,7 @@ data DesignerPage
     | DesignerChoicePage (ActionFields Action.SaveDesignerChoiceActionOperation)
     | DesignerListPage (ActionFields Action.SaveDesignerListActionOperation)
     | DesignerReferencePage (ActionFields Action.SaveDesignerReferenceValueActionOperation)
+    | DesignerReferenceRetirementPage (ActionFields Action.RetireDesignerReferenceActionOperation)
     | DesignerReportPage (ActionFields Action.SaveDesignerReportActionOperation)
     | DesignerSectionPage (ActionFields Action.SaveDesignerSectionActionOperation)
     | DesignerBlockPage (ActionFields Action.SaveDesignerBlockActionOperation)
@@ -71,6 +74,10 @@ designerSurface venue page = mkSurfaceImplFromValues @Surface.DaysheetDesignerSu
             (blockParams fields) (blockParams fields) (pathTo (ShowDesignerBlockBodyAction (tshow <$> surfaceFieldValue @Surface.DefinitionReportId fields)
                 (surfaceFieldValue @Surface.DefinitionSectionId fields) (tshow <$> surfaceFieldValue @Surface.BlockIndex fields)
                 (inputValue (surfaceFieldValue @Surface.ContentKind fields)) (tshow <$> surfaceFieldValue @Surface.DefinitionListId fields))) FrontendSurfaceDirtyForm
+        DesignerReferenceRetirementPage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceRetirement
+            (retirementParams fields) (retirementParams fields)
+            (pathTo (ShowDesignerReferenceRetirementBodyAction (surfaceFieldValue @Surface.DefinitionListId fields)
+                (surfaceFieldValue @Surface.ReferenceRecordId fields))) FrontendSurfaceDirtyForm
         DesignerReferencePage fields -> frontendSurfaceMountedFragmentFor @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceEditor
             (referenceParams fields) (referenceParams fields)
             (pathTo (ShowDesignerReferenceBodyAction (surfaceFieldValue @Surface.DefinitionListId fields)
@@ -93,6 +100,8 @@ renderDesigner venue state page problem = case page of
     DesignerReportPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReportEditor (reportParams fields) impl content
     DesignerSectionPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerSectionEditor (sectionParams fields) impl content
     DesignerBlockPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerBlockEditor (blockParams fields) impl content
+    DesignerReferenceRetirementPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceRetirement
+        (retirementParams fields) impl content
     DesignerReferencePage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerReferenceEditor
         (referenceParams fields) impl content
     DesignerListPage fields -> renderFrontendSurfaceFragmentMount @Surface.DaysheetDesignerSurface @Surface.DesignerListEditor
@@ -149,6 +158,7 @@ renderDesigner venue state page problem = case page of
         DesignerChoicePage fields -> choiceForm fields
         DesignerListPage fields -> listForm fields
         DesignerReferencePage fields -> referenceForm fields
+        DesignerReferenceRetirementPage fields -> retirementForm fields
         DesignerReportPage fields -> Layout.reportForm fields problem
         DesignerSectionPage fields -> Layout.sectionForm fields problem
         DesignerBlockPage fields -> Layout.blockForm definition fields problem
@@ -271,9 +281,13 @@ renderDesigner venue state page problem = case page of
         E.RowId rowId = referenceRecordId row
         key = ReferenceKey (D.listId source) (referenceRecordId row)
         dependencies = retirementDependencies state.designerReferences key
-        fields = Action.retireDesignerReferenceActionFields base revision sourceId rowId
+        fields = Action.retireDesignerReferenceActionFields base revision sourceId rowId Nothing
         retire = renderFrontendSurfaceActionFormWithHiddenFields (Action.retireDesignerReferenceAction fields)
             (defaultFrontendSurfaceActionRoute (pathTo RetireDesignerReferenceAction)) [hsx|<button class="btn btn-sm btn-outline-danger" type="submit" disabled={not (null dependencies)}>Retire reference record</button>|]
+        dependencyNotice = if null dependencies then mempty else [hsx|
+            <p class="form-text">This record has dependent links. Resolve them explicitly in one retirement operation.</p>
+            <a class="btn btn-sm btn-outline-danger" href={ShowDesignerReferenceRetirementAction sourceId rowId}>Resolve dependencies and retire</a>
+        |]
         cell field = let D.FieldId fieldId = D.fieldId field in [hsx|
             <p><a href={ShowDesignerReferenceAction sourceId rowId fieldId}>{D.fieldLabel field}</a>: {maybe "Blank" referenceEntryText (lookup (D.fieldId field) (referenceValues row))}</p>
         |]
@@ -285,12 +299,53 @@ renderDesigner venue state page problem = case page of
         in [hsx|<div role="group" aria-label={referenceRowLabel source row} class="mb-3 text-break"><h4 class="h6">{referenceRowLabel source row}</h4>
             {forEach (filter ((== D.Entered) . D.fieldSource) (D.listFields source)) cell}
             {forEach obsolete clearOld}
-            {if null dependencies then mempty else dependencyNotice dependencies}
+            {dependencyNotice}
             {retire}
         </div>|]
-    dependencyNotice dependencies = [hsx|<p class="form-text">Reassign or explicitly clear these links before retiring this record: {forEach dependencies dependencyLink}</p>|]
-    dependencyLink (Dependency (ReferenceKey (D.ListId source) (E.RowId row)) (D.FieldId field)) =
-        [hsx|<a class="me-2" href={ShowDesignerReferenceAction source row field}>Edit dependent link</a>|]
+    retirementForm fields = let
+        target = ReferenceKey (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)) (E.RowId (surfaceFieldValue @Surface.ReferenceRecordId fields))
+        targetLabel = case target of
+            ReferenceKey listId rowId -> case (find ((== listId) . D.listId) (D.recordLists definition), find ((== rowId) . referenceRecordId) (activeRows state.designerReferences listId)) of
+                (Just source, Just row) -> referenceRowLabel source row
+                _ -> "Selected reference record"
+        dependencies = retirementDependants state.designerReferences target
+        submitted = fromMaybe [] (surfaceFieldValue @Surface.ReferenceResolutions fields)
+        name = surfaceFieldNameFrom @Surface.ReferenceResolutions fields
+        control dependency@(Dependency sourceKey@(ReferenceKey sourceId@(D.ListId sourceUuid) rowId@(E.RowId rowUuid)) fieldId@(D.FieldId fieldUuid)) = let
+            source = find ((== sourceId) . D.listId) (D.recordLists definition)
+            row = find ((== rowId) . referenceRecordId) (activeRows state.designerReferences sourceId)
+            label = case (source, row) of
+                (Just list, Just record) -> referenceRowLabel list record
+                _ -> tshow rowUuid
+            fieldLabel = fromMaybe (tshow fieldUuid) (D.fieldLabel <$> (source >>= find ((== fieldId) . D.fieldId) . D.listFields))
+            linkedList = case row >>= lookup fieldId . referenceValues of
+                Just (ReferenceLink (ReferenceKey key _)) -> Just key
+                _ -> Nothing
+            replacements = [(ResolveReference (ReassignReference sourceKey fieldId key), "Reassign to " <> maybe (tshow (referenceRecordId replacement)) (\list -> referenceRowLabel list replacement) (find ((== listId) . D.listId) (D.recordLists definition)))
+                | listId <- maybeToList linkedList, replacement <- activeRows state.designerReferences listId
+                , let key = ReferenceKey listId (referenceRecordId replacement), key /= target]
+            applies KeepReference = False
+            applies (ResolveReference (RetireReference key)) = key == sourceKey
+            applies (ResolveReference (ReassignReference key field _)) = Dependency key field == dependency
+            selected = fromMaybe KeepReference (find applies submitted)
+            choices = (KeepReference, "Keep this link unchanged") : (ResolveReference (RetireReference sourceKey), "Retire this dependent record") : replacements
+            retained = if any ((== selected) . fst) choices then [] else [(selected, "Previous choice — review against current references")]
+            inputId = "retirement-" <> tshow sourceUuid <> "-" <> tshow rowUuid <> "-" <> tshow fieldUuid
+            option (choice, text) = [hsx|<option value={renderNominalText choice} selected={choice == selected}>{text}</option>|]
+            in [hsx|<div class="mb-3"><label class="form-label" for={inputId}>{label}: {fieldLabel}</label>
+                <select class="form-select" id={inputId} name={name} aria-invalid={invalidValue}>{forEach (retained <> choices) option}</select></div>|]
+        in renderFrontendSurfaceActionForm (Action.retireDesignerReferenceAction fields) (defaultFrontendSurfaceActionRoute (pathTo RetireDesignerReferenceAction)) [hsx|
+            <h2 class="h4">Retire {targetLabel}</h2>
+            <p>Choose how to resolve each affected link. Indirect dependants are included in case you retire their linked record. Nothing changes until this entire operation is valid.</p>
+            <p>Retiring a dependent record retires that whole record; leave its other choices unchanged. Do not also reassign it. Existing Daysheets retain their captured records.</p>
+            {hidden (surfaceFieldNameFrom @Surface.ExpectedBase fields) (tshow (surfaceFieldValue @Surface.ExpectedBase fields))}
+            {hidden (surfaceFieldNameFrom @Surface.ExpectedDraft fields) (maybe "" tshow (surfaceFieldValue @Surface.ExpectedDraft fields))}
+            {hidden (surfaceFieldNameFrom @Surface.DefinitionListId fields) (tshow (surfaceFieldValue @Surface.DefinitionListId fields))}
+            {hidden (surfaceFieldNameFrom @Surface.ReferenceRecordId fields) (tshow (surfaceFieldValue @Surface.ReferenceRecordId fields))}
+            {forEach dependencies control}
+            <button class="btn btn-danger" type="submit">Retire with these resolutions</button>
+            <a class="btn btn-outline-secondary" href={DaysheetDesignerAction}>Cancel</a>
+        |]
     referenceForm fields = let
         source = D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)
         field = D.FieldId (surfaceFieldValue @Surface.DefinitionFieldId fields)
@@ -389,6 +444,10 @@ blockParams fields = surfaceOptionalField @Surface.DefinitionReportId (surfaceFi
     &: surfaceOptionalField @Surface.BlockIndex (surfaceFieldValue @Surface.BlockIndex fields)
     &: surfaceField @Surface.ContentKind (surfaceFieldValue @Surface.ContentKind fields)
     &: surfaceOptionalField @Surface.DefinitionListId (surfaceFieldValue @Surface.DefinitionListId fields) &: noSurfaceFields
+
+retirementParams :: ActionFields Action.RetireDesignerReferenceActionOperation -> SurfaceFields Surface.ReferenceRetirementParams
+retirementParams fields = surfaceField @Surface.DefinitionListId (surfaceFieldValue @Surface.DefinitionListId fields)
+    &: surfaceField @Surface.ReferenceRecordId (surfaceFieldValue @Surface.ReferenceRecordId fields) &: noSurfaceFields
 
 referenceParams :: ActionFields Action.SaveDesignerReferenceValueActionOperation -> SurfaceFields Surface.ReferenceEditorParams
 referenceParams fields = surfaceField @Surface.DefinitionListId (surfaceFieldValue @Surface.DefinitionListId fields)

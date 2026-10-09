@@ -7,6 +7,7 @@ import qualified Web.Daysheets.CalculationEditing as CalculationEditing
 import Application.Daysheet.Designer.Controls
 import Application.Daysheet.Designer.ReferenceEntry (parseReferenceEntry)
 import qualified Application.Daysheet.Evaluation as E
+import Application.Daysheet.Designer.ReferenceRetirement (retirementEdit)
 import Application.Daysheet.References
 import qualified Application.Daysheet.References as References (referenceRecordId)
 import qualified Application.Daysheet.Designer.Mutations as Mutations
@@ -55,6 +56,9 @@ instance Controller DaysheetDesignerController where
     action current@ShowDesignerChoiceBodyAction { choiceFieldId, definitionChoiceId } = runBepis current BepisFragmentAction (showChoice True choiceFieldId definitionChoiceId)
     action current@ShowDesignerListAction { definitionListId } = runBepis current BepisPageAction (showList False definitionListId)
     action current@ShowDesignerListBodyAction { definitionListId } = runBepis current BepisFragmentAction (showList True definitionListId)
+
+    action current@ShowDesignerReferenceRetirementAction { referenceSourceId, referenceRecordId } = runBepis current BepisPageAction (showRetirement False referenceSourceId referenceRecordId)
+    action current@ShowDesignerReferenceRetirementBodyAction { referenceSourceId, referenceRecordId } = runBepis current BepisFragmentAction (showRetirement True referenceSourceId referenceRecordId)
 
     action current@ShowDesignerReferenceAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisPageAction (showReference False referenceSourceId referenceRecordId referenceFieldId)
     action current@ShowDesignerReferenceBodyAction { referenceSourceId, referenceRecordId, referenceFieldId } = runBepis current BepisFragmentAction (showReference True referenceSourceId referenceRecordId referenceFieldId)
@@ -155,10 +159,14 @@ instance Controller DaysheetDesignerController where
         member <- author
         state <- loadState member
         fields <- either (deny status400 . surfaceRequestFieldErrorsMessage) pure Action.parseRetireDesignerReferenceActionParams
-        result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
-            (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields)
-            (RetireReferenceRecord (ReferenceKey (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)) (E.RowId (surfaceFieldValue @Surface.ReferenceRecordId fields))) [])
-        finish member state DesignerIndexPage result
+        let key = ReferenceKey (D.ListId (surfaceFieldValue @Surface.DefinitionListId fields)) (E.RowId (surfaceFieldValue @Surface.ReferenceRecordId fields))
+            page = DesignerReferenceRetirementPage fields
+        case retirementEdit state.designerReferences key (fromMaybe [] (surfaceFieldValue @Surface.ReferenceResolutions fields)) of
+            Left _ -> failurePage member state page "Resolve only the listed dependencies. Retire or reassign a dependent record, not both."
+            Right change -> do
+                result <- Mutations.editReferences member (toInteger (surfaceFieldValue @Surface.ExpectedBase fields))
+                    (toInteger <$> surfaceFieldValue @Surface.ExpectedDraft fields) change
+                finish member state page result
 
     action current@SaveDesignerReferenceValueAction = runBepis current BepisMutationAction do
         ensureWrite
@@ -480,6 +488,19 @@ showBlock fragment rawReport section rawIndex rawKind rawSource = do
     previous <- traverse (either (deny status404) pure . (`Layout.blockAt` blocks)) index
     let fields = Layout.blockFormFields state report section index kind source previous
     display fragment member state (DesignerBlockPage fields) Nothing
+
+showRetirement :: DesignerRequest => Bool -> UUID -> UUID -> IO ResponseReceived
+showRetirement fragment sourceId rowId = do
+    ensureRead
+    member <- author
+    state <- loadState member
+    source <- findList state.designerDefinition (D.ListId sourceId)
+    unless (D.listMode source == D.VenueReference) (deny status404 "This is not a venue reference list.")
+    let ReferenceData lists = state.designerReferences
+    unless (any (\list -> referenceListId list == D.ListId sourceId && any (\row -> References.referenceRecordId row == E.RowId rowId && not (referenceRetired row)) (referenceRecords list)) lists)
+        (deny status404 "This reference record is no longer active.")
+    let fields = Action.retireDesignerReferenceActionFields (fromInteger state.designerBaseRevision) (fromInteger <$> state.designerDraftRevision) sourceId rowId Nothing
+    display fragment member state (DesignerReferenceRetirementPage fields) Nothing
 
 showReference :: DesignerRequest => Bool -> UUID -> UUID -> UUID -> IO ResponseReceived
 showReference fragment sourceId rowId fieldId = do

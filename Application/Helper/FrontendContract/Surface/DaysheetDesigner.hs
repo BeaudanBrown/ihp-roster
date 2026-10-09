@@ -4,6 +4,7 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner where
 
 import qualified Application.Daysheet.Designer.Controls as Controls
 import qualified Application.Daysheet.Designer as Designer
+import Application.Daysheet.Designer.ReferenceRetirement (ReferenceResolution)
 import Application.Helper.FrontendContract.Surface.DSL
 
 data DaysheetDesigner
@@ -24,6 +25,9 @@ data DesignerListEditor
 data DesignerListEditorTarget
 data DesignerReferenceEditor
 data DesignerReferenceEditorTarget
+data DesignerReferenceRetirement
+data DesignerReferenceRetirementTarget
+data ReferenceResolutions
 data ReferenceRecordId
 data EnteredValue
 data AddDesignerReference
@@ -94,6 +98,7 @@ type FieldEditorParams = '[OptionalField DefinitionFieldId 'WireUUID, OptionalFi
 type ChoiceEditorParams = '[Field DefinitionFieldId 'WireUUID, OptionalField DefinitionChoiceId 'WireUUID]
 type ListEditorParams = '[OptionalField DefinitionListId 'WireUUID]
 type ReferenceEditorParams = '[Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID, Field DefinitionFieldId 'WireUUID]
+type ReferenceRetirementParams = '[Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID]
 type ReportEditorParams = '[OptionalField DefinitionReportId 'WireUUID]
 type SectionEditorParams = '[OptionalField DefinitionReportId 'WireUUID, OptionalField DefinitionSectionId 'WireUUID]
 type BlockEditorParams = '[OptionalField DefinitionReportId 'WireUUID, Field DefinitionSectionId 'WireUUID, OptionalField BlockIndex 'WireInt, Field ContentKind ('WireClosed Controls.BlockKind), OptionalField DefinitionListId 'WireUUID]
@@ -117,6 +122,9 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerReferenceEditor ReferenceEditorParams
          '[ 'MountTarget DesignerReferenceEditorTarget ReferenceEditorParams, 'Eager, 'Live
+          , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
+     , Fragment DesignerReferenceRetirement ReferenceRetirementParams
+         '[ 'MountTarget DesignerReferenceRetirementTarget ReferenceRetirementParams, 'Eager, 'Live
           , 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
      , Fragment DesignerReportEditor ReportEditorParams
          '[ 'MountTarget DesignerReportEditorTarget ReportEditorParams, 'Eager, 'Live, 'DependsOn DesignerConfigurationResource '[ 'FromScope VenueId]]
@@ -156,7 +164,8 @@ type DaysheetDesignerSurface = Surface DaysheetDesigner
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID
           , Field ReferenceRecordId 'WireUUID, Field DefinitionFieldId 'WireUUID, OptionalField EnteredValue 'WireText] SaveOptions
      , Action RetireDesignerReference
-         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID] SaveOptions
+         '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, Field DefinitionListId 'WireUUID, Field ReferenceRecordId 'WireUUID
+          , OptionalField ReferenceResolutions ('WireList ('WireDomain ReferenceResolution))] SaveOptions
      , Action SaveDesignerReport
          '[Field ExpectedBase 'WireInt, OptionalField ExpectedDraft 'WireInt, OptionalField DefinitionReportId 'WireUUID, Field Label 'WireText, Field Targets ('WireClosed Controls.ReportTargets)] SaveOptions
      , Action SaveDesignerSection

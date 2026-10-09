@@ -112,6 +112,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerConstantEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerListEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceEditor
+     , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReferenceRetirement
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerReportEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerSectionEditor
      , SurfaceFragmentAdapterHome DaysheetDesignerAdapterFamily Designer.DesignerBlockEditor

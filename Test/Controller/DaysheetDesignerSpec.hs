@@ -5,6 +5,9 @@ import qualified Application.Daysheet.Designer.Calculation as Calculation
 import Application.Daysheet.Designer.Controls (CalculationGroup (..))
 import Application.Daysheet.DefinitionCodec (decodeDefinition)
 import qualified Application.Daysheet.Storage as Storage
+import qualified Application.Daysheet.References as References
+import Application.Daysheet.Designer.ReferenceRetirement
+import Application.Helper.NominalText (renderNominalText)
 import qualified Application.Daysheet.Evaluation as E
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -76,6 +79,47 @@ tests = aroundAll withDatabaseTestContext do
                 query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 1)
                 replacement <- post [("expectedBase", "1")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders replacement) `shouldBe` Nothing
+
+        forM_ [False, True] \enhanced ->
+          it ("resolves dependent reference retirement atomically with retained failures: " <> if enhanced then "enhanced" else "native") $ withContext do
+            withCleanDb do
+                (venue, user, member) <- setup
+                let D.ListId sourceId = Fixture.list 10
+                    E.RowId rowId = Fixture.row 1
+                    target = References.ReferenceKey (Fixture.list 10) (Fixture.row 1)
+                    replacement = References.ReferenceKey (Fixture.list 10) (Fixture.row 3)
+                    dependent = References.ReferenceKey (Fixture.list 50) (Fixture.row 60)
+                    definition = Fixture.definition { D.recordLists = D.recordLists Fixture.definition <> [D.RecordList (Fixture.list 50) "Counters" D.VenueReference [D.Field (Fixture.field 51) "Terminal" (D.ReferenceType (Fixture.list 10)) D.Entered]] }
+                    references = References.ReferenceData
+                        [ References.ReferenceList (Fixture.list 10) [References.ReferenceRecord (Fixture.row n) False [(Fixture.field 9, References.ReferenceScalar (D.TextLiteral ("Terminal " <> tshow n)))] | n <- [1, 3]]
+                        , References.ReferenceList (Fixture.list 50) [References.ReferenceRecord (Fixture.row 60) False [(Fixture.field 51, References.ReferenceLink target)]] ]
+                    choice = renderNominalText (ResolveReference (References.ReassignReference dependent (Fixture.field 51) replacement))
+                    params = [("expectedBase", "0"), ("expectedDraft", "0"), ("definitionListId", cs (tshow sourceId)), ("referenceRecordId", cs (tshow rowId))]
+                    post values = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders (if enhanced then [("HX-Request", "true")] else []) $ callActionWithParams RetireDesignerReferenceAction values
+                Right _ <- Storage.saveDraft member 0 Nothing definition references
+                shown <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams (ShowDesignerReferenceRetirementAction sourceId rowId) []
+                shown `responseStatusShouldBe` status200
+                shown `responseBodyShouldContain` "Retire with these resolutions"
+                shown `responseBodyShouldContain` "referenceResolutions"
+                before <- query @LiveInvalidationEvent |> fetchCount
+                unresolved <- post params
+                lookup "X-Bepis-Form-Saved" (responseHeaders unresolved) `shouldBe` Nothing
+                Right unchanged <- Storage.readDesignerState member
+                unchanged.designerReferences `shouldBe` references
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
+                forged <- post (("referenceResolutions", cs (renderNominalText (ResolveReference (References.RetireReference replacement)))) : params)
+                lookup "X-Bepis-Form-Saved" (responseHeaders forged) `shouldBe` Nothing
+                malformed <- post (("referenceResolutions", "{\"resolution\":[\"unknown\"]}") : params)
+                malformed `responseStatusShouldBe` status400
+                stale <- post (("referenceResolutions", cs choice) : filter ((/= "expectedDraft") . fst) params)
+                lookup "X-Bepis-Form-Saved" (responseHeaders stale) `shouldBe` Nothing
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
+                saved <- post (("referenceResolutions", cs choice) : params)
+                lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
+                Right changed <- Storage.readDesignerState member
+                Right expected <- pure (References.retireReferences definition Fixture.owner references target [References.ReassignReference dependent (Fixture.field 51) replacement])
+                changed.designerReferences `shouldBe` expected
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before + 1)
 
         it "creates typed fields with durable invalidation and requires explicit publication" $ withContext do
             withCleanDb do
@@ -264,7 +308,7 @@ tests = aroundAll withDatabaseTestContext do
                 (venue, user, member) <- setup
                 forM_ [Manager, Worker] \role -> do
                     _ <- member |> set #venueRole role |> updateRecord
-                    forM_ [DaysheetDesignerAction, ShowDesignerIndexBodyAction, ShowDesignerFieldBodyAction Nothing Nothing, ShowDesignerReportBodyAction Nothing, ShowDesignerSectionBodyAction Nothing Nothing, ShowDesignerChoiceBodyAction (UUID.fromWords 0 0 0 1) Nothing, ShowDesignerCalculationBodyAction (UUID.fromWords 0 0 0 1) Nothing "fields" Nothing, ShowDesignerConstantBodyAction (UUID.fromWords 0 0 0 1) Nothing] \action -> do
+                    forM_ [DaysheetDesignerAction, ShowDesignerIndexBodyAction, ShowDesignerReferenceRetirementAction UUID.nil UUID.nil, ShowDesignerReferenceRetirementBodyAction UUID.nil UUID.nil, ShowDesignerFieldBodyAction Nothing Nothing, ShowDesignerReportBodyAction Nothing, ShowDesignerSectionBodyAction Nothing Nothing, ShowDesignerChoiceBodyAction (UUID.fromWords 0 0 0 1) Nothing, ShowDesignerCalculationBodyAction (UUID.fromWords 0 0 0 1) Nothing "fields" Nothing, ShowDesignerConstantBodyAction (UUID.fromWords 0 0 0 1) Nothing] \action -> do
                         response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action []
                         responseStatus response `shouldSatisfy` (`elem` [status302, status303, status403])
                     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
@@ -276,7 +320,7 @@ tests = aroundAll withDatabaseTestContext do
                     report <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                         callActionWithParams SaveDesignerReportAction [("expectedBase", "0"), ("label", "Forged report"), ("targets", "formatted")]
                     responseStatus report `shouldSatisfy` (`elem` [status302, status303, status403])
-                    forM_ [StageDesignerStarterAction, SaveDesignerChoiceAction, RemoveDesignerChoiceAction, MoveDesignerChoiceAction, UseDesignerCalculationPartAction, SaveDesignerConstantAction, MakeDesignerFieldEnteredAction] \action -> do
+                    forM_ [StageDesignerStarterAction, RetireDesignerReferenceAction, SaveDesignerChoiceAction, RemoveDesignerChoiceAction, MoveDesignerChoiceAction, UseDesignerCalculationPartAction, SaveDesignerConstantAction, MakeDesignerFieldEnteredAction] \action -> do
                         choice <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams action
                             [("expectedBase", "0"), ("definitionFieldId", "00000000-0000-0000-0000-000000000001"), ("definitionChoiceId", "00000000-0000-0000-0000-000000000002"), ("label", "Forged option"), ("toPosition", "0"), ("calculationGroup", "values"), ("candidateIndex", "0"), ("enteredValue", "2")]
                         responseStatus choice `shouldSatisfy` (`elem` [status302, status303, status403])

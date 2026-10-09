@@ -99,9 +99,10 @@ module Application.Helper.FrontendContract.Surface.DaysheetDesigner.Generated.Ac
 
 import qualified Application.Daysheet.Designer as Types1
 import qualified Application.Daysheet.Designer.Controls as Types2
+import qualified Application.Daysheet.Designer.ReferenceRetirement as Types3
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Types3
-import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.HaskellAdapter as Types4
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner as Types4
+import qualified Application.Helper.FrontendContract.Surface.DaysheetDesigner.HaskellAdapter as Types5
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface,
@@ -127,12 +128,12 @@ import Network.Wai (Request)
 
 data AddDesignerReferenceActionOperation
 
-type instance ActionSurface AddDesignerReferenceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker AddDesignerReferenceActionOperation = Types3.AddDesignerReference
+type instance ActionSurface AddDesignerReferenceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker AddDesignerReferenceActionOperation = Types4.AddDesignerReference
 type instance ActionFieldSpecs AddDesignerReferenceActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionListId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionListId 'WireUUID
      ]
 
 addDesignerReferenceActionFields ::
@@ -142,9 +143,9 @@ addDesignerReferenceActionFields ::
     ActionFields AddDesignerReferenceActionOperation
 addDesignerReferenceActionFields expectedBase expectedDraft definitionListId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionListId definitionListId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionListId definitionListId
             &: noSurfaceFields
         )
 
@@ -165,12 +166,12 @@ parseAddDesignerReferenceActionParams =
 
 data MakeDesignerFieldEnteredActionOperation
 
-type instance ActionSurface MakeDesignerFieldEnteredActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker MakeDesignerFieldEnteredActionOperation = Types3.MakeDesignerFieldEntered
+type instance ActionSurface MakeDesignerFieldEnteredActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker MakeDesignerFieldEnteredActionOperation = Types4.MakeDesignerFieldEntered
 type instance ActionFieldSpecs MakeDesignerFieldEnteredActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
      ]
 
 makeDesignerFieldEnteredActionFields ::
@@ -180,9 +181,9 @@ makeDesignerFieldEnteredActionFields ::
     ActionFields MakeDesignerFieldEnteredActionOperation
 makeDesignerFieldEnteredActionFields expectedBase expectedDraft definitionFieldId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
             &: noSurfaceFields
         )
 
@@ -203,14 +204,14 @@ parseMakeDesignerFieldEnteredActionParams =
 
 data MoveDesignerChoiceActionOperation
 
-type instance ActionSurface MoveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker MoveDesignerChoiceActionOperation = Types3.MoveDesignerChoice
+type instance ActionSurface MoveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker MoveDesignerChoiceActionOperation = Types4.MoveDesignerChoice
 type instance ActionFieldSpecs MoveDesignerChoiceActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'Field Types3.DefinitionChoiceId 'WireUUID
-     , 'Field Types3.ToPosition 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'Field Types4.DefinitionChoiceId 'WireUUID
+     , 'Field Types4.ToPosition 'WireInt
      ]
 
 moveDesignerChoiceActionFields ::
@@ -222,11 +223,11 @@ moveDesignerChoiceActionFields ::
     ActionFields MoveDesignerChoiceActionOperation
 moveDesignerChoiceActionFields expectedBase expectedDraft definitionFieldId definitionChoiceId toPosition =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceField @Types3.DefinitionChoiceId definitionChoiceId
-            &: surfaceField @Types3.ToPosition toPosition
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceField @Types4.DefinitionChoiceId definitionChoiceId
+            &: surfaceField @Types4.ToPosition toPosition
             &: noSurfaceFields
         )
 
@@ -247,18 +248,18 @@ parseMoveDesignerChoiceActionParams =
 
 data MoveDesignerItemActionOperation
 
-type instance ActionSurface MoveDesignerItemActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker MoveDesignerItemActionOperation = Types3.MoveDesignerItem
+type instance ActionSurface MoveDesignerItemActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker MoveDesignerItemActionOperation = Types4.MoveDesignerItem
 type instance ActionFieldSpecs MoveDesignerItemActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.MoveKind ('WireClosed Types2.DesignerMoveKind)
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'OptionalField Types3.DefinitionSectionId 'WireUUID
-     , 'OptionalField Types3.BlockIndex 'WireInt
-     , 'OptionalField Types3.DefinitionListId 'WireUUID
-     , 'Field Types3.FromPosition 'WireInt
-     , 'Field Types3.ToPosition 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.MoveKind ('WireClosed Types2.DesignerMoveKind)
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'OptionalField Types4.DefinitionSectionId 'WireUUID
+     , 'OptionalField Types4.BlockIndex 'WireInt
+     , 'OptionalField Types4.DefinitionListId 'WireUUID
+     , 'Field Types4.FromPosition 'WireInt
+     , 'Field Types4.ToPosition 'WireInt
      ]
 
 moveDesignerItemActionFields ::
@@ -274,15 +275,15 @@ moveDesignerItemActionFields ::
     ActionFields MoveDesignerItemActionOperation
 moveDesignerItemActionFields expectedBase expectedDraft moveKind definitionReportId definitionSectionId blockIndex definitionListId fromPosition toPosition =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.MoveKind moveKind
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceOptionalField @Types3.DefinitionSectionId definitionSectionId
-            &: surfaceOptionalField @Types3.BlockIndex blockIndex
-            &: surfaceOptionalField @Types3.DefinitionListId definitionListId
-            &: surfaceField @Types3.FromPosition fromPosition
-            &: surfaceField @Types3.ToPosition toPosition
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.MoveKind moveKind
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceOptionalField @Types4.DefinitionSectionId definitionSectionId
+            &: surfaceOptionalField @Types4.BlockIndex blockIndex
+            &: surfaceOptionalField @Types4.DefinitionListId definitionListId
+            &: surfaceField @Types4.FromPosition fromPosition
+            &: surfaceField @Types4.ToPosition toPosition
             &: noSurfaceFields
         )
 
@@ -303,11 +304,11 @@ parseMoveDesignerItemActionParams =
 
 data PublishDesignerDraftActionOperation
 
-type instance ActionSurface PublishDesignerDraftActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker PublishDesignerDraftActionOperation = Types3.PublishDesignerDraft
+type instance ActionSurface PublishDesignerDraftActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker PublishDesignerDraftActionOperation = Types4.PublishDesignerDraft
 type instance ActionFieldSpecs PublishDesignerDraftActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
      ]
 
 publishDesignerDraftActionFields ::
@@ -316,8 +317,8 @@ publishDesignerDraftActionFields ::
     ActionFields PublishDesignerDraftActionOperation
 publishDesignerDraftActionFields expectedBase expectedDraft =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
             &: noSurfaceFields
         )
 
@@ -338,14 +339,14 @@ parsePublishDesignerDraftActionParams =
 
 data RemoveDesignerBlockActionOperation
 
-type instance ActionSurface RemoveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerBlockActionOperation = Types3.RemoveDesignerBlock
+type instance ActionSurface RemoveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerBlockActionOperation = Types4.RemoveDesignerBlock
 type instance ActionFieldSpecs RemoveDesignerBlockActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'Field Types3.DefinitionSectionId 'WireUUID
-     , 'Field Types3.BlockIndex 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'Field Types4.DefinitionSectionId 'WireUUID
+     , 'Field Types4.BlockIndex 'WireInt
      ]
 
 removeDesignerBlockActionFields ::
@@ -357,11 +358,11 @@ removeDesignerBlockActionFields ::
     ActionFields RemoveDesignerBlockActionOperation
 removeDesignerBlockActionFields expectedBase expectedDraft definitionReportId definitionSectionId blockIndex =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceField @Types3.DefinitionSectionId definitionSectionId
-            &: surfaceField @Types3.BlockIndex blockIndex
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceField @Types4.DefinitionSectionId definitionSectionId
+            &: surfaceField @Types4.BlockIndex blockIndex
             &: noSurfaceFields
         )
 
@@ -382,13 +383,13 @@ parseRemoveDesignerBlockActionParams =
 
 data RemoveDesignerChoiceActionOperation
 
-type instance ActionSurface RemoveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerChoiceActionOperation = Types3.RemoveDesignerChoice
+type instance ActionSurface RemoveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerChoiceActionOperation = Types4.RemoveDesignerChoice
 type instance ActionFieldSpecs RemoveDesignerChoiceActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'Field Types3.DefinitionChoiceId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'Field Types4.DefinitionChoiceId 'WireUUID
      ]
 
 removeDesignerChoiceActionFields ::
@@ -399,10 +400,10 @@ removeDesignerChoiceActionFields ::
     ActionFields RemoveDesignerChoiceActionOperation
 removeDesignerChoiceActionFields expectedBase expectedDraft definitionFieldId definitionChoiceId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceField @Types3.DefinitionChoiceId definitionChoiceId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceField @Types4.DefinitionChoiceId definitionChoiceId
             &: noSurfaceFields
         )
 
@@ -423,12 +424,12 @@ parseRemoveDesignerChoiceActionParams =
 
 data RemoveDesignerFieldActionOperation
 
-type instance ActionSurface RemoveDesignerFieldActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerFieldActionOperation = Types3.RemoveDesignerField
+type instance ActionSurface RemoveDesignerFieldActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerFieldActionOperation = Types4.RemoveDesignerField
 type instance ActionFieldSpecs RemoveDesignerFieldActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
      ]
 
 removeDesignerFieldActionFields ::
@@ -438,9 +439,9 @@ removeDesignerFieldActionFields ::
     ActionFields RemoveDesignerFieldActionOperation
 removeDesignerFieldActionFields expectedBase expectedDraft definitionFieldId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
             &: noSurfaceFields
         )
 
@@ -461,12 +462,12 @@ parseRemoveDesignerFieldActionParams =
 
 data RemoveDesignerListActionOperation
 
-type instance ActionSurface RemoveDesignerListActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerListActionOperation = Types3.RemoveDesignerList
+type instance ActionSurface RemoveDesignerListActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerListActionOperation = Types4.RemoveDesignerList
 type instance ActionFieldSpecs RemoveDesignerListActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionListId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionListId 'WireUUID
      ]
 
 removeDesignerListActionFields ::
@@ -476,9 +477,9 @@ removeDesignerListActionFields ::
     ActionFields RemoveDesignerListActionOperation
 removeDesignerListActionFields expectedBase expectedDraft definitionListId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionListId definitionListId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionListId definitionListId
             &: noSurfaceFields
         )
 
@@ -499,12 +500,12 @@ parseRemoveDesignerListActionParams =
 
 data RemoveDesignerReportActionOperation
 
-type instance ActionSurface RemoveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerReportActionOperation = Types3.RemoveDesignerReport
+type instance ActionSurface RemoveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerReportActionOperation = Types4.RemoveDesignerReport
 type instance ActionFieldSpecs RemoveDesignerReportActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionReportId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionReportId 'WireUUID
      ]
 
 removeDesignerReportActionFields ::
@@ -514,9 +515,9 @@ removeDesignerReportActionFields ::
     ActionFields RemoveDesignerReportActionOperation
 removeDesignerReportActionFields expectedBase expectedDraft definitionReportId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionReportId definitionReportId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionReportId definitionReportId
             &: noSurfaceFields
         )
 
@@ -537,13 +538,13 @@ parseRemoveDesignerReportActionParams =
 
 data RemoveDesignerSectionActionOperation
 
-type instance ActionSurface RemoveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RemoveDesignerSectionActionOperation = Types3.RemoveDesignerSection
+type instance ActionSurface RemoveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RemoveDesignerSectionActionOperation = Types4.RemoveDesignerSection
 type instance ActionFieldSpecs RemoveDesignerSectionActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'Field Types3.DefinitionSectionId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'Field Types4.DefinitionSectionId 'WireUUID
      ]
 
 removeDesignerSectionActionFields ::
@@ -554,10 +555,10 @@ removeDesignerSectionActionFields ::
     ActionFields RemoveDesignerSectionActionOperation
 removeDesignerSectionActionFields expectedBase expectedDraft definitionReportId definitionSectionId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceField @Types3.DefinitionSectionId definitionSectionId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceField @Types4.DefinitionSectionId definitionSectionId
             &: noSurfaceFields
         )
 
@@ -578,13 +579,14 @@ parseRemoveDesignerSectionActionParams =
 
 data RetireDesignerReferenceActionOperation
 
-type instance ActionSurface RetireDesignerReferenceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker RetireDesignerReferenceActionOperation = Types3.RetireDesignerReference
+type instance ActionSurface RetireDesignerReferenceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker RetireDesignerReferenceActionOperation = Types4.RetireDesignerReference
 type instance ActionFieldSpecs RetireDesignerReferenceActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionListId 'WireUUID
-     , 'Field Types3.ReferenceRecordId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionListId 'WireUUID
+     , 'Field Types4.ReferenceRecordId 'WireUUID
+     , 'OptionalField Types4.ReferenceResolutions ('WireList ('WireDomain Types3.ReferenceResolution))
      ]
 
 retireDesignerReferenceActionFields ::
@@ -592,19 +594,21 @@ retireDesignerReferenceActionFields ::
     Maybe Int ->
     UUID.UUID ->
     UUID.UUID ->
+    Maybe [Types3.ReferenceResolution] ->
     ActionFields RetireDesignerReferenceActionOperation
-retireDesignerReferenceActionFields expectedBase expectedDraft definitionListId referenceRecordId =
+retireDesignerReferenceActionFields expectedBase expectedDraft definitionListId referenceRecordId referenceResolutions =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionListId definitionListId
-            &: surfaceField @Types3.ReferenceRecordId referenceRecordId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionListId definitionListId
+            &: surfaceField @Types4.ReferenceRecordId referenceRecordId
+            &: surfaceOptionalField @Types4.ReferenceResolutions referenceResolutions
             &: noSurfaceFields
         )
 
 retireDesignerReferenceActionEvidence :: ActionEvidence RetireDesignerReferenceActionOperation
 retireDesignerReferenceActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "RetireDesignerReference" "retire-designer-reference" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionListId" "definitionListId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ReferenceRecordId" "referenceRecordId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "RetireDesignerReference" "retire-designer-reference" [SurfaceIR.FieldIR "ExpectedBase" "expectedBase" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedDraft" "expectedDraft" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DefinitionListId" "definitionListId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ReferenceRecordId" "referenceRecordId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ReferenceResolutions" "referenceResolutions" (SurfaceIR.WireListIR (SurfaceIR.WireDomainIR "Application.Daysheet.Designer.ReferenceRetirement" "ReferenceResolution")) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
 
 retireDesignerReferenceAction :: ActionFields RetireDesignerReferenceActionOperation -> FrontendSurfaceAction
 retireDesignerReferenceAction =
@@ -619,24 +623,24 @@ parseRetireDesignerReferenceActionParams =
 
 data SaveDesignerBlockActionOperation
 
-type instance ActionSurface SaveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerBlockActionOperation = Types3.SaveDesignerBlock
+type instance ActionSurface SaveDesignerBlockActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerBlockActionOperation = Types4.SaveDesignerBlock
 type instance ActionFieldSpecs SaveDesignerBlockActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'Field Types3.DefinitionSectionId 'WireUUID
-     , 'OptionalField Types3.BlockIndex 'WireInt
-     , 'Field Types3.ContentKind ('WireClosed Types2.BlockKind)
-     , 'OptionalField Types3.DefinitionListId 'WireUUID
-     , 'OptionalField Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.TextContent 'WireText
-     , 'OptionalField Types3.ColumnIds ('WireList 'WireUUID)
-     , 'OptionalField Types3.GroupingFieldId 'WireUUID
-     , 'OptionalField Types3.SortingFieldIds ('WireList 'WireUUID)
-     , 'OptionalField Types3.DescendingFieldIds ('WireList 'WireUUID)
-     , 'OptionalField Types3.PassedText 'WireText
-     , 'OptionalField Types3.ConcernText 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'Field Types4.DefinitionSectionId 'WireUUID
+     , 'OptionalField Types4.BlockIndex 'WireInt
+     , 'Field Types4.ContentKind ('WireClosed Types2.BlockKind)
+     , 'OptionalField Types4.DefinitionListId 'WireUUID
+     , 'OptionalField Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.TextContent 'WireText
+     , 'OptionalField Types4.ColumnIds ('WireList 'WireUUID)
+     , 'OptionalField Types4.GroupingFieldId 'WireUUID
+     , 'OptionalField Types4.SortingFieldIds ('WireList 'WireUUID)
+     , 'OptionalField Types4.DescendingFieldIds ('WireList 'WireUUID)
+     , 'OptionalField Types4.PassedText 'WireText
+     , 'OptionalField Types4.ConcernText 'WireText
      ]
 
 saveDesignerBlockActionFields ::
@@ -658,21 +662,21 @@ saveDesignerBlockActionFields ::
     ActionFields SaveDesignerBlockActionOperation
 saveDesignerBlockActionFields expectedBase expectedDraft definitionReportId definitionSectionId blockIndex contentKind definitionListId definitionFieldId textContent columnIds groupingFieldId sortingFieldIds descendingFieldIds passedText concernText =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceField @Types3.DefinitionSectionId definitionSectionId
-            &: surfaceOptionalField @Types3.BlockIndex blockIndex
-            &: surfaceField @Types3.ContentKind contentKind
-            &: surfaceOptionalField @Types3.DefinitionListId definitionListId
-            &: surfaceOptionalField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.TextContent textContent
-            &: surfaceOptionalField @Types3.ColumnIds columnIds
-            &: surfaceOptionalField @Types3.GroupingFieldId groupingFieldId
-            &: surfaceOptionalField @Types3.SortingFieldIds sortingFieldIds
-            &: surfaceOptionalField @Types3.DescendingFieldIds descendingFieldIds
-            &: surfaceOptionalField @Types3.PassedText passedText
-            &: surfaceOptionalField @Types3.ConcernText concernText
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceField @Types4.DefinitionSectionId definitionSectionId
+            &: surfaceOptionalField @Types4.BlockIndex blockIndex
+            &: surfaceField @Types4.ContentKind contentKind
+            &: surfaceOptionalField @Types4.DefinitionListId definitionListId
+            &: surfaceOptionalField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.TextContent textContent
+            &: surfaceOptionalField @Types4.ColumnIds columnIds
+            &: surfaceOptionalField @Types4.GroupingFieldId groupingFieldId
+            &: surfaceOptionalField @Types4.SortingFieldIds sortingFieldIds
+            &: surfaceOptionalField @Types4.DescendingFieldIds descendingFieldIds
+            &: surfaceOptionalField @Types4.PassedText passedText
+            &: surfaceOptionalField @Types4.ConcernText concernText
             &: noSurfaceFields
         )
 
@@ -693,14 +697,14 @@ parseSaveDesignerBlockActionParams =
 
 data SaveDesignerChoiceActionOperation
 
-type instance ActionSurface SaveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerChoiceActionOperation = Types3.SaveDesignerChoice
+type instance ActionSurface SaveDesignerChoiceActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerChoiceActionOperation = Types4.SaveDesignerChoice
 type instance ActionFieldSpecs SaveDesignerChoiceActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.DefinitionChoiceId 'WireUUID
-     , 'Field Types3.Label 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.DefinitionChoiceId 'WireUUID
+     , 'Field Types4.Label 'WireText
      ]
 
 saveDesignerChoiceActionFields ::
@@ -712,11 +716,11 @@ saveDesignerChoiceActionFields ::
     ActionFields SaveDesignerChoiceActionOperation
 saveDesignerChoiceActionFields expectedBase expectedDraft definitionFieldId definitionChoiceId label =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.DefinitionChoiceId definitionChoiceId
-            &: surfaceField @Types3.Label label
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.DefinitionChoiceId definitionChoiceId
+            &: surfaceField @Types4.Label label
             &: noSurfaceFields
         )
 
@@ -737,14 +741,14 @@ parseSaveDesignerChoiceActionParams =
 
 data SaveDesignerConstantActionOperation
 
-type instance ActionSurface SaveDesignerConstantActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerConstantActionOperation = Types3.SaveDesignerConstant
+type instance ActionSurface SaveDesignerConstantActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerConstantActionOperation = Types4.SaveDesignerConstant
 type instance ActionFieldSpecs SaveDesignerConstantActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.ExpressionSlots ('WireList ('WireClosed Types1.ExpressionSlot))
-     , 'Field Types3.EnteredValue 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.ExpressionSlots ('WireList ('WireClosed Types1.ExpressionSlot))
+     , 'Field Types4.EnteredValue 'WireText
      ]
 
 saveDesignerConstantActionFields ::
@@ -756,11 +760,11 @@ saveDesignerConstantActionFields ::
     ActionFields SaveDesignerConstantActionOperation
 saveDesignerConstantActionFields expectedBase expectedDraft definitionFieldId expressionSlots enteredValue =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.ExpressionSlots expressionSlots
-            &: surfaceField @Types3.EnteredValue enteredValue
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.ExpressionSlots expressionSlots
+            &: surfaceField @Types4.EnteredValue enteredValue
             &: noSurfaceFields
         )
 
@@ -781,17 +785,17 @@ parseSaveDesignerConstantActionParams =
 
 data SaveDesignerFieldActionOperation
 
-type instance ActionSurface SaveDesignerFieldActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerFieldActionOperation = Types3.SaveDesignerField
+type instance ActionSurface SaveDesignerFieldActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerFieldActionOperation = Types4.SaveDesignerField
 type instance ActionFieldSpecs SaveDesignerFieldActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.ContainerId 'WireUUID
-     , 'Field Types3.Label 'WireText
-     , 'Field Types3.ValueKind ('WireClosed Types2.FieldKind)
-     , 'OptionalField Types3.ReferenceListId 'WireUUID
-     , 'OptionalField Types3.InitialChoice 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.ContainerId 'WireUUID
+     , 'Field Types4.Label 'WireText
+     , 'Field Types4.ValueKind ('WireClosed Types2.FieldKind)
+     , 'OptionalField Types4.ReferenceListId 'WireUUID
+     , 'OptionalField Types4.InitialChoice 'WireText
      ]
 
 saveDesignerFieldActionFields ::
@@ -806,14 +810,14 @@ saveDesignerFieldActionFields ::
     ActionFields SaveDesignerFieldActionOperation
 saveDesignerFieldActionFields expectedBase expectedDraft definitionFieldId containerId label valueKind referenceListId initialChoice =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.ContainerId containerId
-            &: surfaceField @Types3.Label label
-            &: surfaceField @Types3.ValueKind valueKind
-            &: surfaceOptionalField @Types3.ReferenceListId referenceListId
-            &: surfaceOptionalField @Types3.InitialChoice initialChoice
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.ContainerId containerId
+            &: surfaceField @Types4.Label label
+            &: surfaceField @Types4.ValueKind valueKind
+            &: surfaceOptionalField @Types4.ReferenceListId referenceListId
+            &: surfaceOptionalField @Types4.InitialChoice initialChoice
             &: noSurfaceFields
         )
 
@@ -834,15 +838,15 @@ parseSaveDesignerFieldActionParams =
 
 data SaveDesignerListActionOperation
 
-type instance ActionSurface SaveDesignerListActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerListActionOperation = Types3.SaveDesignerList
+type instance ActionSurface SaveDesignerListActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerListActionOperation = Types4.SaveDesignerList
 type instance ActionFieldSpecs SaveDesignerListActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionListId 'WireUUID
-     , 'Field Types3.Label 'WireText
-     , 'Field Types3.CollectionKind ('WireClosed Types2.ListKind)
-     , 'OptionalField Types3.ReferenceListId 'WireUUID
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionListId 'WireUUID
+     , 'Field Types4.Label 'WireText
+     , 'Field Types4.CollectionKind ('WireClosed Types2.ListKind)
+     , 'OptionalField Types4.ReferenceListId 'WireUUID
      ]
 
 saveDesignerListActionFields ::
@@ -855,12 +859,12 @@ saveDesignerListActionFields ::
     ActionFields SaveDesignerListActionOperation
 saveDesignerListActionFields expectedBase expectedDraft definitionListId label collectionKind referenceListId =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionListId definitionListId
-            &: surfaceField @Types3.Label label
-            &: surfaceField @Types3.CollectionKind collectionKind
-            &: surfaceOptionalField @Types3.ReferenceListId referenceListId
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionListId definitionListId
+            &: surfaceField @Types4.Label label
+            &: surfaceField @Types4.CollectionKind collectionKind
+            &: surfaceOptionalField @Types4.ReferenceListId referenceListId
             &: noSurfaceFields
         )
 
@@ -881,15 +885,15 @@ parseSaveDesignerListActionParams =
 
 data SaveDesignerReferenceValueActionOperation
 
-type instance ActionSurface SaveDesignerReferenceValueActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerReferenceValueActionOperation = Types3.SaveDesignerReferenceValue
+type instance ActionSurface SaveDesignerReferenceValueActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerReferenceValueActionOperation = Types4.SaveDesignerReferenceValue
 type instance ActionFieldSpecs SaveDesignerReferenceValueActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionListId 'WireUUID
-     , 'Field Types3.ReferenceRecordId 'WireUUID
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.EnteredValue 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionListId 'WireUUID
+     , 'Field Types4.ReferenceRecordId 'WireUUID
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.EnteredValue 'WireText
      ]
 
 saveDesignerReferenceValueActionFields ::
@@ -902,12 +906,12 @@ saveDesignerReferenceValueActionFields ::
     ActionFields SaveDesignerReferenceValueActionOperation
 saveDesignerReferenceValueActionFields expectedBase expectedDraft definitionListId referenceRecordId definitionFieldId enteredValue =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionListId definitionListId
-            &: surfaceField @Types3.ReferenceRecordId referenceRecordId
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.EnteredValue enteredValue
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionListId definitionListId
+            &: surfaceField @Types4.ReferenceRecordId referenceRecordId
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.EnteredValue enteredValue
             &: noSurfaceFields
         )
 
@@ -928,14 +932,14 @@ parseSaveDesignerReferenceValueActionParams =
 
 data SaveDesignerReportActionOperation
 
-type instance ActionSurface SaveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerReportActionOperation = Types3.SaveDesignerReport
+type instance ActionSurface SaveDesignerReportActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerReportActionOperation = Types4.SaveDesignerReport
 type instance ActionFieldSpecs SaveDesignerReportActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'Field Types3.Label 'WireText
-     , 'Field Types3.Targets ('WireClosed Types2.ReportTargets)
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'Field Types4.Label 'WireText
+     , 'Field Types4.Targets ('WireClosed Types2.ReportTargets)
      ]
 
 saveDesignerReportActionFields ::
@@ -947,11 +951,11 @@ saveDesignerReportActionFields ::
     ActionFields SaveDesignerReportActionOperation
 saveDesignerReportActionFields expectedBase expectedDraft definitionReportId label targets =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceField @Types3.Label label
-            &: surfaceField @Types3.Targets targets
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceField @Types4.Label label
+            &: surfaceField @Types4.Targets targets
             &: noSurfaceFields
         )
 
@@ -972,14 +976,14 @@ parseSaveDesignerReportActionParams =
 
 data SaveDesignerSectionActionOperation
 
-type instance ActionSurface SaveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker SaveDesignerSectionActionOperation = Types3.SaveDesignerSection
+type instance ActionSurface SaveDesignerSectionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker SaveDesignerSectionActionOperation = Types4.SaveDesignerSection
 type instance ActionFieldSpecs SaveDesignerSectionActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'OptionalField Types3.DefinitionReportId 'WireUUID
-     , 'OptionalField Types3.DefinitionSectionId 'WireUUID
-     , 'Field Types3.Label 'WireText
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'OptionalField Types4.DefinitionReportId 'WireUUID
+     , 'OptionalField Types4.DefinitionSectionId 'WireUUID
+     , 'Field Types4.Label 'WireText
      ]
 
 saveDesignerSectionActionFields ::
@@ -991,11 +995,11 @@ saveDesignerSectionActionFields ::
     ActionFields SaveDesignerSectionActionOperation
 saveDesignerSectionActionFields expectedBase expectedDraft definitionReportId definitionSectionId label =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceOptionalField @Types3.DefinitionReportId definitionReportId
-            &: surfaceOptionalField @Types3.DefinitionSectionId definitionSectionId
-            &: surfaceField @Types3.Label label
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceOptionalField @Types4.DefinitionReportId definitionReportId
+            &: surfaceOptionalField @Types4.DefinitionSectionId definitionSectionId
+            &: surfaceField @Types4.Label label
             &: noSurfaceFields
         )
 
@@ -1016,11 +1020,11 @@ parseSaveDesignerSectionActionParams =
 
 data StageDesignerStarterActionOperation
 
-type instance ActionSurface StageDesignerStarterActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker StageDesignerStarterActionOperation = Types3.StageDesignerStarter
+type instance ActionSurface StageDesignerStarterActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker StageDesignerStarterActionOperation = Types4.StageDesignerStarter
 type instance ActionFieldSpecs StageDesignerStarterActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
      ]
 
 stageDesignerStarterActionFields ::
@@ -1029,8 +1033,8 @@ stageDesignerStarterActionFields ::
     ActionFields StageDesignerStarterActionOperation
 stageDesignerStarterActionFields expectedBase expectedDraft =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
             &: noSurfaceFields
         )
 
@@ -1051,16 +1055,16 @@ parseStageDesignerStarterActionParams =
 
 data UseDesignerCalculationPartActionOperation
 
-type instance ActionSurface UseDesignerCalculationPartActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types4.DaysheetDesignerAdapterFamily)
-type instance ActionMarker UseDesignerCalculationPartActionOperation = Types3.UseDesignerCalculationPart
+type instance ActionSurface UseDesignerCalculationPartActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types5.DaysheetDesignerAdapterFamily)
+type instance ActionMarker UseDesignerCalculationPartActionOperation = Types4.UseDesignerCalculationPart
 type instance ActionFieldSpecs UseDesignerCalculationPartActionOperation =
-    '[ 'Field Types3.ExpectedBase 'WireInt
-     , 'OptionalField Types3.ExpectedDraft 'WireInt
-     , 'Field Types3.DefinitionFieldId 'WireUUID
-     , 'OptionalField Types3.ExpressionSlots ('WireList ('WireClosed Types1.ExpressionSlot))
-     , 'Field Types3.CalculationGroup ('WireClosed Types2.CalculationGroup)
-     , 'OptionalField Types3.ReferencePath 'WireText
-     , 'Field Types3.CandidateIndex 'WireInt
+    '[ 'Field Types4.ExpectedBase 'WireInt
+     , 'OptionalField Types4.ExpectedDraft 'WireInt
+     , 'Field Types4.DefinitionFieldId 'WireUUID
+     , 'OptionalField Types4.ExpressionSlots ('WireList ('WireClosed Types1.ExpressionSlot))
+     , 'Field Types4.CalculationGroup ('WireClosed Types2.CalculationGroup)
+     , 'OptionalField Types4.ReferencePath 'WireText
+     , 'Field Types4.CandidateIndex 'WireInt
      ]
 
 useDesignerCalculationPartActionFields ::
@@ -1074,13 +1078,13 @@ useDesignerCalculationPartActionFields ::
     ActionFields UseDesignerCalculationPartActionOperation
 useDesignerCalculationPartActionFields expectedBase expectedDraft definitionFieldId expressionSlots calculationGroup referencePath candidateIndex =
     actionFields
-        (surfaceField @Types3.ExpectedBase expectedBase)
-        ( surfaceOptionalField @Types3.ExpectedDraft expectedDraft
-            &: surfaceField @Types3.DefinitionFieldId definitionFieldId
-            &: surfaceOptionalField @Types3.ExpressionSlots expressionSlots
-            &: surfaceField @Types3.CalculationGroup calculationGroup
-            &: surfaceOptionalField @Types3.ReferencePath referencePath
-            &: surfaceField @Types3.CandidateIndex candidateIndex
+        (surfaceField @Types4.ExpectedBase expectedBase)
+        ( surfaceOptionalField @Types4.ExpectedDraft expectedDraft
+            &: surfaceField @Types4.DefinitionFieldId definitionFieldId
+            &: surfaceOptionalField @Types4.ExpressionSlots expressionSlots
+            &: surfaceField @Types4.CalculationGroup calculationGroup
+            &: surfaceOptionalField @Types4.ReferencePath referencePath
+            &: surfaceField @Types4.CandidateIndex candidateIndex
             &: noSurfaceFields
         )
 

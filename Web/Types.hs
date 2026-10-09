@@ -243,6 +243,8 @@ data DaysheetDesignerController
     | ShowDesignerFieldBodyAction { definitionFieldId :: Maybe Text, containerId :: Maybe Text }
     | ShowDesignerListAction { definitionListId :: Maybe Text }
     | ShowDesignerListBodyAction { definitionListId :: Maybe Text }
+    | ShowDesignerReferenceRetirementAction { referenceSourceId :: UUID, referenceRecordId :: UUID }
+    | ShowDesignerReferenceRetirementBodyAction { referenceSourceId :: UUID, referenceRecordId :: UUID }
     | ShowDesignerReferenceAction { referenceSourceId :: UUID, referenceRecordId :: UUID, referenceFieldId :: UUID }
     | ShowDesignerReferenceBodyAction { referenceSourceId :: UUID, referenceRecordId :: UUID, referenceFieldId :: UUID }
     | AddDesignerReferenceAction

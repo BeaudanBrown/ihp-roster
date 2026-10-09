@@ -68,6 +68,50 @@ test.describe('Daysheet designer controls', () => {
         await expect(receipts.getByText('Spare terminal', { exact: true })).toHaveCount(0);
     });
 
+    test('resolves reference reassignment and dependent retirement in single explicit operations', async ({ page, daysheet }) => {
+        await openDaysheet(page, daysheet);
+        const capturedUrl = page.url();
+        await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+        await page.getByRole('heading', { name: 'Terminals', exact: true }).locator('..').getByRole('link', { name: 'Add field to list', exact: true }).click();
+        await page.getByLabel('Field name', { exact: true }).fill('Linked terminal');
+        await page.getByLabel('Field type', { exact: true }).selectOption('reference');
+        await page.getByLabel('Reference list (reference fields / checklists only)', { exact: true }).selectOption({ label: 'Terminals' });
+        await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        const records = page.getByRole('region', { name: 'Reference records: Terminals', exact: true });
+        for (const [source, target] of [['Terminal 1', 'Terminal 2'], ['Terminal 3', 'Terminal 1']]) {
+            await records.getByRole('group', { name: source, exact: true }).getByRole('link', { name: 'Linked terminal', exact: true }).click();
+            await page.getByLabel('Linked terminal', { exact: true }).selectOption({ label: target });
+            await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+        }
+        await records.getByRole('group', { name: 'Terminal 2', exact: true }).getByRole('link', { name: 'Resolve dependencies and retire', exact: true }).click();
+        await expect(page.getByLabel('Terminal 3: Linked terminal', { exact: true })).toBeVisible();
+        const rejected = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/RetireDesignerReference');
+        await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
+        expect((await rejected).headers()['x-bepis-form-saved']).toBeUndefined();
+        await page.getByLabel('Terminal 1: Linked terminal', { exact: true }).selectOption({ label: 'Reassign to Terminal 4' });
+        await expectNoHorizontalViewportOverflow(page);
+        await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
+        await expect(records.getByRole('group', { name: 'Terminal 2', exact: true })).toHaveCount(0);
+        await expect(records.getByRole('group', { name: 'Terminal 1', exact: true })).toBeVisible();
+        await records.getByRole('group', { name: 'Terminal 4', exact: true }).getByRole('link', { name: 'Resolve dependencies and retire', exact: true }).click();
+        await page.getByLabel('Terminal 1: Linked terminal', { exact: true }).selectOption({ label: 'Retire this dependent record' });
+        const incomplete = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/RetireDesignerReference');
+        await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
+        expect((await incomplete).headers()['x-bepis-form-saved']).toBeUndefined();
+        await expect(page.getByLabel('Terminal 1: Linked terminal', { exact: true }).locator('option:checked')).toHaveText('Retire this dependent record');
+        await page.getByLabel('Terminal 3: Linked terminal', { exact: true }).selectOption({ label: 'Retire this dependent record' });
+        await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
+        for (const name of ['Terminal 1', 'Terminal 3', 'Terminal 4']) {
+            await expect(records.getByRole('group', { name, exact: true })).toHaveCount(0);
+        }
+        await page.getByRole('button', { name: 'Publish draft', exact: true }).click();
+        await expect(page.getByText('No unpublished changes.', { exact: true })).toBeVisible();
+        await page.goto(capturedUrl);
+        for (const name of ['Terminal 1', 'Terminal 2', 'Terminal 3', 'Terminal 4']) {
+            await expect(page.getByRole('region', { name: 'Receipts', exact: true }).getByText(name, { exact: true })).toBeVisible();
+        }
+    });
+
     test('authors, renames and orders choice options without replacing their identities', async ({ page, daysheet }) => {
         await openDaysheet(page, daysheet);
         await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
