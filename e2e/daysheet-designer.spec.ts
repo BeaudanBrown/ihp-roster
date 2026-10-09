@@ -88,6 +88,7 @@ test.describe('Daysheet designer controls', () => {
         const rejected = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/RetireDesignerReference');
         await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
         expect((await rejected).headers()['x-bepis-form-saved']).toBeUndefined();
+        await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
         await page.getByLabel('Terminal 1: Linked terminal', { exact: true }).selectOption({ label: 'Reassign to Terminal 4' });
         await expectNoHorizontalViewportOverflow(page);
         await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
@@ -98,6 +99,7 @@ test.describe('Daysheet designer controls', () => {
         const incomplete = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/RetireDesignerReference');
         await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
         expect((await incomplete).headers()['x-bepis-form-saved']).toBeUndefined();
+        await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
         await expect(page.getByLabel('Terminal 1: Linked terminal', { exact: true }).locator('option:checked')).toHaveText('Retire this dependent record');
         await page.getByLabel('Terminal 3: Linked terminal', { exact: true }).selectOption({ label: 'Retire this dependent record' });
         await page.getByRole('button', { name: 'Retire with these resolutions', exact: true }).click();
