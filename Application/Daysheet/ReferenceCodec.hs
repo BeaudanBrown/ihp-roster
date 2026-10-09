@@ -7,6 +7,7 @@ module Application.Daysheet.ReferenceCodec
     ) where
 
 import Prelude
+import Application.Error.Parser (parserFailure)
 import Application.Daysheet.Contract
 import Application.Daysheet.DefinitionCodec ()
 import qualified Application.Daysheet.Evaluation as E
@@ -38,7 +39,7 @@ decodeReferenceData value = do
     either (const (Left MalformedReferencePayload)) Right (Aeson.parseEither parser value)
   where
     parser = withObject "Daysheet references" \record -> do
-        if length record /= 1 then fail "invalid reference envelope" else record .: "lists"
+        if length record /= 1 then parserFailure "invalid reference envelope" else record .: "lists"
 
 instance ToJSON E.RowId where toJSON (E.RowId key) = toJSON key
 instance FromJSON E.RowId where parseJSON value = E.RowId <$> parseJSON value

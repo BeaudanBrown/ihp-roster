@@ -8,7 +8,7 @@ import Application.Daysheet.ReportHistory
 import Application.Daysheet.ReportStorage
 import Application.EmailDelivery.Correlation (prepareProviderCorrelation, markSmtpAccepted)
 import Application.EmailDelivery.Status
-import Application.Helper.FrontendContract.Surface.Daysheet.Generated.Live
+import Application.Helper.FrontendContract.Surface.Daysheet.Live
 import Application.Helper.FrontendContract.Surface.Daysheet.Resource
 import Application.Helper.FrontendContract.Surface.DependencyPlanner
 import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..))

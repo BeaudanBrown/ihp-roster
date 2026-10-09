@@ -35,7 +35,7 @@ type StoreM = ExceptT AppError IO
 failure :: StorageError -> StoreM a
 failure = throwE . projectDomainError
 
-checked :: StorageError -> Either error a -> StoreM a
+checked :: StorageError -> Either rejection a -> StoreM a
 checked errorValue = either (const (failure errorValue)) pure
 
 configuration :: (?modelContext :: ModelContext) => VenueMembership -> StoreM (Maybe DaysheetConfiguration)

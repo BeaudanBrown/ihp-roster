@@ -12,6 +12,7 @@ module Application.EmailDelivery.Envelope
     , emailRecipientAddressDigest
     ) where
 
+import Application.Error.Parser (parserFailure)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
@@ -64,7 +65,7 @@ instance Aeson.FromJSON ExternalRecipient where
     parseJSON = Aeson.withObject "ExternalRecipient" \object -> do
         exactKeys ["kind", "recipientId", "venueId", "reportId"] object
         kind <- object Aeson..: "kind"
-        unless (kind == ("venue-report-recipient" :: Text)) (fail "unsupported recipient identity")
+        unless (kind == ("venue-report-recipient" :: Text)) (parserFailure "unsupported recipient identity")
         VenueReportRecipient
             <$> object Aeson..: "recipientId"
             <*> object Aeson..: "venueId"
@@ -77,8 +78,8 @@ instance Aeson.FromJSON ExternalEmailPayload where
         recipient <- object Aeson..: "recipient"
         address <- object Aeson..: "recipientAddress"
         reference <- object Aeson..: "domainReferenceId"
-        unless (Text.length kind <= 100 && not (Text.null kind)) (fail "invalid mail kind")
-        unless (validAddressEnvelope address) (fail "invalid recipient address")
+        unless (Text.length kind <= 100 && not (Text.null kind)) (parserFailure "invalid mail kind")
+        unless (validAddressEnvelope address) (parserFailure "invalid recipient address")
         pure (ExternalEmailPayload kind recipient address reference)
 
 externalEmailPayloadJson :: ExternalEmailPayload -> Aeson.Value
@@ -104,7 +105,7 @@ validAddressEnvelope value =
 exactKeys :: [Text] -> Aeson.Object -> Aeson.Parser ()
 exactKeys names object = unless
     (length names == KeyMap.size object && all (\name -> KeyMap.member (Key.fromText name) object) names)
-    (fail "unexpected envelope fields")
+    (parserFailure "unexpected envelope fields")
 
 externalEmailDedupeKey :: Text -> ExternalEmailPayload -> Text
 externalEmailDedupeKey semanticEventKey payload = Text.intercalate ":"

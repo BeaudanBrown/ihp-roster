@@ -5,6 +5,7 @@ module Application.Daysheet.CutoffJob
     ) where
 
 import qualified Application.Daysheet.Cutoff as Cutoff
+import Application.Error.Parser (parserFailure)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
@@ -22,7 +23,7 @@ instance Aeson.ToJSON CutoffJobPayload where
     toJSON value = Aeson.object ["daysheetId" Aeson..= value.daysheetId, "operationalDate" Aeson..= value.operationalDate, "cutoffAt" Aeson..= value.cutoffAt]
 instance Aeson.FromJSON CutoffJobPayload where
     parseJSON = Aeson.withObject "Daysheet cutoff" \value -> do
-        unless (length value == 3) (fail "invalid cutoff envelope")
+        unless (length value == 3) (parserFailure "invalid cutoff envelope")
         CutoffJobPayload <$> value Aeson..: "daysheetId" <*> value Aeson..: "operationalDate" <*> value Aeson..: "cutoffAt"
 
 -- Called inside explicit creation's venue transaction. Never create a business

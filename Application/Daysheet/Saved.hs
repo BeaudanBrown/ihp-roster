@@ -17,7 +17,6 @@ import Data.List (find, sortBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Foldable (foldMap)
 
 data Saved = Saved
     { definition :: D.Definition

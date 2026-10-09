@@ -11,7 +11,6 @@ import qualified Application.Helper.FrontendContract.Surface.Daysheet.Action as 
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Map.Strict as Map
-import Data.List (groupBy)
 import Web.Daysheets.LiveUpdates
 import Web.Daysheets.ReadModel
 import Web.View.Daysheets.Cell

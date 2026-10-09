@@ -94,8 +94,8 @@ reportCell (ReportValue literal text) = case literal of
             _ -> plain text
 
 decimalFormat :: Int -> Text -> Text
-decimalFormat minimum raw = "0" <> if places == 0 then "" else "." <> Text.replicate places "0"
-  where places = max minimum (max 0 (Text.length (snd (Text.breakOn "." raw)) - 1))
+decimalFormat minimumPlaces raw = "0" <> if places == 0 then "" else "." <> Text.replicate places "0"
+  where places = max minimumPlaces (max 0 (Text.length (snd (Text.breakOn "." raw)) - 1))
 
 checkText :: ReportCheck -> Text
 checkText = \case

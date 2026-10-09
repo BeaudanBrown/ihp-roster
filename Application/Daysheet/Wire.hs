@@ -12,6 +12,7 @@ module Application.Daysheet.Wire
     ) where
 
 import Prelude
+import Application.Error.Parser (parserFailure)
 import Application.Daysheet.Contract
 import Application.Daysheet.Formula
 import qualified Application.Daysheet.Number as Number
@@ -46,7 +47,7 @@ expressionJson expression =
 parseExpressionJson :: Aeson.Value -> Aeson.Parser Expression
 parseExpressionJson value = do
     formula <- parseFormula value
-    either (const (fail "invalid formula graph")) pure (expandFormula formula)
+    either (const (parserFailure "invalid formula graph")) pure (expandFormula formula)
 
 literalJson :: Literal -> Aeson.Value
 literalJson = contractReferenceJson @S.DaysheetLiteral
@@ -62,7 +63,7 @@ parseProjectedLiteralJson = parseLiteralWith Right
 parseFormula :: Aeson.Value -> Aeson.Parser Formula
 parseFormula = parseRecordIn @S.FormulaContracts @S.DaysheetFormula \(root, (nodes, ())) -> do
     if length (take (maxExpressionNodes limits + 1) nodes) > maxExpressionNodes limits
-        then fail "too many formula nodes"
+        then parserFailure "too many formula nodes"
         else pure (Formula (NodeId root) nodes)
 
 instance ContractReference S.DaysheetNode where
@@ -105,7 +106,7 @@ instance ContractReference S.DaysheetPath where
         (requiredField @S.ContextValue context &: requiredField @S.Fields (map (\(FieldId key) -> key) fields) &: noFields)
     parseContractReference = parseRecordIn @S.FormulaContracts @S.DaysheetPath \(context, (fields, ())) ->
         if null fields || length (take (maxReferenceDepth limits + 1) fields) > maxReferenceDepth limits
-            then fail "invalid field path"
+            then parserFailure "invalid field path"
             else pure (FieldPath context (map FieldId fields))
 
 instance ContractReference S.DaysheetLiteral where
@@ -127,14 +128,14 @@ instance ContractReference S.DaysheetLiteral where
 
 parseLiteralWith :: (Number.Number -> Either Number.NumberError Number.Number) -> Aeson.Value -> Aeson.Parser Literal
 parseLiteralWith money = parseTaggedUnionIn @S.FormulaContracts @S.DaysheetLiteral
-        (unionCase @S.TextValue (\(value, ()) -> if Text.length value > maxTextLength limits then fail "text limit" else pure (TextLiteral value))
+        (unionCase @S.TextValue (\(value, ()) -> if Text.length value > maxTextLength limits then parserFailure "text limit" else pure (TextLiteral value))
         |: unionCase @S.BooleanValue (\(value, ()) -> pure (BooleanLiteral value))
         |: unionCase @S.ChoiceValue (\(value, ()) -> pure (ChoiceLiteral (ChoiceId value)))
         |: unionCase @S.WholeValue (\(value, ()) -> WholeLiteral <$> integer value)
         |: unionCase @S.DecimalValue (\(n, (d, ())) -> DecimalLiteral <$> rational n d)
         |: unionCase @S.MoneyValue (\(n, (d, ())) -> do
             value <- rational n d
-            either (const (fail "money requires cents")) (pure . MoneyLiteral) (money value))
+            either (const (parserFailure "money requires cents")) (pure . MoneyLiteral) (money value))
         |: unionCase @S.PercentageValue (\(n, (d, ())) -> PercentageLiteral <$> rational n d)
         |: unionCase @S.DateValue (\(value, ()) -> pure (DateLiteral value))
         |: unionCase @S.OperationalTimeValue (\(value, ()) -> OperationalTimeLiteral <$> time value)
@@ -142,20 +143,20 @@ parseLiteralWith money = parseTaggedUnionIn @S.FormulaContracts @S.DaysheetLiter
 
 integer :: Text -> Aeson.Parser Integer
 integer value
-    | Text.length value > 40 = fail "integer limit"
+    | Text.length value > 40 = parserFailure "integer limit"
     | otherwise = case readMaybe (Text.unpack value) of
         Just parsed | Text.pack (show parsed) == value ->
-            either (const (fail "integer limit")) (const (pure parsed)) (Number.number parsed 1)
-        _ -> fail "invalid integer"
+            either (const (parserFailure "integer limit")) (const (pure parsed)) (Number.number parsed 1)
+        _ -> parserFailure "invalid integer"
 
 rational :: Text -> Text -> Aeson.Parser Number.Number
 rational n d = do
     numerator <- integer n
     denominator <- integer d
-    if denominator <= 0 then fail "invalid denominator" else
-        either (const (fail "number limit")) pure (Number.number numerator denominator)
+    if denominator <= 0 then parserFailure "invalid denominator" else
+        either (const (parserFailure "number limit")) pure (Number.number numerator denominator)
 
 time :: Text -> Aeson.Parser TimeOfDay
 time value
-    | Text.length value /= 8 = fail "invalid time"
-    | otherwise = maybe (fail "invalid time") pure (parseTimeM True defaultTimeLocale "%H:%M:%S" (Text.unpack value))
+    | Text.length value /= 8 = parserFailure "invalid time"
+    | otherwise = maybe (parserFailure "invalid time") pure (parseTimeM True defaultTimeLocale "%H:%M:%S" (Text.unpack value))

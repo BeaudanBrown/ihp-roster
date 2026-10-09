@@ -150,6 +150,9 @@ export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName,
 export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };
 export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {};
 
+export type FrontendSurfaceSettledFormGateDefinition = { name: string; actionRoleAttribute: string; noticeRoleAttribute: string };
+export const FrontendSurfaceSettledFormGateRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSettledFormGateDefinition>> = {};
+
 export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean; shelfRoleAttribute: string; shelfToggleRoleAttribute: string; shelfStateAttribute: string; shelfClosedValue: string; shelfOpenValue: string; isShelfState: (value: unknown) => boolean };
 export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {};
 

@@ -10,6 +10,7 @@ module Application.Daysheet.ReportCodec
     ) where
 
 import Prelude
+import Application.Error.Parser (parserFailure)
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.Report
 import Application.Daysheet.Wire (literalJson, parseProjectedLiteralJson)
@@ -39,9 +40,9 @@ decodeReportContent value
   where
     parser = withObject "frozen selected report" \record -> do
         version <- record .: "version"
-        if length record /= 2 || (version :: Int) /= 1 then fail "invalid report envelope" else pure ()
+        if length record /= 2 || (version :: Int) /= 1 then parserFailure "invalid report envelope" else pure ()
         content <- record .: "content"
-        if all safeText (reportText content) then pure content else fail "invalid report text"
+        if all safeText (reportText content) then pure content else parserFailure "invalid report text"
 
 -- PostgreSQL JSONB cannot preserve NUL. Check all labels, messages and resolved
 -- display values, not just text literals that passed through the input codec.
@@ -80,10 +81,10 @@ instance FromJSON ReportCell where
             "value" | length record == 3 -> do
                 literal <- record .: "literal" >>= parseProjectedLiteralJson
                 case literal of
-                    D.ChoiceLiteral _ -> fail "unresolved report identity"
+                    D.ChoiceLiteral _ -> parserFailure "unresolved report identity"
                     _ -> ReportValue literal <$> record .: "display"
             "unavailable" | length record == 2 -> ReportUnavailable <$> record .: "reason"
-            _ -> fail "invalid report cell"
+            _ -> parserFailure "invalid report cell"
 
 deriving instance Generic ReportCheck
 instance ToJSON ReportCheck where toJSON = genericToJSON options

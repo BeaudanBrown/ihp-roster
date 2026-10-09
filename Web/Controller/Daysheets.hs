@@ -24,9 +24,7 @@ import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast, successToast, renderToastOob, renderDialogOverlayClearOob)
-import Control.Monad (forM)
 import Data.Traversable (traverse)
 import qualified Data.Map.Strict as Map
 import qualified Data.ByteString as ByteString

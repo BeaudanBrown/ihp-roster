@@ -2,12 +2,13 @@
 -- jobs never enter this capability merely because their requester is a manager.
 module Application.Helper.Export.DaysheetSource (daysheetExportScope, canDownloadDaysheetExport) where
 
+import Application.Error.Parser (parserFailure)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.DailyStorage as Storage
 import Application.Helper.Controller
 import Application.Helper.Export.Types
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (parseMaybe, (.:))
+import Data.Aeson.Types (parseMaybe)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -39,6 +40,6 @@ canDownloadDaysheetExport job = case (currentVenueMembershipOrNothing, parseMayb
     source = Aeson.withObject "Daysheet export provenance" \object -> do
         kind <- object .: "source"
         version <- object .: "version"
-        unless (kind == ("daysheet" :: Text) && version == (1 :: Int)) (fail "Unsupported export source")
+        unless (kind == ("daysheet" :: Text) && version == (1 :: Int)) (parserFailure "Unsupported export source")
         (,,,) <$> object .: "daysheetId" <*> object .: "captureId" <*> object .: "reportId" <*> object .: "revision"
     matches report (D.Report (D.ReportId key) _ _ outputs) = report == key && D.ExcelDownload `elem` outputs

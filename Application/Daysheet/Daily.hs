@@ -10,6 +10,7 @@ module Application.Daysheet.Daily
     ) where
 
 import Prelude
+import Application.Error.Parser (parserFailure)
 import Application.Daysheet.Contract
 import Application.Daysheet.Daily.Types
 import qualified Application.Daysheet.Evaluation as E
@@ -69,7 +70,7 @@ decodeDaily definition references owner value = do
   where
     parser = withObject "daily document" \record -> do
         version <- record .: "version"
-        unless (length record == 4 && version == (1 :: Int)) (fail "invalid daily version")
+        unless (length record == 4 && version == (1 :: Int)) (parserFailure "invalid daily version")
         DailyDocument <$> record .: "cells" <*> record .: "rows" <*> record .: "deleted"
 
 emptyDaily :: Definition -> ReferenceData -> E.SnapshotKey -> Either DailyError DailyDocument

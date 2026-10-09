@@ -80,7 +80,7 @@ tests = describe "Schema" do
         allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
-        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv", "payroll_workbook_xlsx"]
+        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv", "payroll_workbook_xlsx", "daysheet_workbook_xlsx"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -129,7 +129,7 @@ tests = describe "Schema" do
         canAssignVenueRole False (Just VenueAdmin) VenueOwner VenueAdmin `shouldBe` False
         canAssignVenueRole False (Just VenueOwner) VenueOwner VenueAdmin `shouldBe` True
         canAssignVenueRole True Nothing VenueOwner VenueAdmin `shouldBe` True
-        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] `shouldBe` allExportJobTypeValues
+        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx, DaysheetWorkbookXlsx] `shouldBe` allExportJobTypeValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
 
     it "retains the additive Payroll Workbook XLSX export migration" do
