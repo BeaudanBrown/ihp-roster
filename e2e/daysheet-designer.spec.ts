@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { daysheetTest as test, openDaysheet, openDaysheetDate } from './support/daysheet';
 import { expectNoHorizontalViewportOverflow } from './support/responsive';
 
@@ -205,6 +206,8 @@ test.describe('Daysheet designer controls', () => {
     });
 
     test('guides exact fee calculations and uses them only in newly captured Daysheets', async ({ page, daysheet }) => {
+        // Full formula/layout authoring, publication and two capture generations.
+        test.setTimeout(E2E_TIMEOUT.slowTest);
         await openDaysheet(page, daysheet);
         const capturedUrl = page.url();
         await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
