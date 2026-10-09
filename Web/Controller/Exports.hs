@@ -133,9 +133,9 @@ swapAt leftIndex rightIndex values =
         | otherwise = value
 
 instance Controller ExportsController where
-    beforeAction = bepisBeforeAction (case ?theAction of
-        DownloadExportJobAction {} -> BepisAuthenticatedVenueController
-        _ -> BepisAdminVenueController) do
+    -- Downloads admit scoped managers; the administrative actions retain their
+    -- stronger role check below. The controller-wide policy is the common floor.
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
