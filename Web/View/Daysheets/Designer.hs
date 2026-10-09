@@ -3,6 +3,8 @@ module Web.View.Daysheets.Designer
 
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.Designer.Controls
+import Application.Daysheet.Validation (referenceTargets)
+import Data.Either (fromRight)
 import Application.Daysheet.Storage (DesignerState (..))
 import Application.Daysheet.References
 import qualified Application.Daysheet.Evaluation as E
@@ -329,7 +331,7 @@ renderDesigner venue state page problem = case page of
             {hidden (surfaceFieldNameFrom @Surface.ContainerId fields) (maybe "" tshow (surfaceFieldValue @Surface.ContainerId fields))}
             <div class="mb-3"><label class="form-label" for={name}>Field name</label><input class="form-control" id={name} name={name} value={surfaceFieldValue @Surface.Label fields} required="required" aria-invalid={invalidValue}/></div>
             <div class="mb-3"><label class="form-label" for={kindName}>Field type</label><select class="form-select" id={kindName} name={kindName}>{forEach [minBound .. maxBound] option}</select></div>
-            {referenceSelect sourceName (surfaceFieldValue @Surface.ReferenceListId fields) (D.recordLists definition)}
+            {referenceSelect sourceName (surfaceFieldValue @Surface.ReferenceListId fields) (fromRight [] (referenceTargets definition (D.ListId <$> surfaceFieldValue @Surface.ContainerId fields)))}
             <div class="mb-3"><label class="form-label" for={choiceName}>First option (new choice fields only)</label><input class="form-control" id={choiceName} name={choiceName} value={fromMaybe "" (surfaceFieldValue @Surface.InitialChoice fields)}/></div>
             <p class="form-text">Renaming keeps the field identity and any existing calculation. Changes that break dependent fields or layouts are rejected.</p>
             {buttons}

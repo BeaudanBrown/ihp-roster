@@ -56,6 +56,20 @@ tests = describe "Daysheet definition contract" do
         let dailyKey = ListId (UUID.fromWords 0 0 0 1)
         let venue = RecordList venueKey "Terminals" VenueReference [Field fieldKey "Invalid link" (ReferenceType dailyKey) Entered]
         validateDefinition (base { recordLists = [venue, RecordList dailyKey "Daily" OpenDaily []] }) `shouldBe` Left InvalidReferenceScope
+    it "rejects same-list daily links while allowing cross-list and venue links" do
+        let dailyKey = ListId UUID.nil
+        let venueKey = ListId (UUID.fromWords 0 0 0 1)
+        let otherKey = ListId (UUID.fromWords 0 0 0 2)
+        let venues = RecordList venueKey "Areas" VenueReference []
+        let other = RecordList otherKey "Other daily list" OpenDaily []
+        let definition mode target = base { recordLists = [RecordList dailyKey "Daily" mode [Field fieldKey "Link" (ReferenceType target) Entered], venues, other] }
+        mapM_ (\mode -> do
+            validateDefinition (definition mode dailyKey) `shouldBe` Left InvalidReferenceScope
+            validateDefinition (definition mode otherKey) `shouldBe` Right ()
+            validateDefinition (definition mode venueKey) `shouldBe` Right ()
+            fmap (map listId) (referenceTargets (definition mode venueKey) (Just dailyKey)) `shouldBe` Right [venueKey, otherKey]
+            ) [OpenDaily, ReferenceChecklist venueKey]
+        validateDefinition (definition VenueReference dailyKey) `shouldBe` Right ()
     it "types filtered grouped money sums in distinct enclosing/item scopes" do
         let list = ListId UUID.nil
         let areaList = ListId (UUID.fromWords 0 0 0 1)

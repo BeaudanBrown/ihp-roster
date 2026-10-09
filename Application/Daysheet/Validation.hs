@@ -5,6 +5,7 @@ module Application.Daysheet.Validation
     , expressionType
     , expressionTypeInScope
     , validateFields
+    , referenceTargets
     , validateDefinition
     ) where
 
@@ -208,6 +209,16 @@ allFields definition = rootFields definition <> concatMap listFields (recordList
 -- field, so deleting dependencies cannot leave dangling rules. This is NOT a
 -- publication/request boundary: layout, wire-byte and total payload validation
 -- must also succeed before an untrusted definition may be published.
+-- | The same target authority governs publication and designer choices.
+referenceTargets :: Definition -> Maybe ListId -> Either ContractError [RecordList]
+referenceTargets definition Nothing = Right (recordLists definition)
+referenceTargets definition (Just owner) = do
+    source <- findList definition owner
+    pure [target | target <- recordLists definition,
+        if listMode source == VenueReference
+            then listMode target == VenueReference
+            else listId target /= owner]
+
 validateFields :: Definition -> Either ContractError ()
 validateFields definition = do
     if contractVersion definition `elem` [1, 2] then Right () else Left UnsupportedVersion
@@ -239,11 +250,8 @@ validateFields definition = do
                 else mapM_ (validateLabel . choiceLabel) choices
             ReferenceType target -> do
                 referenced <- findList definition target
-                case scope of
-                    Nothing -> Right ()
-                    Just owner -> do
-                        source <- findList definition owner
-                        if listMode source == VenueReference && listMode referenced /= VenueReference then Left InvalidReferenceScope else Right ()
+                targets <- referenceTargets definition scope
+                if referenced `elem` targets then Right () else Left InvalidReferenceScope
             _ -> Right ()
         case fieldSource field of
             Entered -> Right ()
