@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { loginAs } from './support/session';
+import { openAuthenticatedNavIfCollapsed, expectNoHorizontalViewportOverflow } from './support/responsive';
 import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
 
 test.describe('Authenticated header navigation', () => {
@@ -38,6 +39,22 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
 
+    test('admins can open Daysheets from desktop and narrow mobile navigation', async ({ page }) => {
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        for (const width of [1280, 320]) {
+            await page.setViewportSize({ width, height: 800 });
+            await openAuthenticatedNavIfCollapsed(page);
+            const link = page.getByRole('navigation').getByRole('link', { name: /^daysheets$/i });
+            await expect(link).toBeVisible();
+            await link.click();
+            await expect(page).toHaveURL(/\/Daysheets/, { timeout: E2E_TIMEOUT.navigation });
+            await expect(page.getByRole('button', { name: 'Configure Daysheets', exact: true })).toBeVisible();
+            await expectNoHorizontalViewportOverflow(page);
+            await openAuthenticatedNavIfCollapsed(page);
+            await expect(link).toHaveAttribute('aria-current', 'page');
+        }
+    });
+
     test('worker header hides the unavailability link and uses profile as the unavailability entrypoint', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await expect(page.locator('#roster-week-shell')).toBeVisible();
@@ -47,6 +64,7 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'unavailability' })).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+        await expect(page.getByRole('navigation', { includeHidden: true }).getByRole('link', { name: /^daysheets$/i, includeHidden: true })).toHaveCount(0);
 
         await page.getByRole('link', { name: 'profile' }).click();
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });

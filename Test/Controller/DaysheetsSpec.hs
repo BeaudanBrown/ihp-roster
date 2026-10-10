@@ -45,6 +45,18 @@ day = fromGregorian 2026 10 1
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "DaysheetsController" do
+        forM_ [VenueOwner, VenueAdmin, Manager] \role ->
+            it ("renders Daysheets navigation only for admins: " <> cs (show role)) $ withContext do
+                withCleanDb do
+                    (venue, user, member) <- setup
+                    _ <- member |> set #venueRole role |> updateRecord
+                    response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams DaysheetsAction []
+                    response `responseStatusShouldBe` status200
+                    forM_ [">daysheets</span>", ">Daysheets</span>"] \label ->
+                        if role == Manager
+                            then response `responseBodyShouldNotContain` label
+                            else response `responseBodyShouldContain` label
+
         it "round-trips root and row URLs through the real IHP AutoRoute parser" $ withContext do
             let key = Id (UUID.fromWords 0 0 0 500)
             forM_ [ShowDaysheetReportAction key UUID.nil, ShowDaysheetReportBodyAction key UUID.nil] \action -> do

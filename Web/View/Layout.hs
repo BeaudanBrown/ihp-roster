@@ -148,6 +148,7 @@ renderDesktopNavLinks = [hsx|
     {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderDesktopNavLink "profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
     {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
+    {renderWhenAudience AdminAudience (renderDesktopNavLink "daysheets" "bi-journal-text" (pathTo DaysheetsAction) ["/Daysheets", "/DaysheetDesigner", "/ShowDaysheet", "/EditDaysheet", "/NewDaysheet"])}
     {renderWhenAudience ManagerAudience (renderDesktopNavLink "unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderDesktopNavLink "xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingDesktopNavLink}
@@ -161,6 +162,7 @@ renderMobileNavLinks = [hsx|
     {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderMobileNavLink "Profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
     {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
+    {renderWhenAudience AdminAudience (renderMobileNavLink "Daysheets" "bi-journal-text" (pathTo DaysheetsAction) ["/Daysheets", "/DaysheetDesigner", "/ShowDaysheet", "/EditDaysheet", "/NewDaysheet"])}
     {renderWhenAudience ManagerAudience (renderMobileNavLink "Unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderMobileNavLink "Xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingMobileNavLink}

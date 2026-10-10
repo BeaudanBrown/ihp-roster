@@ -39,9 +39,9 @@ layers and must not become business DOM.
 ## Layout And Navigation
 
 Render the root-defined header order from `Web/View/Layout.hs`: `roster`,
-`profile`, `timesheets`, `unavailability`, `xero`, `billing`, `admin`, `support`,
+`profile`, `timesheets`, `daysheets`, `unavailability`, `xero`, `billing`, `admin`, `support`,
 `logout`. View-local audience rules are: Xero owner/super-admin; Billing ordinary
-owner only when its deployment control is enabled; Admin admin-only; Support
+owner only when its deployment control is enabled; Daysheets and Admin admin-only; Support
 founder-only. Hiding Billing navigation must not disable its authorized direct
 route. Auth pages do not render the header, and page views do not duplicate it.
 Logout/destructive actions use explicit native forms rather than JavaScript-only

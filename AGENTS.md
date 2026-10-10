@@ -105,7 +105,7 @@ contracts generate `frontend/ts/generated/`. Read `frontend/AGENTS.md` and
 runtime assets.
 
 Authenticated navigation is owned by `Web/View/Layout.hs`; its order is
-`roster`, `profile`, `timesheets`, `unavailability`, `xero`, `billing`, `admin`,
+`roster`, `profile`, `timesheets`, `daysheets` (admin-only), `unavailability`, `xero`, `billing`, `admin`,
 `support`, `logout`. Detailed controller, view, interaction, live-update, CSS,
 Hspec, and Playwright rules belong to their local docs.
 
