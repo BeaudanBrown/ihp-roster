@@ -47,7 +47,15 @@ Bepis does not provide specialised workflows for those variations in v1.
   outside v1.
 - Only admins and owners manage definitions, venue reference lists, layouts,
   report configurations, and recipients. Ordinary business authority comes from
-  current venue membership; existing platform-support rules remain separate.
+  current venue membership; platform-support authority remains separate.
+- An unimpersonated platform super-admin has full Daysheet administration for
+  the current selected venue: configuration/publication, entries/submission,
+  report preview/download, recipients and manual sending. No venue membership
+  is fabricated. Live founder role, account and venue status are rechecked for
+  each operation. While impersonating, the effective member's live role and
+  membership govern access instead; founder privileges do not override them.
+  Business actor columns retain the actual founder; audit payloads identify
+  support or impersonation context. Cross-venue identifiers remain denied.
 - An authorised manager, admin, or owner explicitly starts a Daysheet for a
   selected Operational day, defaulting to the current day. Viewing does not
   create one; there is no automatic daily creation. Concurrent creation must

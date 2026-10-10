@@ -1,5 +1,6 @@
 module Test.DaysheetReportHistorySpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyStorage
 import Application.Daysheet.Recipients
@@ -39,10 +40,10 @@ tests = aroundAll withDatabaseTestContext do
         it "navigates one scoped run at a time, including deterministic timestamp ties and empty days" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup
-                Right empty <- readFrozenHistory manager state.daysheet.id Nothing
+                Right empty <- readFrozenHistory (memberAccess manager) state.daysheet.id Nothing
                 (.snapshotId) <$> empty.selected `shouldBe` Nothing
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right first <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right first <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 second <- newRecord @DaysheetReportSnapshot
                     |> set #id (Id (nonce 900)) |> set #requestKey (nonce 901)
                     |> set #venueId first.venueId |> set #daysheetId first.daysheetId
@@ -51,25 +52,25 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #capturedAt first.capturedAt |> set #sourceRevision first.sourceRevision
                     |> set #content first.content |> set #recipientIds first.recipientIds |> createRecord
                 let [older, newer] = sortOn (.id) [first, second]
-                Right latest <- readFrozenHistory manager state.daysheet.id Nothing
+                Right latest <- readFrozenHistory (memberAccess manager) state.daysheet.id Nothing
                 (.snapshotId) <$> latest.selected `shouldBe` Just newer.id
                 latest.older `shouldBe` Just older.id
                 latest.newer `shouldBe` Nothing
-                Right previous <- readFrozenHistory manager state.daysheet.id (Just (unpackId older.id))
+                Right previous <- readFrozenHistory (memberAccess manager) state.daysheet.id (Just (unpackId older.id))
                 previous.older `shouldBe` Nothing
                 previous.newer `shouldBe` Just newer.id
-                Right other <- createDailySheet manager (addDays 1 day)
-                wrongDay <- readFrozenHistory manager other.daysheet.id (Just (unpackId older.id))
+                Right other <- createDailySheet (memberAccess manager) (addDays 1 day)
+                wrongDay <- readFrozenHistory (memberAccess manager) other.daysheet.id (Just (unpackId older.id))
                 isLeft wrongDay `shouldBe` True
-                missing <- readFrozenHistory manager state.daysheet.id (Just (nonce 999))
+                missing <- readFrozenHistory (memberAccess manager) state.daysheet.id (Just (nonce 999))
                 isLeft missing `shouldBe` True
         it "reads the frozen content, sender and exact old recipients after corrections and replacement" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right firstRecipient <- addReportRecipient owner version.id reportKey "first@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
-                Right initial <- readFrozenReport manager snapshot.id
+                Right firstRecipient <- addReportRecipient (memberAccess owner) version.id reportKey "first@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
+                Right initial <- readFrozenReport (memberAccess manager) snapshot.id
                 initial.operationalDate `shouldBe` day
                 initial.origin `shouldBe` DaysheetManual
                 initial.senderId `shouldBe` Just (Id manager.userId)
@@ -78,10 +79,10 @@ tests = aroundAll withDatabaseTestContext do
                 initial.cutoffAt `shouldBe` Nothing
                 map (.address) initial.recipients `shouldBe` ["first@example.test"]
                 map ((.queue) . (.delivery)) initial.recipients `shouldBe` [DeliveryQueued]
-                Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "New live value")
-                Right _ <- removeReportRecipient owner reportKey firstRecipient.id
-                Right _ <- addReportRecipient owner version.id reportKey "replacement@example.test"
-                Right retained <- readFrozenReport manager snapshot.id
+                Right _ <- editDailyCell (memberAccess manager) state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "New live value")
+                Right _ <- removeReportRecipient (memberAccess owner) reportKey firstRecipient.id
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "replacement@example.test"
+                Right retained <- readFrozenReport (memberAccess manager) snapshot.id
                 Right retained.content `shouldBe` decodeReportContent snapshot.content
                 map (.recipientId) retained.recipients `shouldBe` [firstRecipient.id]
                 map (.removed) retained.recipients `shouldBe` [True]
@@ -89,41 +90,41 @@ tests = aroundAll withDatabaseTestContext do
         it "exposes acceptance and confirmed delivery without losing retry or cancellation facts" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "recipient@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "recipient@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 job <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 correlation <- prepareProviderCorrelation job
                 now <- getCurrentTime
                 accepted <- markSmtpAccepted correlation now
                 _ <- job |> set #status JobStatusRetry |> updateRecord
-                Right retry <- readFrozenReport manager snapshot.id
+                Right retry <- readFrozenReport (memberAccess manager) snapshot.id
                 map ((.provider) . (.delivery)) retry.recipients `shouldBe` [ProviderAccepted]
                 map ((.queue) . (.delivery)) retry.recipients `shouldBe` [DeliveryRetrying]
-                Right _ <- removeReportRecipient owner reportKey recipient.id
+                Right _ <- removeReportRecipient (memberAccess owner) reportKey recipient.id
                 _ <- accepted |> set #providerStatus "delivered" |> set #providerStatusAt (Just now) |> updateRecord
-                Right removed <- readFrozenReport manager snapshot.id
+                Right removed <- readFrozenReport (memberAccess manager) snapshot.id
                 map ((.provider) . (.delivery)) removed.recipients `shouldBe` [ProviderConfirmed]
                 map ((.queue) . (.delivery)) removed.recipients `shouldBe` [DeliveryCancelled]
         it "requires fresh manager authority and rejects foreign runs" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 otherVenue <- createVenueWithConfig "Other history"
                 otherUser <- createUserRecord "other-history@example.test" "manager" True
                 other <- createVenueMembershipRecord otherVenue otherUser Manager
-                isLeft <$> readFrozenReport other snapshot.id `shouldReturn` True
+                isLeft <$> readFrozenReport (memberAccess other) snapshot.id `shouldReturn` True
                 _ <- manager |> set #venueRole Worker |> updateRecord
-                isLeft <$> readFrozenReport manager snapshot.id `shouldReturn` True
+                isLeft <$> readFrozenReport (memberAccess manager) snapshot.id `shouldReturn` True
         it "does not present a forged or missing delivery job as queued or delivered" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right _ <- addReportRecipient owner version.id reportKey "intended@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "intended@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 job <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 _ <- job |> set #payload Aeson.Null |> updateRecord
-                Right history <- readFrozenReport manager snapshot.id
+                Right history <- readFrozenReport (memberAccess manager) snapshot.id
                 map (.address) history.recipients `shouldBe` ["intended@example.test"]
                 map (.delivery) history.recipients `shouldBe` [unavailableDelivery]

@@ -4,6 +4,7 @@
 module Application.Daysheet.Mutations
     ( createSheet, editCell, addRow, deleteRow, submitSheet ) where
 
+import Application.Daysheet.Authority (DaysheetAccess, venueId)
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyError (DailyStorageError (..))
 import qualified Application.Daysheet.DailyStorage as Storage
@@ -32,16 +33,16 @@ mutate label action = withDurableLiveMutationOutcome publication do
         Left _ -> Nothing
         Right _ -> Just (label, result.liveMutationTouchedResources)
 
-createSheet :: MutationContext => VenueMembership -> Day -> IO Result
+createSheet :: MutationContext => DaysheetAccess -> Day -> IO Result
 createSheet member date = mutate "daysheet.create" (Storage.createDailySheet member date)
 
-editCell :: MutationContext => VenueMembership -> Id Daysheet -> Daily.CellAddress -> Integer -> Maybe ReferenceValue -> IO Result
+editCell :: MutationContext => DaysheetAccess -> Id Daysheet -> Daily.CellAddress -> Integer -> Maybe ReferenceValue -> IO Result
 editCell member key address revision value = mutate "daysheet.edit-cell" (Storage.editDailyCell member key address revision value)
 
-addRow :: MutationContext => VenueMembership -> Id Daysheet -> ReferenceKey -> IO Result
+addRow :: MutationContext => DaysheetAccess -> Id Daysheet -> ReferenceKey -> IO Result
 addRow member key row = mutate "daysheet.add-row" (Storage.addDailyRow member key row)
 
-deleteRow :: MutationContext => VenueMembership -> Id Daysheet -> ReferenceKey -> DaysheetDeletionToken -> IO Result
+deleteRow :: MutationContext => DaysheetAccess -> Id Daysheet -> ReferenceKey -> DaysheetDeletionToken -> IO Result
 deleteRow member key row token = mutate "daysheet.delete-row" do
     prepared <- Storage.prepareDailyDeletion member key row
     case prepared of
@@ -50,5 +51,5 @@ deleteRow member key row token = mutate "daysheet.delete-row" do
             | deletionToken (Evaluation.SnapshotKey member.venueId (unpackId key)) plan == token -> Storage.deleteDailyRow member key plan
             | otherwise -> pure (Left (projectDomainError DailyDeletionConflict))
 
-submitSheet :: MutationContext => VenueMembership -> Id Daysheet -> IO Result
+submitSheet :: MutationContext => DaysheetAccess -> Id Daysheet -> IO Result
 submitSheet member key = mutate "daysheet.submit" (Storage.submitDailySheet member key)

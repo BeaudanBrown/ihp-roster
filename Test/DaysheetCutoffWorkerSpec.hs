@@ -1,5 +1,6 @@
 module Test.DaysheetCutoffWorkerSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Cutoff as Cutoff
 import Application.Async.Heartbeat (performWorkerHeartbeatJob)
 import Application.Daysheet.CutoffCapture (CutoffClock (..))
@@ -73,7 +74,7 @@ tests = aroundAll withDatabaseTestContext do
         it "captures eight concurrent venues, keeps ordinary work free and skips a ninth admitted late" $ withContext do
             withCleanDb do
                 (owner, manager, version, first) <- setup
-                Right _ <- submitDailySheet manager first.daysheet.id
+                Right _ <- submitDailySheet (memberAccess manager) first.daysheet.id
                 ownerUser <- fetch (Id owner.userId :: Id User)
                 managerUser <- fetch (Id manager.userId :: Id User)
                 Right definition <- pure (decodeDefinition version.definition)
@@ -81,10 +82,10 @@ tests = aroundAll withDatabaseTestContext do
                     venue <- createVenueWithConfig ("Capture capacity " <> tshow index)
                     venueOwner <- createVenueMembershipRecord venue ownerUser VenueOwner
                     venueManager <- createVenueMembershipRecord venue managerUser Manager
-                    Right _ <- saveDraft venueOwner 0 Nothing definition Fixture.references
-                    Right _ <- publishDraft venueOwner 0 0
-                    Right state <- createDailySheet venueManager day
-                    Right _ <- submitDailySheet venueManager state.daysheet.id
+                    Right _ <- saveDraft (memberAccess venueOwner) 0 Nothing definition Fixture.references
+                    Right _ <- publishDraft (memberAccess venueOwner) 0 0
+                    Right state <- createDailySheet (memberAccess venueManager) day
+                    Right _ <- submitDailySheet (memberAccess venueManager) state.daysheet.id
                     pure ()
                 jobs <- query @DaysheetCaptureJob |> fetch
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
@@ -126,16 +127,16 @@ tests = aroundAll withDatabaseTestContext do
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 job.runAt `shouldBe` Cutoff.armAt plan
                 job.daysheetId `shouldBe` state.daysheet.id
-                Right _ <- createDailySheet manager day
-                Right _ <- createDailySheet manager (fromGregorian 2020 1 1)
+                Right _ <- createDailySheet (memberAccess manager) day
+                Right _ <- createDailySheet (memberAccess manager) (fromGregorian 2020 1 1)
                 query @DaysheetCaptureJob |> fetchCount >>= (`shouldBe` 1)
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 0)
                 query @AppJob |> filterWhere (#jobKind, "email_delivery") |> fetchCount >>= (`shouldBe` 0)
         it "captures and queues once, then acknowledges committed results without rebuilding on late retry" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right _ <- addReportRecipient owner version.id reportKey "cutoff@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "cutoff@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
                 job <- fetchCaptureJob
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (Cutoff.armAt plan)
@@ -144,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
                 completed <- fetch job.id
                 completed.status `shouldBe` JobStatusSucceeded
                 completed.result `shouldBe` Aeson.object ["status" Aeson..= ("captured" :: Text), "snapshotCount" Aeson..= (1 :: Int)]
-                Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later live value")
+                Right _ <- editDailyCell (memberAccess manager) state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later live value")
                 (late, _) <- makeClock (addUTCTime 600 (Cutoff.cutoffAt plan))
                 performCutoffCaptureJobWith late job
                 retained <- fetch first.id
@@ -158,7 +159,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (Cutoff.armAt plan)
                 performCutoffCaptureJobWith clock job
-                Right _ <- submitDailySheet manager state.daysheet.id
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
                 (late, _) <- makeClock (addUTCTime 600 (Cutoff.cutoffAt plan))
                 performCutoffCaptureJobWith late job
                 completed <- fetch job.id
@@ -168,7 +169,7 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects forged queue provenance and deadlines before capture" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup
-                Right _ <- submitDailySheet manager state.daysheet.id
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
                 job <- fetchCaptureJob
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (Cutoff.armAt plan)

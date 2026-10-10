@@ -55,6 +55,22 @@ test.describe('Authenticated header navigation', () => {
         }
     });
 
+    test('founder opens Daysheets and configuration without impersonation on desktop and mobile', async ({ page }) => {
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
+        for (const width of [1280, 320]) {
+            await page.setViewportSize({ width, height: 800 });
+            await openAuthenticatedNavIfCollapsed(page);
+            await page.getByRole('navigation').getByRole('link', { name: /^daysheets$/i }).click();
+            await expect(page).toHaveURL(/\/Daysheets/, { timeout: E2E_TIMEOUT.navigation });
+            await page.getByRole('button', { name: 'Configure Daysheets', exact: true }).click();
+            await expect(page.getByRole('heading', { name: 'Daysheet designer', exact: true })).toBeVisible();
+            await expectNoHorizontalViewportOverflow(page);
+            await openAuthenticatedNavIfCollapsed(page);
+            const selector = page.locator(width < 1200 ? '#support-impersonation-user-mobile' : '#support-impersonation-user');
+            await expect(selector).toHaveValue('');
+        }
+    });
+
     test('worker header hides the unavailability link and uses profile as the unavailability entrypoint', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await expect(page.locator('#roster-week-shell')).toBeVisible();

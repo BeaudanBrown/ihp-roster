@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
--- | Membership-scoped lifecycle. Callers pass the current authenticated venue
--- membership, never a request-selected actor. Authority is re-read under lock;
--- ordinary venue authority cannot be synthesized from a platform user role.
+-- | Venue-scoped lifecycle. Callers pass explicit Daysheet authority derived
+-- from authenticated context, never a request-selected actor. Live membership
+-- or separate founder support authority is re-read under lock.
 module Application.Daysheet.Storage
     ( saveDraft, publishDraft, captureDefinition, withDefinitionCapture, retireCurrentReferences, updateCurrentReferences
     , DesignerState (..), readDesignerState, editDraft, editDraftReferences
@@ -13,11 +13,10 @@ import Application.Daysheet.DefinitionCodec
 import Application.Daysheet.ReferenceCodec
 import Application.Daysheet.References
 import qualified Application.Daysheet.Evaluation as E
-import Application.Daysheet.Authority (withAuthority)
+import Application.Daysheet.Authority (DaysheetAccess, venueId, userId, withAuthority, recordDaysheetAuditEvent)
 import Application.Daysheet.StorageError
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types
-import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Audit.Vocabulary
 import Application.VenueTime (melbourneTimeZoneName)
 import Control.Monad.Trans.Except (ExceptT, throwE)
@@ -38,13 +37,13 @@ failure = throwE . projectDomainError
 checked :: StorageError -> Either rejection a -> StoreM a
 checked errorValue = either (const (failure errorValue)) pure
 
-configuration :: (?modelContext :: ModelContext) => VenueMembership -> StoreM (Maybe DaysheetConfiguration)
+configuration :: (?modelContext :: ModelContext) => DaysheetAccess -> StoreM (Maybe DaysheetConfiguration)
 configuration member = liftIO (query @DaysheetConfiguration |> filterWhere (#venueId, member.venueId) |> fetchOneOrNothing)
 
-draft :: (?modelContext :: ModelContext) => VenueMembership -> StoreM (Maybe DaysheetDefinitionDraft)
+draft :: (?modelContext :: ModelContext) => DaysheetAccess -> StoreM (Maybe DaysheetDefinitionDraft)
 draft member = liftIO (query @DaysheetDefinitionDraft |> filterWhere (#venueId, member.venueId) |> fetchOneOrNothing)
 
-owner :: VenueMembership -> E.SnapshotKey
+owner :: DaysheetAccess -> E.SnapshotKey
 owner member = E.SnapshotKey member.venueId UUID.nil
 
 revisionAfter :: Integer -> StoreM Integer
@@ -71,10 +70,10 @@ data DesignerState = DesignerState
     , designerPublishedVersionId :: Maybe UUID
     } deriving (Eq, Show)
 
-readDesignerState :: (?modelContext :: ModelContext) => VenueMembership -> IO (AppResult DesignerState)
+readDesignerState :: (?modelContext :: ModelContext) => DaysheetAccess -> IO (AppResult DesignerState)
 readDesignerState member = withAuthority member [VenueAdmin, VenueOwner] (designerState member)
 
-designerState :: (?modelContext :: ModelContext) => VenueMembership -> StoreM DesignerState
+designerState :: (?modelContext :: ModelContext) => DaysheetAccess -> StoreM DesignerState
 designerState member = do
     config <- configuration member
     saved <- draft member
@@ -98,7 +97,7 @@ designerState member = do
         , designerDraftRevision = (.revision) <$> saved, designerPublishedVersionId = published
         }
 
-editDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> Designer.Edit -> IO (AppResult DaysheetDefinitionDraft)
+editDraft :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> Maybe Integer -> Designer.Edit -> IO (AppResult DaysheetDefinitionDraft)
 editDraft member expectedBase expectedDraft edit = withAuthority member [VenueAdmin, VenueOwner] do
     state <- designerState member
     checkDesignerRevision expectedBase expectedDraft state
@@ -112,7 +111,7 @@ editDraft member expectedBase expectedDraft edit = withAuthority member [VenueAd
         (failure ReferenceRemovalRequiresRetirement)
     saveDraftLocked member expectedBase expectedDraft changed state.designerReferences
 
-editDraftReferences :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> ReferenceEdit -> IO (AppResult DaysheetDefinitionDraft)
+editDraftReferences :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> Maybe Integer -> ReferenceEdit -> IO (AppResult DaysheetDefinitionDraft)
 editDraftReferences member expectedBase expectedDraft edit = withAuthority member [VenueAdmin, VenueOwner] do
     state <- designerState member
     checkDesignerRevision expectedBase expectedDraft state
@@ -126,11 +125,11 @@ checkDesignerRevision expectedBase expectedDraft state =
 
 -- Staging permits old reference values incompatible with the new definition;
 -- only publication demands their correction. Saving never touches live data.
-saveDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> IO (AppResult DaysheetDefinitionDraft)
+saveDraft :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> IO (AppResult DaysheetDefinitionDraft)
 saveDraft member expectedBase expectedDraft definition references = withAuthority member [VenueAdmin, VenueOwner] $
     saveDraftLocked member expectedBase expectedDraft definition references
 
-saveDraftLocked :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> StoreM DaysheetDefinitionDraft
+saveDraftLocked :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> Maybe Integer -> D.Definition -> ReferenceData -> StoreM DaysheetDefinitionDraft
 saveDraftLocked member expectedBase expectedDraft definition references = do
     config <- configuration member
     saved <- draft member
@@ -153,13 +152,13 @@ saveDraftLocked member expectedBase expectedDraft definition references = do
             |> set #updatedAt now
     liftIO (if isNothing saved then createRecord value else updateRecord value)
 
-publication :: (?modelContext :: ModelContext) => VenueMembership -> DaysheetConfiguration -> StoreM DaysheetDefinitionVersion
+publication :: (?modelContext :: ModelContext) => DaysheetAccess -> DaysheetConfiguration -> StoreM DaysheetDefinitionVersion
 publication member config = do
     versionId <- maybe (failure NotPublished) pure config.publishedVersionId
     value <- liftIO (query @DaysheetDefinitionVersion |> filterWhere (#id, Id versionId) |> filterWhere (#venueId, member.venueId) |> fetchOneOrNothing)
     maybe (failure StoredDocumentInvalid) pure value
 
-publishDraft :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> Integer -> IO (AppResult DaysheetDefinitionVersion)
+publishDraft :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> Integer -> IO (AppResult DaysheetDefinitionVersion)
 publishDraft member expectedBase expectedDraft = withAuthority member [VenueAdmin, VenueOwner] do
     config <- configuration member >>= maybe (failure MissingDraft) pure
     saved <- draft member >>= maybe (failure MissingDraft) pure
@@ -180,23 +179,23 @@ publishDraft member expectedBase expectedDraft = withAuthority member [VenueAdmi
         |> createRecord)
     _ <- liftIO (config |> set #publishedVersionId (Just (unpackId version.id)) |> set #referenceData saved.referenceData |> set #revision next |> set #updatedAt now |> updateRecord)
     liftIO (deleteRecord saved)
-    _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetDefinitionPublishedAudit "daysheet_definition_versions" (unpackId version.id) (Aeson.object ["version" Aeson..= version.versionNumber]) ApplicationAuditSource)
+    _ <- liftIO (recordDaysheetAuditEvent member DaysheetDefinitionPublishedAudit "daysheet_definition_versions" (unpackId version.id) (Aeson.object ["version" Aeson..= version.versionNumber]) ApplicationAuditSource)
     pure version
 
 -- One explicit venue/day creation captures one immutable meaning. Repeated or
 -- concurrent creation returns the existing capture, never a newer definition.
-captureDefinition :: (?modelContext :: ModelContext) => VenueMembership -> Day -> IO (AppResult DaysheetDefinitionCapture)
+captureDefinition :: (?modelContext :: ModelContext) => DaysheetAccess -> Day -> IO (AppResult DaysheetDefinitionCapture)
 captureDefinition member day = withDefinitionCapture member day pure
 
 -- Daily creation and its captured meaning commit together. The continuation
 -- receives the transaction-bound model context; no nested transaction or
 -- captured outer pool may split this atomic boundary.
-withDefinitionCapture :: (?modelContext :: ModelContext) => VenueMembership -> Day -> ((?modelContext :: ModelContext) => DaysheetDefinitionCapture -> StoreM a) -> IO (AppResult a)
+withDefinitionCapture :: (?modelContext :: ModelContext) => DaysheetAccess -> Day -> ((?modelContext :: ModelContext) => DaysheetDefinitionCapture -> StoreM a) -> IO (AppResult a)
 withDefinitionCapture member day action = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     captured <- captureDefinitionLocked member day
     action captured
 
-captureDefinitionLocked :: (?modelContext :: ModelContext) => VenueMembership -> Day -> StoreM DaysheetDefinitionCapture
+captureDefinitionLocked :: (?modelContext :: ModelContext) => DaysheetAccess -> Day -> StoreM DaysheetDefinitionCapture
 captureDefinitionLocked member day = do
     existing <- liftIO (query @DaysheetDefinitionCapture |> filterWhere (#venueId, member.venueId) |> filterWhere (#operationalDate, day) |> fetchOneOrNothing)
     case existing of
@@ -219,7 +218,7 @@ captureDefinitionLocked member day = do
 
 -- Ordinary reference edits/additions do not require a definition publication.
 -- Retirement/restoration cannot be smuggled through this replacement interface.
-updateCurrentReferences :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> ReferenceData -> IO (AppResult DaysheetConfiguration)
+updateCurrentReferences :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> ReferenceData -> IO (AppResult DaysheetConfiguration)
 updateCurrentReferences member expectedRevision references = withAuthority member [VenueAdmin, VenueOwner] do
     config <- configuration member >>= maybe (failure NotPublished) pure
     unless (config.revision == expectedRevision) (failure RevisionConflict)
@@ -233,7 +232,7 @@ updateCurrentReferences member expectedRevision references = withAuthority membe
     now <- liftIO getCurrentTime
     liftIO (config |> set #referenceData referenceJson |> set #revision next |> set #updatedAt now |> updateRecord)
 
-retireCurrentReferences :: (?modelContext :: ModelContext) => VenueMembership -> Integer -> ReferenceKey -> [ReferenceChange] -> IO (AppResult DaysheetConfiguration)
+retireCurrentReferences :: (?modelContext :: ModelContext) => DaysheetAccess -> Integer -> ReferenceKey -> [ReferenceChange] -> IO (AppResult DaysheetConfiguration)
 retireCurrentReferences member expectedRevision target choices = withAuthority member [VenueAdmin, VenueOwner] do
     config <- configuration member >>= maybe (failure NotPublished) pure
     unless (config.revision == expectedRevision) (failure RevisionConflict)
@@ -245,5 +244,5 @@ retireCurrentReferences member expectedRevision target choices = withAuthority m
     next <- revisionAfter config.revision
     now <- liftIO getCurrentTime
     updated <- liftIO (config |> set #referenceData referenceJson |> set #revision next |> set #updatedAt now |> updateRecord)
-    _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetReferencesRetiredAudit "daysheet_configurations" (unpackId config.id) (Aeson.object ["revision" Aeson..= next]) ApplicationAuditSource)
+    _ <- liftIO (recordDaysheetAuditEvent member DaysheetReferencesRetiredAudit "daysheet_configurations" (unpackId config.id) (Aeson.object ["revision" Aeson..= next]) ApplicationAuditSource)
     pure updated

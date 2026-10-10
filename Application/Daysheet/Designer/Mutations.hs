@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Application.Daysheet.Designer.Mutations (edit, editReferences, publish, stageStarter) where
 
+import Application.Daysheet.Authority (DaysheetAccess, venueId)
 import qualified Application.Daysheet.Designer as Designer
 import qualified Application.Daysheet.Storage as Storage
 import Application.Daysheet.References (ReferenceEdit)
@@ -16,7 +17,7 @@ import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
 type MutationContext = (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request)
 
-mutate :: MutationContext => VenueMembership -> Text -> ((?modelContext :: ModelContext) => IO (AppResult a)) -> IO (LiveMutationResult (AppResult a))
+mutate :: MutationContext => DaysheetAccess -> Text -> ((?modelContext :: ModelContext) => IO (AppResult a)) -> IO (LiveMutationResult (AppResult a))
 mutate member label action = withDurableLiveMutationOutcome publication do
     result <- action
     pure (liveMutationResult result (case result of
@@ -27,20 +28,20 @@ mutate member label action = withDurableLiveMutationOutcome publication do
         Left _ -> Nothing
         Right _ -> Just (label, result.liveMutationTouchedResources)
 
-edit :: MutationContext => VenueMembership -> Integer -> Maybe Integer -> Designer.Edit -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
+edit :: MutationContext => DaysheetAccess -> Integer -> Maybe Integer -> Designer.Edit -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
 edit member base revision change = mutate member "daysheet.designer.edit" (Storage.editDraft member base revision change)
 
-editReferences :: MutationContext => VenueMembership -> Integer -> Maybe Integer -> ReferenceEdit -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
+editReferences :: MutationContext => DaysheetAccess -> Integer -> Maybe Integer -> ReferenceEdit -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
 editReferences member base revision change = mutate member "daysheet.designer.edit-references" (Storage.editDraftReferences member base revision change)
 
 -- Initial setup only: never replace a venue's published or staged work. The
 -- normal locked revision guard makes competing setup actions fail safely.
-stageStarter :: MutationContext => VenueMembership -> Integer -> Maybe Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
+stageStarter :: MutationContext => DaysheetAccess -> Integer -> Maybe Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionDraft))
 stageStarter member base revision = mutate member "daysheet.designer.starter" do
     if base /= 0 || isJust revision then pure (Left (projectDomainError RevisionConflict)) else
         case starterTemplate of
             Left _ -> pure (Left (projectDomainError StoredDocumentInvalid))
             Right (definition, references) -> Storage.saveDraft member 0 Nothing definition references
 
-publish :: MutationContext => VenueMembership -> Integer -> Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionVersion))
+publish :: MutationContext => DaysheetAccess -> Integer -> Integer -> IO (LiveMutationResult (AppResult DaysheetDefinitionVersion))
 publish member base revision = mutate member "daysheet.designer.publish" (Storage.publishDraft member base revision)

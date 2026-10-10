@@ -2,14 +2,13 @@
 -- authority transaction covers the consistent saved read and artifact write.
 module Application.Helper.Export.Daysheet (requestDaysheetWorkbook) where
 
-import Application.Daysheet.Authority (withAuthority)
+import Application.Daysheet.Authority (withAuthority, currentDaysheetAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.DailyStorage as Storage
 import qualified Application.Daysheet.Evaluation as E
 import qualified Application.Daysheet.Report as Report
 import qualified Application.Daysheet.Saved as Saved
 import Application.Error.Types (appErrorSafeMessage)
-import Application.Helper.Controller
 import Application.Helper.Export.DaysheetSource
 import Application.Helper.Export.DaysheetWorkbook
 import Application.Helper.Export.Persistence
@@ -23,8 +22,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 requestDaysheetWorkbook :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Daysheet -> UUID -> IO (Either Text ExportJob)
-requestDaysheetWorkbook key report = case currentVenueMembershipOrNothing of
-    Nothing -> pure (Left "Daysheet exports require an active venue membership.")
+requestDaysheetWorkbook key report = case currentDaysheetAccess of
+    Nothing -> pure (Left "Daysheet exports require authorized access to the selected venue.")
     Just member -> do
         outcome <- withAuthority member [Manager, VenueAdmin, VenueOwner] do
             state <- ExceptT (Storage.readDailySheet member key)

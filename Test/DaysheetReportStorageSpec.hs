@@ -1,5 +1,6 @@
 module Test.DaysheetReportStorageSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Cutoff as Cutoff
 import qualified Application.Daysheet.Daily as Daily
@@ -38,9 +39,9 @@ setup = do
     manager <- createVenueMembershipRecord venue managerUser Manager
     let definition = Fixture.definition { D.reports = [D.Report reportKey "Closing"
             [D.Section (D.SectionId (nonce 711)) "Summary" [D.FieldBlock (Fixture.field 1), D.FieldBlock (Fixture.field 2)]] [D.FormattedReport]] }
-    Right _ <- saveDraft owner 0 Nothing definition Fixture.references
-    Right version <- publishDraft owner 0 0
-    Right state <- createDailySheet manager day
+    Right _ <- saveDraft (memberAccess owner) 0 Nothing definition Fixture.references
+    Right version <- publishDraft (memberAccess owner) 0 0
+    Right state <- createDailySheet (memberAccess manager) day
     pure (owner, manager, version, state)
 
 tests :: Spec
@@ -49,13 +50,13 @@ tests = aroundAll withDatabaseTestContext do
         it "requires submission, then captures incomplete data and configured external recipients atomically" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "external@example.test"
-                denied <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "external@example.test"
+                denied <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 isLeft denied `shouldBe` True
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 0)
                 query @AppJob |> filterWhere (#jobKind, "email_delivery") |> fetchCount >>= (`shouldBe` 0)
-                Right submitted <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right submitted <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 snapshot.origin `shouldBe` DaysheetManual
                 snapshot.cutoffAt `shouldBe` Nothing
                 snapshot.senderId `shouldBe` Just (Id manager.userId)
@@ -69,18 +70,18 @@ tests = aroundAll withDatabaseTestContext do
         it "deduplicates concurrent/retried Sends and preserves old values and intended recipients" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right firstRecipient <- addReportRecipient owner version.id reportKey "first@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
+                Right firstRecipient <- addReportRecipient (memberAccess owner) version.id reportKey "first@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
                 (Right first, Right repeated) <- concurrently
-                    (captureManualReport manager state.daysheet.id reportKey (nonce 1))
-                    (captureManualReport manager state.daysheet.id reportKey (nonce 1))
+                    (captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1))
+                    (captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1))
                 repeated.id `shouldBe` first.id
-                Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later correction")
-                Right _ <- removeReportRecipient owner reportKey firstRecipient.id
-                Right newRecipient <- addReportRecipient owner version.id reportKey "new@example.test"
-                Right retry <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- editDailyCell (memberAccess manager) state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later correction")
+                Right _ <- removeReportRecipient (memberAccess owner) reportKey firstRecipient.id
+                Right newRecipient <- addReportRecipient (memberAccess owner) version.id reportKey "new@example.test"
+                Right retry <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 retry `shouldBe` first
-                Right fresh <- captureManualReport manager state.daysheet.id reportKey (nonce 2)
+                Right fresh <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 2)
                 fresh.id `shouldNotBe` first.id
                 fresh.content `shouldNotBe` first.content
                 fresh.recipientIds `shouldBe` Aeson.toJSON [unpackId newRecipient.id]
@@ -92,16 +93,16 @@ tests = aroundAll withDatabaseTestContext do
         it "denies wrong reports, reused request scope, workers and foreign venue requests" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right _ <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
-                isLeft <$> captureManualReport manager state.daysheet.id (D.ReportId (nonce 900)) (nonce 1) `shouldReturn` True
-                isLeft <$> captureManualReport manager state.daysheet.id (D.ReportId (nonce 900)) (nonce 2) `shouldReturn` True
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right _ <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
+                isLeft <$> captureManualReport (memberAccess manager) state.daysheet.id (D.ReportId (nonce 900)) (nonce 1) `shouldReturn` True
+                isLeft <$> captureManualReport (memberAccess manager) state.daysheet.id (D.ReportId (nonce 900)) (nonce 2) `shouldReturn` True
                 venue <- createVenueWithConfig "Foreign report venue"
                 user <- fetch (Id manager.userId :: Id User)
                 foreignMember <- createVenueMembershipRecord venue user VenueOwner
-                isLeft <$> captureManualReport foreignMember state.daysheet.id reportKey (nonce 3) `shouldReturn` True
+                isLeft <$> captureManualReport (memberAccess foreignMember) state.daysheet.id reportKey (nonce 3) `shouldReturn` True
                 _ <- manager |> set #venueRole Worker |> updateRecord
-                isLeft <$> captureManualReport manager state.daysheet.id reportKey (nonce 1) `shouldReturn` True
+                isLeft <$> captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1) `shouldReturn` True
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 1)
         it "captures submitted days only inside cutoff, without later reconstruction" $ withContext do
             withCleanDb do
@@ -109,7 +110,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right plan <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (addUTCTime (-0.5) (Cutoff.cutoffAt plan))
                 captureScheduledReports clock manager.venueId plan `shouldReturn` Right Nothing
-                Right _ <- submitDailySheet manager state.daysheet.id
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
                 -- The already-advanced clock is now at cutoff: later submission
                 -- cannot turn the previously skipped Draft into an automatic send.
                 captureScheduledReports clock manager.venueId plan `shouldReturn` Right Nothing
@@ -125,7 +126,7 @@ tests = aroundAll withDatabaseTestContext do
         it "enforces submitted source, venue, revision and recipient scope in the database" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "scope@example.test"
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "scope@example.test"
                 now <- getCurrentTime
                 let D.ReportId reportId = reportKey
                 let candidate = newRecord @DaysheetReportSnapshot
@@ -137,7 +138,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #content (Aeson.object []) |> set #recipientIds (Aeson.toJSON [unpackId recipient.id])
                 deniedDraft <- try @SomeException (createRecord candidate)
                 isLeft deniedDraft `shouldBe` True
-                Right submitted <- submitDailySheet manager state.daysheet.id
+                Right submitted <- submitDailySheet (memberAccess manager) state.daysheet.id
                 capturedAt <- getCurrentTime
                 let valid = candidate |> set #sourceRevision submitted.daysheet.revision |> set #capturedAt capturedAt
                 other <- createVenueWithConfig "Wrong snapshot scope"
@@ -154,8 +155,8 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects SQL mutation/deletion of snapshots and rolls back failed job creation" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 changed <- try @SomeException (snapshot |> set #content (Aeson.object []) |> updateRecord)
                 isLeft changed `shouldBe` True
                 removed <- try @SomeException (deleteRecord snapshot)
@@ -166,7 +167,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @DaysheetReportRecipient |> set #venueId owner.venueId
                     |> set #reportId reportId |> set #definitionVersionId (unpackId version.id)
                     |> set #address "bad\naddress@example.test" |> set #createdBy owner.userId |> createRecord
-                failed <- try @SomeException (captureManualReport manager state.daysheet.id reportKey (nonce 2))
+                failed <- try @SomeException (captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 2))
                 isLeft failed `shouldBe` True
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 1)
                 query @AppJob |> filterWhere (#jobKind, "email_delivery") |> fetchCount >>= (`shouldBe` 0)

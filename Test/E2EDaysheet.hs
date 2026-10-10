@@ -2,6 +2,7 @@
 -- persisted definition codec or depend on the operator's ignored workbook.
 module Test.E2EDaysheet (seedDaysheetFixture) where
 
+import Application.Daysheet.Authority (memberAccess)
 import Application.Daysheet.Storage (saveDraft, publishDraft)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
@@ -23,9 +24,9 @@ seedDaysheetFixture = do
     _ <- createTestPasskeyRecord user "E2E Daysheet passkey"
     pristine <- Env.lookupEnv "IHP_ROSTER_E2E_DAYSHEET_PRISTINE"
     unless (pristine == Just "1") do
-        draft <- saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+        draft <- saveDraft (memberAccess member) 0 Nothing Fixture.entryDefinition Fixture.entryReferences
         either (const (die "Daysheet fixture draft rejected")) (const (pure ())) draft
-        published <- publishDraft member 0 0
+        published <- publishDraft (memberAccess member) 0 0
         either (const (die "Daysheet fixture publication rejected")) (const (pure ())) published
     LBS.putStrLn (Aeson.encode (Aeson.object
         [ "venueId" Aeson..= venue.id

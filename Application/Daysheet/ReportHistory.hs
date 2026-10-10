@@ -4,7 +4,7 @@ module Application.Daysheet.ReportHistory
     ( FrozenReport (..), FrozenRecipient (..), FrozenHistory (..), readFrozenReport, readFrozenHistory
     ) where
 
-import Application.Daysheet.Authority (withAuthority)
+import Application.Daysheet.Authority (DaysheetAccess, venueId, withAuthority)
 import Application.Daysheet.EmailContract
 import Application.Daysheet.Report (ReportContent)
 import Application.Daysheet.ReportCodec (decodeReportContent)
@@ -53,7 +53,7 @@ data FrozenHistory = FrozenHistory
     , newer :: !(Maybe (Id DaysheetReportSnapshot))
     }
 
-readFrozenHistory :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> Maybe UUID -> IO (AppResult FrozenHistory)
+readFrozenHistory :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> Maybe UUID -> IO (AppResult FrozenHistory)
 readFrozenHistory member day requested = do
     navigation <- withAuthority member [Manager, VenueAdmin, VenueOwner] do
         source <- liftIO (query @Daysheet |> filterWhere (#id, day) |> filterWhere (#venueId, Id member.venueId) |> fetchOneOrNothing)
@@ -83,7 +83,7 @@ readFrozenHistory member day requested = do
   where
     unavailable = throwE (projectDomainError ReportHistoryUnavailable)
 
-readFrozenReport :: (?modelContext :: ModelContext) => VenueMembership -> Id DaysheetReportSnapshot -> IO (AppResult FrozenReport)
+readFrozenReport :: (?modelContext :: ModelContext) => DaysheetAccess -> Id DaysheetReportSnapshot -> IO (AppResult FrozenReport)
 readFrozenReport member key = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     stored <- liftIO (query @DaysheetReportSnapshot |> filterWhere (#id, key)
         |> filterWhere (#venueId, Id member.venueId) |> fetchOneOrNothing)

@@ -58,6 +58,12 @@ The product must not rely on global in-app business roles without venue boundari
   `actor_user_id` and add `requestContext.accessMode = "support"` to the JSON
   payload. Ordinary venue-member payloads remain unchanged.
 
+- Daysheets permits full founder administration in the current selected venue
+  without impersonation or a fabricated membership. Live founder/account/venue
+  authority is rechecked for configuration, entries, reports, downloads,
+  recipients and sending. Impersonation instead applies the effective member's
+  role. See [Daysheet authority](07-daysheets.md#authority-and-daily-identity).
+
 ## Founder support impersonation context
 
 - A platform super-admin may enter a signed-cookie impersonation session for an

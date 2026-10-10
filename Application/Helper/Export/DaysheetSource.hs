@@ -2,10 +2,10 @@
 -- jobs never enter this capability merely because their requester is a manager.
 module Application.Helper.Export.DaysheetSource (daysheetExportScope, canDownloadDaysheetExport) where
 
+import Application.Daysheet.Authority (currentDaysheetAccess, venueId)
 import Application.Error.Parser (parserFailure)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.DailyStorage as Storage
-import Application.Helper.Controller
 import Application.Helper.Export.Types
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (parseMaybe)
@@ -22,7 +22,7 @@ daysheetExportScope state report = Aeson.object
     ]
 
 canDownloadDaysheetExport :: (?context :: ControllerContext, ?modelContext :: ModelContext) => ExportJob -> IO Bool
-canDownloadDaysheetExport job = case (currentVenueMembershipOrNothing, parseMaybe source job.scope) of
+canDownloadDaysheetExport job = case (currentDaysheetAccess, parseMaybe source job.scope) of
     (Just member, Just (key, capture, report, revision))
         | job.exportType == exportJobTypeToText DaysheetWorkbookXlsx
           && member.venueId == job.venueId

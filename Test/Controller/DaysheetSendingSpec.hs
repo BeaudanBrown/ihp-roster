@@ -1,10 +1,13 @@
 module Test.Controller.DaysheetSendingSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyStorage
 import Application.Daysheet.Recipients
 import Application.Daysheet.ReportStorage
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -23,11 +26,12 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Daysheet Send and history routes" do
-        it "confirms without writes, requires submission and reuses one deliberate request across retries" $ withContext do
+        forM_ [False, True] \founderMode ->
+          it ("confirms and sends idempotently as member or founder: " <> cs (show founderMode)) $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                user <- fetch (Id manager.userId :: Id User)
-                Right _ <- addReportRecipient owner version.id reportKey "external@example.test"
+                user <- if founderMode then createUserRecordWithPlatformRole "sender-founder@example.test" "staff" (Just SuperAdmin) True else fetch (Id manager.userId :: Id User)
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "external@example.test"
                 let D.ReportId report = reportKey
                 let key = state.daysheet.id
                 let scope = [("daysheetId", cs (tshow key)), ("configuredReportId", cs (tshow report))]
@@ -46,14 +50,19 @@ tests = aroundAll withDatabaseTestContext do
                 refused <- post [("sendRequestKey", cs (tshow (nonce 1)))]
                 refused `responseBodyShouldContain` "Submit this Daysheet"
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 0)
-                Right _ <- submitDailySheet manager key
+                Right _ <- submitDailySheet (memberAccess manager) key
                 before <- query @LiveInvalidationEvent |> fetchCount
                 first <- post [("sendRequestKey", cs (tshow (nonce 1))), ("recipientAddress", "forged@example.test")]
                 first `responseStatusShouldBe` status200
                 snapshot <- query @DaysheetReportSnapshot |> fetchOne
+                snapshot.senderId `shouldBe` Just user.id
+                when founderMode do
+                    event <- query @AuditEvent |> filterWhere (#eventType, "daysheet_report_captured") |> fetchOne
+                    event.actorUserId `shouldBe` unpackId user.id
+                    (cs (Aeson.encode event.payload) :: Text) `shouldSatisfy` Text.isInfixOf "\"accessMode\":\"support\""
                 lookup "HX-Redirect" (responseHeaders first) `shouldBe` Just (cs (pathTo (ShowDaysheetHistoryAction key (Just (unpackId snapshot.id)))))
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
-                Right _ <- editDailyCell manager key (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later correction")
+                Right _ <- editDailyCell (memberAccess manager) key (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Later correction")
                 repeated <- post [("sendRequestKey", cs (tshow (nonce 1)))]
                 lookup "HX-Redirect" (responseHeaders repeated) `shouldBe` lookup "HX-Redirect" (responseHeaders first)
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 1)
@@ -75,10 +84,11 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams (SendDaysheetReportAction key report) [("sendRequestKey", cs (tshow (nonce 2)))]
                 responseStatus fresh `shouldSatisfy` (`elem` [status302, status303])
                 query @DaysheetReportSnapshot |> fetchCount >>= (`shouldBe` 2)
-        it "restricts recipient controls to admins/owners and retains invalid native input without writes" $ withContext do
+        forM_ [False, True] \founderMode ->
+          it ("governs recipients as admin or founder, not manager: " <> cs (show founderMode)) $ withContext do
             withCleanDb do
                 (owner, manager, _, state) <- setup
-                adminUser <- fetch (Id owner.userId :: Id User)
+                adminUser <- if founderMode then createUserRecordWithPlatformRole "recipient-founder@example.test" "staff" (Just SuperAdmin) True else fetch (Id owner.userId :: Id User)
                 managerUser <- fetch (Id manager.userId :: Id User)
                 let D.ReportId report = reportKey
                 let key = state.daysheet.id
@@ -106,6 +116,7 @@ tests = aroundAll withDatabaseTestContext do
                 responseStatus added `shouldSatisfy` (`elem` [status302, status303])
                 recipient <- query @DaysheetReportRecipient |> fetchOne
                 recipient.address `shouldBe` "external@example.test"
+                recipient.createdBy `shouldBe` unpackId adminUser.id
                 deniedRemoval <- withPasskeyVerifiedUserAndCurrentVenue managerUser state.daysheet.venueId $
                     callActionWithParams (RemoveDaysheetRecipientAction key report) [("recipientId", cs (tshow recipient.id))]
                 deniedRemoval `responseBodyShouldContain` "permission"
@@ -115,13 +126,14 @@ tests = aroundAll withDatabaseTestContext do
                 responseStatus removed `shouldSatisfy` (`elem` [status302, status303])
                 refreshed <- fetch recipient.id
                 refreshed.removedAt `shouldSatisfy` isJust
+                refreshed.removedBy `shouldBe` Just (unpackId adminUser.id)
                 query @User |> filterWhere (#email, recipient.address) |> fetchCount >>= (`shouldBe` 0)
         it "scopes confirmation, history and fragments and rejects unconfigured sends and GET mutations" $ withContext do
             withCleanDb do
                 (_, manager, _, state) <- setup
                 user <- fetch (Id manager.userId :: Id User)
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 let D.ReportId report = reportKey
                 let key = state.daysheet.id
                 getMutation <- withPasskeyVerifiedUserAndCurrentVenue user state.daysheet.venueId $

@@ -1,5 +1,6 @@
 module Test.Controller.DaysheetDesignerSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Designer.Calculation as Calculation
 import Application.Daysheet.Designer.Controls (CalculationGroup (..))
@@ -9,6 +10,7 @@ import qualified Application.Daysheet.References as References
 import Application.Daysheet.Designer.ReferenceRetirement
 import Application.Helper.NominalText (renderNominalText)
 import qualified Application.Daysheet.Evaluation as E
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Data.Data (toConstr)
@@ -55,16 +57,18 @@ tests = aroundAll withDatabaseTestContext do
                 query @DaysheetConfiguration |> fetchCount >>= (`shouldBe` 0)
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
 
-        it "stages the starter only into pristine setup and leaves publication explicit" $ withContext do
+        forM_ [False, True] \founderMode ->
+          it ("stages and publishes the starter with member or founder authority: " <> cs (show founderMode)) $ withContext do
             withCleanDb do
-                (venue, user, member) <- setup
+                (venue, venueUser, member) <- setup
+                user <- if founderMode then createUserRecordWithPlatformRole "designer-founder@example.test" "staff" (Just SuperAdmin) True else pure venueUser
                 let post params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams StageDesignerStarterAction params
                 malformed <- post []
                 malformed `responseStatusShouldBe` status400
                 saved <- post [("expectedBase", "0")]
                 saved `responseStatusShouldBe` status200
                 lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
-                Right initial <- Storage.readDesignerState member
+                Right initial <- Storage.readDesignerState (memberAccess member)
                 forM_ ["Terminals", "POS readings", "Cash in / cash out"] \label ->
                     map D.listLabel (D.recordLists initial.designerDefinition) `shouldContain` [label]
                 query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 0)
@@ -72,11 +76,18 @@ tests = aroundAll withDatabaseTestContext do
                 repeated <- post [("expectedBase", "0")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders repeated) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
-                Right unchanged <- Storage.readDesignerState member
+                Right unchanged <- Storage.readDesignerState (memberAccess member)
                 unchanged.designerDefinition `shouldBe` initial.designerDefinition
                 published <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithParams PublishDesignerDraftAction [("expectedBase", "0"), ("expectedDraft", "0")]
                 responseStatus published `shouldSatisfy` (`elem` [status200, status302, status303])
                 query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 1)
+                version <- query @DaysheetDefinitionVersion |> fetchOne
+                version.publishedBy `shouldBe` unpackId user.id
+                when founderMode do
+                    query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetchCount >>= (`shouldBe` 0)
+                    event <- query @AuditEvent |> filterWhere (#eventType, "daysheet_definition_published") |> fetchOne
+                    event.actorUserId `shouldBe` unpackId user.id
+                    event.payload `shouldBe` Aeson.object ["version" Aeson..= (1 :: Int), "requestContext" Aeson..= Aeson.object ["accessMode" Aeson..= ("support" :: Text)]]
                 replacement <- post [("expectedBase", "1")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders replacement) `shouldBe` Nothing
 
@@ -96,7 +107,7 @@ tests = aroundAll withDatabaseTestContext do
                     choice = renderNominalText (ResolveReference (References.ReassignReference dependent (Fixture.field 51) replacement))
                     params = [("expectedBase", "0"), ("expectedDraft", "0"), ("definitionListId", cs (tshow sourceId)), ("referenceRecordId", cs (tshow rowId))]
                     post values = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders (if enhanced then [("HX-Request", "true")] else []) $ callActionWithParams RetireDesignerReferenceAction values
-                Right _ <- Storage.saveDraft member 0 Nothing definition references
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing definition references
                 shown <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams (ShowDesignerReferenceRetirementAction sourceId rowId) []
                 shown `responseStatusShouldBe` status200
                 shown `responseBodyShouldContain` "Retire with these resolutions"
@@ -104,7 +115,7 @@ tests = aroundAll withDatabaseTestContext do
                 before <- query @LiveInvalidationEvent |> fetchCount
                 unresolved <- post params
                 lookup "X-Bepis-Form-Saved" (responseHeaders unresolved) `shouldBe` Nothing
-                Right unchanged <- Storage.readDesignerState member
+                Right unchanged <- Storage.readDesignerState (memberAccess member)
                 unchanged.designerReferences `shouldBe` references
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
                 forged <- post (("referenceResolutions", cs (renderNominalText (ResolveReference (References.RetireReference replacement)))) : params)
@@ -116,11 +127,11 @@ tests = aroundAll withDatabaseTestContext do
                 stale <- post (("referenceResolutions", cs choice) : filter ((/= "expectedDraft") . fst) params)
                 lookup "X-Bepis-Form-Saved" (responseHeaders stale) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
-                Right afterRejected <- Storage.readDesignerState member
+                Right afterRejected <- Storage.readDesignerState (memberAccess member)
                 afterRejected.designerReferences `shouldBe` references
                 saved <- post (("referenceResolutions", cs choice) : params)
                 lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
-                Right changed <- Storage.readDesignerState member
+                Right changed <- Storage.readDesignerState (memberAccess member)
                 Right expected <- pure (References.retireReferences definition Fixture.owner references target [References.ReassignReference dependent (Fixture.field 51) replacement])
                 changed.designerReferences `shouldBe` expected
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before + 1)
@@ -134,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
                 saved `responseStatusShouldBe` status200
                 lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before + 1)
-                Right state <- Storage.readDesignerState member
+                Right state <- Storage.readDesignerState (memberAccess member)
                 map D.fieldLabel (D.rootFields state.designerDefinition) `shouldBe` ["Closing notes"]
                 query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 0)
                 published <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $
@@ -149,7 +160,7 @@ tests = aroundAll withDatabaseTestContext do
         it "retains native submitted labels on revision conflict and creates no invalidation" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.definition Fixture.references
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
                 before <- query @LiveInvalidationEvent |> fetchCount
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     callActionWithParams SaveDesignerFieldAction [("expectedBase", "0"), ("label", "Unsaved local name"), ("valueKind", "text")]
@@ -158,14 +169,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "aria-invalid=\"true\""
                 lookup "X-Bepis-Form-Saved" (responseHeaders response) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
-                Right state <- Storage.readDesignerState member
+                Right state <- Storage.readDesignerState (memberAccess member)
                 state.designerDefinition `shouldBe` Fixture.definition
 
         it "rejects dependency-breaking field changes without modifying publication" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right version <- Storage.publishDraft member 0 0
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right version <- Storage.publishDraft (memberAccess member) 0 0
                 let D.FieldId key = Fixture.field 4
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     callActionWithParams SaveDesignerFieldAction [("expectedBase", "1"), ("definitionFieldId", cs (tshow key)), ("label", "Bad numeric band"), ("valueKind", "whole")]
@@ -177,9 +188,9 @@ tests = aroundAll withDatabaseTestContext do
         it "stages reference edits and retirement without rewriting an existing capture" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right _ <- Storage.publishDraft member 0 0
-                Right captured <- Storage.captureDefinition member (fromGregorian 2026 10 1)
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right _ <- Storage.publishDraft (memberAccess member) 0 0
+                Right captured <- Storage.captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 let D.ListId source = Fixture.list 10
                     D.FieldId field = Fixture.field 9
                     E.RowId row = Fixture.row 1
@@ -198,8 +209,8 @@ tests = aroundAll withDatabaseTestContext do
                 retirement <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $
                     callActionWithParams RetireDesignerReferenceAction [("expectedBase", "1"), ("expectedDraft", "0"), ("definitionListId", cs (tshow source)), ("referenceRecordId", cs (tshow row))]
                 lookup "X-Bepis-Form-Saved" (responseHeaders retirement) `shouldBe` Just "true"
-                Right _ <- Storage.publishDraft member 1 1
-                Right fresh <- Storage.captureDefinition member (fromGregorian 2026 10 2)
+                Right _ <- Storage.publishDraft (memberAccess member) 1 1
+                Right fresh <- Storage.captureDefinition (memberAccess member) (fromGregorian 2026 10 2)
                 fresh.referenceData `shouldNotBe` captured.referenceData
                 unchanged <- fetch captured.id
                 unchanged.referenceData `shouldBe` captured.referenceData
@@ -207,18 +218,18 @@ tests = aroundAll withDatabaseTestContext do
         it "builds independent report layouts with repeated typed column parameters and rejects invalid sorting" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.entryDefinition Fixture.entryReferences
                 let post action params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams action params
                 nul <- post SaveDesignerReportAction [("expectedBase", "0"), ("expectedDraft", "0"), ("label", "Bad\NULname"), ("targets", "formatted-and-excel")]
                 nul `responseStatusShouldBe` status200
                 lookup "X-Bepis-Form-Saved" (responseHeaders nul) `shouldBe` Nothing
                 created <- post SaveDesignerReportAction [("expectedBase", "0"), ("expectedDraft", "0"), ("label", "Closing report"), ("targets", "formatted-and-excel")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders created) `shouldBe` Just "true"
-                Right reportState <- Storage.readDesignerState member
+                Right reportState <- Storage.readDesignerState (memberAccess member)
                 [D.Report (D.ReportId reportId) _ [] _] <- pure (D.reports reportState.designerDefinition)
                 section <- post SaveDesignerSectionAction [("expectedBase", "0"), ("expectedDraft", "1"), ("definitionReportId", cs (tshow reportId)), ("label", "Receipts summary")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders section) `shouldBe` Just "true"
-                Right sectionState <- Storage.readDesignerState member
+                Right sectionState <- Storage.readDesignerState (memberAccess member)
                 [D.Report _ _ [D.Section (D.SectionId sectionId) _ []] _] <- pure (D.reports sectionState.designerDefinition)
                 let D.ListId source = Fixture.list 20
                     D.FieldId terminal = Fixture.field 7
@@ -230,7 +241,7 @@ tests = aroundAll withDatabaseTestContext do
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
                 saved <- post SaveDesignerBlockAction (params <> [("sortingFieldIds", cs (tshow amount))])
                 lookup "X-Bepis-Form-Saved" (responseHeaders saved) `shouldBe` Just "true"
-                Right final <- Storage.readDesignerState member
+                Right final <- Storage.readDesignerState (memberAccess member)
                 D.entryLayout final.designerDefinition `shouldBe` D.entryLayout Fixture.entryDefinition
                 D.reports final.designerDefinition `shouldBe`
                     [D.Report (D.ReportId reportId) "Closing report" [D.Section (D.SectionId sectionId) "Receipts summary"
@@ -239,26 +250,26 @@ tests = aroundAll withDatabaseTestContext do
         it "adds, renames and reorders choice options with exact revisions and immutable earlier captures" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.entryDefinition Fixture.entryReferences
                 let post action params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams action params
                 added <- post SaveDesignerFieldAction [("expectedBase", "0"), ("expectedDraft", "0"), ("label", "Category"), ("valueKind", "choice"), ("initialChoice", "Sale")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders added) `shouldBe` Just "true"
-                Right initial <- Storage.readDesignerState member
+                Right initial <- Storage.readDesignerState (memberAccess member)
                 Just field <- pure (find ((== "Category") . D.fieldLabel) (D.rootFields initial.designerDefinition))
                 let D.FieldId fieldId = D.fieldId field
                 D.ChoiceType [D.Choice (D.ChoiceId first) _] <- pure (D.fieldType field)
-                Right original <- Storage.publishDraft member 0 1
-                Right captured <- Storage.captureDefinition member (fromGregorian 2026 10 1)
+                Right original <- Storage.publishDraft (memberAccess member) 0 1
+                Right captured <- Storage.captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 option <- post SaveDesignerChoiceAction [("expectedBase", "1"), ("definitionFieldId", cs (tshow fieldId)), ("label", "Expense")]
                 lookup "X-Bepis-Form-Saved" (responseHeaders option) `shouldBe` Just "true"
-                Right options <- Storage.readDesignerState member
+                Right options <- Storage.readDesignerState (memberAccess member)
                 [D.Choice _ _, D.Choice (D.ChoiceId second) _] <- pure [choice | value <- D.rootFields options.designerDefinition, D.fieldId value == D.fieldId field, D.ChoiceType choices <- [D.fieldType value], choice <- choices]
                 let base = [("expectedBase", "1"), ("definitionFieldId", cs (tshow fieldId))]
                 renamed <- post SaveDesignerChoiceAction (base <> [("expectedDraft", "0"), ("definitionChoiceId", cs (tshow first)), ("label", "Customer payment")])
                 lookup "X-Bepis-Form-Saved" (responseHeaders renamed) `shouldBe` Just "true"
                 moved <- post MoveDesignerChoiceAction (base <> [("expectedDraft", "1"), ("definitionChoiceId", cs (tshow second)), ("toPosition", "0")])
                 lookup "HX-Trigger" (responseHeaders moved) `shouldSatisfy` isJust
-                Right final <- Storage.readDesignerState member
+                Right final <- Storage.readDesignerState (memberAccess member)
                 D.fieldType <$> find ((== D.fieldId field) . D.fieldId) (D.rootFields final.designerDefinition)
                     `shouldBe` Just (D.ChoiceType [D.Choice (D.ChoiceId second) "Expense", D.Choice (D.ChoiceId first) "Customer payment"])
                 before <- query @LiveInvalidationEvent |> fetchCount
@@ -267,7 +278,7 @@ tests = aroundAll withDatabaseTestContext do
                 stale `responseBodyShouldContain` "Unsaved option spelling"
                 lookup "X-Bepis-Form-Saved" (responseHeaders stale) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
-                Right published <- Storage.publishDraft member 1 2
+                Right published <- Storage.publishDraft (memberAccess member) 1 2
                 published.id `shouldNotBe` original.id
                 retained <- fetch captured.id
                 retained.definitionVersionId `shouldBe` unpackId original.id
@@ -277,7 +288,7 @@ tests = aroundAll withDatabaseTestContext do
         it "uses canonical menu choices and closed nested locations with revision-safe constants" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right _ <- Storage.saveDraft member 0 Nothing Fixture.entryDefinition Fixture.entryReferences
+                Right _ <- Storage.saveDraft (memberAccess member) 0 Nothing Fixture.entryDefinition Fixture.entryReferences
                 Right menu <- pure (Calculation.calculationMenu OperationParts (Fixture.field 2) [] Nothing Fixture.entryDefinition)
                 Just (index, _) <- pure (find ((== "Add — Whole number / Whole number") . Calculation.calculationOptionLabel . snd) (zip [0 :: Int ..] (Calculation.calculationMenuOptions menu)))
                 let post action params = withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] $ callActionWithParams action params
@@ -287,7 +298,7 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "HX-Trigger" (responseHeaders saved) `shouldSatisfy` isJust
                 constant <- post SaveDesignerConstantAction (base <> [("expectedDraft", "1"), ("expressionSlots", "right"), ("enteredValue", "2")])
                 lookup "X-Bepis-Form-Saved" (responseHeaders constant) `shouldBe` Just "true"
-                Right state <- Storage.readDesignerState member
+                Right state <- Storage.readDesignerState (memberAccess member)
                 D.fieldSource <$> find ((== Fixture.field 2) . D.fieldId) (D.rootFields state.designerDefinition)
                     `shouldBe` Just (D.Calculated (D.Binary D.Add (D.Constant (D.WholeLiteral 0)) (D.Constant (D.WholeLiteral 2))))
                 before <- query @LiveInvalidationEvent |> fetchCount

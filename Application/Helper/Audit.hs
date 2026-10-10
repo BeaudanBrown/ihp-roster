@@ -1,6 +1,7 @@
 module Application.Helper.Audit
     ( module Application.Helper.Audit.Vocabulary
     , attachImpersonationAuditRequestContext
+    , attachSupportAuditRequestContext
     , currentRequestAuditPayload
     , recordAuditEvent
     , recordAuditEventWithFactKind
@@ -107,15 +108,15 @@ data AuditAccessMode
 attachAuditRequestContext :: AuditAccessMode -> Aeson.Value -> Aeson.Value
 attachAuditRequestContext accessMode payload =
     case accessMode of
-        FounderSupportAuditAccess ->
-            attachRequestContext
-                (Aeson.object ["accessMode" Aeson..= ("support" :: Text)])
-                payload
+        FounderSupportAuditAccess -> attachSupportAuditRequestContext payload
         ImpersonationAuditAccess impersonationContext ->
             attachImpersonationAuditRequestContext
                 (Aeson.toJSON (get #id (effectiveUserRecord impersonationContext.impersonationEffectiveUser)))
                 (Aeson.toJSON impersonationContext.impersonationSessionId)
                 payload
+
+attachSupportAuditRequestContext :: Aeson.Value -> Aeson.Value
+attachSupportAuditRequestContext = attachRequestContext (Aeson.object ["accessMode" Aeson..= ("support" :: Text)])
 
 attachImpersonationAuditRequestContext :: Aeson.Value -> Aeson.Value -> Aeson.Value -> Aeson.Value
 attachImpersonationAuditRequestContext effectiveUserIdValue sessionIdValue =

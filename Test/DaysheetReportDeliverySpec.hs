@@ -1,5 +1,6 @@
 module Test.DaysheetReportDeliverySpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyStorage
@@ -43,10 +44,10 @@ tests = aroundAll withDatabaseTestContext do
         it "uses the installed production resolver and keeps retries byte-identical after live corrections" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right _ <- addReportRecipient owner version.id reportKey "external@example.test"
-                Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "<script>captured</script>")
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "external@example.test"
+                Right _ <- editDailyCell (memberAccess manager) state.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "<script>captured</script>")
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 before <- query @LiveInvalidationEvent |> fetchCount
                 bodies <- newIORef ([] :: [(Text, Text)])
@@ -58,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                         (capturingEmailDeliveryRuntime (\mail -> record mail >> ioError (userError "private provider failure"))) queued)
                     either (const True) (const False) failed `shouldBe` True
                     query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` before)
-                    Right _ <- editDailyCell manager state.daysheet.id (Daily.RootCell (Fixture.field 1)) 1 (Fixture.text "Later correction")
+                    Right _ <- editDailyCell (memberAccess manager) state.daysheet.id (Daily.RootCell (Fixture.field 1)) 1 (Fixture.text "Later correction")
                     performEmailDeliveryJobWith (capturingEmailDeliveryRuntime record) queued
                 [first, retried] <- readIORef bodies
                 first `shouldBe` retried
@@ -74,9 +75,9 @@ tests = aroundAll withDatabaseTestContext do
         it "publishes verified provider updates once, retaining independent queue and provider facts" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right _ <- addReportRecipient owner version.id reportKey "external@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right _ <- addReportRecipient (memberAccess owner) version.id reportKey "external@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
@@ -90,19 +91,19 @@ tests = aroundAll withDatabaseTestContext do
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
                 handleResendWebhook now secret headers body >>= (`shouldSatisfy` isRight)
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
-                Right history <- readFrozenReport manager snapshot.id
+                Right history <- readFrozenReport (memberAccess manager) snapshot.id
                 map ((.provider) . (.delivery)) history.recipients `shouldBe` [ProviderConfirmed]
                 map ((.queue) . (.delivery)) history.recipients `shouldBe` [DeliveryFinished]
         it "requires the exact captured recipient, address, venue and report" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "captured@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "captured@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 payload <- readPayload queued
                 isJust <$> resolveFrozenReport payload `shouldReturn` True
-                Right later <- addReportRecipient owner version.id reportKey "later@example.test"
+                Right later <- addReportRecipient (memberAccess owner) version.id reportKey "later@example.test"
                 let forged = payload { externalRecipient = recipientIdentity later, externalRecipientAddress = later.address }
                 isNothing <$> resolveFrozenReport forged `shouldReturn` True
                 isNothing <$> resolveFrozenReport (payload { externalRecipientAddress = "other@example.test" }) `shouldReturn` True
@@ -114,16 +115,16 @@ tests = aroundAll withDatabaseTestContext do
         it "cancels retry after removal even when the same address is re-added" $ withContext do
             withCleanDb do
                 (owner, manager, version, state) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "removed@example.test"
-                Right _ <- submitDailySheet manager state.daysheet.id
-                Right snapshot <- captureManualReport manager state.daysheet.id reportKey (nonce 1)
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "removed@example.test"
+                Right _ <- submitDailySheet (memberAccess manager) state.daysheet.id
+                Right snapshot <- captureManualReport (memberAccess manager) state.daysheet.id reportKey (nonce 1)
                 queued <- query @AppJob |> filterWhere (#relatedId, Just (unpackId snapshot.id)) |> fetchOne
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     failed <- try @SomeException (performEmailDeliveryJobWith (failingEmailDeliveryRuntime "private failure") queued)
                     either (const True) (const False) failed `shouldBe` True
-                    Right _ <- removeReportRecipient owner reportKey recipient.id
-                    Right replacement <- addReportRecipient owner version.id reportKey recipient.address
+                    Right _ <- removeReportRecipient (memberAccess owner) reportKey recipient.id
+                    Right replacement <- addReportRecipient (memberAccess owner) version.id reportKey recipient.address
                     replacement.id `shouldNotBe` recipient.id
                     performEmailDeliveryJobWith (capturingEmailDeliveryRuntime (\_ -> expectationFailure "Removed identity must not reach transport")) queued
                 completed <- fetch queued.id
@@ -132,7 +133,7 @@ tests = aroundAll withDatabaseTestContext do
         it "skips absent frozen references rather than rendering the current Daysheet" $ withContext do
             withCleanDb do
                 (owner, _, version, _) <- setup
-                Right recipient <- addReportRecipient owner version.id reportKey "missing@example.test"
+                Right recipient <- addReportRecipient (memberAccess owner) version.id reportKey "missing@example.test"
                 let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (nonce 999)
                 EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
                 withFrameworkConfig config \frameworkConfig -> do

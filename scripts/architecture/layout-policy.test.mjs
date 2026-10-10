@@ -7,6 +7,7 @@ renderDesktopNavLinks = [hsx|
   {renderDesktopNavLink "roster" "icon" url []}
   {renderDesktopNavLink "profile" "icon" url []}
   {renderDesktopNavLink "timesheets" "icon" url []}
+  {renderDesktopNavLink "daysheets" "icon" url []}
   {renderDesktopNavLink "unavailability" "icon" url []}
   {renderDesktopNavLink "xero" "icon" url []}
   {renderOwnerBillingDesktopNavLink}
@@ -19,7 +20,7 @@ renderDesktopNavLinks = [hsx|
 test("extracts and validates production authenticated navigation", () => {
   const facts = parseLayoutPolicy(validLayout);
   assert.deepEqual(facts.authenticatedNavigation.map((entry) => entry.name), [
-    "roster", "profile", "timesheets", "unavailability", "xero", "billing", "admin", "support", "logout",
+    "roster", "profile", "timesheets", "daysheets", "unavailability", "xero", "billing", "admin", "support", "logout",
   ]);
   assert.deepEqual(checkLayoutPolicy(facts), []);
 });
@@ -34,7 +35,7 @@ test("ignores line and nested block comments while retaining source lines", () =
     + '\n{- <script src="https://block-comment.example/app.js"></script> -}';
   const facts = parseLayoutPolicy(commented);
   assert.deepEqual(facts.authenticatedNavigation.map((entry) => entry.name), [
-    "roster", "profile", "timesheets", "unavailability", "xero", "billing", "admin", "support", "logout",
+    "roster", "profile", "timesheets", "daysheets", "unavailability", "xero", "billing", "admin", "support", "logout",
   ]);
   assert.deepEqual(facts.externalRuntimeAssets, []);
   assert.deepEqual(checkLayoutPolicy(facts), []);
@@ -60,10 +61,10 @@ test("rejects navigation drift and every non-assetPath runtime source form", () 
   const facts = parseLayoutPolicy(source);
   facts.authenticatedNavigation.reverse();
   assert.deepEqual(checkLayoutPolicy(facts), [
-    'authenticated navigation order is ["logout","support","admin","billing","xero","unavailability","timesheets","profile","roster"]; expected ["roster","profile","timesheets","unavailability","xero","billing","admin","support","logout"]',
-    "external runtime asset https://cdn.example/app.js at Web/View/Layout.hs:14",
-    "external runtime asset //cdn.example/app.css at Web/View/Layout.hs:15",
-    "external runtime asset {externalRuntimeUrl} at Web/View/Layout.hs:16",
-    "external runtime asset https://second-attribute.example/app.js at Web/View/Layout.hs:17",
+    'authenticated navigation order is ["logout","support","admin","billing","xero","unavailability","daysheets","timesheets","profile","roster"]; expected ["roster","profile","timesheets","daysheets","unavailability","xero","billing","admin","support","logout"]',
+    "external runtime asset https://cdn.example/app.js at Web/View/Layout.hs:15",
+    "external runtime asset //cdn.example/app.css at Web/View/Layout.hs:16",
+    "external runtime asset {externalRuntimeUrl} at Web/View/Layout.hs:17",
+    "external runtime asset https://second-attribute.example/app.js at Web/View/Layout.hs:18",
   ]);
 });

@@ -1,5 +1,6 @@
 module Test.DaysheetRecipientsSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import Application.Daysheet.Recipients
 import Application.Daysheet.References (ReferenceData (..))
@@ -37,8 +38,8 @@ setup = do
     user <- createUserRecord "report-owner@example.test" "admin" True
     member <- createVenueMembershipRecord venue user VenueOwner
     let definition = D.Definition 1 [] [] [] [D.Report reportKey "Daily report" [] [D.FormattedReport]]
-    Right _ <- saveDraft member 0 Nothing definition (ReferenceData [])
-    Right version <- publishDraft member 0 0
+    Right _ <- saveDraft (memberAccess member) 0 Nothing definition (ReferenceData [])
+    Right version <- publishDraft (memberAccess member) 0 0
     pure (member, version)
 
 tests :: Spec
@@ -49,53 +50,58 @@ tests = aroundAll withDatabaseTestContext do
                 (member, version) <- setup
                 usersBefore <- query @User |> fetchCount
                 jobsBefore <- query @AppJob |> filterWhere (#jobKind, "email_delivery") |> fetchCount
-                Right recipient <- addReportRecipient member version.id reportKey " External@Example.test "
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey " External@Example.test "
                 recipient.address `shouldBe` "external@example.test"
-                Right repeated <- addReportRecipient member version.id reportKey "external@example.test"
+                Right repeated <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 repeated.id `shouldBe` recipient.id
                 query @User |> fetchCount >>= (`shouldBe` usersBefore)
                 query @AppJob |> filterWhere (#jobKind, "email_delivery") |> fetchCount >>= (`shouldBe` jobsBefore)
-                recipients <- activeReportRecipients member.venueId reportKey
+                Right recipients <- readReportRecipients (memberAccess member) reportKey
                 map (.id) recipients `shouldBe` [recipient.id]
         it "denies managers and foreign reports while allowing owner management" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 let invalidReport = D.ReportId (UUID.fromWords 0 0 0 1)
-                unknown <- addReportRecipient member version.id invalidReport "other@example.test"
+                unknown <- addReportRecipient (memberAccess member) version.id invalidReport "other@example.test"
                 either (Text.isSuffixOf "/unknown-report" . appErrorCode) (const False) unknown `shouldBe` True
                 other <- createVenueWithConfig "Other venue"
-                forged <- addReportRecipient (member |> set #venueId (unpackId other.id)) version.id reportKey "other@example.test"
+                forged <- addReportRecipient (memberAccess (member |> set #venueId (unpackId other.id))) version.id reportKey "other@example.test"
                 either (Text.isSuffixOf "/access-denied" . appErrorCode) (const False) forged `shouldBe` True
                 _ <- member |> set #venueRole Manager |> updateRecord
-                denied <- addReportRecipient member version.id reportKey "manager@example.test"
+                denied <- addReportRecipient (memberAccess member) version.id reportKey "manager@example.test"
                 either (Text.isSuffixOf "/access-denied" . appErrorCode) (const False) denied `shouldBe` True
-                deniedRemoval <- removeReportRecipient member reportKey recipient.id
+                deniedRemoval <- removeReportRecipient (memberAccess member) reportKey recipient.id
                 either (Text.isSuffixOf "/access-denied" . appErrorCode) (const False) deniedRemoval `shouldBe` True
+                Right visible <- readReportRecipients (memberAccess member) reportKey
+                map (.id) visible `shouldBe` [recipient.id]
+                _ <- member |> set #isActive False |> updateRecord
+                deniedRead <- readReportRecipients (memberAccess member) reportKey
+                either (Text.isSuffixOf "/access-denied" . appErrorCode) (const False) deniedRead `shouldBe` True
         it "rejects malformed destinations and identity/address substitution" $ withContext do
             withCleanDb do
                 (member, version) <- setup
                 forM_ ["not an address", "external@example.test\r\nBcc: other@example.test", "<external@example.test>"] \address -> do
-                    result <- addReportRecipient member version.id reportKey address
+                    result <- addReportRecipient (memberAccess member) version.id reportKey address
                     either (Text.isSuffixOf "/invalid-address" . appErrorCode) (const False) result `shouldBe` True
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 withEligibleReportRecipient (recipientIdentity recipient) "other@example.test" (pure ()) `shouldReturn` Left RecipientIdentityMismatch
                 let foreignIdentity = (recipientIdentity recipient) { externalVenueId = UUID.fromWords 0 0 0 99 }
                 withEligibleReportRecipient foreignIdentity recipient.address (pure ()) `shouldReturn` Left RecipientMissing
         it "keeps old retries cancelled after removing and re-adding an address" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right original <- addReportRecipient member version.id reportKey "external@example.test"
+                Right original <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 withEligibleReportRecipient (recipientIdentity original) original.address (pure ()) `shouldReturn` Right ()
-                Right _ <- removeReportRecipient member reportKey original.id
-                Right replacement <- addReportRecipient member version.id reportKey original.address
+                Right _ <- removeReportRecipient (memberAccess member) reportKey original.id
+                Right replacement <- addReportRecipient (memberAccess member) version.id reportKey original.address
                 replacement.id `shouldNotBe` original.id
                 withEligibleReportRecipient (recipientIdentity original) original.address (pure ()) `shouldReturn` Left RecipientRemoved
                 withEligibleReportRecipient (recipientIdentity replacement) replacement.address (pure ()) `shouldReturn` Right ()
         it "delivers v2 through the shared transport and permanently deduplicates the frozen event" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 101)
                 EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload (Just member.userId)
                 queued.payloadSchemaVersion `shouldBe` 2
@@ -115,10 +121,10 @@ tests = aroundAll withDatabaseTestContext do
         it "cancels a queued external send before resolving or transporting report content" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 102)
                 EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
-                Right _ <- removeReportRecipient member reportKey recipient.id
+                Right _ <- removeReportRecipient (memberAccess member) reportKey recipient.id
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWithReportResolver
@@ -129,7 +135,7 @@ tests = aroundAll withDatabaseTestContext do
         it "uses the shared safe retry boundary and fails closed without a report resolver" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 let payload = ExternalEmailPayload daysheetReportMailKind (recipientIdentity recipient) recipient.address (UUID.fromWords 0 0 0 103)
                 EnqueuedEmailDelivery queued <- enqueueExternalEmailDeliveryWithStatus payload Nothing
                 withFrameworkConfig config \frameworkConfig -> do
@@ -148,7 +154,7 @@ tests = aroundAll withDatabaseTestContext do
         it "makes the irreversible in-flight boundary explicit and cancels later attempts" $ withContext do
             withCleanDb do
                 (member, version) <- setup
-                Right recipient <- addReportRecipient member version.id reportKey "external@example.test"
+                Right recipient <- addReportRecipient (memberAccess member) version.id reportKey "external@example.test"
                 started <- newEmptyMVar
                 finish <- newEmptyMVar
                 attempts <- newIORef (0 :: Int)
@@ -157,7 +163,7 @@ tests = aroundAll withDatabaseTestContext do
                     putMVar started ()
                     takeMVar finish) \delivery -> do
                     takeMVar started
-                    withAsync (removeReportRecipient member reportKey recipient.id) \removal -> do
+                    withAsync (removeReportRecipient (memberAccess member) reportKey recipient.id) \removal -> do
                         timeout 100000 (wait removal) >>= (`shouldBe` Nothing)
                         putMVar finish ()
                         wait delivery `shouldReturn` Right ()

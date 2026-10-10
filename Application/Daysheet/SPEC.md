@@ -281,9 +281,15 @@ surrounding versioned domain document is server-only, not an opaque browser
 request payload. Designer actions must operate through their generated typed
 request boundaries. Both stored decoding and publication revalidate meaning.
 
-`Storage` owns ordinary membership-scoped mutation authority. It re-reads the
-current membership under lock, denies global-role substitution, and serializes
-by venue before locking membership. Configuration revision detects changes to
+`Authority` owns a closed `DaysheetAccess` separating ordinary membership,
+founder support and impersonation. `Storage` and the daily/report/recipient
+owners recheck it inside their existing transactions. Ordinary membership is
+re-read under lock; a platform role cannot turn a fabricated membership into
+valid authority. Founder support instead checks the live super-admin account
+and selected active, non-closed venue, without creating a membership. Impersonation
+checks both the live founder and effective member, applying only the member's
+role. Venue locking precedes membership locking where a membership exists.
+Actual actor columns and audit support/impersonation provenance are retained. Configuration revision detects changes to
 the live reference set; a separate draft revision detects concurrent editing.
 Publishing a draft based on stale live references fails rather than overwriting
 newer data. Callers retain unsaved inputs and require an explicit reviewed save

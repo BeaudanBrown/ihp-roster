@@ -8,7 +8,7 @@ module Application.Daysheet.DailyStorage
     , withScheduledDaily
     ) where
 
-import Application.Daysheet.Authority (withAuthority)
+import Application.Daysheet.Authority (DaysheetAccess, venueId, userId, withAuthority, recordDaysheetAuditEvent)
 import qualified Application.Daysheet.Cutoff as Cutoff
 import Application.Daysheet.CutoffCapture (CutoffClock, withScheduledCutoff)
 import Application.Daysheet.CutoffJob (enqueueCutoffCapture)
@@ -22,7 +22,6 @@ import Application.Daysheet.References (ReferenceData, ReferenceKey, ReferenceVa
 import Application.Daysheet.Storage (withDefinitionCapture)
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types
-import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Audit.Vocabulary
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.Aeson as Aeson
@@ -71,7 +70,7 @@ load record = do
     content <- either (const (failure SavedDaysheetInvalid)) pure (Daily.decodeDaily definition references (owner record) record.savedData)
     pure DailyState { daysheet = record, captured, definition, references, content }
 
-withDay :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> ((?modelContext :: ModelContext) => DailyState -> StoreM a) -> IO (AppResult a)
+withDay :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> ((?modelContext :: ModelContext) => DailyState -> StoreM a) -> IO (AppResult a)
 withDay member key action = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     stored <- liftIO (query @Daysheet |> filterWhere (#id, key) |> filterWhere (#venueId, Id member.venueId) |> fetchOneOrNothing)
     record <- maybe (failure DaysheetNotFound) pure stored
@@ -80,10 +79,10 @@ withDay member key action = withAuthority member [Manager, VenueAdmin, VenueOwne
 
 -- Views call these reads, never creation. Neither midnight nor a missing date
 -- creates a business record as a side effect of navigation.
-readDailySheet :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> IO (AppResult DailyState)
+readDailySheet :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> IO (AppResult DailyState)
 readDailySheet member key = withDay member key pure
 
-readDailyForDate :: (?modelContext :: ModelContext) => VenueMembership -> Day -> IO (AppResult (Maybe DailyState))
+readDailyForDate :: (?modelContext :: ModelContext) => DaysheetAccess -> Day -> IO (AppResult (Maybe DailyState))
 readDailyForDate member date = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     stored <- liftIO (query @Daysheet |> filterWhere (#venueId, Id member.venueId) |> filterWhere (#operationalDate, date) |> fetchOneOrNothing)
     traverse load stored
@@ -105,7 +104,7 @@ withScheduledDaily clock venueId plan capture = fmap (fmap join) $
                 Just <$> ExceptT (capture state capturedAt)
             _ -> pure Nothing
 
-createDailySheet :: (?modelContext :: ModelContext) => VenueMembership -> Day -> IO (AppResult DailyState)
+createDailySheet :: (?modelContext :: ModelContext) => DaysheetAccess -> Day -> IO (AppResult DailyState)
 createDailySheet member date = withDefinitionCapture member date \captured -> do
     existing <- liftIO (query @Daysheet |> filterWhere (#venueId, Id member.venueId) |> filterWhere (#operationalDate, date) |> fetchOneOrNothing)
     case existing of
@@ -123,7 +122,7 @@ createDailySheet member date = withDefinitionCapture member date \captured -> do
                 |> set #createdAt now |> set #lastEditedAt now |> createRecord)
             plan <- either (const (failure SavedDaysheetInvalid)) pure (Cutoff.planCutoff captured.timezone date)
             liftIO (enqueueCutoffCapture now record plan)
-            _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetCreatedAudit "daysheets" key
+            _ <- liftIO (recordDaysheetAuditEvent member DaysheetCreatedAudit "daysheets" key
                 (Aeson.object ["operationalDate" Aeson..= date]) ApplicationAuditSource)
             pure DailyState { daysheet = record, captured, definition, references, content }
 
@@ -132,7 +131,7 @@ advance revision
     | revision < 0 || revision >= 2147483647 = failure DailyCapacityReached
     | otherwise = pure (revision + 1)
 
-persist :: (?modelContext :: ModelContext) => VenueMembership -> DailyState -> Daily.DailyDocument -> StoreM DailyState
+persist :: (?modelContext :: ModelContext) => DaysheetAccess -> DailyState -> Daily.DailyDocument -> StoreM DailyState
 persist member state content
     | content == state.content = pure state
     | otherwise = do
@@ -143,20 +142,20 @@ persist member state content
             |> set #lastEditedAt now |> set #lastEditedBy (Id member.userId) |> updateRecord)
         pure state { daysheet = record, content }
 
-editDailyCell :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> Daily.CellAddress -> Integer -> Maybe ReferenceValue -> IO (AppResult DailyState)
+editDailyCell :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> Daily.CellAddress -> Integer -> Maybe ReferenceValue -> IO (AppResult DailyState)
 editDailyCell member key address expected value = withDay member key \state -> do
     updated <- checked (Daily.saveCell state.definition state.references (owner state.daysheet) address expected value state.content)
     persist member state updated
 
-addDailyRow :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> ReferenceKey -> IO (AppResult DailyState)
+addDailyRow :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> ReferenceKey -> IO (AppResult DailyState)
 addDailyRow member key row = withDay member key \state -> do
     updated <- checked (Daily.addOpenRow state.definition state.references (owner state.daysheet) row state.content)
     persist member state updated
 
-prepareDailyDeletion :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> ReferenceKey -> IO (AppResult Daily.DeletionPlan)
+prepareDailyDeletion :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> ReferenceKey -> IO (AppResult Daily.DeletionPlan)
 prepareDailyDeletion member key row = withDay member key \state -> checked (Daily.planDeletion state.definition row state.content)
 
-deleteDailyRow :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> Daily.DeletionPlan -> IO (AppResult DailyState)
+deleteDailyRow :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> Daily.DeletionPlan -> IO (AppResult DailyState)
 deleteDailyRow member key approval = withDay member key \state -> do
     updated <- checked (Daily.confirmDeletion state.definition state.references (owner state.daysheet) approval state.content)
     persist member state updated
@@ -164,13 +163,13 @@ deleteDailyRow member key approval = withDay member key \state -> do
 -- Browser orchestration must first settle its own pending saves/conflicts.
 -- The server submits the latest consistent saved state, not a stale client copy.
 -- Blank values and advisory concerns are deliberately NOT completeness gates.
-submitDailySheet :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> IO (AppResult DailyState)
+submitDailySheet :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> IO (AppResult DailyState)
 submitDailySheet member key = withDay member key \state -> case state.daysheet.submittedAt of
     Just _ -> pure state
     Nothing -> do
         now <- liftIO getCurrentTime
         revision <- advance state.daysheet.revision
         record <- liftIO (state.daysheet |> set #submittedAt (Just now) |> set #submittedBy (Just (Id member.userId)) |> set #revision revision |> updateRecord)
-        _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetSubmittedAudit "daysheets" (unpackId record.id)
+        _ <- liftIO (recordDaysheetAuditEvent member DaysheetSubmittedAudit "daysheets" (unpackId record.id)
             (Aeson.object ["revision" Aeson..= revision]) ApplicationAuditSource)
         pure state { daysheet = record }

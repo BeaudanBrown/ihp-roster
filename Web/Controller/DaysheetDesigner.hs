@@ -1,5 +1,6 @@
 module Web.Controller.DaysheetDesigner where
 
+import Application.Daysheet.Authority (DaysheetAccess, venueId, currentDaysheetAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Designer as Designer
 import qualified Application.Daysheet.Designer.Calculation as Calculation
@@ -530,22 +531,22 @@ fieldsIn definition (Just key) = D.listFields <$> findList definition key
 parseKey :: DesignerRequest => Maybe Text -> IO (Maybe UUID)
 parseKey = traverse (maybe (deny status400 "Invalid designer identity.") pure . UUID.fromText)
 
-author :: DesignerRequest => IO VenueMembership
-author = maybe (deny status403 "The designer requires an active admin or owner venue membership.") pure currentVenueMembershipOrNothing
-loadState :: DesignerRequest => VenueMembership -> IO Storage.DesignerState
+author :: DesignerRequest => IO DaysheetAccess
+author = maybe (deny status403 "The designer requires venue admin, owner or founder support access.") pure currentDaysheetAccess
+loadState :: DesignerRequest => DaysheetAccess -> IO Storage.DesignerState
 loadState member = Storage.readDesignerState member >>= either (deny status403 . appErrorSafeMessage) pure
 
-display :: DesignerRequest => Bool -> VenueMembership -> Storage.DesignerState -> DesignerPage -> Maybe Text -> IO ResponseReceived
+display :: DesignerRequest => Bool -> DaysheetAccess -> Storage.DesignerState -> DesignerPage -> Maybe Text -> IO ResponseReceived
 display fragment member state page problem = if fragment
     then respondHtml (renderDesigner member.venueId state page problem)
     else render DesignerView { venue = member.venueId, state, page, problem }
 
-failurePage :: DesignerRequest => VenueMembership -> Storage.DesignerState -> DesignerPage -> Text -> IO ResponseReceived
+failurePage :: DesignerRequest => DaysheetAccess -> Storage.DesignerState -> DesignerPage -> Text -> IO ResponseReceived
 failurePage member state page message = if isHtmxRequest
     then respondHtml (renderToastOob ToastBottomCenter (errorToast message))
     else display False member state page (Just message)
 
-finish :: DesignerRequest => VenueMembership -> Storage.DesignerState -> DesignerPage -> LiveMutationResult (AppResult a) -> IO ResponseReceived
+finish :: DesignerRequest => DaysheetAccess -> Storage.DesignerState -> DesignerPage -> LiveMutationResult (AppResult a) -> IO ResponseReceived
 finish member state page result = case result.liveMutationValue of
     Left failure -> failurePage member state page (appErrorSafeMessage failure)
     Right _ -> do

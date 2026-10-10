@@ -39,7 +39,7 @@ export function parseLayoutPolicy(source, sourcePath = "Web/View/Layout.hs") {
 }
 
 export function checkLayoutPolicy(layout) {
-  const expectedNavigation = ["roster", "profile", "timesheets", "unavailability", "xero", "billing", "admin", "support", "logout"];
+  const expectedNavigation = ["roster", "profile", "timesheets", "daysheets", "unavailability", "xero", "billing", "admin", "support", "logout"];
   const actualNavigation = (layout?.authenticatedNavigation || []).map((entry) => entry.name);
   const errors = [];
   if (actualNavigation.join("\0") !== expectedNavigation.join("\0")) {

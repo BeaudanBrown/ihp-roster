@@ -1,5 +1,6 @@
 module Test.DaysheetStorageSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Designer as Designer
 import Application.Daysheet.DefinitionCodec
@@ -24,18 +25,18 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Designer"
                 user <- createUserRecord "daysheet-designer@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueOwner
-                Right empty <- readDesignerState member
+                Right empty <- readDesignerState (memberAccess member)
                 empty.designerDefinition `shouldBe` D.Definition 2 [] [] [] []
                 empty.designerDraftRevision `shouldBe` Nothing
                 query @DaysheetConfiguration |> fetchCount >>= (`shouldBe` 0)
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
                 let key = D.FieldId (unpackId user.id)
                     field = D.Field key "Notes" D.TextType D.Entered
-                Right created <- editDraft member 0 Nothing (Designer.AddField Nothing 0 field)
+                Right created <- editDraft (memberAccess member) 0 Nothing (Designer.AddField Nothing 0 field)
                 created.revision `shouldBe` 0
-                Right _ <- editDraft member 0 (Just 0) (Designer.ChangeField key "Closing notes" D.TextType D.Entered)
-                errorSuffix <$> editDraft member 0 (Just 0) (Designer.RemoveField key) `shouldReturn` Just "revision-conflict"
-                Right staged <- readDesignerState member
+                Right _ <- editDraft (memberAccess member) 0 (Just 0) (Designer.ChangeField key "Closing notes" D.TextType D.Entered)
+                errorSuffix <$> editDraft (memberAccess member) 0 (Just 0) (Designer.RemoveField key) `shouldReturn` Just "revision-conflict"
+                Right staged <- readDesignerState (memberAccess member)
                 staged.designerDraftRevision `shouldBe` Just 1
                 map D.fieldLabel (D.rootFields staged.designerDefinition) `shouldBe` ["Closing notes"]
                 query @DaysheetDefinitionVersion |> fetchCount >>= (`shouldBe` 0)
@@ -45,19 +46,19 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Designer publication"
                 user <- createUserRecord "daysheet-designer-published@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueAdmin
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right version <- publishDraft member 0 0
-                Right current <- readDesignerState member
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right version <- publishDraft (memberAccess member) 0 0
+                Right current <- readDesignerState (memberAccess member)
                 current.designerDefinition `shouldBe` Fixture.definition
                 current.designerReferences `shouldBe` Fixture.references
                 current.designerDraftRevision `shouldBe` Nothing
                 current.designerBaseRevision `shouldBe` 1
                 current.designerPublishedVersionId `shouldBe` Just (unpackId version.id)
-                Right _ <- editDraft member 1 Nothing (Designer.ChangeList Fixture.areaList "Work areas" D.VenueReference)
+                Right _ <- editDraft (memberAccess member) 1 Nothing (Designer.ChangeList Fixture.areaList "Work areas" D.VenueReference)
                 unchanged <- fetch version.id
                 unchanged.definition `shouldBe` version.definition
-                errorSuffix <$> editDraft member 1 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "invalid-definition-document"
-                Right retained <- readDesignerState member
+                errorSuffix <$> editDraft (memberAccess member) 1 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "invalid-definition-document"
+                Right retained <- readDesignerState (memberAccess member)
                 retained.designerDraftRevision `shouldBe` Just 0
                 retained.designerReferences `shouldBe` Fixture.references
 
@@ -66,24 +67,24 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Designer reference edits"
                 user <- createUserRecord "daysheet-designer-references@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueOwner
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right version <- publishDraft member 0 0
-                Right old <- captureDefinition member (fromGregorian 2026 10 1)
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right version <- publishDraft (memberAccess member) 0 0
+                Right old <- captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 let target = ReferenceKey Fixture.areaList Fixture.areaA
                     terminal = ReferenceKey Fixture.terminalList Fixture.terminal
                     replacement = ReferenceKey Fixture.areaList Fixture.areaB
                     retirement = RetireReferenceRecord target [ReassignReference terminal Fixture.areaField replacement]
-                errorSuffix <$> editDraftReferences member 1 Nothing (RetireReferenceRecord target []) `shouldReturn` Just "invalid-reference-document"
+                errorSuffix <$> editDraftReferences (memberAccess member) 1 Nothing (RetireReferenceRecord target []) `shouldReturn` Just "invalid-reference-document"
                 query @DaysheetDefinitionDraft |> fetchCount >>= (`shouldBe` 0)
-                Right staged <- editDraftReferences member 1 Nothing retirement
+                Right staged <- editDraftReferences (memberAccess member) 1 Nothing retirement
                 staged.revision `shouldBe` 0
-                errorSuffix <$> editDraftReferences member 1 Nothing retirement `shouldReturn` Just "revision-conflict"
-                errorSuffix <$> editDraftReferences member 1 (Just 0) (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "invalid-reference-document"
-                Right beforePublication <- captureDefinition member (fromGregorian 2026 10 2)
+                errorSuffix <$> editDraftReferences (memberAccess member) 1 Nothing retirement `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> editDraftReferences (memberAccess member) 1 (Just 0) (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "invalid-reference-document"
+                Right beforePublication <- captureDefinition (memberAccess member) (fromGregorian 2026 10 2)
                 beforePublication.definitionVersionId `shouldBe` unpackId version.id
                 beforePublication.referenceData `shouldBe` old.referenceData
-                Right _ <- publishDraft member 1 0
-                Right fresh <- captureDefinition member (fromGregorian 2026 10 3)
+                Right _ <- publishDraft (memberAccess member) 1 0
+                Right fresh <- captureDefinition (memberAccess member) (fromGregorian 2026 10 3)
                 fresh.referenceData `shouldNotBe` old.referenceData
                 unchanged <- fetch old.id
                 unchanged.referenceData `shouldBe` old.referenceData
@@ -95,12 +96,12 @@ tests = aroundAll withDatabaseTestContext do
                 member <- createVenueMembershipRecord venue user VenueOwner
                 let definition = D.Definition 2 [] [D.RecordList Fixture.areaList "Areas" D.VenueReference []] [] []
                     references = ReferenceData [ReferenceList Fixture.areaList [ReferenceRecord Fixture.areaA False []]]
-                Right _ <- saveDraft member 0 Nothing definition references
-                errorSuffix <$> editDraft member 0 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "reference-removal-requires-retirement"
-                errorSuffix <$> editDraft member 0 (Just 0) (Designer.ChangeList Fixture.areaList "Daily areas" D.OpenDaily) `shouldReturn` Just "reference-removal-requires-retirement"
-                Right _ <- editDraftReferences member 0 (Just 0) (RetireReferenceRecord (ReferenceKey Fixture.areaList Fixture.areaA) [])
-                Right _ <- editDraft member 0 (Just 1) (Designer.RemoveList Fixture.areaList)
-                Right _ <- publishDraft member 0 2
+                Right _ <- saveDraft (memberAccess member) 0 Nothing definition references
+                errorSuffix <$> editDraft (memberAccess member) 0 (Just 0) (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "reference-removal-requires-retirement"
+                errorSuffix <$> editDraft (memberAccess member) 0 (Just 0) (Designer.ChangeList Fixture.areaList "Daily areas" D.OpenDaily) `shouldReturn` Just "reference-removal-requires-retirement"
+                Right _ <- editDraftReferences (memberAccess member) 0 (Just 0) (RetireReferenceRecord (ReferenceKey Fixture.areaList Fixture.areaA) [])
+                Right _ <- editDraft (memberAccess member) 0 (Just 1) (Designer.RemoveList Fixture.areaList)
+                Right _ <- publishDraft (memberAccess member) 0 2
                 pure ()
 
         it "publishes staged corrections only for future captures" $ withContext do
@@ -108,16 +109,16 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-owner@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueOwner
-                Right saved <- saveDraft member 0 Nothing Fixture.definition Fixture.references
+                Right saved <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
                 saved.revision `shouldBe` 0
-                Right first <- publishDraft member 0 0
-                Right old <- captureDefinition member (fromGregorian 2026 10 1)
+                Right first <- publishDraft (memberAccess member) 0 0
+                Right old <- captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 let changed = Fixture.definition { D.rootFields = [D.Field (D.FieldId (unpackId user.id)) "New instructions" D.TextType D.Entered] }
-                Right _ <- saveDraft member 1 Nothing changed Fixture.references
-                Right beforePublish <- captureDefinition member (fromGregorian 2026 10 2)
+                Right _ <- saveDraft (memberAccess member) 1 Nothing changed Fixture.references
+                Right beforePublish <- captureDefinition (memberAccess member) (fromGregorian 2026 10 2)
                 beforePublish.definitionVersionId `shouldBe` unpackId first.id
-                Right second <- publishDraft member 1 0
-                Right fresh <- captureDefinition member (fromGregorian 2026 10 3)
+                Right second <- publishDraft (memberAccess member) 1 0
+                Right fresh <- captureDefinition (memberAccess member) (fromGregorian 2026 10 3)
                 fresh.definitionVersionId `shouldBe` unpackId second.id
                 oldAgain <- fetch old.id
                 -- Generated has-many QueryBuilders are not persisted capture
@@ -130,7 +131,7 @@ tests = aroundAll withDatabaseTestContext do
                 oldAgain.referenceData `shouldBe` old.referenceData
                 oldAgain.capturedBy `shouldBe` old.capturedBy
                 oldAgain.createdAt `shouldBe` old.createdAt
-                Right repeated <- captureDefinition member (fromGregorian 2026 10 1)
+                Right repeated <- captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 repeated.id `shouldBe` old.id
                 decodeDefinition first.definition `shouldBe` Right Fixture.definition
                 decodeDefinition second.definition `shouldBe` Right changed
@@ -139,11 +140,11 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-admin@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueAdmin
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right first <- publishDraft member 0 0
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right first <- publishDraft (memberAccess member) 0 0
                 let changed = Fixture.definition { D.recordLists = [D.RecordList Fixture.areaList "Areas" D.VenueReference [], D.RecordList Fixture.terminalList "Terminals" D.VenueReference [D.Field Fixture.areaField "Area text" D.TextType D.Entered]] }
-                Right _ <- saveDraft member 1 Nothing changed Fixture.references
-                rejected <- publishDraft member 1 0
+                Right _ <- saveDraft (memberAccess member) 1 Nothing changed Fixture.references
+                rejected <- publishDraft (memberAccess member) 1 0
                 errorSuffix rejected `shouldBe` Just "invalid-reference-document"
                 config <- query @DaysheetConfiguration |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 config.publishedVersionId `shouldBe` Just (unpackId first.id)
@@ -152,8 +153,8 @@ tests = aroundAll withDatabaseTestContext do
                 let corrected = ReferenceData
                         [ReferenceList Fixture.areaList [ReferenceRecord Fixture.areaA False [], ReferenceRecord Fixture.areaB False []]
                         ,ReferenceList Fixture.terminalList [ReferenceRecord Fixture.terminal False [(Fixture.areaField, ReferenceScalar (D.TextLiteral "Inside"))]]]
-                Right _ <- saveDraft member 1 (Just 0) changed corrected
-                Right second <- publishDraft member 1 1
+                Right _ <- saveDraft (memberAccess member) 1 (Just 0) changed corrected
+                Right second <- publishDraft (memberAccess member) 1 1
                 decodeReferenceData second.referenceData `shouldBe` Right corrected
                 oldVersion <- fetch first.id
                 decodeReferenceData oldVersion.referenceData `shouldBe` Right Fixture.references
@@ -162,31 +163,31 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-live-reference@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueAdmin
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right first <- publishDraft member 0 0
-                Right _ <- saveDraft member 1 Nothing Fixture.definition Fixture.references
-                Right updated <- updateCurrentReferences member 1 Fixture.references
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right first <- publishDraft (memberAccess member) 0 0
+                Right _ <- saveDraft (memberAccess member) 1 Nothing Fixture.definition Fixture.references
+                Right updated <- updateCurrentReferences (memberAccess member) 1 Fixture.references
                 updated.publishedVersionId `shouldBe` Just (unpackId first.id)
-                errorSuffix <$> publishDraft member 1 0 `shouldReturn` Just "revision-conflict"
-                errorSuffix <$> updateCurrentReferences member 2 (ReferenceData []) `shouldReturn` Just "reference-removal-requires-retirement"
+                errorSuffix <$> publishDraft (memberAccess member) 1 0 `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> updateCurrentReferences (memberAccess member) 2 (ReferenceData []) `shouldReturn` Just "reference-removal-requires-retirement"
                 saved <- query @DaysheetDefinitionDraft |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 saved.baseRevision `shouldBe` 1
-                Right staleState <- readDesignerState member
+                Right staleState <- readDesignerState (memberAccess member)
                 staleState.designerBaseRevision `shouldBe` 1
                 staleState.designerCurrentRevision `shouldBe` 2
-                errorSuffix <$> editDraft member 1 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
-                errorSuffix <$> editDraft member 2 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> editDraft (memberAccess member) 1 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
+                errorSuffix <$> editDraft (memberAccess member) 2 (Just 0) (Designer.ChangeList Fixture.areaList "Renamed" D.VenueReference) `shouldReturn` Just "revision-conflict"
         it "rejects stale saves and preserves the second editor's unsaved input" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-editor@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueAdmin
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right updated <- saveDraft member 0 (Just 0) Fixture.definition Fixture.references
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right updated <- saveDraft (memberAccess member) 0 (Just 0) Fixture.definition Fixture.references
                 updated.revision `shouldBe` 1
-                rejected <- saveDraft member 0 (Just 0) Fixture.definition Fixture.references
+                rejected <- saveDraft (memberAccess member) 0 (Just 0) Fixture.definition Fixture.references
                 errorSuffix rejected `shouldBe` Just "revision-conflict"
-                rejectedPublish <- publishDraft member 0 0
+                rejectedPublish <- publishDraft (memberAccess member) 0 0
                 errorSuffix rejectedPublish `shouldBe` Just "revision-conflict"
         it "enforces current membership and cannot substitute global user role" $ withContext do
             withCleanDb do
@@ -194,36 +195,36 @@ tests = aroundAll withDatabaseTestContext do
                 other <- createVenueWithConfig "Other"
                 user <- createUserRecord "daysheet-worker@example.test" "admin" True
                 worker <- createVenueMembershipRecord venue user Worker
-                blocked <- saveDraft worker 0 Nothing Fixture.definition Fixture.references
+                blocked <- saveDraft (memberAccess worker) 0 Nothing Fixture.definition Fixture.references
                 errorSuffix blocked `shouldBe` Just "access-denied"
-                errorSuffix <$> readDesignerState worker `shouldReturn` Just "access-denied"
-                errorSuffix <$> editDraft worker 0 Nothing (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "access-denied"
+                errorSuffix <$> readDesignerState (memberAccess worker) `shouldReturn` Just "access-denied"
+                errorSuffix <$> editDraft (memberAccess worker) 0 Nothing (Designer.RemoveList Fixture.areaList) `shouldReturn` Just "access-denied"
                 manager <- worker |> set #venueRole Manager |> updateRecord
-                errorSuffix <$> readDesignerState manager `shouldReturn` Just "access-denied"
-                errorSuffix <$> editDraftReferences manager 0 Nothing (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "access-denied"
+                errorSuffix <$> readDesignerState (memberAccess manager) `shouldReturn` Just "access-denied"
+                errorSuffix <$> editDraftReferences (memberAccess manager) 0 Nothing (AddReferenceRecord Fixture.areaList Fixture.areaA) `shouldReturn` Just "access-denied"
                 admin <- createVenueMembershipRecord other user VenueAdmin
-                forged <- saveDraft (admin |> set #venueId (unpackId venue.id)) 0 Nothing Fixture.definition Fixture.references
+                forged <- saveDraft (memberAccess (admin |> set #venueId (unpackId venue.id))) 0 Nothing Fixture.definition Fixture.references
                 errorSuffix forged `shouldBe` Just "access-denied"
-                errorSuffix <$> readDesignerState (admin |> set #venueId (unpackId venue.id)) `shouldReturn` Just "access-denied"
+                errorSuffix <$> readDesignerState (memberAccess (admin |> set #venueId (unpackId venue.id))) `shouldReturn` Just "access-denied"
                 _ <- worker |> set #venueRole VenueAdmin |> updateRecord
                 _ <- worker |> set #isActive False |> updateRecord
-                inactive <- saveDraft worker 0 Nothing Fixture.definition Fixture.references
+                inactive <- saveDraft (memberAccess worker) 0 Nothing Fixture.definition Fixture.references
                 errorSuffix inactive `shouldBe` Just "access-denied"
         it "requires explicit retirement choices and leaves existing captures intact" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-retirement@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueAdmin
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right _ <- publishDraft member 0 0
-                Right old <- captureDefinition member (fromGregorian 2026 10 1)
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right _ <- publishDraft (memberAccess member) 0 0
+                Right old <- captureDefinition (memberAccess member) (fromGregorian 2026 10 1)
                 let target = ReferenceKey Fixture.areaList Fixture.areaA
-                denied <- retireCurrentReferences member 1 target []
+                denied <- retireCurrentReferences (memberAccess member) 1 target []
                 errorSuffix denied `shouldBe` Just "invalid-reference-document"
-                Right _ <- retireCurrentReferences member 1 target [ReassignReference (ReferenceKey Fixture.terminalList Fixture.terminal) Fixture.areaField (ReferenceKey Fixture.areaList Fixture.areaB)]
-                stale <- retireCurrentReferences member 1 target []
+                Right _ <- retireCurrentReferences (memberAccess member) 1 target [ReassignReference (ReferenceKey Fixture.terminalList Fixture.terminal) Fixture.areaField (ReferenceKey Fixture.areaList Fixture.areaB)]
+                stale <- retireCurrentReferences (memberAccess member) 1 target []
                 errorSuffix stale `shouldBe` Just "revision-conflict"
-                Right fresh <- captureDefinition member (fromGregorian 2026 10 2)
+                Right fresh <- captureDefinition (memberAccess member) (fromGregorian 2026 10 2)
                 fresh.referenceData `shouldNotBe` old.referenceData
                 oldAgain <- fetch old.id
                 oldAgain.referenceData `shouldBe` old.referenceData
@@ -232,9 +233,9 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Daysheets"
                 user <- createUserRecord "daysheet-concurrent@example.test" "admin" True
                 member <- createVenueMembershipRecord venue user VenueOwner
-                Right _ <- saveDraft member 0 Nothing Fixture.definition Fixture.references
-                Right _ <- publishDraft member 0 0
-                (Right a, Right b) <- concurrently (captureDefinition member (fromGregorian 2026 10 1)) (captureDefinition member (fromGregorian 2026 10 1))
+                Right _ <- saveDraft (memberAccess member) 0 Nothing Fixture.definition Fixture.references
+                Right _ <- publishDraft (memberAccess member) 0 0
+                (Right a, Right b) <- concurrently (captureDefinition (memberAccess member) (fromGregorian 2026 10 1)) (captureDefinition (memberAccess member) (fromGregorian 2026 10 1))
                 a.id `shouldBe` b.id
                 query @DaysheetDefinitionCapture |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
 

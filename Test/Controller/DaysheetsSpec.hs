@@ -1,5 +1,8 @@
 module Test.Controller.DaysheetsSpec where
 
+import Application.Daysheet.Authority (memberAccess, currentDaysheetAccess)
+import qualified Application.Daysheet.Storage as DefinitionStorage
+import Application.Daysheet.Recipients (readReportRecipients)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import qualified Application.Daysheet.DailyStorage as Storage
@@ -12,6 +15,7 @@ import qualified Data.UUID as UUID
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Data.Data (toConstr)
+import Data.Either (isLeft)
 import qualified IHP.RouterSupport as Router
 import Network.HTTP.Types.URI (parseQuery)
 import Generated.Types
@@ -24,6 +28,8 @@ import qualified Test.Support.Daysheet as Fixture
 import Test.Hspec
 import Test.Support
 import Web.Controller.Daysheets ()
+import Web.Controller.DaysheetDesigner ()
+import Web.Controller.Admin.Support ()
 import Web.FrontController ()
 import Web.Types
 
@@ -35,8 +41,8 @@ setupWithDefinition definition = do
     venue <- createVenueWithConfig "Single-page Daysheets"
     user <- createUserRecord "daysheet-controller@example.test" "manager" True
     member <- createVenueMembershipRecord venue user VenueOwner
-    Right _ <- saveDraft member 0 Nothing definition Fixture.entryReferences
-    Right _ <- publishDraft member 0 0
+    Right _ <- saveDraft (memberAccess member) 0 Nothing definition Fixture.entryReferences
+    Right _ <- publishDraft (memberAccess member) 0 0
     pure (venue, user, member)
 
 day :: Day
@@ -45,6 +51,73 @@ day = fromGregorian 2026 10 1
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "DaysheetsController" do
+        it "allows selected-venue founder access and rechecks stale authority without granting membership" $ withContext do
+            withCleanDb do
+                (venue, _, _) <- setup
+                founder <- createUserRecordWithPlatformRole "daysheet-founder@example.test" "staff" (Just SuperAdmin) True
+                access <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    page <- callActionWithQueryParams DaysheetsAction []
+                    page `responseStatusShouldBe` status200
+                    page `responseBodyShouldContain` "Configure Daysheets"
+                    Just access <- withCurrentControllerContext (pure currentDaysheetAccess)
+                    pure access
+                query @VenueMembership |> filterWhere (#userId, unpackId founder.id) |> fetchCount >>= (`shouldBe` 0)
+                Right created <- Storage.createDailySheet access day
+                created.daysheet.createdBy `shouldBe` founder.id
+                Right edited <- Storage.editDailyCell access created.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Founder correction")
+                edited.daysheet.lastEditedBy `shouldBe` founder.id
+                other <- createVenueWithConfig "Other founder Daysheet venue"
+                foreignPage <- withPasskeyVerifiedUserAndCurrentVenue founder other.id $
+                    callActionWithQueryParams (ShowDaysheetBodyAction created.daysheet.id) []
+                foreignPage `responseStatusShouldBe` status404
+                _ <- founder |> set #platformRole Nothing |> updateRecord
+                denied <- Storage.readDailySheet access created.daysheet.id
+                isLeft denied `shouldBe` True
+                designerDenied <- DefinitionStorage.readDesignerState access
+                isLeft designerDenied `shouldBe` True
+                recipientDenied <- readReportRecipients access (D.ReportId UUID.nil)
+                isLeft recipientDenied `shouldBe` True
+                _ <- founder |> set #platformRole (Just SuperAdmin) |> updateRecord
+                now <- getCurrentTime
+                _ <- founder |> set #deactivatedAt (Just now) |> updateRecord
+                inactive <- Storage.readDailySheet access created.daysheet.id
+                isLeft inactive `shouldBe` True
+                _ <- founder |> set #deactivatedAt Nothing |> updateRecord
+                _ <- venue |> set #closedAt (Just now) |> updateRecord
+                closed <- Storage.readDailySheet access created.daysheet.id
+                isLeft closed `shouldBe` True
+                closedRecipients <- readReportRecipients access (D.ReportId UUID.nil)
+                isLeft closedRecipients `shouldBe` True
+
+        forM_ [VenueOwner, VenueAdmin, Manager, Worker] \role ->
+          it ("uses impersonated role while retaining the founder actor: " <> cs (show role)) $ withContext do
+            withCleanDb do
+                (venue, effective, member) <- setup
+                _ <- member |> set #venueRole role |> updateRecord
+                founder <- createUserRecordWithPlatformRole "impersonating-daysheet-founder@example.test" "staff" (Just SuperAdmin) True
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue effective.id))]
+                    page <- callActionWithQueryParams DaysheetsAction []
+                    designer <- callActionWithQueryParams DaysheetDesignerAction []
+                    if role == Worker then responseStatus page `shouldSatisfy` (`elem` [status302, status303, status403])
+                        else page `responseStatusShouldBe` status200
+                    if role `elem` [VenueOwner, VenueAdmin] then designer `responseStatusShouldBe` status200
+                        else responseStatus designer `shouldSatisfy` (`elem` [status302, status303, status403])
+                    _ <- callActionWithParams CreateDaysheetAction [("operationalDate", "2026-10-01")]
+                    if role == Worker then query @Daysheet |> fetchCount >>= (`shouldBe` 0) else do
+                        created <- query @Daysheet |> fetchOne
+                        created.createdBy `shouldBe` founder.id
+                        event <- query @AuditEvent |> filterWhere (#eventType, "daysheet_created") |> fetchOne
+                        event.actorUserId `shouldBe` unpackId founder.id
+                        (cs (Aeson.encode event.payload) :: Text) `shouldSatisfy` Text.isInfixOf "\"accessMode\":\"impersonation\""
+                        (cs (Aeson.encode event.payload) :: Text) `shouldSatisfy` Text.isInfixOf (tshow effective.id)
+                        Just access <- withCurrentControllerContext (pure currentDaysheetAccess)
+                        _ <- member |> set #isActive False |> updateRecord
+                        denied <- Storage.readDailySheet access created.id
+                        isLeft denied `shouldBe` True
+                        recipientsDenied <- readReportRecipients access (D.ReportId UUID.nil)
+                        isLeft recipientsDenied `shouldBe` True
+
         forM_ [VenueOwner, VenueAdmin, Manager] \role ->
             it ("renders Daysheets navigation only for admins: " <> cs (show role)) $ withContext do
                 withCleanDb do
@@ -75,8 +148,8 @@ tests = aroundAll withDatabaseTestContext do
                             [D.FieldBlock (Fixture.field 1), D.FieldBlock (Fixture.field 16)
                             , D.AdvisoryBlock (D.Advisory (D.Binary D.GreaterOrEqual (D.ReadField (D.FieldPath D.Root [Fixture.field 2])) (D.Constant (D.WholeLiteral 0))) "Within tolerance" "Review value")]] [D.FormattedReport]] }
                 (venue, user, member) <- setupWithDefinition definition
-                Right created <- Storage.createDailySheet member day
-                Right state <- Storage.editDailyCell member created.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "<script>unsafe()</script>")
+                Right created <- Storage.createDailySheet (memberAccess member) day
+                Right state <- Storage.editDailyCell (memberAccess member) created.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "<script>unsafe()</script>")
                 jobs <- query @AppJob |> fetchCount
                 events <- query @LiveInvalidationEvent |> fetchCount
                 _ <- member |> set #venueRole Manager |> updateRecord
@@ -102,7 +175,7 @@ tests = aroundAll withDatabaseTestContext do
                 retained <- query @Daysheet |> filterWhere (#id, state.daysheet.id) |> fetchOne
                 retained.submittedAt `shouldBe` Nothing
                 retained.revision `shouldBe` state.daysheet.revision
-                Right _ <- Storage.submitDailySheet member state.daysheet.id
+                Right _ <- Storage.submitDailySheet (memberAccess member) state.daysheet.id
                 live <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id report) []
                 live `responseStatusShouldBe` status200
@@ -120,7 +193,7 @@ tests = aroundAll withDatabaseTestContext do
                 absent `responseStatusShouldBe` status404
                 query @Daysheet |> fetchCount >>= (`shouldBe` 0)
                 query @DaysheetDefinitionCapture |> fetchCount >>= (`shouldBe` 0)
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 forM_ [excel, UUID.nil] \key -> do
                     rejected <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                         callActionWithQueryParams (ShowDaysheetReportBodyAction state.daysheet.id key) []
@@ -142,13 +215,39 @@ tests = aroundAll withDatabaseTestContext do
                     denied <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ callActionWithQueryParams action []
                     responseStatus denied `shouldSatisfy` (`elem` [status302, status303, status403])
 
+        it "lets a founder generate and download selected-venue Daysheet exports without membership" $ withContext do
+            withCleanDb do
+                let report = UUID.fromWords 0 0 0 922
+                    definition = Fixture.entryDefinition { D.reports = [D.Report (D.ReportId report) "Founder workbook" [D.Section (D.SectionId (UUID.fromWords 0 0 0 923)) "Summary" [D.FieldBlock (Fixture.field 1)]] [D.ExcelDownload]] }
+                (venue, _, member) <- setupWithDefinition definition
+                Right state <- Storage.createDailySheet (memberAccess member) day
+                founder <- createUserRecordWithPlatformRole "export-founder@example.test" "staff" (Just SuperAdmin) True
+                generated <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id $
+                    withRequestHeaders [("HX-Request", "true")] $
+                        callActionWithParams (DownloadDaysheetWorkbookAction state.daysheet.id report) []
+                generated `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders generated) `shouldSatisfy` isJust
+                job <- query @ExportJob |> fetchOne
+                job.requestedByUserId `shouldBe` unpackId founder.id
+                downloaded <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                downloaded `responseStatusShouldBe` status200
+                other <- createVenueWithConfig "Other founder export venue"
+                foreignDownload <- withPasskeyVerifiedUserAndCurrentVenue founder other.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                foreignDownload `responseStatusShouldBe` status403
+                _ <- founder |> set #platformRole Nothing |> updateRecord
+                denied <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id $
+                    callActionWithQueryParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                responseStatus denied `shouldSatisfy` (`elem` [status302, status303, status403])
+
         it "lets managers generate and download only scoped Daysheet workbooks through shared expiry" $ withContext do
             withCleanDb do
                 let report = UUID.fromWords 0 0 0 920
                     definition = Fixture.entryDefinition { D.reports = [D.Report (D.ReportId report) "Closing workbook"
                         [D.Section (D.SectionId (UUID.fromWords 0 0 0 921)) "Summary" [D.FieldBlock (Fixture.field 1)]] [D.ExcelDownload]] }
                 (venue, user, member) <- setupWithDefinition definition
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 _ <- member |> set #venueRole Manager |> updateRecord
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     withRequestHeaders [("HX-Request", "true")] $
@@ -228,7 +327,7 @@ tests = aroundAll withDatabaseTestContext do
         it "renders all eight preserved terminal rows on one page with typed autosave and submission gate" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     callActionWithQueryParams (ShowDaysheetBodyAction state.daysheet.id) []
                 response `responseStatusShouldBe` status200
@@ -241,7 +340,7 @@ tests = aroundAll withDatabaseTestContext do
         it "acknowledges committed autosaves and preserves a stale submitted value for explicit resolution" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 let action = SaveDaysheetTextAction state.daysheet.id 0 Nothing
                 before <- query @LiveInvalidationEvent |> fetchCount
                 first <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
@@ -260,13 +359,13 @@ tests = aroundAll withDatabaseTestContext do
                 conflict `responseBodyShouldContain` "aria-invalid=\"true\""
                 lookup "X-Bepis-Form-Saved" (responseHeaders conflict) `shouldBe` Nothing
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` (before + 1))
-                Right retained <- Storage.readDailySheet member state.daysheet.id
+                Right retained <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 Daily.readCell retained.content (Daily.RootCell (Fixture.field 1)) `shouldBe` Right (Daily.Cell 1 (Fixture.text "Saved elsewhere"))
 
         it "rejects missing revisions, fractional whole numbers, calculated overrides and foreign venue ids" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 malformed <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     withRequestHeaders [("HX-Request", "true")] $
                         callActionWithParams (SaveDaysheetNumberAction state.daysheet.id 1 Nothing) [("enteredNumber", "1.5")]
@@ -289,35 +388,35 @@ tests = aroundAll withDatabaseTestContext do
                 foreignResponse <- withPasskeyVerifiedUserAndCurrentVenue user other.id $
                     callActionWithQueryParams (ShowDaysheetBodyAction state.daysheet.id) []
                 foreignResponse `responseStatusShouldBe` status404
-                Right retained <- Storage.readDailySheet member state.daysheet.id
+                Right retained <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 retained.daysheet.revision `shouldBe` 0
 
         it "submits blank saved content without creating delivery jobs and permits later edits" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
+                Right state <- Storage.createDailySheet (memberAccess member) day
                 jobs <- query @AppJob |> fetchCount
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     withRequestHeaders [("HX-Request", "true")] $
                         callActionWithParams (SubmitDaysheetAction state.daysheet.id) []
                 response `responseStatusShouldBe` status200
                 query @AppJob |> fetchCount >>= (`shouldBe` jobs)
-                Right submitted <- Storage.readDailySheet member state.daysheet.id
+                Right submitted <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 submitted.daysheet.submittedAt `shouldSatisfy` isJust
                 after <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     withRequestHeaders [("HX-Request", "true")] $
                         callActionWithParams (SaveDaysheetTextAction state.daysheet.id 0 Nothing) [("expectedRevision", "0"), ("enteredText", "After submission")]
                 after `responseStatusShouldBe` status200
-                Right latest <- Storage.readDailySheet member state.daysheet.id
+                Right latest <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 latest.daysheet.submittedAt `shouldBe` submitted.daysheet.submittedAt
 
         it "retains a deleted row's unsaved value for explicit discard without resurrection" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
-                Right _ <- Storage.addDailyRow member state.daysheet.id Fixture.band
-                Right plan <- Storage.prepareDailyDeletion member state.daysheet.id Fixture.band
-                Right _ <- Storage.deleteDailyRow member state.daysheet.id plan
+                Right state <- Storage.createDailySheet (memberAccess member) day
+                Right _ <- Storage.addDailyRow (memberAccess member) state.daysheet.id Fixture.band
+                Right plan <- Storage.prepareDailyDeletion (memberAccess member) state.daysheet.id Fixture.band
+                Right _ <- Storage.deleteDailyRow (memberAccess member) state.daysheet.id plan
                 let ReferenceKey _ (E.RowId row) = Fixture.band
                     action = SaveDaysheetTextAction state.daysheet.id 4 (Just (tshow row))
                 forM_ [[], [("HX-Request", "true")]] \headers -> do
@@ -334,24 +433,24 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithQueryParams (KeepSavedDaysheetCellAction state.daysheet.id 4 (Just (tshow row))) []
                 discarded `responseStatusShouldBe` status200
                 discarded `responseBodyShouldNotContain` "aria-invalid"
-                Right retained <- Storage.readDailySheet member state.daysheet.id
+                Right retained <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 Daily.rowKeys retained.content `shouldSatisfy` notElem Fixture.band
 
         it "requires a refreshed deletion confirmation after target edits" $ withContext do
             withCleanDb do
                 (venue, user, member) <- setup
-                Right state <- Storage.createDailySheet member day
-                Right added <- Storage.addDailyRow member state.daysheet.id Fixture.band
-                Right plan <- Storage.prepareDailyDeletion member state.daysheet.id Fixture.band
+                Right state <- Storage.createDailySheet (memberAccess member) day
+                Right added <- Storage.addDailyRow (memberAccess member) state.daysheet.id Fixture.band
+                Right plan <- Storage.prepareDailyDeletion (memberAccess member) state.daysheet.id Fixture.band
                 let owner = E.SnapshotKey member.venueId (unpackId state.daysheet.id)
                     token = renderNominalText (deletionToken owner plan)
                     ReferenceKey (D.ListId source) (E.RowId row) = Fixture.band
-                Right _ <- Storage.editDailyCell member state.daysheet.id (Daily.RowCell Fixture.band (Fixture.field 4)) 0 (Fixture.text "Changed band")
+                Right _ <- Storage.editDailyCell (memberAccess member) state.daysheet.id (Daily.RowCell Fixture.band (Fixture.field 4)) 0 (Fixture.text "Changed band")
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $
                     withRequestHeaders [("HX-Request", "true")] $
                         callActionWithParams (DeleteDaysheetRowAction added.daysheet.id source row) [("confirmation", cs token)]
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Review a fresh deletion confirmation"
                 response `responseBodyShouldContain` "Changed band"
-                Right retained <- Storage.readDailySheet member state.daysheet.id
+                Right retained <- Storage.readDailySheet (memberAccess member) state.daysheet.id
                 Daily.rowKeys retained.content `shouldSatisfy` elem Fixture.band

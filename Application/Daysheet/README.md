@@ -94,7 +94,7 @@ fixtures establish its formulas, not a provider contract.
 edits, publication, responsive entry/preview and historical isolation. The fixture
 creates only the venue/account when pristine mode is selected, never the starter.
 
-`Storage` owns membership-scoped staging, publication, reference updates and
+`Storage` owns venue-scoped staging, publication, reference updates and
 immutable capture. `DefinitionCodec` and `ReferenceCodec` own server documents;
 `References` validates active links and explicit retirement plans. The approved
 staging/publication boundary is retained in `SPEC.md`.
@@ -217,7 +217,12 @@ or feature-specific browser transport is involved. Browser fixtures are authored
 in `Test/Support/Daysheet.hs` and seeded by `Test/E2EDaysheet.hs`, independent of
 the ignored workbook.
 
-`Authority` rechecks live venue/membership authority under ordered locks.
+`Authority` projects initialized request context into opaque `DaysheetAccess`
+and rechecks live authority under ordered locks. Unimpersonated founders have
+full Daysheet access in the selected venue without a membership; impersonation
+uses effective member permissions, not the founder override. Ordinary domain
+callers use `memberAccess`. Actor columns retain the actual user, and Daysheet
+audit events include support/impersonation provenance.
 `Recipients` owns admin/owner-only external address management independently of
 versioned layouts. Address identities are immutable, removal is permanent, and
 re-addition creates a new identity. The shared mail worker owns transport;

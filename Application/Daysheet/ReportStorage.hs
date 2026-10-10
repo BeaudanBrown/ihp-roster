@@ -3,14 +3,14 @@ module Application.Daysheet.ReportStorage
     ( captureManualReport, captureScheduledReports
     ) where
 
-import Application.Daysheet.Authority (withAuthority)
+import Application.Daysheet.Authority (DaysheetAccess, venueId, userId, withAuthority, recordDaysheetAuditEvent)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Cutoff as Cutoff
 import Application.Daysheet.CutoffCapture (CutoffClock)
 import Application.Daysheet.DailyStorage
 import Application.Daysheet.EmailContract
 import qualified Application.Daysheet.Evaluation as E
-import Application.Daysheet.Recipients (activeReportRecipients, recipientIdentity)
+import Application.Daysheet.Recipients (activeReportRecipientsInLockedVenue, recipientIdentity)
 import Application.Daysheet.Report (projectReport)
 import Application.Daysheet.ReportCodec
 import Application.Daysheet.ReportError
@@ -22,7 +22,6 @@ import Application.Helper.LiveUpdate.DurablePublisher (persistDurableInvalidatio
 import qualified Data.Set as Set
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types
-import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Audit.Vocabulary
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.Aeson as Aeson
@@ -35,7 +34,7 @@ failure = throwE . projectDomainError
 
 -- The nonce belongs to one deliberate confirmation. Request retries preserve
 -- the old run even after later live corrections or recipient additions.
-captureManualReport :: (?modelContext :: ModelContext) => VenueMembership -> Id Daysheet -> D.ReportId -> UUID -> IO (AppResult DaysheetReportSnapshot)
+captureManualReport :: (?modelContext :: ModelContext) => DaysheetAccess -> Id Daysheet -> D.ReportId -> UUID -> IO (AppResult DaysheetReportSnapshot)
 captureManualReport member key report@(D.ReportId reportId) requestKey = withAuthority member [Manager, VenueAdmin, VenueOwner] do
     existing <- liftIO (query @DaysheetReportSnapshot
         |> filterWhere (#venueId, Id member.venueId) |> filterWhere (#requestKey, requestKey) |> fetchOneOrNothing)
@@ -49,7 +48,7 @@ captureManualReport member key report@(D.ReportId reportId) requestKey = withAut
             unless (isJust state.daysheet.submittedAt) (failure ReportRequiresSubmission)
             now <- liftIO getCurrentTime
             snapshot <- persistReport state report requestKey (Just member.userId) Nothing now
-            _ <- liftIO (recordAuditEvent member.venueId member.userId DaysheetReportCapturedAudit
+            _ <- liftIO (recordDaysheetAuditEvent member DaysheetReportCapturedAudit
                 daysheetReportReferenceTable (unpackId snapshot.id)
                 (Aeson.object ["daysheetId" Aeson..= unpackId key, "reportId" Aeson..= reportId, "sourceRevision" Aeson..= state.daysheet.revision]) ApplicationAuditSource)
             liftIO (publishCapture state)
@@ -87,7 +86,7 @@ persistReport state report@(D.ReportId reportId) requestKey sender cutoff captur
         (Saved.prepareSaved state.definition state.references (E.SnapshotKey (unpackId state.daysheet.venueId) (unpackId state.daysheet.id)) state.content)
     selected <- either (const (failure ReportCaptureInvalid)) pure (projectReport saved report)
     content <- either (\case ReportPayloadTooLarge -> failure ReportCaptureTooLarge; InvalidReportPayload -> failure ReportCaptureInvalid) pure (encodeReportContent selected)
-    recipients <- liftIO (activeReportRecipients (unpackId state.daysheet.venueId) report)
+    recipients <- liftIO (activeReportRecipientsInLockedVenue (unpackId state.daysheet.venueId) report)
     when (length recipients > 10000) (failure ReportCaptureTooLarge)
     snapshot <- liftIO (newRecord @DaysheetReportSnapshot
         |> set #venueId state.daysheet.venueId |> set #daysheetId state.daysheet.id

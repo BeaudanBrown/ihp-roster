@@ -1,5 +1,6 @@
 module Web.Controller.Daysheets where
 
+import Application.Daysheet.Authority (DaysheetAccess, currentDaysheetAccess)
 import qualified Application.Daysheet.Contract as D
 import qualified Application.Daysheet.Daily as Daily
 import Application.Daysheet.DailyError
@@ -10,7 +11,7 @@ import qualified Application.Daysheet.Evaluation as E
 import qualified Application.Daysheet.Mutations as Mutations
 import Application.Daysheet.References
 import qualified Application.Daysheet.Report as Report
-import Application.Daysheet.Recipients (activeReportRecipients, addReportRecipient, removeReportRecipient)
+import Application.Daysheet.Recipients (readReportRecipients, addReportRecipient, removeReportRecipient)
 import Application.Daysheet.ReportStorage (captureManualReport)
 import Application.Daysheet.ReportHistory (readFrozenHistory)
 import qualified Application.Daysheet.Saved as Saved
@@ -331,8 +332,8 @@ respondCellFailure model cell problem
         render IndexView { operationalDate = model.state.daysheet.operationalDate, model = Just model, rowKeys
             , feedback = Just (CellProblem (occurrenceIndex (entryOccurrence cell)) (entryRow cell) problem) }
 
-manager :: DaysheetRequest => IO VenueMembership
-manager = maybe (deny status403 "Daysheets require an active venue membership.") pure currentVenueMembershipOrNothing
+manager :: DaysheetRequest => IO DaysheetAccess
+manager = maybe (deny status403 "Daysheets require an active venue and authorized member or founder support access.") pure currentDaysheetAccess
 
 loadModel :: DaysheetRequest => Id Daysheet -> IO EntryModel
 loadModel key = do
@@ -343,9 +344,9 @@ prepareSend :: DaysheetRequest => Id Daysheet -> UUID -> UUID -> Maybe Text -> I
 prepareSend key report requestKey problem = do
     (record, Report.ReportContent label _) <- loadReport key report
     member <- manager
-    recipients <- activeReportRecipients member.venueId (D.ReportId report)
+    recipients <- readReportRecipients member (D.ReportId report) >>= either readFailure pure
     pure SendView { record, report, requestKey, label, recipients, problem
-        , canManageRecipients = member.venueRole `elem` [VenueAdmin, VenueOwner], recipientAddress = "", recipientProblem = Nothing }
+        , canManageRecipients = hasRole VenueAdmin, recipientAddress = "", recipientProblem = Nothing }
 
 recipientResponse :: DaysheetRequest => Id Daysheet -> UUID -> Text -> AppResult DaysheetReportRecipient -> IO ResponseReceived
 recipientResponse key report address = \case

@@ -2,7 +2,6 @@ module Web.View.Daysheets.Index
     ( IndexView (..), EntryFeedback (..), renderDaysheetBody ) where
 
 import qualified Application.Daysheet.Contract as D
-import Application.Helper.ControllerContext (currentVenueMembershipOrNothing)
 import Application.Daysheet.DailyStorage (DailyState (..))
 import Application.Daysheet.EntryLayout
 import qualified Application.Daysheet.Evaluation as E
@@ -162,12 +161,10 @@ renderDaysheetBody model newRows feedback = renderFrontendSurfaceFragmentMount @
         _ -> mempty
 
 designerLink :: (?context :: ControllerContext) => Html
-designerLink = case currentVenueMembershipOrNothing of
-    Just member | member.venueRole `elem` [VenueAdmin, VenueOwner] ->
+designerLink = when currentUserIsAdmin $
         renderFrontendSurfaceActionForm (Action.openDaysheetDesignerAction Action.openDaysheetDesignerActionFields)
             ((defaultFrontendSurfaceActionRoute (pathTo DaysheetDesignerAction)) { actionRouteExtraAttrs = finalActionAttrs })
             [hsx|<button class="btn btn-outline-secondary" type="submit">Configure Daysheets</button>|]
-    _ -> mempty
 
 dateNavigation :: Day -> Bool -> Html
 dateNavigation date blocked = renderFrontendSurfaceActionForm (Action.viewDaysheetDateAction fields)

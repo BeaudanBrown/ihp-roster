@@ -1,5 +1,6 @@
 module Test.DaysheetCutoffCaptureSpec where
 
+import Application.Daysheet.Authority (memberAccess)
 import qualified Application.Daysheet.Cutoff as Cutoff
 import Application.Daysheet.CutoffCapture
 import qualified Application.Daysheet.Daily as Daily
@@ -30,7 +31,7 @@ tests = aroundAll withDatabaseTestContext do
         it "holds the same venue lock across cutoff and excludes later saved edits" $ withContext do
             withCleanDb do
                 (_, member) <- setup
-                Right original <- createDailySheet member day
+                Right original <- createDailySheet (memberAccess member) day
                 Right planned <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (addUTCTime (-60) (Cutoff.cutoffAt planned))
                 preparing <- newEmptyMVar
@@ -44,13 +45,13 @@ tests = aroundAll withDatabaseTestContext do
                         when (duration == 1) (putMVar atBoundary () >> takeMVar release) }
                 withAsync (withScheduledCutoff controlled member.venueId planned \_ capturedAt -> do
                     capturedAt `shouldBe` Cutoff.cutoffAt planned
-                    fmap (.content) <$> readDailySheet member original.daysheet.id) \capturing -> do
+                    fmap (.content) <$> readDailySheet (memberAccess member) original.daysheet.id) \capturing -> do
                     takeMVar preparing
-                    Just (Right before) <- timeout 1000000 (editDailyCell member original.daysheet.id
+                    Just (Right before) <- timeout 1000000 (editDailyCell (memberAccess member) original.daysheet.id
                         (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Before cutoff"))
                     putMVar beginLockWindow ()
                     takeMVar atBoundary
-                    withAsync (putMVar editStarted () >> editDailyCell member original.daysheet.id
+                    withAsync (putMVar editStarted () >> editDailyCell (memberAccess member) original.daysheet.id
                         (Daily.RootCell (Fixture.field 1)) 1 (Fixture.text "After cutoff")) \editing -> do
                         takeMVar editStarted
                         isNothing <$> timeout 50000 (wait editing) `shouldReturn` True
@@ -111,13 +112,13 @@ tests = aroundAll withDatabaseTestContext do
         it "rolls back all callback writes if capture fails and releases the lock" $ withContext do
             withCleanDb do
                 (_, member) <- setup
-                Right original <- createDailySheet member day
+                Right original <- createDailySheet (memberAccess member) day
                 Right planned <- pure (Cutoff.planCutoff "Australia/Melbourne" day)
                 (clock, _) <- makeClock (addUTCTime (-0.5) (Cutoff.cutoffAt planned))
                 failed <- try @SomeException (withScheduledCutoff clock member.venueId planned \_ _ -> do
-                    Right _ <- editDailyCell member original.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Must roll back")
+                    Right _ <- editDailyCell (memberAccess member) original.daysheet.id (Daily.RootCell (Fixture.field 1)) 0 (Fixture.text "Must roll back")
                     throwIO (userError "simulated capture failure")
                     pure (Right ()))
                 failed `shouldSatisfy` isLeft
-                Right retained <- readDailySheet member original.daysheet.id
+                Right retained <- readDailySheet (memberAccess member) original.daysheet.id
                 retained.content `shouldBe` original.content
