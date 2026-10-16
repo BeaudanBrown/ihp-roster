@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [ roster, staging, master ]
+    branches: [ develop, staging, prod, roster, master ]
   pull_request:
-    branches: [ roster, staging, master ]
+    branches: [ develop, staging, prod, roster, master ]
   workflow_dispatch:
     inputs:
       migration_predecessor:
