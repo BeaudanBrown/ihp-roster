@@ -10,6 +10,12 @@ import Application.Script.Prelude
 import qualified System.Environment as Environment
 import qualified Data.Text.IO as TextIO
 
+requireCutoverDatabase :: (?modelContext :: ModelContext) => Text -> IO ()
+requireCutoverDatabase expectedDatabase = do
+    -- PostgreSQL returns `name` (OID 19), not the `text` expected by Hasql.
+    actualDatabase :: Text <- unsafeSqlQueryScalar "SELECT current_database()::text" ()
+    unless (actualDatabase == expectedDatabase) (throwAppJobError JobValidationRejected)
+
 -- Operator-only, explicitly targeted database and platform reviewer. Never run
 -- automatically from migrations, startup, timers, or ordinary refresh jobs.
 run :: Script
@@ -17,8 +23,7 @@ run = do
     args <- Environment.getArgs
     case args of
         ["--apply", "--database", expectedDatabase, "--reviewer", rawReviewer] -> do
-            actualDatabase :: Text <- unsafeSqlQueryScalar "SELECT current_database()" ()
-            unless (actualDatabase == cs expectedDatabase) (throwAppJobError JobValidationRejected)
+            requireCutoverDatabase (cs expectedDatabase)
             reviewerId <- maybe (throwAppJobError JobValidationRejected) pure (parseUUIDText (cs rawReviewer))
             actor <- fetch (Id reviewerId :: Id User)
             unless (actor.platformRole == Just SuperAdmin && isNothing actor.deactivatedAt)

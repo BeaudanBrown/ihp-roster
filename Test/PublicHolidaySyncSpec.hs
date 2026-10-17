@@ -9,6 +9,7 @@ import Application.PublicHolidays.Coverage
 import Application.PublicHolidays.Job (performPublicHolidayRefreshJobWith,
                                        publicHolidayRefreshJobKind)
 import Application.PublicHolidays.Sync
+import Application.Script.PublicHolidayCutover (requireCutoverDatabase)
 import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
 import Application.WageSourcePolicy (dataVicMaximumAge)
 import Config
@@ -77,6 +78,14 @@ validPublicHolidayJobPayload = Aeson.object ["jurisdiction" Aeson..= ("VIC" :: T
 databaseTests :: Spec
 databaseTests = do
     aroundAll withDatabaseTestContext do
+        describe "DataVic cutover database identity" do
+            it "decodes PostgreSQL's database name and accepts only the explicitly selected database" $ withContext do
+                withCleanDb do
+                    actualDatabase :: Text <- unsafeSqlQueryScalar "SELECT current_database()::text" ()
+                    requireCutoverDatabase actualDatabase
+                    requireCutoverDatabase (actualDatabase <> "_wrong_target") `shouldThrow` anyException
+                    query @PublicHolidayImportBatch |> fetchCount >>= (`shouldBe` 0)
+
         describe "DataVic active public holiday import" do
             it "replaces accepted dates and records durable acceptance plus recovery evidence" $ withContext do
                 withCleanDb do
