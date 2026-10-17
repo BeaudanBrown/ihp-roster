@@ -26,6 +26,7 @@ module Application.WageSourcePolicy
     , evaluateWageSourcePolicy
     , firstVenueWeekStartingOnOrAfter
     , fwcMaximumAge
+    , finalSourceDiagnostics
     ) where
 
 import qualified "crypton" Crypto.Hash as Hash
@@ -142,12 +143,21 @@ evaluateWageSourcePolicy clock input
     | otherwise =
         WageSourceDecision
             { draftDecision = DraftSourceWarning diagnostics
-            , finalDecision = FinalSourceBlock diagnostics
+            , finalDecision = case finalSourceDiagnostics diagnostics of
+                [] -> FinalSourcesReady
+                blockers -> FinalSourceBlock blockers
             }
   where
     diagnostics =
         fwcDiagnostics clock input
             <> dataVicDiagnostics clock input
+
+-- Cached holiday calendars remain usable regardless of age. Missing coverage
+-- and every FWC diagnostic retain their existing final-payroll enforcement.
+finalSourceDiagnostics :: [SourceDiagnostic] -> [SourceDiagnostic]
+finalSourceDiagnostics = filter (\case
+    DataVicSnapshotStale {} -> False
+    _ -> True)
 
 readyDecision :: WageSourceDecision
 readyDecision = WageSourceDecision DraftSourcesReady FinalSourcesReady

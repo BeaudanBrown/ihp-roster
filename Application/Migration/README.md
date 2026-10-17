@@ -80,6 +80,10 @@ named approval boundary in that runbook.
   Grand Final eve addition, Easter Monday 2027 correction, review expiry and
   separately approved return to DataVic (revisions `1789440000`/`1789440001`).
 
+- `../PublicHolidays/README.md` — #656 additive import acceptance evidence and
+  separately approved authenticated DataVic cutover. Revision `1792199000`
+  preserves legacy timestamps; it does not retire overrides or import dates.
+
 ## Data-Preserving Enum Conversions
 
 GitHub #338's feedback/shift-colour enum preflight, verification, and rollback

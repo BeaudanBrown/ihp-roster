@@ -83,8 +83,9 @@ finalFailures outcome =
         Left message -> [WageCalculationFailed outcome.outcomeEntryId message]
         Right _      -> []
     sourceFailures =
-        [ WageSourcesBlocked outcome.outcomeEntryId outcome.outcomeSourceDiagnostics
-        | not (null outcome.outcomeSourceDiagnostics)
+        [ WageSourcesBlocked outcome.outcomeEntryId blockers
+        | let blockers = finalSourceDiagnostics outcome.outcomeSourceDiagnostics
+        , not (null blockers)
         ]
 
 evaluateEntry ::

@@ -24,6 +24,12 @@ ensureFreshWageSourceFacts workedOn = do
         |> set #startedAt now
         |> set #finishedAt (Just now)
         |> createRecord
+    void $ newRecord @PublicHolidayImportBatch
+        |> set #jurisdiction "VIC"
+        |> set #targetYears [fromIntegral year]
+        |> set #acceptedAt now
+        |> set #source "legacy_import"
+        |> createRecord
     existingHoliday <- query @PublicHoliday
         |> filterWhere (#jurisdiction, "VIC" :: Text)
         |> filterWhere (#holidayDate, fromGregorian year 1 1)

@@ -286,7 +286,13 @@ createFwcSuccess completedAt =
             |> createRecord
 
 createStatewideHoliday :: (?modelContext :: ModelContext) => Integer -> UTCTime -> IO ()
-createStatewideHoliday year importedAt =
+createStatewideHoliday year importedAt = do
+    void $ newRecord @PublicHolidayImportBatch
+        |> set #jurisdiction "VIC"
+        |> set #targetYears [fromIntegral year]
+        |> set #acceptedAt importedAt
+        |> set #source "legacy_import"
+        |> createRecord
     void $
         newRecord @PublicHoliday
             |> set #jurisdiction "VIC"

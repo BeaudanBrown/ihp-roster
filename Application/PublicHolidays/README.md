@@ -1,5 +1,67 @@
 # Public holiday source authority
 
+## Active authenticated import (#656)
+
+Active import is opt-in: `DATAVIC_ACTIVE_IMPORT=true` must be present for both
+`PublicHolidayRefreshSweep` and the worker. It uses a distinct
+`public_holiday_active_import` job; legacy queued `public_holiday_refresh` jobs
+remain rejected. Support's existing button remains explicitly read-only shadow.
+
+DataVic is the sole date authority. Each nonempty, structurally valid response
+represents current complete knowledge, including unannounced future holidays.
+A daily job fetches previous/current/next year, then replaces all three in one
+transaction. Removals and date/name corrections are accepted without manual
+review; malformed/empty/partial responses preserve all prior data. A request
+started before a newer accepted import cannot overwrite that import.
+
+`public_holiday_import_batches` retains acceptance independently of calendar
+rows, with before/after date provenance for recovery. The additive migration
+preserves legacy import timestamps as legacy evidence, never as a new refresh.
+Age over 45 days warns but does not block final payroll. Missing accepted year
+coverage still blocks; protected overrides retain their checks until cutover.
+FWC freshness and sealed payroll/Xero history are unchanged. Failures alert only
+after retry exhaustion through the existing founder notification pipeline.
+
+### Operator cutover and recovery
+
+No deployment, timer activation or production cutover is implied by this code.
+First rehearse on an isolated production clone, verify a full backup can be
+restored, and record the target database, reviewer, release and approval.
+Stop active/shadow enqueue timers and drain workers before the cutover. Keep
+app writers stopped during the protected override transition. Do not reset DBs.
+
+With the target service's database environment and `DATAVIC_KEY` supplied via
+its protected environment file, run the packaged binary (not automatically):
+
+```sh
+/path/to/app-binaries/bin/PublicHolidayCutover --apply --database rozzy_staging --reviewer PLATFORM_SUPER_ADMIN_UUID
+```
+
+The command checks the actual database name and active platform-super-admin,
+fetches all three calendars, locks calendar/override/evidence tables, verifies
+the known 2026 override and exact old calendar, and retires it alongside the
+import. Its original correction audit is retained. Failure rolls back every
+write; a second cutover is rejected rather than silently refreshing.
+
+After successful staging verification, configure the daily active sweep with
+up to 30 minutes jitter, disable shadow/legacy scheduling, and supply
+`DATAVIC_ACTIVE_IMPORT=true` to the sweep and worker. The app need not have it.
+Verify a `public_holiday_active_import` job, its receipt, expected wage estimates
+and absence of missing-coverage blockers, then observe a scheduled run.
+Production requires separate approval with its own database name and backup.
+
+Rollback: disable active scheduling and unset the gate; retain accepted cached
+dates and the additive evidence table. Do not roll back to code that treats
+retired overrides or new acceptance evidence incorrectly. If calendar recovery
+is needed, stop writers and prepare a separately approved checked transaction
+using the latest receipt's previous/accepted snapshots and verified backup.
+Never overwrite newer customer activity or modify sealed payroll. Compare current
+rows with the accepted snapshot before restoring; recover backups into an
+isolated database first. Keep all receipt and override audits permanently.
+
+The sections below describe the preceding shadow rollout and its retained
+read-only tools; active importing does not make shadow jobs freshness evidence.
+
 ## Authenticated v2 shadow evaluation
 
 `Client.hs` implements authenticated Developer.Vic Important Dates v2 reads.

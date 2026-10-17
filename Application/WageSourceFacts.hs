@@ -41,10 +41,13 @@ loadWageSourceFactsFor venueIds targetYears = do
             |> filterWhere (#jurisdiction, "VIC" :: Text)
             |> filterWhere (#isRegional, False)
             |> fetch
+    imports <- if Set.null targetYears then pure [] else query @PublicHolidayImportBatch
+        |> filterWhere (#jurisdiction, "VIC" :: Text)
+        |> fetch
     overrides <- if Set.null targetYears then pure [] else fetchActivePublicHolidayOverrides
     pure WageSourceFacts
         { factFwcSnapshots = map fwcSnapshotFromRun syncRuns
-        , factDataVicSnapshots = dataVicSnapshotsFromHolidays targetYears holidays
+        , factDataVicSnapshots = dataVicSnapshotsFromImports targetYears imports
         , factPublicHolidays = holidays
         , factPublicHolidayOverrides = overrides
         , factVenueConfigs = Map.fromList [(config.venueId, config) | config <- venueConfigs]
@@ -61,9 +64,9 @@ importedPayItemIdsByVenue items =
 
 sourceDiagnosticsForFacts :: PolicyClock -> WageSourceFacts -> UUID -> Day -> Set.Set Integer -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnosticsForFacts clock facts venueId workedOn targetYears requirement =
-    case decision.finalDecision of
-        FinalSourcesReady               -> overrideDiagnostics
-        FinalSourceBlock allDiagnostics -> allDiagnostics <> overrideDiagnostics
+    case decision.draftDecision of
+        DraftSourcesReady -> overrideDiagnostics
+        DraftSourceWarning allDiagnostics -> allDiagnostics <> overrideDiagnostics
   where
     protectedYears = Set.intersection targetYears (overriddenYears facts.factPublicHolidayOverrides)
     readyYears = usableOverrideYears clock.now facts.factPublicHolidays facts.factPublicHolidayOverrides
@@ -98,8 +101,8 @@ statusFromRun "failed"    = FailedCandidate
 statusFromRun "succeeded" = IncompleteCandidate
 statusFromRun _           = IncompleteCandidate
 
-dataVicSnapshotsFromHolidays :: Set.Set Integer -> [PublicHoliday] -> [DataVicSnapshot]
-dataVicSnapshotsFromHolidays targetYears holidays =
+dataVicSnapshotsFromImports :: Set.Set Integer -> [PublicHolidayImportBatch] -> [DataVicSnapshot]
+dataVicSnapshotsFromImports targetYears imports =
     [ DataVicSnapshot
         { targetYear = year
         , snapshot = SourceSnapshot importedAt CompleteSuccess
@@ -109,11 +112,10 @@ dataVicSnapshotsFromHolidays targetYears holidays =
     ]
   where
     successfulImports = Set.fromList
-        [ (year, importedAt)
-        | holiday <- holidays
-        , let year = let (value, _, _) = toGregorian holiday.holidayDate in value
+        [ (year, receipt.acceptedAt)
+        | receipt <- imports
+        , year <- map fromIntegral receipt.targetYears
         , Set.member year targetYears
-        , importedAt <- maybeToList holiday.importedAt
         ]
 
 weekdayIndexToDayOfWeek :: Int -> DayOfWeek

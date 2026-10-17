@@ -11,6 +11,7 @@ import Application.Billing.Reconciliation
 import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.Helper.Telemetry (withJobTelemetrySpan)
+import Application.PublicHolidays.ActiveJob
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Application.PublicHolidays.Shadow
 import Application.WageSourceAlert.Job
@@ -54,6 +55,7 @@ registeredJobKinds =
     , emailDeliveryJobKind
     , fwcMapdRefreshJobKind
     , publicHolidayRefreshJobKind
+    , activePublicHolidayJobKind
     , publicHolidayShadowJobKind
     , wageSourceHealthCheckJobKind
     , retiredRosterTimesheetCreationJobKind
@@ -75,6 +77,7 @@ dispatchAppJobByKind appJob =
         -- turn them into successful refresh evidence or execute the old importer.
         kind | kind == publicHolidayRefreshJobKind -> throwAppJobError JobValidationRejected
         kind | kind == publicHolidayShadowJobKind -> performPublicHolidayShadowJob appJob
+        kind | kind == activePublicHolidayJobKind -> performActivePublicHolidayJob appJob
         kind | kind == wageSourceHealthCheckJobKind -> performWageSourceHealthCheckJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
@@ -84,7 +87,7 @@ dispatchAppJobByKind appJob =
 
 isWageSourceRefreshJob :: AppJob -> Bool
 isWageSourceRefreshJob appJob =
-    appJob.jobKind == fwcMapdRefreshJobKind
+    appJob.jobKind == fwcMapdRefreshJobKind || appJob.jobKind == activePublicHolidayJobKind
 
 isBillingOperationalJob :: AppJob -> Bool
 isBillingOperationalJob appJob =

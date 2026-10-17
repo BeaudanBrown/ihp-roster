@@ -760,6 +760,22 @@ CREATE TABLE public_holidays (
     UNIQUE(jurisdiction, holiday_date, name, region)
 );
 
+-- Acceptance is durable independently of the mutable calendar rows. Each v2
+-- batch retains before/after dates for operator recovery, never credentials.
+CREATE TABLE public_holiday_import_batches (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    jurisdiction TEXT NOT NULL,
+    target_years INT[] NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    source TEXT NOT NULL,
+    previous_calendar JSONB DEFAULT '[]'::JSONB NOT NULL,
+    accepted_calendar JSONB DEFAULT '[]'::JSONB NOT NULL,
+    reviewed_by_user_id UUID DEFAULT NULL,
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (cardinality(target_years) > 0),
+    CHECK ((source = 'datavic_v2') OR (source = 'legacy_import'))
+);
+
 -- Reviewed calendars are explicit authority, never fabricated provider imports.
 CREATE TABLE public_holiday_overrides (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

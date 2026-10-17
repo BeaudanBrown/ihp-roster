@@ -513,6 +513,7 @@ wageSourceSafeMetadata payload candidates =
 sourceForRefreshJobKind :: Text -> Maybe WageSourceKind
 sourceForRefreshJobKind "fwc_mapd_refresh"       = Just FwcWageSource
 sourceForRefreshJobKind "public_holiday_refresh" = Just DataVicWageSource
+sourceForRefreshJobKind "public_holiday_active_import" = Just DataVicWageSource
 sourceForRefreshJobKind _                        = Nothing
 
 sourceMaximumAge :: WageSourceKind -> NominalDiffTime

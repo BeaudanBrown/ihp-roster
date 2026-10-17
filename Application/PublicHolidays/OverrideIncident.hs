@@ -3,6 +3,7 @@ module Application.PublicHolidays.OverrideIncident
     , reconcilePublicHolidayOverride
     , reconcilePublicHolidayOverridesAt
     , retirePublicHolidayOverride
+    , retirePublicHolidayOverrideInCurrentTransaction
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (PersistedRuntimeInvariant), externalRuntimeInvariantFailure)
@@ -80,10 +81,17 @@ retirePublicHolidayOverride ::
     Text ->
     UTCTime ->
     IO (Maybe PublicHolidayOverride)
-retirePublicHolidayOverride actor overrideId rawAction retiredAt
+retirePublicHolidayOverride actor overrideId rawAction retiredAt =
+    withTransaction (retirePublicHolidayOverrideInCurrentTransaction actor overrideId rawAction retiredAt)
+
+-- Caller owns the transaction containing calendar replacement and acceptance.
+retirePublicHolidayOverrideInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    User -> Id PublicHolidayOverride -> Text -> UTCTime -> IO (Maybe PublicHolidayOverride)
+retirePublicHolidayOverrideInCurrentTransaction actor overrideId rawAction retiredAt
     | not (eligibleReviewer actor) = pure Nothing
     | Text.null action || Text.length action > 160 = pure Nothing
-    | otherwise = withTransaction do
+    | otherwise = do
         lockOverride overrideId
         current <- fetch overrideId
         case current.retiredAt of

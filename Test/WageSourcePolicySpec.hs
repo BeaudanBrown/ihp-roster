@@ -40,14 +40,15 @@ tests = do
             evaluateWageSourcePolicy clock (annualInput { fwcSnapshots = [fwcCompleteAt (utc 2026 7 1)] })
                 `shouldBe` sourcesReady
 
-        it "accepts DataVic target-year data exactly 45 days old and blocks one second beyond the boundary" do
+        it "accepts DataVic target-year data exactly 45 days old and only warns beyond the boundary" do
             let clock = PolicyClock (utc 2026 5 1)
                 boundary = addUTCTime (negate dataVicMaximumAge) clock.now
                 input = healthyInput { dataVicSnapshots = [dataVicCompleteAt 2026 boundary] }
             evaluateWageSourcePolicy clock input `shouldBe` sourcesReady
             let staleAt = addUTCTime (-1) boundary
             evaluateWageSourcePolicy clock (input { dataVicSnapshots = [dataVicCompleteAt 2026 staleAt] })
-                `shouldBe` blockedBy [DataVicSnapshotStale 2026 staleAt dataVicMaximumAge]
+                `shouldBe` WageSourceDecision
+                    (DraftSourceWarning [DataVicSnapshotStale 2026 staleAt dataVicMaximumAge]) FinalSourcesReady
 
         it "reports actionable missing diagnostics for every applicable source" do
             let input =

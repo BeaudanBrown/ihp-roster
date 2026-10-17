@@ -1101,18 +1101,18 @@ in
       enable = mkOption {
         type = types.bool;
         default = false;
-        description = "Legacy anonymous refresh timer; leave disabled during shadow evaluation.";
+        description = "Authenticated active DataVic import timer; enable only after approved cutover with DATAVIC_ACTIVE_IMPORT=true in additionalEnvVars.";
       };
 
       onCalendar = mkOption {
         type = types.str;
-        default = "*-*-01 03:00:00";
-        description = "systemd OnCalendar expression for the public holiday refresh sweep.";
+        default = "daily";
+        description = "systemd OnCalendar expression for the authenticated public holiday import sweep.";
       };
 
       randomizedDelaySec = mkOption {
         type = types.str;
-        default = "2h";
+        default = "30m";
         description = "Randomized delay applied to the public holiday refresh timer.";
       };
     };
@@ -1126,7 +1126,7 @@ in
       onCalendar = mkOption {
         type = types.str;
         default = "daily";
-        description = "Shadow evaluation schedule (weekly is recommended after a separately approved import cutover).";
+        description = "Read-only shadow evaluation schedule; active importing uses the separate daily refresh timer.";
       };
       randomizedDelaySec = mkOption {
         type = types.str;

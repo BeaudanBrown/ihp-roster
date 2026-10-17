@@ -106,8 +106,8 @@ evaluateUnsealedWagesWithPolicy mode subjects = do
                     HistoricalBackfillWageEvaluation -> []
                     _ -> subjectSourceDiagnostics clock sourceFacts subject calculation
             case mode of
-                ApprovalWageEvaluation | not (null diagnostics) ->
-                    Left (WageSubjectSourcesBlocked subject.wageSubjectKey diagnostics)
+                ApprovalWageEvaluation | not (null (finalSourceDiagnostics diagnostics)) ->
+                    Left (WageSubjectSourcesBlocked subject.wageSubjectKey (finalSourceDiagnostics diagnostics))
                 _ -> Right WageEvaluationOutcome
                     { evaluatedCalculation = calculation
                     , evaluatedFinalEarnings = deriveFinalEarnings calculation.earningsComponents

@@ -1,7 +1,7 @@
 module Application.Script.PublicHolidayRefreshSweep where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
-import Application.PublicHolidays.Job
+import Application.PublicHolidays.ActiveJob
 import Application.PublicHolidays.OverrideIncident (reconcilePublicHolidayOverridesAt)
 import Application.Script.Prelude
 import Application.WageSourceAlert.Job (enqueueWageSourcePeriodicReconciliation)
@@ -13,7 +13,7 @@ run = do
     now <- getCurrentTime
     _ <- reconcilePublicHolidayOverridesAt now
     _ <- enqueueWageSourcePeriodicReconciliation DataVicWageSource
-    enqueueResult <- enqueuePublicHolidayRefreshJob Nothing
+    enqueueResult <- enqueueActivePublicHolidayJob
     liftIO do
         case enqueueResult of
             EnqueuedAppJob appJob ->
