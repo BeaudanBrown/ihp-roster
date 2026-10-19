@@ -46,7 +46,9 @@
 - The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.
   Warnings count distinct active, unarchived staff with pending or approved
   requests per calendar date, never block submission, and are manager-visible
-  only when the threshold is met.
+  only when the threshold is met. Warnings cover today onward in the venue's
+  timezone; past dates are excluded before counting and grouping, including
+  the past portion of requests spanning today. Request history is preserved.
 
 Exact normalization, overlap, grouping, and projection behavior is authoritative
 in `Blackouts.hs`, `AvailabilityWarnings.hs`, the schema, and focused tests.

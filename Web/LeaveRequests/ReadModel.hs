@@ -100,7 +100,7 @@ fetchLeaveRequestsReadModel = do
     let leaveReadModelWarningPeriods =
             maybe
                 []
-                (\threshold -> buildAvailabilityWarningPeriods threshold leaveReadModelStaffMembers leaveReadModelRequests)
+                (\threshold -> buildAvailabilityWarningPeriods leaveReadModelVenueToday threshold leaveReadModelStaffMembers leaveReadModelRequests)
                 leaveReadModelWarningThreshold
     pure LeaveRequestsReadModel { .. }
 

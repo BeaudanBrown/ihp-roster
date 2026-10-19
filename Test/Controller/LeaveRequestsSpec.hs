@@ -459,6 +459,52 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
+        it "limits availability warnings to today onward without deleting request history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Current Availability Warnings"
+                manager <- createUserRecord "current-warnings-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Current" "Worker"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
+                today <- currentVenueCalendarDay venueConfig
+                historical <- createLeaveRequestRecord venue staff (addDays (-10) today) today LeaveRequestStatusEnumApproved
+                spanning <- createLeaveRequestRecord venue staff (addDays (-2) today) (addDays 2 today) LeaveRequestStatusEnumPending
+                future <- createLeaveRequestRecord venue staff (addDays 4 today) (addDays 5 today) LeaveRequestStatusEnumApproved
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("fragment", "leave-availability-warnings")]
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" today))
+                response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" (addDays 4 today)))
+                response `responseBodyShouldNotContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" (addDays (-10) today)))
+                requests <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetch
+                map (.id) requests `shouldMatchList` [historical.id, spanning.id, future.id]
+
+        it "omits past-only warnings and includes a single venue-local today across UTC boundaries" $ withContext do
+            forM_ ["Etc/GMT+12", "Pacific/Kiritimati"] \timezone -> withCleanDb do
+                venue <- createVenueWithConfig "Local Warning Day"
+                manager <- createUserRecord "local-warning-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Local" "Worker"
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                config <- config |> set #timezone timezone |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
+                today <- currentVenueCalendarDay config
+                _ <- createLeaveRequestRecord venue staff (addDays (-1) today) today LeaveRequestStatusEnumApproved
+                pastResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("fragment", "leave-availability-warnings")]
+                pastResponse `responseStatusShouldBe` status200
+                pastResponse `responseBodyShouldNotContain` "Unavailable-staff threshold reached"
+                _ <- createLeaveRequestRecord venue staff today (addDays 1 today) LeaveRequestStatusEnumApproved
+                forM_ [False, True] \fragment -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        if fragment
+                            then callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("fragment", "leave-availability-warnings")]
+                            else callAction LeaveRequestsAction
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "Unavailable-staff threshold reached"
+                    response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" today))
+
         it "renders grouped threshold warnings for distinct active linked and trial staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Threshold Venue"
