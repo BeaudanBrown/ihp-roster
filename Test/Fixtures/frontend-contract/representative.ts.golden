@@ -164,9 +164,10 @@ export const FrontendSurfaceInteractionRegistry = {} as const;
 
 export type FrontendSurfaceFragmentProtection =
     { kind: "replace" }
+  | { kind: "dirty-form"; savedHeader: string }
   | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 export function isFrontendSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceFragmentProtection {
-    return ((isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "savedHeader"], ["kind", "savedHeader"]) && (value["kind"] === "dirty-form") && (typeof value["savedHeader"] === "string")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
 }
 
 // FrontendSurface mount metadata is an exact surface-discriminated local envelope.

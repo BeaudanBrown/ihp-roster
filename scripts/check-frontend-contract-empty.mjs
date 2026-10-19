@@ -43,7 +43,16 @@ surfaceFragmentKeyIdentity({});
             message: "No Surface fragment keys are declared",
         });
     }
-    console.log("frontend-contract-empty: strict fixture compilation and runtime rejection passed");
+    assert.equal(contract.isFrontendSurfaceFragmentProtection({ kind: "dirty-form", savedHeader: "X-Profile-Saved" }), true);
+    for (const value of [
+        { kind: "dirty-form" },
+        { kind: "dirty-form", savedHeader: null },
+        { kind: "dirty-form", savedHeader: 123 },
+        { kind: "dirty-form", savedHeader: "X-Profile-Saved", extra: true },
+    ]) {
+        assert.equal(contract.isFrontendSurfaceFragmentProtection(value), false);
+    }
+    console.log("frontend-contract-empty: strict fixture compilation, runtime rejection and dirty-form validation passed");
 } finally {
     rmSync(directory, { recursive: true, force: true });
 }

@@ -17,6 +17,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..), encodeDurableResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
@@ -385,7 +386,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
-                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "touches active roster weeks for every previous and newly selected staff group" $ withContext do
@@ -975,8 +975,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-profile\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-shift-preferences\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-staff-leave-request\""
-                response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"staff-profile-details-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"staff-profile-preferences-shell-collapse\" class=\"accordion-collapse collapse\""
                 soleRosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isActive, True)
@@ -1114,6 +1114,7 @@ tests = aroundAll withDatabaseTestContext do
                         (UpdateStaffAction staff.id)
                         [ ("section", "preferences")
                         , ("anchorDate", "2025-01-06")
+                        , ("firstName", "Stale name must not overwrite profile")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
@@ -1124,6 +1125,10 @@ tests = aroundAll withDatabaseTestContext do
                 map (.weekdayIndex) preferences `shouldBe` [2]
                 map (.preferredStartHour) preferences `shouldBe` [8]
                 map (.preferredEndHour) preferences `shouldBe` [14]
+                updatedStaff <- fetch staff.id
+                updatedStaff.firstName `shouldBe` "Alpha"
+                resource <- either (fail . cs) pure (encodeDurableResource (staffPreferencesResource (unpackId staff.id)))
+                query @LiveResourceVersion |> filterWhere (#resourceKey, Id resource.durableResourceKey) |> fetchExists >>= (`shouldBe` True)
 
         it "rejects malformed roster group ids and shift preference keys without throwing" $ withContext do
             withCleanDb do

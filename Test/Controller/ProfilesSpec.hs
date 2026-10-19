@@ -13,6 +13,7 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..), encodeDurableResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import Config
@@ -221,9 +222,9 @@ tests = aroundAll withDatabaseTestContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"profile-details-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-leave-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-details-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"profile-leave-shell-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldNotContain` "id=\"profile-rsa-collapse\""
                 response `responseBodyShouldNotContain` "accordion-collapse collapse show"
 
@@ -231,7 +232,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams EditProfileAction [("section", "security")]
 
                 securityResponse `responseStatusShouldBe` status200
-                securityResponse `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse show\""
+                securityResponse `responseBodyShouldContain` "id=\"profile-security-shell-collapse\" class=\"accordion-collapse collapse show\""
 
         it "temporarily hides profile RSA section" $ withContext do
             withCleanDb do
@@ -343,6 +344,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
                         [ ("section", "preferences")
+                        , ("firstName", "Stale name must not overwrite profile")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "12")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "20")
@@ -354,6 +356,27 @@ tests = aroundAll withDatabaseTestContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+                updatedStaff <- fetch staff.id
+                updatedStaff.firstName `shouldBe` "Taylor"
+                resource <- either (fail . cs) pure (encodeDurableResource (staffPreferencesResource (unpackId staff.id)))
+                query @LiveResourceVersion |> filterWhere (#resourceKey, Id resource.durableResourceKey) |> fetchExists >>= (`shouldBe` True)
+
+                profileResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("section", "profile")
+                        , ("firstName", "Updated")
+                        , ("lastName", "Smith")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Emergency Contact")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+                profileResponse `responseStatusShouldBe` status302
+                afterProfileSave <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                map (.id) afterProfileSave `shouldMatchList` map (.id) preferences
+                finalStaff <- fetch staff.id
+                finalStaff.firstName `shouldBe` "Updated"
 
         it "keeps server validation authoritative for crossed and out-of-range preference endpoints" $ withContext do
             withCleanDb do
@@ -393,7 +416,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
-                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "ignores staff status fields submitted by workers" $ withContext do
