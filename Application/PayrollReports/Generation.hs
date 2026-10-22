@@ -22,7 +22,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID.V4 as UUID
-import Data.Time (localDay)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -52,10 +51,14 @@ generatePayrollReportSnapshot venueId actorId origin scheduledAt week now = do
 -- scheduling is additionally unique by venue/week. All data shares one snapshot.
 generatePayrollReportRequest :: (?modelContext :: ModelContext) => ReportGenerationRequest -> IO (Either Text PayrollReportRun)
 generatePayrollReportRequest request =
-    generatePayrollReportRequestSnapshot request `Exception.catch` \(failure :: HasqlSessionError) ->
-        if isUniqueViolation failure && isNothing ?modelContext.transactionRunner
-            then generatePayrollReportRequestSnapshot request
-            else Exception.throwIO failure
+    Exception.catchJust retryableConflict
+        (generatePayrollReportRequestSnapshot request)
+        (\() -> generatePayrollReportRequestSnapshot request)
+  where
+    retryableConflict :: HasqlSessionError -> Maybe ()
+    retryableConflict failure
+        | isUniqueViolation failure && isNothing ?modelContext.transactionRunner = Just ()
+        | otherwise = Nothing
 
 generatePayrollReportRequestSnapshot :: (?modelContext :: ModelContext) => ReportGenerationRequest -> IO (Either Text PayrollReportRun)
 generatePayrollReportRequestSnapshot request@ReportGenerationRequest { venueId, actorId, origin, scheduledAt, week, now } =

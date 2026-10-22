@@ -6,7 +6,6 @@ module Application.PayrollReports.Schedule
 
 import Application.Helper.WeekBoundaries (startOfWeekFor, weekdayIndexForDay)
 import Application.VenueTime
-import Data.Time (addLocalTime, localDay)
 import Data.Traversable (traverse)
 import IHP.Prelude
 

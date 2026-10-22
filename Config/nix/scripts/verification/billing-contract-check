@@ -2,4 +2,3 @@
 set -euo pipefail
 
 python3 scripts/check-stripe-openapi-contract
-billing-migration-check

@@ -6,7 +6,6 @@ import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayrollReports.Generation (validCompletedReportWeek)
 import Application.PayrollReports.History
 import Application.PayrollReports.Job (nextScheduledPayrollReport)
@@ -15,7 +14,6 @@ import Application.PayrollReports.Settings
 import qualified Application.PayrollReports.Settings as Settings
 import Application.VenueTime
 import qualified Data.Text as Text
-import Data.Time (localDay, parseTimeM, defaultTimeLocale, TimeOfDay (..))
 import qualified Data.UUID.V4 as UUID
 import Web.Controller.Prelude
 import Web.View.Admin.PayrollReportsDialog

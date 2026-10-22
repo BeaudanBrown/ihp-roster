@@ -22,8 +22,6 @@ import Application.PublicHolidays.Client
 import qualified Application.PublicHolidays.Policy as Policy
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import Data.List ((\\))
-import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import GHC.Generics (Generic)
 import IHP.ControllerPrelude

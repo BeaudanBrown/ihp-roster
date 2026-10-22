@@ -14,7 +14,6 @@ import Application.Helper.ControllerAccess (hasRole)
 import Application.Helper.ControllerContext (currentVenueId, currentVenueOrNothing)
 import Application.PayrollReports.Settings (PayrollReportSettingsError (..))
 import qualified Data.List as List
-import Data.Ord (Down (..))
 import Generated.Types
 import IHP.ControllerPrelude
 

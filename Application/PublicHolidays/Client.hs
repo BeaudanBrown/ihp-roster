@@ -17,8 +17,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Traversable (traverse)
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (getGlobalManager)
 import Network.HTTP.Simple (setRequestQueryString)

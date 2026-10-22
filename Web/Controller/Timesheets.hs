@@ -17,8 +17,7 @@ import Web.Timesheets.Filters (TimesheetViewFilters (..),
                                emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
-import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
-                             timesheetDayColumnsFragmentUrl,
+import Web.Timesheets.Paths (                             timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
                              timesheetStaffContentFragmentUrl,

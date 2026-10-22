@@ -1,5 +1,8 @@
 # Payroll report email authority
 
+See [rollout and recovery](ROLLOUT.md) for migration, Resend verification and
+controlled-send approval boundaries.
+
 `Settings.hs` owns venue-scoped payroll email configuration and sharing consent.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and

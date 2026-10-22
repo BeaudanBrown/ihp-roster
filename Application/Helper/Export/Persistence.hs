@@ -2,8 +2,6 @@ module Application.Helper.Export.Persistence where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Types
-import Application.Helper.Audit (recordAuditEvent)
-import Application.Helper.Audit.Vocabulary (AuditSourceChannel (SystemAuditSource))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
