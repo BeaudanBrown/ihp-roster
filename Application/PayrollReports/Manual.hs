@@ -2,6 +2,7 @@ module Application.PayrollReports.Manual (requestManualPayrollReport) where
 
 import Application.Helper.ControllerAccess (hasRole)
 import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenueId, currentVenueOrNothing)
+import Application.EmailDelivery.Group (enqueuePayrollReportOutcome)
 import Application.PayrollReports.Generation
 import Generated.Types
 import IHP.ControllerPrelude
@@ -14,7 +15,7 @@ requestManualPayrollReport confirmationId revision week previousRunId
     | isNothing currentVenueOrNothing || not (hasRole VenueAdmin) = pure (Left "Payroll report access denied.")
     | otherwise = do
         now <- getCurrentTime
-        generatePayrollReportRequest ReportGenerationRequest
+        outcome <- generatePayrollReportRequest ReportGenerationRequest
             { runId = confirmationId
             , venueId = currentVenueId
             , actorId = unpackId authenticatedCurrentUser.id
@@ -25,3 +26,6 @@ requestManualPayrollReport confirmationId revision week previousRunId
             , expectedRevision = Just revision
             , previousRunId
             }
+        case outcome of
+            Left _ -> pure outcome
+            Right run -> enqueuePayrollReportOutcome run >> pure outcome

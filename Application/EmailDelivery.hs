@@ -22,6 +22,7 @@ import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Correlation
+import Application.EmailDelivery.Group
 import Application.EmailDelivery.Enqueue
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
@@ -46,10 +47,11 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Either (isRight)
 import qualified Data.Set as Set
+import qualified Data.TMap as TMap
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
-import IHP.Mail (sendMail)
+import IHP.Mail (sendMail, sendWithMailServer, MailServer)
 import IHP.MailPrelude (BuildMail)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
@@ -79,12 +81,25 @@ performEmailDeliveryJob ::
     (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performEmailDeliveryJob =
-    performEmailDeliveryJobWith
+performEmailDeliveryJob job
+    | job.payloadSchemaVersion == 2 = do
+        disabled <- isEmailDeliveryDisabled
+        if disabled
+            then performGroupEmailDeliveryWith (GroupDeliveryRuntime (pure True) (const (pure ()))) job
+            else do
+                server <- maybe (throwAppJobError JobConfigurationUnavailable) pure (TMap.lookup @MailServer ?context.appConfig)
+                performGroupEmailDeliveryWith
+                    GroupDeliveryRuntime
+                        { groupDeliveryDisabled = pure False
+                        , deliverGroupMail = sendWithMailServer server
+                        }
+                    job
+    | otherwise = performEmailDeliveryJobWith
         EmailDeliveryRuntime
             { deliveryIsDisabled = isEmailDeliveryDisabled
             , deliverMail = sendMail
             }
+        job
 
 performEmailDeliveryJobWith ::
     (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
@@ -465,10 +480,11 @@ handleEmailDeliveryFailureAfterFinalAttempt ::
     IO ()
 handleEmailDeliveryFailureAfterFinalAttempt appJob
     | appJob.jobKind /= emailDeliveryJobKind = pure ()
-    | appJob.attemptsCount < appJobMaxAttempts = pure ()
+    | appJob.attemptsCount < appJobMaxAttempts = notifyInterruptedGroupEmail appJob
     | otherwise = do
         persistedJob <- fetch appJob.id
-        unless (persistedJob.status == JobStatusSucceeded) $
+        unless (persistedJob.status == JobStatusSucceeded) do
+            handleGroupEmailFinalFailure appJob
             case Aeson.fromJSON appJob.payload :: Aeson.Result EmailDeliveryPayload of
                 Aeson.Error _ -> pure ()
                 Aeson.Success payload -> do

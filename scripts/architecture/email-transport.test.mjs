@@ -42,6 +42,22 @@ test("rejects direct transport imports and calls outside the owner while allowin
   assert.equal(errors.some((error) => error.includes("Web/Mail/Template.hs")), false);
 });
 
+test("rejects raw-MIME transport and envelope persistence outside their owners", () => {
+  const sources = validSources();
+  sources.set("Application/Domain/Bypass.hs", "bypass = sendWithMailServer server message\ninsert = insertPermanentlyDeduplicatedEmailJob value\n");
+  const errors = checkEmailTransportSources(sources);
+  assert.equal(errors.some((error) => error.includes("email transport is owned")), true);
+  assert.equal(errors.some((error) => error.includes("email-envelope persistence is restricted")), true);
+});
+
+test("requires fixed payroll group identity and shared dispatch", () => {
+  const sources = validSources();
+  sources.set("Application/EmailDelivery/Group.hs", 'payrollReportMailKind = "payroll_report_group_v1"\nrequest = Insert { payloadSchemaVersion = 2 }');
+  assert.equal(checkEmailTransportSources(sources).some((error) => error.includes("payroll group envelope requires")), true);
+  sources.set("Application/EmailDelivery.hs", sources.get("Application/EmailDelivery.hs") + "\ngroup = performGroupEmailDeliveryWith runtime job\n");
+  assert.deepEqual(checkEmailTransportSources(sources), []);
+});
+
 test("rejects identifier, literal, and positional unregistered mail-kind producers", () => {
   const sources = validSources();
   sources.set("Application/NewMail/Identifier.hs", "enqueue EmailDeliveryRequest { mailKind = surpriseMailKind, recipientAccountId = accountId }");

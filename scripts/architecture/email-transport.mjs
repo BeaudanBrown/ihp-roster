@@ -87,13 +87,25 @@ export function checkEmailTransportSources(sources) {
 
   for (const [filePath, rawSource] of [...sources.entries()].sort(([left], [right]) => left.localeCompare(right))) {
     const source = withoutHaskellComments(rawSource);
-    const sendMailMatches = [...source.matchAll(/\bsendMail\b/g)];
+    const sendMailMatches = [...source.matchAll(/\b(?:sendMail|sendWithMailServer)\b/g)];
     const transportImports = [...source.matchAll(/^\s*import\s+(?:qualified\s+)?IHP\.Mail(?=\s|\()/gm)];
 
     if (filePath !== transportOwner) {
       for (const match of [...transportImports, ...sendMailMatches]) {
         errors.push(`${filePath}:${sourceLine(source, match.index)}: email transport is owned by ${transportOwner}`);
       }
+    }
+
+    if (/\binsertPermanentlyDeduplicatedEmailJob\b/.test(source)
+      && !["Application/EmailDelivery/Persistence.hs", "Application/EmailDelivery/Enqueue.hs", "Application/EmailDelivery/Group.hs"].includes(filePath)) {
+      errors.push(`${filePath}: email-envelope persistence is restricted to the registered account and payroll-group enqueue owners`);
+    }
+
+    if (filePath === "Application/EmailDelivery/Group.hs"
+      && (!/payrollReportMailKind\s*=\s*"payroll_report_group_v1"/.test(source)
+        || !/payloadSchemaVersion\s*=\s*2/.test(source)
+        || !ownerSource.includes("performGroupEmailDeliveryWith"))) {
+      errors.push(`${filePath}: payroll group envelope requires its fixed kind, schema version 2, and shared transport dispatch`);
     }
 
     if (/\binstance\s+BuildMail\b/.test(source)) {
@@ -147,7 +159,7 @@ export function checkEmailTransportSources(sources) {
       }
     }
 
-    if (isProductionSource && filePath !== "Application/EmailDelivery/Enqueue.hs" && filePath !== "Application/EmailDelivery/Persistence.hs") {
+    if (isProductionSource && !["Application/EmailDelivery/Enqueue.hs", "Application/EmailDelivery/Persistence.hs", "Application/EmailDelivery/Group.hs"].includes(filePath)) {
       const rawInsert = source.match(/\b(?:EmailDeliveryInsert|insertPermanentlyDeduplicatedEmailJob)\b/);
       if (rawInsert) {
         errors.push(`${filePath}:${sourceLine(source, rawInsert.index)}: raw email job persistence is owned by Application/EmailDelivery/Enqueue.hs`);
@@ -155,8 +167,8 @@ export function checkEmailTransportSources(sources) {
     }
   }
 
-  const ownerImports = [...ownerSource.matchAll(/^\s*import\s+IHP\.Mail\s*\(\s*sendMail\s*\)\s*$/gm)];
-  if (ownerImports.length !== 1) errors.push(`${transportOwner}: must contain exactly one narrow IHP.Mail (sendMail) import`);
+  const ownerImports = [...ownerSource.matchAll(/^\s*import\s+IHP\.Mail\s*\(\s*sendMail(?:\s*,\s*sendWithMailServer\s*,\s*MailServer)?\s*\)\s*$/gm)];
+  if (ownerImports.length !== 1) errors.push(`${transportOwner}: must contain exactly one narrow IHP.Mail import for single/group transport`);
   if (!/\bdeliverMail\s*=\s*sendMail\b/.test(ownerSource)) errors.push(`${transportOwner}: production runtime does not bind the shared transport to sendMail`);
 
   const dispatchSource = payloadDispatchSource(ownerSource);

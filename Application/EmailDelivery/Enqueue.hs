@@ -53,7 +53,8 @@ enqueueEmailDeliveryWithStatus request = do
     inserted <-
         insertPermanentlyDeduplicatedEmailJob
             EmailDeliveryInsert
-                { payload = emailDeliveryPayload request
+                { payloadSchemaVersion = 1
+                , payload = emailDeliveryPayload request
                 , requestedByUserId = request.requestedByUserId
                 , venueId = request.venueId
                 , relatedTable = request.domainReferenceTable

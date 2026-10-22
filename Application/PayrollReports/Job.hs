@@ -7,6 +7,7 @@ module Application.PayrollReports.Job
 
 import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue
+import Application.EmailDelivery.Group (enqueuePayrollReportOutcome)
 import Application.PayrollReports.Generation
 import Application.PayrollReports.Schedule
 import Control.Monad (void)
@@ -95,7 +96,7 @@ performPayrollReportJob job = do
                 }
             case outcome of
                 Left _ -> finish "obsolete_or_invalid"
-                Right _ -> finish "generated"
+                Right run -> enqueuePayrollReportOutcome run >> finish "generated"
         _ -> finish "obsolete"
   where
     finish status = void $ job |> set #status JobStatusSucceeded

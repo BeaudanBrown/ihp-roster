@@ -6,6 +6,7 @@ module Application.EmailDelivery.ResendWebhook
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (PersistedRuntimeInvariant), externalRuntimeInvariantFailure)
+import Application.EmailDelivery.Group (recordPayrollReportProviderFailure)
 import Application.OperationalIncident
 import qualified "crypton" Crypto.Hash as Hash
 import qualified "crypton" Crypto.MAC.HMAC as HMAC
@@ -99,20 +100,30 @@ processVerifiedWebhook ::
     ResendWebhookPayload ->
     IO ResendWebhookResult
 processVerifiedWebhook now headers payload = do
-    (result, changedState) <- withTransaction do
+    (result, changedState, groupEvent) <- withTransaction do
         lockWebhookEvent headers.svixId
         duplicate <-
             query @EmailDeliveryWebhookEvent
                 |> filterWhere (#svixId, headers.svixId)
                 |> fetchOneOrNothing
         case duplicate of
-            Just event -> pure (ResendWebhookDuplicate event, Nothing)
+            Just event -> do
+                -- Retry the idempotent group projection from retained facts if a
+                -- previous request committed the event but failed afterward.
+                state <- findProviderState ResendWebhookPayload
+                    { eventType = event.eventType
+                    , eventAt = event.eventAt
+                    , providerEmailId = event.providerEmailId
+                    , messageId = event.messageId
+                    }
+                let groupEvent = (,) <$> fmap (.emailDeliveryJobId) state <*> providerStatusFor event.eventType
+                pure (ResendWebhookDuplicate event, Nothing, groupEvent)
             Nothing -> do
                 maybeState <- findProviderState payload
                 case maybeState of
                     Nothing -> do
                         event <- createWebhookEvent now headers payload "unknown_message"
-                        pure (ResendWebhookUnknownMessage event, Nothing)
+                        pure (ResendWebhookUnknownMessage event, Nothing, Nothing)
                     Just state -> do
                         let incomingStatus = providerStatusFor payload.eventType
                         let isOlder = maybe False (>= payload.eventAt) state.providerStatusAt
@@ -123,7 +134,10 @@ processVerifiedWebhook now headers payload = do
                                 |> set #providerEmailId (Just payload.providerEmailId)
                                 |> applyProviderStatus incomingStatus payload.eventAt isOlder
                                 |> updateRecord
-                        pure (ResendWebhookProcessed event, if isOlder then Nothing else Just updated)
+                        pure (ResendWebhookProcessed event, if isOlder then Nothing else Just updated, fmap (updated.emailDeliveryJobId,) incomingStatus)
+    forM_ groupEvent \(jobId, incomingStatus) -> do
+        job <- fetch (Id (unpackId jobId) :: Id AppJob)
+        recordPayrollReportProviderFailure job incomingStatus
     forM_ changedState reconcileProviderIncident
     pure result
 
@@ -197,7 +211,8 @@ reconcileProviderIncident state = do
                 == Just operationalIncidentMailKind
     let active = state.providerStatus `elem` ["bounced", "complained", "failed", "suppressed"]
     let recovered = state.providerStatus == "delivered"
-    unless isIncidentNotification $
+    let isGroupNotification = appJob.payloadSchemaVersion == 2 && appJob.relatedTable == Just "payroll_report_runs"
+    unless (isIncidentNotification || isGroupNotification) $
         when (active || recovered) $
             void $
                 reconcileOperationalIncident

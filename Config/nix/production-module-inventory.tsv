@@ -28,6 +28,7 @@ Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Group.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main
@@ -356,9 +357,11 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Email.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Generation.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PayrollReports/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PayrollReports/Manual.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/PayrollReports/Notifications.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Schedule.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain

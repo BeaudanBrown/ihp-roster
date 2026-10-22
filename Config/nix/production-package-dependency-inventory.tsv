@@ -56,6 +56,7 @@ Data.Maybe	base	Application/Xero/Admin/PayItems.hs via Main
 Data.Ratio	base	Application/Helper/Export/Render.hs via Main
 Data.Scientific	scientific	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Set	containers	Web/SurfaceInvalidation.hs via Main
+Data.TMap	typerep-map	Application/EmailDelivery.hs via Main
 Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
@@ -125,6 +126,7 @@ Network.HTTP.Types	http-types	Application/Helper/Profiling.hs via Main
 Network.HTTP.Types.Header	http-types	Application/Helper/Telemetry.hs via Main
 Network.HTTP.Types.Status	http-types	Application/Helper/BrowserFailure.hs via Main
 Network.HTTP.Types.URI	http-types	Application/Billing/Stripe.hs via Main
+Network.Mail.Mime	mime-mail	Application/EmailDelivery/Group.hs via Main
 Network.Socket	network	Config/Config.hs via Main
 Network.Wai	wai	Application/Helper/Telemetry.hs via Main
 Network.Wai.Middleware.FlashMessages	wai-flash-messages	Application/Helper/View/Toast.hs via Main

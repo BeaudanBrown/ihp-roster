@@ -10,8 +10,8 @@ terminal delivery outcomes.
 
 ## Envelope
 
-All delivery uses the `email_delivery` `AppJob` kind and payload schema version 1.
-Each envelope contains:
+All delivery uses the `email_delivery` `AppJob` kind. Account mail uses payload
+schema version 1. Each account envelope contains:
 
 - a versioned domain mail kind;
 - one snapshotted recipient account ID and address; and
@@ -37,6 +37,30 @@ belong in the payload, job result, or application logs. `related_table`, `relate
   handler may complete obsolete/missing references as `delivery_skipped`.
 - Results contain only delivery status, mail kind, domain-reference ID, and a bounded
   skip reason. Failure details remain in the queue's existing bounded error field.
+
+## Payroll group mail
+
+Version 2 is a closed payroll-group envelope containing the mail kind and retained
+`payroll_report_runs` reference, not an invented account identity. The run owns the
+immutable external recipient list and export artifact. Group enqueue shares the
+permanent email-job dedupe index. Raw-MIME construction supports all recipients in
+To and Reply-To; the SMTP call remains exclusively in `Application.EmailDelivery`.
+Existing version-1 mail is unchanged.
+
+Payroll sends revalidate cancellation/selection revisions and artifact expiry before
+dispatch. Delivery-disabled outcomes are terminal. The adapter commits an uncertain
+attempt before calling SMTP; a crash or transport exception never causes a blind
+whole-list retry. The pinned SMTP interface cannot distinguish every failure phase,
+so transport exceptions are conservatively acceptance-unknown. Pre-transport queue
+failures retain normal IHP retries. Only explicit updated sends recover uncertain
+or partially delivered reports; they generate new snapshots for the full current list.
+
+Adverse provider events are sticky at the report level, including older events:
+another recipient's delivered event cannot erase a group bounce. Exact Message-ID/
+provider-ID correlation remains authoritative. Minimal, deduplicated operational
+incidents alert active platform super admins; report addresses and payroll bytes
+never enter operational alerts. The mail attachment cap is 29,000,000 decoded bytes,
+leaving MIME/base64 headroom under Resend's 40 MB encoded message limit.
 
 ## Feedback mail kind
 
