@@ -97,6 +97,7 @@ payrollWorkbookConfigurationErrorMessage = \case
     PayrollWorkbookConfigurationNameConflict name -> "A Payroll Workbook configuration named “" <> name <> "” already exists."
     PayrollWorkbookConfigurationNotFound -> "That Payroll Workbook configuration no longer exists."
     PayrollWorkbookConfigurationStale -> "This export changed after you opened it. Close the editor and try again."
+    PayrollWorkbookConfigurationScheduleConfirmationRequired -> "This template is selected for payroll emails. Confirm that deleting it will disable the schedule."
     PayrollWorkbookConfigurationStoredDefinitionInvalid _ -> "That Payroll Workbook configuration is no longer valid."
 
 respondWithPayrollWorkbookConfigurationError ::

@@ -11,6 +11,7 @@ module Web.Exports.Mutations
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
+import Application.PayrollReports.Settings (withPayrollReportVenueLock)
 import Application.Helper.TimesheetSelection (TimesheetSelection)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
@@ -95,6 +96,7 @@ deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?m
 deletePayrollWorkbookConfigurationMutation configurationId = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor do
+            withPayrollReportVenueLock (unpackId currentVenueId)
             -- QueryBuilder has no row-lock combinator. Serialize concurrent
             -- delete confirmations so a request that becomes stale resolves to
             -- NotFound instead of attempting a second delete.
@@ -103,7 +105,7 @@ deletePayrollWorkbookConfigurationMutation configurationId = do
                 (unpackId configurationId, unpackId currentVenueId)
             if null lockedRows
                 then pure (Left PayrollWorkbookConfigurationNotFound)
-                else deleteSavedPayrollWorkbookConfiguration configurationId
+                else deleteSavedPayrollWorkbookConfigurationInCurrentTransaction False configurationId
     pure (fmap (\() -> liveMutationResult () [adminExportsResource (unpackId currentVenueId)]) outcome)
   where
     publicationFor = \case

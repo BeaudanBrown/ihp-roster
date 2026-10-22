@@ -355,6 +355,7 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/Client.hs	production	runtime	Main	Reachable from Main
