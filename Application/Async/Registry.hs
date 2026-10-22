@@ -39,6 +39,7 @@ dispatchAppJob appJob =
                 when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
                 when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
                 handleEmailDeliveryFailureAfterFinalAttempt appJob
+                handlePayrollReportGenerationFinalFailure appJob
 
 registeredJobKindForTelemetry :: Text -> Text
 registeredJobKindForTelemetry kind

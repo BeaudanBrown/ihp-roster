@@ -36,7 +36,8 @@ Resend acceptance, inbox placement, or recipient replies.
    Apply the additive migrations through the normal deployment mechanism, then
    start the matching web/worker package. Ensure the packaged
    `PayrollReportSweep` is present before enabling `payroll-report-sweep.timer`
-   (`services.ihp-roster.payrollReports.enable`). The sweep enqueues; the shared
+   (`services.ihp-roster.payrollReports.enable`, default `false`). Enabling the
+   timer is an explicit deployment decision. The sweep enqueues; the shared
    AppJob worker generates and delivers.
 2. Inspect bounded job status, attempts and timer health—not payloads, addresses,
    workbook bytes, subjects or provider diagnostics. With no enabled venue

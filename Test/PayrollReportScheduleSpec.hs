@@ -1,6 +1,7 @@
 module Test.PayrollReportScheduleSpec where
 
 import Application.PayrollReports.Schedule
+import Application.Async.Queue (appJobMaxAttempts)
 import Application.PayrollReports.Generation
 import Application.PayrollReports.Job
 import Application.PayrollReports.Settings
@@ -22,6 +23,30 @@ instant year month day seconds = UTCTime (fromGregorian year month day) (fromInt
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Payroll report scheduling" do
+        it "alerts once for pre-run generation failures and advances past terminal occurrences" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Failed generation"
+                admin <- createUserRecord "failed-scheduler@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- setting |> set #scheduleActivatedAt (instant 2025 1 12 0) |> updateRecord
+                Just (_, firstWeek) <- nextScheduledPayrollReport setting
+                _ <- enqueuePayrollReportSweep
+                job <- query @AppJob |> filterWhere (#jobKind, payrollReportJobKind) |> fetchOne
+                handlePayrollReportGenerationFinalFailure job
+                query @OperationalIncident |> filterWhere (#category, "payroll_report") |> fetchCount `shouldReturn` 0
+                query @PayrollWorkbookConfigurationFamily
+                    |> filterWhere (#configurationId, unpackId template.savedPayrollWorkbookConfigurationRecord.id)
+                    |> fetch >>= mapM_ deleteRecord
+                performPayrollReportJob job
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+                query @OperationalIncident |> filterWhere (#category, "payroll_report") |> fetchCount `shouldReturn` 1
+                handlePayrollReportGenerationFinalFailure (job |> set #attemptsCount appJobMaxAttempts)
+                query @OperationalIncident |> filterWhere (#category, "payroll_report") |> fetchCount `shouldReturn` 1
+                Just (_, followingWeek) <- nextScheduledPayrollReport setting
+                followingWeek `shouldBe` addDays 7 firstWeek
+
         it "shifts spring gaps to 03:00 and sends repeated 02:30 only at its first occurrence" $ withContext do
             nextReportOccurrence "Australia/Melbourne" 0 150 (instant 2026 10 3 0)
                 `shouldBe` Right (instant 2026 10 3 (16 * 3600))

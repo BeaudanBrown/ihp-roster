@@ -1079,7 +1079,7 @@ in
 
     payrollReports.enable = mkOption {
       type = types.bool;
-      default = true;
+      default = false;
       description = "Enqueue opt-in venue payroll email schedules every minute.";
     };
 
