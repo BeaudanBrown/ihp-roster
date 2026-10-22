@@ -2,7 +2,13 @@
 
 `Settings.hs` owns venue-scoped payroll email configuration and sharing consent.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
-HTTP/modal adaptation belongs to Web, not this domain.
+HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and
+`Web/View/Admin/PayrollReportsDialog.hs`, not this domain. The Admin → Exports
+modal uses the shared dialog lane and typed AppShell forms. History is an
+explicitly timestamped snapshot with a labelled refresh (which discards unsaved
+edits), not a live surface that replaces an administrator's draft. `History.hs`
+loads four distinct reporting weeks and all their executions, venue-scoped.
+Provider acceptance is never labelled as confirmed inbox delivery.
 
 `Generation.hs` owns repeatable-read report snapshots using explicit venue/actor
 provenance. `Export/WorkbookGeneration.hs` is shared with manual downloads, so

@@ -92,8 +92,8 @@ updatePayrollWorkbookConfigurationMutation configurationId input = do
         Left _ -> Nothing
         Right _ -> Just ("payroll_workbook_configuration.update", Set.singleton (adminExportsResource (unpackId currentVenueId)))
 
-deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult ()))
-deletePayrollWorkbookConfigurationMutation configurationId = do
+deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> Id PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult ()))
+deletePayrollWorkbookConfigurationMutation confirmDisableReports configurationId = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor do
             withPayrollReportVenueLock (unpackId currentVenueId)
@@ -105,7 +105,7 @@ deletePayrollWorkbookConfigurationMutation configurationId = do
                 (unpackId configurationId, unpackId currentVenueId)
             if null lockedRows
                 then pure (Left PayrollWorkbookConfigurationNotFound)
-                else deleteSavedPayrollWorkbookConfigurationInCurrentTransaction False configurationId
+                else deleteSavedPayrollWorkbookConfigurationInCurrentTransaction confirmDisableReports configurationId
     pure (fmap (\() -> liveMutationResult () [adminExportsResource (unpackId currentVenueId)]) outcome)
   where
     publicationFor = \case

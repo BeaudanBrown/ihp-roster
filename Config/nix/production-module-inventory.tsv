@@ -358,11 +358,12 @@ Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Ma
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Email.hs	production	runtime	Main	Reachable from Main
-Application/PayrollReports/Generation.hs	production	runtime	WorkerMain	Reachable from WorkerMain
-Application/PayrollReports/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
-Application/PayrollReports/Manual.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/PayrollReports/Generation.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/History.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Job.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Manual.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Notifications.hs	production	runtime	Main	Reachable from Main
-Application/PayrollReports/Schedule.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/PayrollReports/Schedule.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain
@@ -519,6 +520,7 @@ Web/Controller/Support.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Users.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/Exports/PayrollReports.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Selection.hs	production	runtime	Main	Reachable from Main
 Web/Exports/WorkbookConfigurations.hs	production	runtime	Main	Reachable from Main
@@ -597,6 +599,7 @@ Web/View/Admin/Common.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Exports.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Invites.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/PayrollReportsDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/PayrollWorkbookConfigurationDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/RosterGroups.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/ShiftTypes.hs	production	runtime	Main	Reachable from Main

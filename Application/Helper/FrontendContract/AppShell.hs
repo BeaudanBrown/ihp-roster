@@ -27,6 +27,21 @@ module Application.Helper.FrontendContract.AppShell
     , SelectedTimesheetEntriesField
     , OpenPayrollWorkbookConfigurationDeleteDialog
     , DeletePayrollWorkbookConfigurationOverlay
+    , ConfirmDisablePayrollReportsField
+    , OpenPayrollReports
+    , SavePayrollReports
+    , PreviewPayrollReport
+    , SendPayrollReport
+    , ReportRecipientsField
+    , ReportTemplateField
+    , ReportEnabledField
+    , ReportWeekdayField
+    , ReportMinuteField
+    , ReportRevisionField
+    , ReportConsentField
+    , ReportWeekField
+    , ReportPreviousRunField
+    , ReportConfirmationField
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
     , AddPayrollWorkbookConfigurationSheetOverlay
@@ -162,6 +177,21 @@ data SelectionExportTypeField
 data SelectedTimesheetEntriesField
 data OpenPayrollWorkbookConfigurationDeleteDialog
 data DeletePayrollWorkbookConfigurationOverlay
+data ConfirmDisablePayrollReportsField
+data OpenPayrollReports
+data SavePayrollReports
+data PreviewPayrollReport
+data SendPayrollReport
+data ReportRecipientsField
+data ReportTemplateField
+data ReportEnabledField
+data ReportWeekdayField
+data ReportMinuteField
+data ReportRevisionField
+data ReportConsentField
+data ReportWeekField
+data ReportPreviousRunField
+data ReportConfirmationField
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
 data AddPayrollWorkbookConfigurationSheetOverlay
@@ -282,6 +312,26 @@ type AppShellContract =
          , AppShellAction OpenPageHelpDialog
             '[]
             DialogLauncherOptions
+         , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
+         , AppShellAction SavePayrollReports
+            '[ Field ReportRecipientsField 'WireText
+             , OptionalField ReportTemplateField 'WireUUID
+             , OptionalField ReportEnabledField 'WireBool
+             , Field ReportWeekdayField 'WireInt
+             , Field ReportMinuteField 'WireText
+             , OptionalField ReportRevisionField 'WireInt
+             , OptionalField ReportConsentField 'WireBool
+             ] DialogSubmitOptions
+         , AppShellAction PreviewPayrollReport
+            '[ Field ReportWeekField 'WireDay
+             , OptionalField ReportPreviousRunField 'WireUUID
+             ] DialogSubmitOptions
+         , AppShellAction SendPayrollReport
+            '[ Field ReportWeekField 'WireDay
+             , OptionalField ReportPreviousRunField 'WireUUID
+             , Field ReportRevisionField 'WireInt
+             , Field ReportConfirmationField 'WireUUID
+             ] DialogSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
          , AppShellAction OpenTimesheetSelectionDialog TimesheetSelectionFields DialogLauncherOptions
          , AppShellAction RefreshTimesheetSelectionDialog TimesheetSelectionFields
@@ -308,7 +358,7 @@ type AppShellContract =
          , AppShellAction SubmitXeroShiftSelection XeroShiftSelectionFields XeroShiftSelectionSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
          , AppShellAction DeletePayrollWorkbookConfigurationOverlay
-            '[]
+            '[ OptionalField ConfirmDisablePayrollReportsField 'WireBool ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"

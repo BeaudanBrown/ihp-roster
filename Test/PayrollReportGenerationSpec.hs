@@ -4,6 +4,7 @@ import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.Helper.Export.Service (requestPayrollWorkbookXlsxExportWithDefinition)
 import Application.PayrollReports.Generation (generatePayrollReportSnapshot, validCompletedReportWeek)
 import Application.PayrollReports.Settings
+import Application.PayrollReports.History
 import qualified Application.PayrollReports.Settings as Settings
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
@@ -24,6 +25,26 @@ now = UTCTime (fromGregorian 2025 1 14) 0
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Payroll report generation" do
+        it "loads four distinct history weeks with every resend and no other venue rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "History"
+                other <- createVenueWithConfig "Other history"
+                admin <- createUserRecord "history-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord other admin VenueAdmin
+                forM_ [venue, other] \target -> asCurrentVenueUser admin target.id do
+                    template <- createSavedPayrollWorkbookConfiguration (newConfiguration "History" 1 ["summary"]) >>= expectRight
+                    _ <- savePayrollReportSettings (input { Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) }) >>= expectRight
+                    pure ()
+                forM_ (replicate 6 week <> map (`addDays` week) [-7, -14, -21, -28]) \period -> do
+                    _ <- generatePayrollReportSnapshot venue.id (unpackId admin.id) PayrollReportManual Nothing period now >>= expectRight
+                    pure ()
+                _ <- generatePayrollReportSnapshot other.id (unpackId admin.id) PayrollReportManual Nothing week now >>= expectRight
+                history <- asCurrentVenueUser admin venue.id fetchPayrollReportHistory >>= expectRight
+                map (.reportingWeek) history `shouldBe` map (`addDays` week) [0, -7, -14, -21]
+                map (length . (.executions)) history `shouldBe` [6, 1, 1, 1]
+                concatMap (.executions) history |> map (.venueId) |> all (== unpackId venue.id) |> (`shouldBe` True)
+
         it "accepts only aligned completed roster weeks" $ withContext do
             validCompletedReportWeek 1 (fromGregorian 2025 1 13) week `shouldBe` True
             validCompletedReportWeek 1 (fromGregorian 2025 1 12) week `shouldBe` False

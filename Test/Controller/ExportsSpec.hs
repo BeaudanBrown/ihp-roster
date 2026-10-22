@@ -49,6 +49,91 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "saves manual-only payroll settings, preserves rejected drafts, and previews completed sends" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Scheduled modal"
+                admin <- createUserRecord "scheduled-modal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Payroll"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
+                template <- query @PayrollWorkbookConfiguration |> fetchOne
+                let params = [("reportRecipients", "payroll@example.com"), ("reportTemplate", cs (tshow template.id)), ("reportWeekday", "1"), ("reportMinute", "09:30")]
+                denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction params
+                denied `responseBodyShouldContain` "Confirm your authority"
+                denied `responseBodyShouldContain` "payroll@example.com"
+                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
+                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction (params <> [("reportConsent", "true")])
+                saved `responseBodyShouldContain` "settings saved"
+                setting <- query @PayrollReportSetting |> fetchOne
+                setting.enabled `shouldBe` False
+                setting.minuteOfDay `shouldBe` 570
+                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction (params <> [("reportConsent", "true")])
+                stale `responseBodyShouldContain` "Settings changed"
+                preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "2025-01-06")]
+                preview `responseBodyShouldContain` "Confirm payroll email"
+                preview `responseBodyShouldContain` "payroll@example.com"
+                preview `responseBodyShouldContain` "reportConfirmation"
+                unfinished <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "2999-01-01")]
+                unfinished `responseBodyShouldContain` "Choose a completed reporting week"
+                malformed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "not-a-date")]
+                malformed `responseStatusShouldBe` status200
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+
+        it "denies managers access to every payroll modal endpoint before parsing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager denied"
+                manager <- createUserRecord "report-manager-modal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                forM_ [PayrollReportsAction, SavePayrollReportsAction, PreviewPayrollReportAction, SendPayrollReportAction] \action -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction action)
+                    response `responseStatusShouldBe` status302
+                    response `responseBodyShouldNotContain` "report-recipients"
+                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
+
+        it "requires explicit payroll-disable confirmation before deleting a scheduled template" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Report deletion"
+                admin <- createUserRecord "report-delete@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Reports"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
+                response `responseStatusShouldBe` status302
+                configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                setting <- newRecord @PayrollReportSetting
+                    |> set #venueId (unpackId venue.id)
+                    |> set #configurationId (Just (unpackId configuration.id))
+                    |> set #recipients ["payroll@example.com"]
+                    |> set #enabled True
+                    |> set #updatedByUserId (unpackId admin.id)
+                    |> createRecord
+                confirmation <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                confirmation `responseBodyShouldContain` "disables automatic reports"
+                confirmation `responseBodyShouldContain` "confirmDisablePayrollReports"
+                unconfirmed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                unconfirmed `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 1
+                retained <- fetch setting.id
+                retained.enabled `shouldBe` True
+                confirmed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06") [("confirmDisablePayrollReports", "true")]
+                confirmed `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                disabled <- fetch setting.id
+                disabled.enabled `shouldBe` False
+                disabled.configurationId `shouldBe` Nothing
+                disabled.recipients `shouldBe` ["payroll@example.com"]
+
         it "exports manual Xero pay-item names and sealed units without any Xero setup" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unlinked manual workbook"

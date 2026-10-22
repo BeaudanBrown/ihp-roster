@@ -55,6 +55,7 @@ renderExportsSection selection savedConfigurations =
         "admin-exports-section"
         mempty
         [hsx|
+            <button type="button" class="btn btn-outline-primary mb-3" {...appShellActionAttrs (appShellActionByMarker @AppShell.OpenPayrollReports) (defaultAppShellActionRoute (pathTo PayrollReportsAction))}>Scheduled reports</button>
             {renderExportWeekSelector selection}
             {renderExportGenerationForm selection savedConfigurations}
         |]

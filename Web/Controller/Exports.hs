@@ -24,6 +24,7 @@ import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               requestFixedExportMutation,
                               requestFixedExportWithPayrollWorkbookDefinitionMutation)
 import Web.Exports.Responses
+import Web.Exports.PayrollReports
 import Web.Exports.Selection (openExportSelection, refreshExportSelection, changeExportSelectionGroup, generateSelectedExport)
 import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
                                           editSavedWorkbookFromRequest)
@@ -137,6 +138,11 @@ instance Controller ExportsController where
         ensureCurrentVenue
         ensureProfileCompleted
         ensureAdminRole
+
+    action currentAction@PayrollReportsAction = runBepis currentAction BepisFormAction openPayrollReports
+    action currentAction@SavePayrollReportsAction = runBepis currentAction BepisMutationAction savePayrollReports
+    action currentAction@PreviewPayrollReportAction = runBepis currentAction BepisFormAction previewPayrollReport
+    action currentAction@SendPayrollReportAction = runBepis currentAction BepisMutationAction sendPayrollReport
 
     action currentAction@ExportJobsAction = runBepis currentAction BepisExportAction do
         redirectToPath (pathTo AdminAction <> "#exports")
@@ -272,8 +278,10 @@ instance Controller ExportsController where
             Left errors -> do
                 setErrorMessage (surfaceRequestFieldErrorsMessage errors)
                 redirectToPath (adminExportsPath anchorDate)
-            Right _ ->
-                deletePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
+            Right fields ->
+                deletePayrollWorkbookConfigurationMutation
+                    (fromMaybe False (surfaceFieldValue @AppShell.ConfirmDisablePayrollReportsField fields))
+                    payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

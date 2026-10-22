@@ -332,7 +332,7 @@ tests = aroundAll withDatabaseTestContext do
                         `shouldThrow` (\(_ :: HasqlSessionError) -> True)
                     asCurrentVenueUser admin venue.id (updatePayrollWorkbookConfigurationMutation configurationId (updateConfiguration "Changed" 1 ["shift-type-wages", "summary"] 0))
                         `shouldThrow` (\(_ :: HasqlSessionError) -> True)
-                    asCurrentVenueUser admin venue.id (deletePayrollWorkbookConfigurationMutation configurationId)
+                    asCurrentVenueUser admin venue.id (deletePayrollWorkbookConfigurationMutation False configurationId)
                         `shouldThrow` (\(_ :: HasqlSessionError) -> True)
                 asCurrentVenueUser admin venue.id listSavedPayrollWorkbookConfigurations `shouldReturn` Right [saved]
                 query @PayrollWorkbookConfigurationFamily |> fetchCount `shouldReturn` 1

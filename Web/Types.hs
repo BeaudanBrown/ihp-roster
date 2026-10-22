@@ -116,6 +116,10 @@ data LeaveRequestsController
 
 data ExportsController
     = ExportJobsAction
+    | PayrollReportsAction
+    | SavePayrollReportsAction
+    | PreviewPayrollReportAction
+    | SendPayrollReportAction
     | CreateExportJobAction
     | OpenTimesheetExportSelectionAction
     | RefreshTimesheetExportSelectionAction

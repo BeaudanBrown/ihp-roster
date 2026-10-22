@@ -27,6 +27,7 @@ const mobileTestFiles = [
     /.*roster-mobile\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
     /.*timesheet-filters\.spec\.ts/,
+    /.*payroll-reports\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
 ];
 

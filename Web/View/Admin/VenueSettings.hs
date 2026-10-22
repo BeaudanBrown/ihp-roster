@@ -67,7 +67,7 @@ renderRosterWindowStartDayForm venueConfig =
         [hsx|
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Roster window start day</div>
-            <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged.</p>
+            <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged. Automatic payroll reports are disabled and unstarted automatic sends cancelled. Review Scheduled reports and explicitly re-enable them; historical resends keep their original reporting dates.</p>
         </div>
         <div class="admin-setting-row-control admin-setting-row-control-wide d-flex gap-2 justify-content-end">
             <label class="visually-hidden" for="venue-roster-week-start">Roster window start day</label>

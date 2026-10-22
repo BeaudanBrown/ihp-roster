@@ -241,7 +241,10 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
     renderConfirmationDialog
         (defaultConfirmationDialogConfig
             "Delete export"
-            [hsx|<p class="mb-0">Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>|]
+            [hsx|
+                <p>Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>
+                <p class="mb-0">If this template is selected for payroll emails, deleting it disables automatic reports and cancels unstarted sends. Recipients and timing are retained; select a replacement template before sending again.</p>
+            |]
             formId
             deleteForm)
             { confirmationDialogApproveLabel = "Delete"
@@ -258,7 +261,12 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
             ((defaultAppShellActionRoute actionUrl)
                 { appShellActionRouteExtraAttrs = [("id", formId)]
                 })
-            [hsx|<input type="hidden" name="_method" value="DELETE"/>|]
+            [hsx|
+                <input type="hidden" name="_method" value="DELETE"/>
+                <input type="hidden" name={surfaceFieldNameFrom @AppShell.ConfirmDisablePayrollReportsField deleteFields} value="true"/>
+            |]
+    deleteFields = appShellActionFields @AppShell.DeletePayrollWorkbookConfigurationOverlay
+        (surfaceOptionalField @AppShell.ConfirmDisablePayrollReportsField (Just True)) noSurfaceFields
 
 editorFormId :: Text
 editorFormId = "payroll-workbook-configuration-editor-form"
