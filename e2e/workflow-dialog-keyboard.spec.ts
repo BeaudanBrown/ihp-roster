@@ -96,6 +96,9 @@ test.describe('Workflow dialog keyboard controls', () => {
         const form = dialogMount.locator('#timesheet-entry-create-form');
         const startTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).first();
         await expect(startTrigger).toBeFocused();
+        // Clearing an already-empty clock does not dirty a blank form. Make an
+        // actual edit so Escape must exercise the unsaved-change guard.
+        await form.locator('textarea[name="staffComment"]').fill('Preserve this unsaved validation draft');
         const invalidTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).nth(invalidIndex);
         await invalidTrigger.click();
         // Bootstrap focuses the picker after opening completes. A click during

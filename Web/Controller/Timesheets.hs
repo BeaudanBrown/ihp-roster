@@ -21,7 +21,7 @@ import Web.Timesheets.Paths (                             timesheetDayColumnsFra
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
                              timesheetStaffContentFragmentUrl,
-                             timesheetToolbarFragmentUrl, timesheetWindowUrl,
+                             timesheetToolbarFragmentUrl,
                              timesheetWindowUrlWithFilters,
                              withTimesheetFilters)
 import Web.Timesheets.Projection
@@ -51,10 +51,6 @@ requireTimesheetSurfaceState = \case
     Left errors -> do
         reportTimesheetSurfaceRequestErrors errors
         earlyReturn (redirectTo TimesheetsAction)
-
-redirectToTimesheetWindow :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> IO ResponseReceived
-redirectToTimesheetWindow windowStart staffFilterId =
-    redirectToPath (timesheetWindowUrl windowStart staffFilterId)
 
 timesheetWindowStartForAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO Day
 timesheetWindowStartForAnchor anchorDate = do

@@ -84,6 +84,16 @@ test.describe('Super-admin venue and user switchers', () => {
         await clearCurrentSessionPasskeyVerification(page);
         const rosterUrl = page.url();
         const userSwitcher = page.locator('#support-impersonation-user');
+        const strongAuthOptional = ['0', 'false', 'FALSE', 'no', 'NO', 'off', 'OFF'].includes(process.env.IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH ?? '1');
+        if (strongAuthOptional) {
+            // The documented deployment exception belongs to the real founder;
+            // clearing session verification must not disable that exception.
+            await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+            await expect(page).toHaveURL(rosterUrl);
+            await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+            await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
+            return;
+        }
         const finishStepUpResponse = page.waitForResponse(
             (response) => new URL(response.url()).pathname === '/FinishPasskeyStepUpAuthentication',
             { timeout: E2E_TIMEOUT.passkey },

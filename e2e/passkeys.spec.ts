@@ -277,9 +277,10 @@ test.describe('Venue-admin passkeys', () => {
     test('venue admin can delete their last passkey after fresh verification when strong auth is optional', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await openProfileSecuritySection(page);
-        await expect(page.locator('#profile-security-collapse table')).toBeVisible();
+        const passkeyTable = page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: 'Last used' }) });
+        await expect(passkeyTable).toBeVisible();
 
-        const passkeyRows = page.locator('#profile-security-collapse table tbody tr');
+        const passkeyRows = passkeyTable.locator('tbody tr');
         await expect(passkeyRows).toHaveCount(1);
         const deleteButton = passkeyRows.getByRole('button', { name: 'Delete', exact: true });
         await deleteButton.click();
@@ -293,7 +294,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await openProfileSecuritySection(page);
-        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(0);
+        await expect(passkeyRows).toHaveCount(0);
         await expect(page.locator('body')).toContainText('No passkeys registered yet.');
     });
 

@@ -148,7 +148,7 @@ test.describe('Admin and roster UI polish', () => {
         await expect(roleSelect).toHaveValue('worker');
         await expect(roleSelect.locator('option')).toContainText(['Worker', 'Manager', 'Venue Admin']);
 
-        await page.locator('#staff-profile-leave-heading button').click({ timeout: E2E_TIMEOUT.action });
+        await page.getByRole('button', { name: 'Unavailability', exact: true }).click({ timeout: E2E_TIMEOUT.action });
         await expect(page.locator('#staff-leave-request-form')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         const startDateBefore = await page.locator('#staff-leave-request-form input[name="startDate"]').inputValue();

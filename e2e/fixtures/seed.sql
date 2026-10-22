@@ -816,6 +816,16 @@ ON CONFLICT (id) DO UPDATE SET
     imported_at = EXCLUDED.imported_at,
     updated_at = NOW();
 
+-- Synthetic accepted-import provenance for the seeded statewide calendars.
+-- A holiday row alone no longer establishes DataVic coverage authority.
+INSERT INTO public_holiday_import_batches (id, jurisdiction, target_years, accepted_at, source, accepted_calendar)
+SELECT 'a1000000-0000-0000-0000-000000000797', 'VIC',
+       array_agg(DISTINCT EXTRACT(YEAR FROM holiday_date)::int), NOW(), 'legacy_import',
+       jsonb_agg(jsonb_build_object('date', holiday_date, 'name', name))
+FROM public_holidays WHERE jurisdiction = 'VIC' AND NOT is_regional
+ON CONFLICT (id) DO UPDATE SET target_years = EXCLUDED.target_years,
+    accepted_at = EXCLUDED.accepted_at, accepted_calendar = EXCLUDED.accepted_calendar;
+
 INSERT INTO staff (
     id,
     venue_id,

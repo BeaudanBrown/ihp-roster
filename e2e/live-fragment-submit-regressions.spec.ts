@@ -307,12 +307,13 @@ test.describe('HTMX submit regressions', () => {
         const staffFilterId = withStaffFilter
             ? querySql(`SELECT staff_id FROM timesheet_entries WHERE id = '${deletedEntryId}'`).trim()
             : null;
-        await gotoWhenReady(page, staffFilterId ? `/Timesheets?staffFilterId=${staffFilterId}` : '/Timesheets', '#timesheet-week-shell');
-        expect(new URL(page.url()).searchParams.get('staffFilterId')).toBe(staffFilterId);
+        const anchorDate = querySql(`SELECT operational_date::text FROM timesheet_entries WHERE id = '${deletedEntryId}'`).trim();
+        await gotoWhenReady(page, `/ShowTimesheetWindow?anchorDate=${anchorDate}${staffFilterId ? `&staffFilterIds=${staffFilterId}` : ''}`, '#timesheet-week-shell');
+        expect(new URL(page.url()).searchParams.getAll('staffFilterIds').filter(Boolean)).toEqual(staffFilterId ? [staffFilterId] : []);
         const assertWindowParams = (params: URLSearchParams) => {
             expect(params.getAll('anchorDate')).toHaveLength(1);
             expect(params.getAll('rosterCalendarRevision')).toHaveLength(1);
-            expect(params.getAll('staffFilterId')).toEqual(staffFilterId ? [staffFilterId] : []);
+            expect(params.getAll('staffFilterIds').filter(Boolean)).toEqual(staffFilterId ? [staffFilterId] : []);
         };
         await openTimesheetSettings(page);
         const showApproved = page.getByRole('switch', { name: 'Show approved' });

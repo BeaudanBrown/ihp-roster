@@ -549,7 +549,19 @@ test("interaction fallback cancels only its owning session and keeps completion 
         assertEqual(fixture.controls.length, 0);
         fixture.runTimers();
         assertEqual(canceledMounts.join(","), first.owner.id);
+        // A cancellation request is not an ended session. Keep transport deferred
+        // until this owner acknowledges termination; the other owner stays active.
+        await settle();
+        assertEqual(fixture.controls.length, 0);
+        fixture.document.dispatchEvent(new CustomEvent(interactionSessionEndEvent, {
+            detail: { mount: first.owner, mountId: first.owner.id, sessionKind: "drag", intent: "move" },
+        }));
+        fixture.refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
         assertEqual(fixture.controls.length, 1);
+        // A new interaction during the fetch must still protect completion.
+        fixture.document.dispatchEvent(new CustomEvent(interactionSessionStartEvent, {
+            detail: { mount: first.owner, mountId: first.owner.id, sessionKind: "drag", intent: "move" },
+        }));
         fixture.respond(fixture.controls[0]!, '<section id="first-fragment">must remain deferred</section>');
         await settle();
         assertEqual(fixture.document.getElementById("first-fragment"), first.target);

@@ -1,16 +1,13 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.PublicHolidays.Job
-    ( enqueuePublicHolidayRefreshJob
-    , performPublicHolidayRefreshJobWith
-    , publicHolidayRefreshJobDedupeKey
+    ( performPublicHolidayRefreshJobWith
     , publicHolidayRefreshJobKind
     ) where
 
 import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
 import Application.Async.Error (AppJobError (..))
 import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
-import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 import Application.Helper.SurfaceResource
@@ -34,27 +31,6 @@ instance Aeson.FromJSON PublicHolidayRefreshPayload where
 
 publicHolidayRefreshJobKind :: Text
 publicHolidayRefreshJobKind = "public_holiday_refresh"
-
-publicHolidayRefreshJobDedupeKey :: Text
-publicHolidayRefreshJobDedupeKey = "public-holiday-refresh-vic"
-
-enqueuePublicHolidayRefreshJob ::
-    (?modelContext :: ModelContext) =>
-    Maybe UUID ->
-    IO EnqueueAppJobResult
-enqueuePublicHolidayRefreshJob requestedByUserId =
-    enqueueAppJob
-        AppJobRequest
-            { jobKind = publicHolidayRefreshJobKind
-            , payload = Aeson.object ["jurisdiction" Aeson..= PublicHolidayPolicy.publicHolidayJurisdiction]
-            , payloadSchemaVersion = 1
-            , requestedByUserId
-            , venueId = Nothing
-            , relatedTable = Just "public_holidays"
-            , relatedId = Nothing
-            , dedupeKey = Just publicHolidayRefreshJobDedupeKey
-            , runAt = Nothing
-            }
 
 performPublicHolidayRefreshJobWith
     :: (?modelContext :: ModelContext)
