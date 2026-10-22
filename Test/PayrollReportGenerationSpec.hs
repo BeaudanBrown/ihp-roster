@@ -2,7 +2,7 @@ module Test.PayrollReportGenerationSpec where
 
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.Helper.Export.Service (requestPayrollWorkbookXlsxExportWithDefinition)
-import Application.PayrollReports.Generation
+import Application.PayrollReports.Generation (generatePayrollReportSnapshot, validCompletedReportWeek)
 import Application.PayrollReports.Settings
 import qualified Application.PayrollReports.Settings as Settings
 import Data.Either (isLeft)

@@ -11,6 +11,7 @@ import Application.Billing.Reconciliation
 import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.Helper.Telemetry (withJobTelemetrySpan)
+import Application.PayrollReports.Job
 import Application.PublicHolidays.ActiveJob
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Application.PublicHolidays.Shadow
@@ -53,6 +54,7 @@ registeredJobKinds :: [Text]
 registeredJobKinds =
     [ workerHeartbeatJobKind
     , emailDeliveryJobKind
+    , payrollReportJobKind
     , fwcMapdRefreshJobKind
     , publicHolidayRefreshJobKind
     , activePublicHolidayJobKind
@@ -72,6 +74,7 @@ dispatchAppJobByKind appJob =
     case appJob.jobKind of
         kind | kind == workerHeartbeatJobKind -> performWorkerHeartbeatJob appJob
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
+        kind | kind == payrollReportJobKind -> performPayrollReportJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         -- Includes already queued/retrying anonymous jobs at deployment. Never
         -- turn them into successful refresh evidence or execute the old importer.

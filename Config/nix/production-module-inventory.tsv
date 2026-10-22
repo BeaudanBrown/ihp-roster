@@ -356,7 +356,10 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
-Application/PayrollReports/Generation.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/PayrollReports/Generation.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/PayrollReports/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/PayrollReports/Manual.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/PayrollReports/Schedule.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain
@@ -385,6 +388,7 @@ Application/Script/GenerateBepisArchitectureContracts.hs	development	architectur
 Application/Script/GenerateFrontendContracts.hs	development	contract-generator	-	Checked frontend contract generation only; runnable from the development shell
 Application/Script/GenerateFrontendSurfaceAdapters.hs	development	contract-generator	-	Checked Haskell adapter generation only; runnable from the development shell
 Application/Script/LiveInvalidationOutboxPrune.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
+Application/Script/PayrollReportSweep.hs	production	operational-script-closure	Application.Script.PayrollReportSweep	Reachable from Application.Script.PayrollReportSweep
 Application/Script/Prelude.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/ProfileLiveInvalidation.hs	development	performance-probe	-	Low-rate profiling probe only; runnable from the development shell
 Application/Script/PublicHolidayCutover.hs	production	operational-script-closure	Application.Script.PublicHolidayCutover	Reachable from Application.Script.PublicHolidayCutover

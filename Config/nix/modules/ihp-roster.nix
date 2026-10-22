@@ -1077,6 +1077,12 @@ in
       };
     };
 
+    payrollReports.enable = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Enqueue opt-in venue payroll email schedules every minute.";
+    };
+
     rsa.reminders = {
       enable = mkOption {
         type = types.bool;
@@ -1587,6 +1593,29 @@ in
           Persistent = true;
           RandomizedDelaySec = cfg.liveInvalidations.outboxPruning.randomizedDelaySec;
           Unit = "live-invalidation-outbox-prune.service";
+        };
+      };
+      systemd.services.payroll-report-sweep = mkIf cfg.payrollReports.enable {
+        description = "Enqueue configured venue payroll reports for Bepis";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = runtimeEnvironmentFiles;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/PayrollReportSweep";
+        } // serviceUserConfig;
+        environment = {
+          DATABASE_URL = if cfg.databaseUrl != null then cfg.databaseUrl else "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        } // cfg.additionalEnvVars;
+      };
+      systemd.timers.payroll-report-sweep = mkIf cfg.payrollReports.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*-*-* *:*:00";
+          Persistent = true;
+          AccuracySec = "1s";
         };
       };
       systemd.services.rsa-reminder-sweep = mkIf cfg.rsa.reminders.enable {

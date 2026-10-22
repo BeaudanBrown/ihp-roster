@@ -6,6 +6,8 @@ module Application.PayrollReports.Settings
     , savePayrollReportSettings
     , withPayrollReportVenueLock
     , clearPayrollReportTemplateInCurrentTransaction
+    , disablePayrollReportsForCalendarChange
+    , payrollReportRunIsCurrent
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
@@ -102,10 +104,13 @@ savePayrollReportSettings input
                             |> set #minuteOfDay input.minuteOfDay
                             |> set #revision (maybe 0 ((+ 1) . (.revision)) existing)
                             |> set #deliveryRevision (record.deliveryRevision + if recipientsChanged || templateChanged then 1 else 0)
-                            |> set #scheduleActivatedAt (if isNothing existing || scheduleChanged then now else record.scheduleActivatedAt)
+                            |> set #scheduleActivatedAt (if isNothing existing || scheduleChanged || recipientsChanged || templateChanged then now else record.scheduleActivatedAt)
                             |> set #updatedByUserId (unpackId authenticatedCurrentUser.id)
                             |> set #updatedAt now
-                    Right <$> (if isNothing existing then createRecord updated else updateRecord updated)
+                    saved <- if isNothing existing then createRecord updated else updateRecord updated
+                    when (recipientsChanged || templateChanged || scheduleChanged) $
+                        cancelPendingPayrollReports (unpackId currentVenueId) (recipientsChanged || templateChanged)
+                    pure (Right saved)
 
 -- Caller owns the transaction and venue lock. Clearing the template revokes
 -- pending recipient snapshots through deliveryRevision, preserving timing/list.
@@ -127,3 +132,30 @@ clearPayrollReportTemplateInCurrentTransaction venueId configurationId actorId =
             |> set #updatedAt now
             |> updateRecord
             |> void
+        cancelPendingPayrollReports venueId True
+
+-- Caller holds the roster calendar transaction; acquire the venue lock before
+-- changing the calendar so report snapshots cannot cross that boundary.
+disablePayrollReportsForCalendarChange :: (?modelContext :: ModelContext) => UUID -> IO ()
+disablePayrollReportsForCalendarChange venueId = do
+    withPayrollReportVenueLock venueId
+    settings <- query @PayrollReportSetting |> filterWhere (#venueId, venueId) |> fetchOneOrNothing
+    forM_ settings \record -> do
+        now <- getCurrentTime
+        record |> set #enabled False |> set #revision (record.revision + 1)
+            |> set #scheduleActivatedAt now |> set #updatedAt now |> updateRecord |> void
+    cancelPendingPayrollReports venueId False
+
+cancelPendingPayrollReports :: (?modelContext :: ModelContext) => UUID -> Bool -> IO ()
+cancelPendingPayrollReports venueId includeManual = do
+    pending <- query @PayrollReportRun |> filterWhere (#venueId, venueId)
+        |> filterWhereIn (#status, [PayrollReportReady, PayrollReportNoData, PayrollReportQueued]) |> fetch
+    forM_ (filter (\run -> includeManual || run.origin == PayrollReportScheduled) pending) \run -> do
+        now <- getCurrentTime
+        run |> set #status PayrollReportCancelled |> set #updatedAt now |> updateRecord |> void
+
+payrollReportRunIsCurrent :: PayrollReportSetting -> PayrollReportRun -> Bool
+payrollReportRunIsCurrent settings run =
+    settings.venueId == run.venueId && unpackId settings.id == run.settingsId
+        && settings.deliveryRevision == run.deliveryRevision
+        && (run.origin /= PayrollReportScheduled || (settings.enabled && settings.scheduleActivatedAt == run.scheduleActivatedAt))

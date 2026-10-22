@@ -1,6 +1,7 @@
 module Test.PayrollReportSettingsSpec where
 
 import Application.PayrollReports.Settings
+import Application.PayrollReports.Manual (requestManualPayrollReport)
 import qualified Application.PayrollReports.Settings as Settings
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Data.Either (isLeft)
@@ -44,7 +45,7 @@ tests = aroundAll withDatabaseTestContext do
                     savePayrollReportSettings editInput `shouldReturn` Left PayrollReportSharingConfirmationRequired
                     updated <- savePayrollReportSettings (editInput { sharingConfirmed = True }) >>= expectRight
                     updated.deliveryRevision `shouldBe` (saved.deliveryRevision + 1)
-                    updated.scheduleActivatedAt `shouldBe` saved.scheduleActivatedAt
+                    updated.scheduleActivatedAt `shouldSatisfy` (>= saved.scheduleActivatedAt)
                     query @PayrollReportSetting |> fetchCount `shouldReturn` 1
 
         it "requires a venue-owned template and confirmed sharing before enabling" $ withContext do
@@ -75,6 +76,8 @@ tests = aroundAll withDatabaseTestContext do
                 asCurrentVenueUser manager venue.id do
                     savePayrollReportSettings input `shouldReturn` Left PayrollReportAccessDenied
                     fetchPayrollReportSettings `shouldReturn` Left PayrollReportAccessDenied
+                    requestManualPayrollReport "22222222-2222-4222-8222-222222222224" 0 (fromGregorian 2025 1 6) Nothing
+                        `shouldReturn` Left "Payroll report access denied."
                 admin <- createUserRecord "reports-admin@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueOwner
                 _ <- createVenueMembershipRecord other admin VenueAdmin

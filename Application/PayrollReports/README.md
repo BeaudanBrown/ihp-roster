@@ -18,6 +18,17 @@ including the first save before a settings row exists. Acquire this lock before
 workbook locks. Standalone operations own their transaction; durable publishers
 must use explicitly named in-current-transaction operations.
 
+`Schedule.hs` resolves weekly venue-local occurrences, moving spring gaps to the
+first valid minute and choosing the first autumn occurrence. `Job.hs` integrates
+with the existing AppJob worker; `PayrollReportSweep` is an enqueue-only minute
+timer. Automatic runs are unique by venue/reporting week; manual confirmation
+UUIDs identify retries, not a request to send a new update. Missed occurrences
+older than 24 hours are history, never automatic catch-up mail.
+
+Changing the roster-week start disables automation and cancels pending automatic
+sends. Re-enablement starts in the future. Historical Resend carries the original
+run reference and dates; new manual sends must align with the current calendar.
+
 `revision` rejects stale settings edits. `delivery_revision` revokes unstarted
 recipient/template-selection snapshots without changing attachments already
 generated. The scheduler must separately check automatic enablement and schedule
