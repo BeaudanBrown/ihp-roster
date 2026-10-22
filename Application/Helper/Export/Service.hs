@@ -16,7 +16,7 @@ import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
-import Application.Helper.Export.XeroPayItems
+import Application.Helper.Export.WorkbookGeneration
 import Application.Helper.Telemetry (withExportTelemetrySpan)
 import Application.Helper.TimesheetSelection
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -107,30 +107,11 @@ requestPayrollWorkbookForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     [TimesheetEntry] -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
 requestPayrollWorkbookForEntries entries exportName definition rangeStart rangeEnd = do
-    staffById <- fetchStaffMap entries
-    let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
-    if null includedEntries
-        then pure (Left "No approved payroll entries were found for the Payroll Workbook range.")
-        else enforceFinalWageEntries includedEntries >>= \case
-            Left failures -> pure (Left (renderWageEntryFailures "Payroll Workbook blocked: " failures))
-            Right calculations -> do
-                venueConfig <- fetchVenueConfig
-                payBucketsByEntryId <- fetchApprovedEntryPayrollPayBuckets includedEntries
-                shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels includedEntries
-                activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
-                reportShiftTypes <- fetchReportShiftTypes includedEntries
-                versionManifestsByEntryId <- fetchVersionManifestsForEntries includedEntries
-                let shiftTypeColumns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes includedEntries shiftLabelsByEntryId
-                let calculationsByEntryId = calculationMap includedEntries calculations
-                case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId of
-                    Left message -> pure (Left message)
-                    Right factModel -> do
-                        quantities <- if PayrollWorkbookXeroPayItems `elem` definition.payrollWorkbookDefinitionSheetFamilies
-                            then fmap Just <$> fetchWorkbookXeroQuantities currentVenueId includedEntries
-                            else pure (Right Nothing)
-                        case quantities >>= (\resolved -> payrollWorkbookFromDefinitionWithXeroQuantities resolved definition venueConfig.rosterWeekStartsOn factModel) of
-                            Left message -> pure (Left message)
-                            Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
+    venueConfig <- fetchVenueConfig
+    generateWorkbookForVenue currentVenueId venueConfig entries definition rangeStart rangeEnd >>= \case
+        Left message -> pure (Left message)
+        Right Nothing -> pure (Left "No approved payroll entries were found for the Payroll Workbook range.")
+        Right (Just generated) -> persistModel definition generated.entries generated.manifests generated.facts generated.workbook
   where
     persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
         expiresAt <- newExportExpiry

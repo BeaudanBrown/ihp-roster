@@ -15,6 +15,7 @@ module Application.Helper.Export.PayrollWorkbookConfiguration
     , deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable
     , deleteSavedPayrollWorkbookConfigurationInCurrentTransaction
     , fetchSavedPayrollWorkbookConfiguration
+    , fetchSavedPayrollWorkbookConfigurationForVenue
     , listSavedPayrollWorkbookConfigurations
     , normalizePayrollWorkbookConfigurationName
     , payrollWorkbookConfigurationPersistenceError
@@ -272,11 +273,17 @@ fetchSavedPayrollWorkbookConfiguration ::
     IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
 fetchSavedPayrollWorkbookConfiguration configurationId
     | not canManagePayrollWorkbookConfigurations = pure (Left PayrollWorkbookConfigurationAccessDenied)
-    | otherwise = do
+    | otherwise = fetchSavedPayrollWorkbookConfigurationForVenue currentVenueId configurationId
+
+-- Worker boundary: its caller owns authority; scope is never inferred from a user.
+fetchSavedPayrollWorkbookConfigurationForVenue ::
+    (?modelContext :: ModelContext) =>
+    Id Types.Venue -> Id Types.PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
+fetchSavedPayrollWorkbookConfigurationForVenue venueId configurationId = do
         maybeConfiguration <-
             query @Types.PayrollWorkbookConfiguration
                 |> filterWhere (#id, configurationId)
-                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#venueId, unpackId venueId)
                 |> fetchOneOrNothing
         case maybeConfiguration of
             Nothing -> pure (Left PayrollWorkbookConfigurationNotFound)

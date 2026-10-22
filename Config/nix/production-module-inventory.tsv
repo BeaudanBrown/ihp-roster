@@ -96,6 +96,7 @@ Application/Helper/Export/ReadModel.hs	production	runtime	Main	Reachable from Ma
 Application/Helper/Export/Render.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Service.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Types.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Export/WorkbookGeneration.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/XeroPayItems.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Feedback.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FeedbackType.hs	production	runtime	Main	Reachable from Main
@@ -355,6 +356,7 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Generation.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain

@@ -4,6 +4,15 @@
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to Web, not this domain.
 
+`Generation.hs` owns repeatable-read report snapshots using explicit venue/actor
+provenance. `Export/WorkbookGeneration.hs` is shared with manual downloads, so
+background reports use exactly the same approved-entry selection and sealed
+payroll authority. No-data outcomes have no export artifact; authority failures
+are errors, not empty reports. Attachments live in normal `export_jobs` with
+entry provenance and normal expiry, not public links or duplicate blob storage.
+Delivery must refuse expired/purged artifacts rather than regenerate silently.
+Updated sends create a new snapshot and retain the original history.
+
 Settings mutations and linked-template deletion serialize on the venue row,
 including the first save before a settings row exists. Acquire this lock before
 workbook locks. Standalone operations own their transaction; durable publishers
