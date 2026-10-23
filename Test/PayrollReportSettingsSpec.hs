@@ -1,8 +1,7 @@
 module Test.PayrollReportSettingsSpec where
 
 import Application.PayrollReports.Settings
-import Application.PayrollReports.History
-import Application.PayrollReports.Manual (requestManualPayrollReport)
+import Application.PayrollReports.Manual (requestManualPayrollReport, completedPayrollReportWeeks)
 import qualified Application.PayrollReports.Settings as Settings
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Data.Either (isLeft)
@@ -25,21 +24,13 @@ input = PayrollReportSettingsInput
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Payroll report settings" do
-        it "groups all executions in the latest four reporting weeks, not four executions" $ withContext do
-            let week = fromGregorian 2025 1 6
-            let run day = newRecord @PayrollReportRun
-                    |> set #reportingWeek day
-                    |> set #createdAt (UTCTime day 0)
-            let runs = replicate 7 (run week) <> map (run . (`addDays` week)) [-7, -14, -21, -28]
-            let history = groupPayrollReportHistory (reverse runs)
-            map (.reportingWeek) history `shouldBe` map (`addDays` week) [0, -7, -14, -21]
-            map (length . (.executions)) history `shouldBe` [7, 1, 1, 1]
-            groupPayrollReportHistory [] |> length |> (`shouldBe` 0)
-
-        it "never presents provider acceptance or uncertainty as confirmed inbox delivery" $ withContext do
-            payrollReportStatusLabel PayrollReportAccepted `shouldBe` "Accepted by email provider — inbox delivery not confirmed"
-            payrollReportStatusLabel PayrollReportAmbiguous `shouldBe` "Delivery uncertain — some recipients may have received the email"
-            payrollReportStatusLabel PayrollReportBounced `shouldBe` "Delivery problem — some recipients may have received the email"
+        it "offers completed calendar weeks newest first, including empty weeks and year boundaries" $ withContext do
+            completedPayrollReportWeeks 3 (fromGregorian 2025 1 15) (fromGregorian 2024 12 26)
+                `shouldBe` [fromGregorian 2025 1 8, fromGregorian 2025 1 1, fromGregorian 2024 12 25]
+            completedPayrollReportWeeks 0 (fromGregorian 2025 1 18) (fromGregorian 2025 1 18)
+                `shouldBe` [fromGregorian 2025 1 5]
+            completedPayrollReportWeeks 1 (fromGregorian 2025 1 13) (fromGregorian 2025 1 6)
+                `shouldBe` [fromGregorian 2025 1 6]
 
         it "normalizes recipients and rejects injection, malformed addresses and excessive lists" $ withContext do
             validatePayrollReportRecipients input.recipients `shouldBe` Right ["payroll@example.com"]
@@ -93,9 +84,6 @@ tests = aroundAll withDatabaseTestContext do
                 asCurrentVenueUser manager venue.id do
                     savePayrollReportSettings input `shouldReturn` Left PayrollReportAccessDenied
                     fetchPayrollReportSettings `shouldReturn` Left PayrollReportAccessDenied
-                    fetchPayrollReportHistory >>= \case
-                        Left failure -> failure `shouldBe` PayrollReportAccessDenied
-                        Right _ -> expectationFailure "Manager could read payroll report history"
                     requestManualPayrollReport "22222222-2222-4222-8222-222222222224" 0 (fromGregorian 2025 1 6) Nothing
                         `shouldReturn` Left "Payroll report access denied."
                 admin <- createUserRecord "reports-admin@example.com" "admin" True

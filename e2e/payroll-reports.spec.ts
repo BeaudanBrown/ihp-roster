@@ -6,9 +6,10 @@ import { runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
-test('scheduled payroll modal supports manual-only settings, confirmation and updated history', async ({ page }, testInfo) => {
+test('scheduled payroll modal selects completed weeks without displaying history', async ({ page }, testInfo) => {
     test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
     runSql(`
+        UPDATE venues SET created_at = LEAST(created_at, CURRENT_DATE - INTERVAL '35 days') WHERE id = 'a1000000-0000-0000-0000-000000000001';
         DELETE FROM payroll_report_runs WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
         DELETE FROM payroll_report_settings WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
         INSERT INTO payroll_workbook_configurations (id, venue_id, name, definition_version, revision, created_by_user_id)
@@ -51,28 +52,33 @@ test('scheduled payroll modal supports manual-only settings, confirmation and up
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog.getByRole('status')).toContainText('settings saved');
     await expect(dialog.getByLabel('Enable automatic weekly reports')).not.toBeChecked();
-    const reportingWeek = await dialog.locator('input[name="reportWeek"]').inputValue();
-    await dialog.getByRole('button', { name: 'Review send', exact: true }).click();
+    const weekSelector = dialog.getByRole('combobox', { name: 'Reporting week', exact: true });
+    const weeks = await weekSelector.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
+    expect(weeks.length).toBeGreaterThan(1);
+    await expect(weekSelector).toHaveValue(weeks[0]);
+    await expect(weekSelector.locator('option').first()).toContainText(' – ');
+    await weekSelector.selectOption(weeks[1]);
+    const reportingWeek = weeks[1];
+    await expect(dialog.getByRole('heading', { name: 'Last four reporting weeks' })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Refresh saved settings and history' })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Review and send', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: 'Confirm payroll email', exact: true });
     await expect(confirmation).toContainText(reportingWeek);
     await expect(confirmation).toContainText('e2e-payroll-report@example.com');
     await expect(confirmation).toContainText('no-data email');
     await confirmation.getByRole('button', { name: 'Send to entire list', exact: true }).click();
     await expect(dialog.getByRole('status')).toContainText('Report prepared');
-    await expect(dialog.getByRole('heading', { name: new RegExp(reportingWeek) })).toBeVisible();
-    await dialog.getByRole('button', { name: 'Review updated resend', exact: true }).click();
-    await expect(confirmation).toContainText('entire current list receives another copy');
-    await expect(confirmation).toContainText('not a replay');
-    await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-resend-confirmation.png`, fullPage: true });
-    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.getByRole('button', { name: 'Scheduled reports', exact: true }).click();
+    await expect(dialog.getByRole('heading', { name: 'Last four reporting weeks' })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Review updated resend' })).toHaveCount(0);
+    await expect(weekSelector).toHaveValue(weeks[0]);
     await dialog.getByLabel('Enable automatic weekly reports').check();
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(dialog.getByRole('status')).toContainText('settings saved');
     await expect(dialog).toContainText('Scheduled for');
+    await weekSelector.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-settings.png`, fullPage: true });
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(hasHorizontalOverflow).toBe(false);
-    await dialog.getByRole('button', { name: 'Review send', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Review and send', exact: true }).click();
     await expect(confirmation).toContainText('does not suppress it');
 });

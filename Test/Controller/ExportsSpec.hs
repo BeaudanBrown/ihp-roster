@@ -49,6 +49,27 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "shows a venue-scoped completed-week selector without report history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Week selector"
+                other <- createVenueWithConfig "Other selector"
+                admin <- createUserRecord "selector@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
+                staff <- createStaffRecord venue (Just admin) "Current" "Venue"
+                foreignStaff <- createStaffRecord other Nothing "Other" "Venue"
+                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 6)
+                _ <- createTimesheetEntryRecord other foreignStaff (fromGregorian 2020 1 1)
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction PayrollReportsAction
+                response `responseBodyShouldContain` "report-manual-week"
+                response `responseBodyShouldContain` "01 Jan 2025"
+                response `responseBodyShouldNotContain` "01 Jan 2020"
+                response `responseBodyShouldNotContain` "Last four reporting weeks"
+                response `responseBodyShouldNotContain` "Refresh saved settings and history"
+                response `responseBodyShouldNotContain` "Review updated resend"
+
         it "saves manual-only payroll settings, preserves rejected drafts, and previews completed sends" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Scheduled modal"

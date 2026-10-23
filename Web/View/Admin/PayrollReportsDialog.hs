@@ -6,7 +6,6 @@ import Application.Helper.FrontendContract.AppShell.Request (appShellActionField
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
-import Application.PayrollReports.History
 import Application.VenueTime
 import qualified Data.Text as Text
 import Web.View.Prelude
@@ -35,8 +34,8 @@ reportDraft setting = ReportDraft
 reportLocalTimestamp :: UTCTime -> Text
 reportLocalTimestamp = tshow . resolvedInstantLocalTime . resolvedInstantFromUTC
 
-renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> [PayrollReportWeek] -> Maybe (UTCTime, Day) -> Day -> UTCTime -> Maybe Text -> Html
-renderPayrollReportsDialog draft templates history next defaultWeek now message =
+renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> Maybe (UTCTime, Day) -> [Day] -> UTCTime -> Maybe Text -> Html
+renderPayrollReportsDialog draft templates next weeks now message =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Scheduled reports"
         , dialogOverlayBody = body
@@ -65,16 +64,9 @@ renderPayrollReportsDialog draft templates history next defaultWeek now message 
         {nextDescription}
         <h3 class="h6">Send a completed week</h3>
         <p>Save settings first. Manual sends work with automation off. Unapproved entries are excluded.</p>
-        {manualForm defaultWeek Nothing "Review send"}
-        <hr/>
-        <h3 class="h6">Last four reporting weeks</h3>
-        <p>Snapshot at {reportLocalTimestamp now}. Provider acceptance does not confirm inbox delivery.</p>
-        <button type="button" class="btn btn-outline-secondary btn-sm" {...appShellActionAttrs (appShellActionByMarker @Shell.OpenPayrollReports) (defaultAppShellActionRoute (pathTo PayrollReportsAction))}>Refresh saved settings and history</button>
-        <p class="small text-muted">Refreshing discards unsaved edits.</p>
-        {historyBody}
+        {manualForm weeks}
     |]
     renderMessage text = [hsx|<p role="status" class="alert alert-info">{text}</p>|]
-    historyBody = if null history then [hsx|<p>No report executions yet.</p>|] else forEach history renderWeek
     renderTemplate template = let record = template.savedPayrollWorkbookConfigurationRecord in [hsx|<option value={tshow record.id} selected={draft.templateId == Just (unpackId record.id)}>{record.name}</option>|]
     renderRecipient address = [hsx|
         <li class="list-group-item d-flex align-items-center justify-content-between gap-2">
@@ -105,31 +97,22 @@ renderPayrollReportsDialog draft templates history next defaultWeek now message 
         Nothing -> [hsx|<p>Automation is off or a usable schedule is unavailable. Choose a template and recipients before sending.</p>|]
         Just (due, week) -> [hsx|<p>Scheduled for <strong>{reportLocalTimestamp due}</strong>, reporting {tshow week} – {tshow (addDays 6 week)}.</p>{overdue due}|]
     overdue due = if due <= now then [hsx|<p>Awaiting scheduler processing. Catch-up is permitted for 24 hours; older occurrences are marked missed.</p>|] else mempty
-    renderRun run = [hsx|<p>{payrollReportOriginLabel run.origin} · {reportLocalTimestamp run.createdAt} · {payrollReportStatusLabel run.status}</p>|]
-    resendForm group = case group.executions of
-        [] -> mempty
-        run : _ -> manualForm group.reportingWeek (Just (unpackId run.id)) "Review updated resend"
-    renderWeek group = [hsx|
-        <section class="mt-3"><h4 class="h6">{tshow group.reportingWeek} – {tshow (addDays 6 group.reportingWeek)}</h4>
-        {forEach group.executions renderRun}
-        {resendForm group}
-        </section>
-    |]
 
-manualForm :: Day -> Maybe UUID -> Text -> Html
-manualForm week previous label = renderAppShellActionForm (appShellActionByMarker @Shell.PreviewPayrollReport)
+manualForm :: [Day] -> Html
+manualForm [] = mempty
+manualForm weeks@(latest : _) = renderAppShellActionForm (appShellActionByMarker @Shell.PreviewPayrollReport)
     (defaultAppShellActionRoute (pathTo PreviewPayrollReportAction)) [hsx|
-        {weekField}
-        {forEach previous renderPrevious}
-        <button type="submit" class="btn btn-outline-primary">{label}</button>
+        <label class="form-label" for="report-manual-week">Reporting week</label>
+        <select id="report-manual-week" class="form-select mb-3" required="required" name={surfaceFieldNameFrom @Shell.ReportWeekField fields}>
+            {forEach weeks renderWeek}
+        </select>
+        <button type="submit" class="btn btn-outline-primary">Review and send</button>
     |]
   where
-    renderPrevious runId = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportPreviousRunField fields} value={tshow runId}/>|]
-    weekField = if isJust previous
-        then [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportWeekField fields} value={tshow week}/>|]
-        else [hsx|<label class="form-label">Reporting week start<input class="form-control" type="date" required="required" name={surfaceFieldNameFrom @Shell.ReportWeekField fields} value={tshow week}/></label>|]
-    fields = appShellActionFields @Shell.PreviewPayrollReport (surfaceField @Shell.ReportWeekField week)
-        (surfaceOptionalField @Shell.ReportPreviousRunField previous &: noSurfaceFields)
+    renderWeek week = [hsx|<option value={tshow week} selected={week == latest}>{weekLabel week}</option>|]
+    weekLabel week = formatTime defaultTimeLocale "%d %b %Y" week <> " – " <> formatTime defaultTimeLocale "%d %b %Y" (addDays 6 week)
+    fields = appShellActionFields @Shell.PreviewPayrollReport (surfaceField @Shell.ReportWeekField latest)
+        (surfaceOptionalField @Shell.ReportPreviousRunField Nothing &: noSurfaceFields)
 
 renderPayrollReportConfirmation :: PayrollReportSetting -> Day -> Maybe UUID -> UUID -> Maybe (UTCTime, Day) -> Html
 renderPayrollReportConfirmation setting week previous confirmation next = renderConfirmationDialog

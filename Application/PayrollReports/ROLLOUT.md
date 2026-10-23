@@ -97,10 +97,13 @@ local tests or documentation alone.
   after that boundary require manual review, never blind whole-list retry.
   Known pre-transport failures use the shared retry lifecycle. Expired/purged
   attachments fail rather than silently regenerating.
-- History is an explicitly timestamped snapshot; refresh it to see worker/provider
-  updates. Resend generates current approved data with current template and
-  recipients for the original dates, warning that everyone gets another copy.
-  It is not partial-recipient recovery or replay of old bytes.
+- The modal has no history display. Inspect retained run/delivery records through
+  authorised operational access when investigating worker/provider outcomes.
+  Manual sending selects a completed week under the current roster calendar and
+  generates current approved data with current template and recipients. It is
+  not partial-recipient recovery or replay of old bytes. The retained historical
+  reference path preserves original dates after calendar changes; it has no
+  history-list launcher in the modal.
 - Terminal failures, bounces and missed windows create deduplicated minimal
   incidents for active platform super admins, not venue-admin failure mail.
   The email path cannot reliably alert on its own total outage; inspect service

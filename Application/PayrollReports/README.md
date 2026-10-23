@@ -11,11 +11,16 @@ recipient validation still apply.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and
 `Web/View/Admin/PayrollReportsDialog.hs`, not this domain. The Admin → Exports
-modal uses the shared dialog lane and typed AppShell forms. History is an
-explicitly timestamped snapshot with a labelled refresh (which discards unsaved
-edits), not a live surface that replaces an administrator's draft. `History.hs`
-loads four distinct reporting weeks and all their executions, venue-scoped.
-Provider acceptance is never labelled as confirmed inbox delivery.
+modal uses the shared dialog lane and typed AppShell forms. It has no report
+history section or history refresh. Delivery/run records remain internal for
+idempotency, scheduling and operational recovery; removing the display does not
+remove data. Provider acceptance is not confirmed inbox delivery.
+
+Manual sending uses a completed roster-week selector, newest first and defaulting
+to the previous week. It includes empty weeks back to the earlier of venue
+creation or its earliest retained timesheet date (always at least the previous
+week). Labels show both dates and years; current/future weeks are excluded and
+requests retain server-side alignment/completion validation.
 
 `Generation.hs` owns repeatable-read report snapshots using explicit venue/actor
 provenance. `Export/WorkbookGeneration.hs` is shared with manual downloads, so

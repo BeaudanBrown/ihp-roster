@@ -7,7 +7,6 @@ import Application.Helper.FrontendContract.AppShell.Request (parseAppShellAction
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.PayrollReports.Generation (validCompletedReportWeek)
-import Application.PayrollReports.History
 import Application.PayrollReports.Job (nextScheduledPayrollReport)
 import Application.PayrollReports.Manual
 import Application.PayrollReports.Settings
@@ -25,13 +24,17 @@ respondReports :: (?context :: ControllerContext, ?modelContext :: ModelContext,
 respondReports submitted message = do
     settings <- fetchPayrollReportSettings
     templates <- listSavedPayrollWorkbookConfigurations
-    history <- fetchPayrollReportHistory
+    earliestEntry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId currentVenueId)
+        |> orderByAsc #operationalDate |> fetchOneOrNothing
     config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
     now <- getCurrentTime
     let current = either (const Nothing) (\value -> value) settings
     next <- maybe (pure Nothing) nextScheduledPayrollReport current
     let today = localDay (resolvedInstantLocalTime (resolvedInstantFromUTC now))
-    respondHtml (renderPayrollReportsDialog (fromMaybe (reportDraft current) submitted) (either (const []) (\value -> value) templates) (either (const []) (\value -> value) history) next (addDays (-7) (startOfWeekFor config.rosterWeekStartsOn today)) now message)
+    let venueCreated = localDay (resolvedInstantLocalTime (resolvedInstantFromUTC currentVenue.createdAt))
+    let earliest = maybe venueCreated (min venueCreated . (.operationalDate)) earliestEntry
+    let weeks = completedPayrollReportWeeks config.rosterWeekStartsOn today earliest
+    respondHtml (renderPayrollReportsDialog (fromMaybe (reportDraft current) submitted) (either (const []) (\value -> value) templates) next weeks now message)
 
 savePayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 savePayrollReports = do
@@ -77,7 +80,7 @@ settingsError :: PayrollReportSettingsError -> Text
 settingsError = \case
     PayrollReportAccessDenied -> "Payroll report access denied."
     PayrollReportInvalidSettings message -> message
-    PayrollReportStaleSettings -> "Settings changed while this form was open. Refresh saved settings, review the changes, and try again."
+    PayrollReportStaleSettings -> "Settings changed while this form was open. Close and reopen this dialog to review current settings, then try again."
     PayrollReportTemplateUnavailable -> "That template is no longer available. Choose a current template."
 
 previewPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
@@ -117,4 +120,4 @@ sendPayrollReport = do
                 (surfaceFieldValue @Shell.ReportPreviousRunField fields)
             case outcome of
                 Left message -> respondReports Nothing (Just message)
-                Right _ -> respondReports Nothing (Just "Report prepared for delivery. Review its status below; provider acceptance does not confirm inbox delivery.")
+                Right _ -> respondReports Nothing (Just "Report prepared for delivery. This does not confirm inbox delivery.")
