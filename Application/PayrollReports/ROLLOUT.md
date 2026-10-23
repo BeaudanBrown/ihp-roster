@@ -13,8 +13,14 @@ Resend acceptance, inbox placement, or recipient replies.
    copying customer data into issue evidence.
 2. Rehearse upgrading from the deployed revision to the candidate. Migrations
    `1792639000.sql` and `1792640100.sql` add settings, report history and enums;
-   they do not opt in existing venues or discard customer data. Never use
-   `make db` or replay a schema dump against production.
+   they do not opt in existing venues or discard customer data. Data-only
+   migration `1792713300.sql` aligns differing saved weekdays with each venue's
+   roster-week start, increments settings revisions, restarts activation without
+   backfill, and cancels pending automatic runs only for changed schedules.
+   Its rehearsal fixtures must pass: recipients/templates/send times, manual and
+   updated sends, terminal history and already aligned schedules are preserved.
+   Review changed schedules' next occurrences before restarting the timer.
+   Never use `make db` or replay a schema dump against production.
 3. Confirm the web and worker share the existing SMTP configuration and delivery
    policy described in [EmailDelivery](../EmailDelivery/README.md). The group
    adapter sets `reports@bepis.lol` itself; do **not** change global `MAIL_FROM`.
@@ -33,7 +39,7 @@ Resend acceptance, inbox placement, or recipient replies.
 ## Deploy and opt in
 
 1. Stop the scheduler timer and worker during the backed-up schema upgrade.
-   Apply the additive migrations through the normal deployment mechanism, then
+   Apply pending schema and data migrations through the normal deployment mechanism, then
    start the matching web/worker package. Ensure the packaged
    `PayrollReportSweep` is present before enabling `payroll-report-sweep.timer`
    (`services.ihp-roster.payrollReports.enable`, default `false`). Enabling the
