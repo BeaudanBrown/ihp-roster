@@ -58,20 +58,26 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
                         [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Payroll"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
                 template <- query @PayrollWorkbookConfiguration |> fetchOne
-                let params = [("reportRecipients", "payroll@example.com"), ("reportTemplate", cs (tshow template.id)), ("reportWeekday", "1"), ("reportMinute", "09:30")]
+                let params = [("reportRecipients", "payroll@example.com"), ("reportTemplate", cs (tshow template.id)), ("reportMinute", "09:30")]
                 denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction params
-                denied `responseBodyShouldContain` "Confirm your authority"
+                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientEntry", "invalid-address"), ("reportRecipientAdd", "true")])
+                denied `responseBodyShouldContain` "Enter valid email addresses"
                 denied `responseBodyShouldContain` "payroll@example.com"
+                added <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientEntry", "extra@example.com"), ("reportRecipientAdd", "true")])
+                added `responseBodyShouldContain` "Remove extra@example.com"
+                removed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientRemove", "payroll@example.com")])
+                removed `responseBodyShouldNotContain` "Remove payroll@example.com"
                 query @PayrollReportSetting |> fetchCount `shouldReturn` 0
                 saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction (params <> [("reportConsent", "true")])
+                    callActionWithParams SavePayrollReportsAction params
                 saved `responseBodyShouldContain` "settings saved"
                 setting <- query @PayrollReportSetting |> fetchOne
                 setting.enabled `shouldBe` False
                 setting.minuteOfDay `shouldBe` 570
                 stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction (params <> [("reportConsent", "true")])
+                    callActionWithParams SavePayrollReportsAction params
                 stale `responseBodyShouldContain` "Settings changed"
                 preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams PreviewPayrollReportAction [("reportWeek", "2025-01-06")]

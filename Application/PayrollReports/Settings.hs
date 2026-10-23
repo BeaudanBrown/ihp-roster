@@ -23,10 +23,8 @@ data PayrollReportSettingsInput = PayrollReportSettingsInput
     { recipients :: ![Text]
     , configurationId :: !(Maybe UUID)
     , enabled :: !Bool
-    , weekday :: !Int
     , minuteOfDay :: !Int
     , expectedRevision :: !(Maybe Int)
-    , sharingConfirmed :: !Bool
     }
 
 data PayrollReportSettingsError
@@ -34,7 +32,6 @@ data PayrollReportSettingsError
     | PayrollReportInvalidSettings !Text
     | PayrollReportStaleSettings
     | PayrollReportTemplateUnavailable
-    | PayrollReportSharingConfirmationRequired
     deriving (Eq, Show)
 
 validatePayrollReportRecipients :: [Text] -> Either PayrollReportSettingsError [Text]
@@ -70,8 +67,8 @@ withPayrollReportVenueLock venueId = do
 savePayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
 savePayrollReportSettings input
     | not canManage = pure (Left PayrollReportAccessDenied)
-    | input.weekday < 0 || input.weekday > 6 || input.minuteOfDay < 0 || input.minuteOfDay >= 1440 =
-        pure (Left (PayrollReportInvalidSettings "Choose a valid weekday and time."))
+    | input.minuteOfDay < 0 || input.minuteOfDay >= 1440 =
+        pure (Left (PayrollReportInvalidSettings "Choose a valid time."))
     | otherwise = case validatePayrollReportRecipients input.recipients of
         Left failure -> pure (Left failure)
         Right addresses
@@ -79,6 +76,7 @@ savePayrollReportSettings input
                 pure (Left (PayrollReportInvalidSettings "Choose a template and at least one recipient before enabling."))
             | otherwise -> withTransaction do
                 withPayrollReportVenueLock (unpackId currentVenueId)
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
                 existing <- query @PayrollReportSetting |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing
                 templateValid <- case input.configurationId of
                     Nothing -> pure True
@@ -87,20 +85,18 @@ savePayrollReportSettings input
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> fetchExists
                 let recipientsChanged = maybe (not (null addresses)) ((/= addresses) . (.recipients)) existing
-                let enabling = input.enabled && maybe True (not . (.enabled)) existing
                 if fmap (.revision) existing /= input.expectedRevision then pure (Left PayrollReportStaleSettings)
                 else if not templateValid then pure (Left PayrollReportTemplateUnavailable)
-                else if (recipientsChanged || enabling) && not input.sharingConfirmed then pure (Left PayrollReportSharingConfirmationRequired)
                 else do
                     now <- getCurrentTime
                     let record = fromMaybe (newRecord @PayrollReportSetting |> set #venueId (unpackId currentVenueId)) existing
                     let templateChanged = record.configurationId /= input.configurationId
-                    let scheduleChanged = record.enabled /= input.enabled || record.weekday /= input.weekday || record.minuteOfDay /= input.minuteOfDay
+                    let scheduleChanged = record.enabled /= input.enabled || record.weekday /= config.rosterWeekStartsOn || record.minuteOfDay /= input.minuteOfDay
                     let updated = record
                             |> set #configurationId input.configurationId
                             |> set #recipients addresses
                             |> set #enabled input.enabled
-                            |> set #weekday input.weekday
+                            |> set #weekday config.rosterWeekStartsOn
                             |> set #minuteOfDay input.minuteOfDay
                             |> set #revision (maybe 0 ((+ 1) . (.revision)) existing)
                             |> set #deliveryRevision (record.deliveryRevision + if recipientsChanged || templateChanged then 1 else 0)

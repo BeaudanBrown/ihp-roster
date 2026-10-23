@@ -43,26 +43,35 @@ savePayrollReports = do
                     { recipientsText = surfaceFieldValue @Shell.ReportRecipientsField fields
                     , templateId = surfaceFieldValue @Shell.ReportTemplateField fields
                     , enabled = fromMaybe False (surfaceFieldValue @Shell.ReportEnabledField fields)
-                    , weekday = surfaceFieldValue @Shell.ReportWeekdayField fields
+                    , recipientEntry = fromMaybe "" (surfaceFieldValue @Shell.ReportRecipientEntryField fields)
                     , timeText = surfaceFieldValue @Shell.ReportMinuteField fields
                     , revision = surfaceFieldValue @Shell.ReportRevisionField fields
-                    , consent = fromMaybe False (surfaceFieldValue @Shell.ReportConsentField fields)
                     }
-            case parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack draft.timeText) :: Maybe TimeOfDay of
-                Nothing -> respondReports (Just draft) (Just "Choose a valid local time.")
-                Just time -> do
-                    outcome <- savePayrollReportSettings PayrollReportSettingsInput
-                        { recipients = filter (not . Text.null) (map Text.strip (Text.lines draft.recipientsText))
-                        , configurationId = draft.templateId
-                        , Settings.enabled = draft.enabled
-                        , Settings.weekday = draft.weekday
-                        , minuteOfDay = time.todHour * 60 + time.todMin
-                        , expectedRevision = draft.revision
-                        , sharingConfirmed = draft.consent
-                        }
-                    case outcome of
+            let addresses = filter (not . Text.null) (map Text.strip (Text.lines draft.recipientsText))
+            let adding = fromMaybe False (surfaceFieldValue @Shell.ReportRecipientAddField fields)
+            case surfaceFieldValue @Shell.ReportRecipientRemoveField fields of
+                Just address -> respondReports (Just (draft { recipientsText = Text.intercalate "\n" (filter (/= address) addresses) })) Nothing
+                Nothing -> do
+                    let pending = Text.strip draft.recipientEntry
+                    let candidates = addresses <> [pending | adding || not (Text.null pending)]
+                    case validatePayrollReportRecipients candidates of
                         Left failure -> respondReports (Just draft) (Just (settingsError failure))
-                        Right _ -> respondReports Nothing (Just "Payroll report settings saved. The next automatic reporting period is shown below.")
+                        Right recipients -> do
+                            let updatedDraft = draft { recipientsText = Text.intercalate "\n" recipients, recipientEntry = "" }
+                            if adding then respondReports (Just updatedDraft) Nothing
+                            else case parseTimeM True defaultTimeLocale "%H:%M" (Text.unpack draft.timeText) :: Maybe TimeOfDay of
+                                Nothing -> respondReports (Just updatedDraft) (Just "Choose a valid local time.")
+                                Just time -> do
+                                    outcome <- savePayrollReportSettings PayrollReportSettingsInput
+                                        { recipients
+                                        , configurationId = draft.templateId
+                                        , Settings.enabled = draft.enabled
+                                        , minuteOfDay = time.todHour * 60 + time.todMin
+                                        , expectedRevision = draft.revision
+                                        }
+                                    case outcome of
+                                        Left failure -> respondReports (Just updatedDraft) (Just (settingsError failure))
+                                        Right _ -> respondReports Nothing (Just "Payroll report settings saved. The next automatic reporting period is shown below.")
 
 settingsError :: PayrollReportSettingsError -> Text
 settingsError = \case
@@ -70,7 +79,6 @@ settingsError = \case
     PayrollReportInvalidSettings message -> message
     PayrollReportStaleSettings -> "Settings changed while this form was open. Refresh saved settings, review the changes, and try again."
     PayrollReportTemplateUnavailable -> "That template is no longer available. Choose a current template."
-    PayrollReportSharingConfirmationRequired -> "Confirm your authority to share payroll data and the visibility of all recipients."
 
 previewPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 previewPayrollReport = do

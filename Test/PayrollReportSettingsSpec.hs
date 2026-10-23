@@ -18,10 +18,8 @@ input = PayrollReportSettingsInput
     { recipients = [" Payroll@Example.com ", "payroll@example.com"]
     , configurationId = Nothing
     , enabled = False
-    , weekday = 1
     , minuteOfDay = 540
     , expectedRevision = Nothing
-    , sharingConfirmed = True
     }
 
 tests :: Spec
@@ -58,14 +56,13 @@ tests = aroundAll withDatabaseTestContext do
                     saved.enabled `shouldBe` False
                     saved.recipients `shouldBe` ["payroll@example.com"]
                     savePayrollReportSettings input `shouldReturn` Left PayrollReportStaleSettings
-                    let editInput = input { expectedRevision = Just saved.revision, recipients = ["new@example.com"], sharingConfirmed = False }
-                    savePayrollReportSettings editInput `shouldReturn` Left PayrollReportSharingConfirmationRequired
-                    updated <- savePayrollReportSettings (editInput { sharingConfirmed = True }) >>= expectRight
+                    let editInput = input { expectedRevision = Just saved.revision, recipients = ["new@example.com"] }
+                    updated <- savePayrollReportSettings editInput >>= expectRight
                     updated.deliveryRevision `shouldBe` (saved.deliveryRevision + 1)
                     updated.scheduleActivatedAt `shouldSatisfy` (>= saved.scheduleActivatedAt)
                     query @PayrollReportSetting |> fetchCount `shouldReturn` 1
 
-        it "requires a venue-owned template and confirmed sharing before enabling" $ withContext do
+        it "requires a venue-owned template and derives the send day from the venue calendar without consent fields" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Reports"
                 other <- createVenueWithConfig "Other"
@@ -80,9 +77,12 @@ tests = aroundAll withDatabaseTestContext do
                     template <- createSavedPayrollWorkbookConfiguration (newConfiguration "Local" 1 ["summary"]) >>= expectRight
                     let enabledInput :: PayrollReportSettingsInput
                         enabledInput = input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) }
-                    savePayrollReportSettings (enabledInput { sharingConfirmed = False }) `shouldReturn` Left PayrollReportSharingConfirmationRequired
+                    config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                    _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
                     saved <- savePayrollReportSettings enabledInput >>= expectRight
                     saved.enabled `shouldBe` True
+                    saved.weekday `shouldBe` 3
+                    saved.minuteOfDay `shouldBe` 540
 
         it "denies managers and keeps settings venue-scoped" $ withContext do
             withCleanDb do

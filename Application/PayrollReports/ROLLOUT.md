@@ -51,8 +51,8 @@ Resend acceptance, inbox placement, or recipient replies.
    simulate an adverse event only with provider-approved test destinations.
    Retain only bounded status/timestamp evidence. No customer payroll is needed.
 5. A venue admin/owner (or authorised founder support) selects a saved template,
-   recipients and local schedule, confirms sharing authority/visibility, and
-   enables automation. Review the next occurrence and reporting dates. New or
+   recipients and local send time, and enables automation. The send day follows
+   the venue's roster-week start; all recipients are visible in To and Reply-To. Review the next occurrence and reporting dates. New or
    edited schedules start in the future, without backfill. Calendar changes
    disable automation until reviewed and explicitly re-enabled.
 

@@ -3,7 +3,11 @@
 See [rollout and recovery](ROLLOUT.md) for migration, Resend verification and
 controlled-send approval boundaries.
 
-`Settings.hs` owns venue-scoped payroll email configuration and sharing consent.
+`Settings.hs` owns venue-scoped payroll email configuration. Recipients are
+edited as individual Add/Remove rows in the modal; draft operations preserve
+other fields without saving settings. Save also validates any pending address.
+Sharing does not require an authorisation checkbox; venue access controls and
+recipient validation still apply.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and
 `Web/View/Admin/PayrollReportsDialog.hs`, not this domain. The Admin → Exports
@@ -27,6 +31,12 @@ including the first save before a settings row exists. Acquire this lock before
 workbook locks. Standalone operations own their transaction; durable publishers
 must use explicitly named in-current-transaction operations.
 
+Automatic reports run on the venue's roster-week start day at the saved local
+time (09:00 by default), covering the previous completed roster week. The request
+cannot choose a weekday; settings save derives it under the venue lock, and the
+scheduler reads the current venue calendar. The retained settings `weekday`
+column is a compatibility snapshot, not a separate calendar authority.
+
 `Schedule.hs` resolves weekly venue-local occurrences, moving spring gaps to the
 first valid minute and choosing the first autumn occurrence. `Job.hs` integrates
 with the existing AppJob worker; `PayrollReportSweep` is an enqueue-only minute
@@ -49,8 +59,14 @@ Recipient lists are private data. Do not derive printable request DTOs or includ
 addresses in operational alerts/logs. The 50-recipient cap follows Resend's
 [send-email limits](https://resend.com/docs/api-reference/emails/send-email)
 (reviewed 2026-10-22). Validation is not mailbox verification or proof of authority;
-sharing requires explicit administrator consent.
+all group recipients remain visible in To and Reply-To.
 
 Migration `1792639000` is additive, creates no opted-in venues and changes no
 existing customer rows. Deploy through the normal backed-up migration procedure;
 rollback application code without dropping the retained settings table.
+
+Data-only migration `1792713300` aligns existing differing weekdays, increments
+the settings revision and restarts activation in the future. It cancels only
+pending automatic runs for changed schedules, preserving manual/updated sends,
+terminal history, templates, recipients and time. Already aligned schedules are
+untouched. Its rehearsal fixtures assert these preservation boundaries.

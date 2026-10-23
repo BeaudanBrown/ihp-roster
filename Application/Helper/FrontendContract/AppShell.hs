@@ -35,10 +35,11 @@ module Application.Helper.FrontendContract.AppShell
     , ReportRecipientsField
     , ReportTemplateField
     , ReportEnabledField
-    , ReportWeekdayField
     , ReportMinuteField
     , ReportRevisionField
-    , ReportConsentField
+    , ReportRecipientEntryField
+    , ReportRecipientAddField
+    , ReportRecipientRemoveField
     , ReportWeekField
     , ReportPreviousRunField
     , ReportConfirmationField
@@ -185,10 +186,11 @@ data SendPayrollReport
 data ReportRecipientsField
 data ReportTemplateField
 data ReportEnabledField
-data ReportWeekdayField
 data ReportMinuteField
 data ReportRevisionField
-data ReportConsentField
+data ReportRecipientEntryField
+data ReportRecipientAddField
+data ReportRecipientRemoveField
 data ReportWeekField
 data ReportPreviousRunField
 data ReportConfirmationField
@@ -317,10 +319,11 @@ type AppShellContract =
             '[ Field ReportRecipientsField 'WireText
              , OptionalField ReportTemplateField 'WireUUID
              , OptionalField ReportEnabledField 'WireBool
-             , Field ReportWeekdayField 'WireInt
              , Field ReportMinuteField 'WireText
              , OptionalField ReportRevisionField 'WireInt
-             , OptionalField ReportConsentField 'WireBool
+             , OptionalField ReportRecipientEntryField 'WireText
+             , OptionalField ReportRecipientAddField 'WireBool
+             , OptionalField ReportRecipientRemoveField 'WireText
              ] DialogSubmitOptions
          , AppShellAction PreviewPayrollReport
             '[ Field ReportWeekField 'WireDay

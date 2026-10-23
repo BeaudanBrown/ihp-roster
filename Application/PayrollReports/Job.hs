@@ -76,7 +76,7 @@ nextScheduledPayrollReport setting
     seek :: (?modelContext :: ModelContext) => VenueConfig -> Int -> UTCTime -> IO (Maybe (UTCTime, Day))
     seek config attempts after
         | attempts >= 8 = pure Nothing
-        | otherwise = case nextReportOccurrence config.timezone setting.weekday setting.minuteOfDay after of
+        | otherwise = case nextReportOccurrence config.timezone config.rosterWeekStartsOn setting.minuteOfDay after of
             Left _ -> pure Nothing
             Right due -> do
                 let week = reportWeekForOccurrence config.rosterWeekStartsOn due

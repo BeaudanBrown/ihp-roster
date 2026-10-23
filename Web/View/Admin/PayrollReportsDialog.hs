@@ -15,10 +15,9 @@ data ReportDraft = ReportDraft
     { recipientsText :: !Text
     , templateId :: !(Maybe UUID)
     , enabled :: !Bool
-    , weekday :: !Int
+    , recipientEntry :: !Text
     , timeText :: !Text
     , revision :: !(Maybe Int)
-    , consent :: !Bool
     }
 
 reportDraft :: Maybe PayrollReportSetting -> ReportDraft
@@ -26,10 +25,9 @@ reportDraft setting = ReportDraft
     { recipientsText = maybe "" (Text.intercalate "\n" . (.recipients)) setting
     , templateId = setting >>= (.configurationId)
     , enabled = maybe False (.enabled) setting
-    , weekday = maybe 1 (.weekday) setting
+    , recipientEntry = ""
     , timeText = maybe "09:00" (\s -> pad (s.minuteOfDay `div` 60) <> ":" <> pad (s.minuteOfDay `mod` 60)) setting
     , revision = (.revision) <$> setting
-    , consent = False
     }
   where
     pad n = Text.justifyRight 2 '0' (tshow n)
@@ -52,14 +50,14 @@ renderPayrollReportsDialog draft templates history next defaultWeek now message 
         (surfaceField @Shell.ReportRecipientsField draft.recipientsText)
         ( surfaceOptionalField @Shell.ReportTemplateField draft.templateId
         &: surfaceOptionalField @Shell.ReportEnabledField (Just draft.enabled)
-        &: surfaceField @Shell.ReportWeekdayField draft.weekday
         &: surfaceField @Shell.ReportMinuteField draft.timeText
         &: surfaceOptionalField @Shell.ReportRevisionField draft.revision
-        &: surfaceOptionalField @Shell.ReportConsentField (Just draft.consent)
+        &: surfaceOptionalField @Shell.ReportRecipientEntryField (Just draft.recipientEntry)
+        &: surfaceOptionalField @Shell.ReportRecipientAddField Nothing
+        &: surfaceOptionalField @Shell.ReportRecipientRemoveField Nothing
         &: noSurfaceFields )
     body = [hsx|
         {forEach message renderMessage}
-        <p>Weekly payroll emails use approved entries only. Times are Australia/Melbourne, including daylight saving.</p>
         {renderAppShellActionForm (appShellActionByMarker @Shell.SavePayrollReports)
             ((defaultAppShellActionRoute (pathTo SavePayrollReportsAction)) { appShellActionRouteExtraAttrs = [("id", "payroll-report-settings-form")] }) settingsFields}
         <hr/>
@@ -78,26 +76,29 @@ renderPayrollReportsDialog draft templates history next defaultWeek now message 
     renderMessage text = [hsx|<p role="status" class="alert alert-info">{text}</p>|]
     historyBody = if null history then [hsx|<p>No report executions yet.</p>|] else forEach history renderWeek
     renderTemplate template = let record = template.savedPayrollWorkbookConfigurationRecord in [hsx|<option value={tshow record.id} selected={draft.templateId == Just (unpackId record.id)}>{record.name}</option>|]
-    renderDay (day, label) = [hsx|<option value={tshow day} selected={draft.weekday == day}>{label}</option>|]
-    days = zip [0..6] (["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] :: [Text])
+    renderRecipient address = [hsx|
+        <li class="list-group-item d-flex align-items-center justify-content-between gap-2">
+            <span class="text-break">{address}</span>
+            <button type="submit" class="btn btn-outline-secondary btn-sm" formnovalidate="formnovalidate" name={surfaceFieldNameFrom @Shell.ReportRecipientRemoveField fields} value={address} aria-label={"Remove " <> address}>Remove</button>
+        </li>
+    |]
     renderRevision revision = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportRevisionField fields} value={tshow revision}/>|]
     settingsFields = [hsx|
-        <label class="form-label" for="report-recipients">Recipients (one email address per line, maximum 50)</label>
-        <textarea id="report-recipients" class="form-control mb-3" rows="4" name={surfaceFieldNameFrom @Shell.ReportRecipientsField fields}>{draft.recipientsText}</textarea>
+        <input type="hidden" name={surfaceFieldNameFrom @Shell.ReportRecipientsField fields} value={draft.recipientsText}/>
+        <label class="form-label" for="report-recipient-entry">Recipients</label>
+        <div class="input-group mb-2">
+            <input id="report-recipient-entry" class="form-control" type="email" autocomplete="email" placeholder="Email address" name={surfaceFieldNameFrom @Shell.ReportRecipientEntryField fields} value={draft.recipientEntry}/>
+            <button type="submit" class="btn btn-outline-primary" formnovalidate="formnovalidate" name={surfaceFieldNameFrom @Shell.ReportRecipientAddField fields} value="true">Add</button>
+        </div>
+        <ul class="list-group mb-3" aria-label="Report recipients">{forEach (filter (not . Text.null) (Text.lines draft.recipientsText)) renderRecipient}</ul>
         <label class="form-label" for="report-template">Saved payroll template</label>
         <select id="report-template" class="form-select mb-3" name={surfaceFieldNameFrom @Shell.ReportTemplateField fields}>
             <option value="" selected={isNothing draft.templateId}>Choose a template</option>
             {forEach templates renderTemplate}
         </select>
-        <label class="form-label" for="report-weekday">Send day</label>
-        <select id="report-weekday" class="form-select mb-3" name={surfaceFieldNameFrom @Shell.ReportWeekdayField fields}>
-            {forEach days renderDay}
-        </select>
-        <label class="form-label" for="report-time">Local send time</label>
+        <label class="form-label" for="report-time">Send time on the first day of each roster week</label>
         <input id="report-time" class="form-control mb-3" type="time" required="required" name={surfaceFieldNameFrom @Shell.ReportMinuteField fields} value={draft.timeText}/>
         <div class="form-check mb-3"><input id="report-enabled" class="form-check-input" type="checkbox" name={surfaceFieldNameFrom @Shell.ReportEnabledField fields} value="true" checked={draft.enabled}/><label class="form-check-label" for="report-enabled">Enable automatic weekly reports</label></div>
-        <div class="form-check mb-3"><input id="report-consent" class="form-check-input" type="checkbox" name={surfaceFieldNameFrom @Shell.ReportConsentField fields} value="true" checked={draft.consent}/><label class="form-check-label" for="report-consent">I am authorised to share payroll data with this list. Everyone sees all recipients in To and Reply-To; replies go directly to the group. External addresses are allowed and are not verified.</label></div>
-        <p class="small text-muted">Confirmation is required when enabling or changing recipients. Disabling stops unstarted automatic sends, not explicit manual sends. Schedule edits start at the next future occurrence without backfill.</p>
         {forEach draft.revision renderRevision}
     |]
     nextDescription = case next of
