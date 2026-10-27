@@ -1402,10 +1402,30 @@ CREATE TABLE payroll_workbook_configuration_families (
     UNIQUE(configuration_id, family_key),
     CHECK (position >= 0)
 );
+CREATE TABLE recipient_groups (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    recipients TEXT[] NOT NULL,
+    revision INT DEFAULT 0 NOT NULL,
+    created_by_user_id UUID NOT NULL,
+    updated_by_user_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 100) AND (name = regexp_replace(btrim(name), '[[:space:]]+', ' ', 'g'))),
+    CHECK ((cardinality(recipients) > 0) AND (cardinality(recipients) <= 50)),
+    CHECK (revision >= 0)
+);
+CREATE UNIQUE INDEX recipient_groups_venue_name_idx ON recipient_groups (venue_id, lower(name)) WHERE archived_at IS NULL;
 CREATE TABLE payroll_report_settings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL UNIQUE,
     configuration_id UUID,
+    recipient_group_id UUID,
     recipients TEXT[] DEFAULT '{}' NOT NULL,
     enabled BOOLEAN DEFAULT FALSE NOT NULL,
     weekday INT DEFAULT 1 NOT NULL,
@@ -1418,6 +1438,7 @@ CREATE TABLE payroll_report_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (configuration_id) REFERENCES payroll_workbook_configurations (id) ON DELETE RESTRICT,
+    CONSTRAINT payroll_report_settings_recipient_group_fkey FOREIGN KEY (recipient_group_id) REFERENCES recipient_groups (id) ON DELETE RESTRICT,
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((weekday >= 0) AND (weekday <= 6)),
     CHECK ((minute_of_day >= 0) AND (minute_of_day < 1440)),

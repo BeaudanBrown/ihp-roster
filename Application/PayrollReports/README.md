@@ -8,6 +8,11 @@ edited as individual Add/Remove rows in the modal; draft operations preserve
 other fields without saving settings. Save also validates any pending address.
 Sharing does not require an authorisation checkbox; venue access controls and
 recipient validation still apply.
+Reusable group lifecycle is owned by [Recipient groups](../RecipientGroups/README.md).
+Its edits preserve prepared snapshots; confirmed group deletion disables a linked
+schedule without revoking explicit manual sends. The legacy inline settings list
+below retains its existing recipient-revocation behaviour until selection authority
+moves to groups.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and
 `Web/View/Admin/PayrollReportsDialog.hs`, not this domain. The Admin → Exports

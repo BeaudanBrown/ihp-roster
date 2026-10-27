@@ -78,6 +78,7 @@ applicationTableNames =
     , "user_feedback_items"
     , "payroll_report_runs"
     , "payroll_report_settings"
+    , "recipient_groups"
     , "payroll_workbook_configurations"
     , "payroll_workbook_configuration_families"
     , "export_jobs"

@@ -374,6 +374,8 @@ Application/PublicHolidays/OverrideIncident.hs	production	runtime	WorkerMain	Rea
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Shadow.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Sync.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/RecipientGroups.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/RecipientGroups/Validation.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Mutations.hs	production	runtime	Main	Reachable from Main

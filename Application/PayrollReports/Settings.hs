@@ -6,15 +6,15 @@ module Application.PayrollReports.Settings
     , savePayrollReportSettings
     , withPayrollReportVenueLock
     , clearPayrollReportTemplateInCurrentTransaction
+    , clearPayrollReportRecipientGroupInCurrentTransaction
     , disablePayrollReportsForCalendarChange
     , payrollReportRunIsCurrent
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
 import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenueId, currentVenueOrNothing)
+import Application.RecipientGroups.Validation (validateRecipientAddresses)
 import Control.Monad (void)
-import qualified Data.List as List
-import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -35,19 +35,7 @@ data PayrollReportSettingsError
     deriving (Eq, Show)
 
 validatePayrollReportRecipients :: [Text] -> Either PayrollReportSettingsError [Text]
-validatePayrollReportRecipients values
-    | length values > 50 = invalid "Use at most 50 recipients."
-    | any invalidAddress normalized = invalid "Enter valid email addresses without display names."
-    | otherwise = Right (List.nub normalized)
-  where
-    normalized = map (Text.toLower . Text.strip) values
-    invalid message = Left (PayrollReportInvalidSettings message)
-    invalidAddress address = Text.null address || Text.length address > 254
-        || Text.any (`elem` ['\r', '\n', ',', ';', '<', '>']) address
-        || case isEmail address of
-            Success -> False
-            Failure _ -> True
-            FailureHtml _ -> True
+validatePayrollReportRecipients = either (Left . PayrollReportInvalidSettings) Right . validateRecipientAddresses
 
 canManage :: (?context :: ControllerContext) => Bool
 canManage = isJust currentVenueOrNothing && hasRole VenueAdmin
@@ -129,6 +117,23 @@ clearPayrollReportTemplateInCurrentTransaction venueId configurationId actorId =
             |> updateRecord
             |> void
         cancelPendingPayrollReports venueId True
+
+-- Group deletion is explicit schedule disablement, not recipient revocation.
+-- Caller owns the transaction and venue lock, and has confirmed the impact.
+-- Keep deliveryRevision unchanged so prepared manual snapshots remain valid.
+clearPayrollReportRecipientGroupInCurrentTransaction :: (?modelContext :: ModelContext) => UUID -> UUID -> UUID -> IO ()
+clearPayrollReportRecipientGroupInCurrentTransaction venueId groupId actorId = do
+    settings <- query @PayrollReportSetting
+        |> filterWhere (#venueId, venueId)
+        |> filterWhere (#recipientGroupId, Just groupId)
+        |> fetchOneOrNothing
+    forM_ settings \record -> do
+        now <- getCurrentTime
+        record |> set #recipientGroupId Nothing |> set #enabled False
+            |> set #revision (record.revision + 1)
+            |> set #scheduleActivatedAt now |> set #updatedAt now
+            |> set #updatedByUserId actorId |> updateRecord |> void
+        cancelPendingPayrollReports venueId False
 
 -- Caller holds the roster calendar transaction; acquire the venue lock before
 -- changing the calendar so report snapshots cannot cross that boundary.
