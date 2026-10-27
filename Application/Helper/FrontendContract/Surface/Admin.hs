@@ -7,6 +7,10 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminVenueSettingsSurface
     , AdminInvitesSurface
     , AdminExportsSurface
+    , AdminRecipientGroupsSurface
+    , AdminRecipientGroupsScope
+    , AdminRecipientGroupsFragment
+    , AdminRecipientGroups
     , AdminShiftTypesSurface
     , AdminRosterGroupsSurface
     , AdminXeroSurface
@@ -98,6 +102,7 @@ data AdminXeroPageScope
 data AdminVenueConfigScope
 data AdminInvitesScope
 data AdminExportsScope
+data AdminRecipientGroupsScope
 data AdminShiftTypesScope
 data AdminRosterGroupsScope
 data AdminXeroScope
@@ -109,6 +114,7 @@ data AdminXeroPage
 data AdminVenueConfig
 data AdminInvites
 data AdminExports
+data AdminRecipientGroups
 data AdminShiftTypes
 data AdminRosterGroups
 data AdminXero
@@ -119,6 +125,7 @@ data AdminVenueSettingsFragment
 data AdminRosterWindowStartDaySetting
 data AdminInvitesFragment
 data AdminExportsFragment
+data AdminRecipientGroupsFragment
 data AdminShiftTypesFragment
 data AdminRosterGroupsFragment
 data AdminXeroShellFragment
@@ -191,6 +198,7 @@ data XeroReferenceSyncState
 type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]
 type AdminInvitesResource = Resource AdminInvites '[ Field VenueId 'WireUUID ]
 type AdminExportsResource = Resource AdminExports '[ Field VenueId 'WireUUID ]
+type AdminRecipientGroupsResource = Resource AdminRecipientGroups '[ Field VenueId 'WireUUID ]
 type AdminShiftTypesResource = Resource AdminShiftTypes '[ Field VenueId 'WireUUID ]
 type AdminRosterGroupsResource = Resource AdminRosterGroups '[ Field VenueId 'WireUUID ]
 type XeroConnectionResource = Resource XeroConnection '[ Field VenueId 'WireUUID ]
@@ -205,9 +213,16 @@ type AdminPageSurface =
              , ContainsSurface AdminInvites
              , ContainsSurface AdminVenueConfig
              , ContainsSurface AdminExports
+             , ContainsSurface AdminRecipientGroups
              , ContainsSurface AdminShiftTypes
              , ContainsSurface AdminRosterGroups
              ]
+         ]
+
+type AdminRecipientGroupsSurface =
+    Surface AdminRecipientGroups
+        '[ Scope AdminRecipientGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
+         , Fragment AdminRecipientGroupsFragment '[] '[ 'MountTarget AdminRecipientGroupsFragment '[], 'Eager, 'Live, 'DependsOn AdminRecipientGroupsResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminXeroPageSurface =

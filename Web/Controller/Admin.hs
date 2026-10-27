@@ -24,6 +24,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDefaults (staffAwardRateIsAvailable)
+import qualified Application.RecipientGroups as RecipientGroups
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -240,6 +241,8 @@ instance Controller AdminController where
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
             savedPayrollWorkbookConfigurations <- profileActionSpan "admin.page.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
+            recipientGroups <- either (const []) (\values -> values) <$> RecipientGroups.listRecipientGroups
+            let recipientGroupsSectionOpen = paramOrDefault False "showRecipientGroups"
             currentTime <- getCurrentTime
             let today = utctDay currentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })

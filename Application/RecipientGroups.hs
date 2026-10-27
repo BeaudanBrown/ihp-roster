@@ -4,7 +4,9 @@ module Application.RecipientGroups
     , listRecipientGroups
     , fetchRecipientGroup
     , saveRecipientGroup
+    , saveRecipientGroupInCurrentTransaction
     , deleteRecipientGroup
+    , deleteRecipientGroupInCurrentTransaction
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
@@ -54,14 +56,19 @@ fetchRecipientGroup groupId
 -- Venue-first serialization also protects first creation and case-insensitive
 -- name uniqueness. No group edit mutates a schedule or a prepared run.
 saveRecipientGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id RecipientGroup) -> RecipientGroupInput -> IO (Either RecipientGroupError RecipientGroup)
-saveRecipientGroup groupId input
+saveRecipientGroup groupId input = withTransaction (saveRecipientGroupInCurrentTransaction groupId input)
+
+-- Durable UI publication owns the enclosing transaction. Exceptions escape so
+-- group/schedule writes and their outbox event roll back together.
+saveRecipientGroupInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id RecipientGroup) -> RecipientGroupInput -> IO (Either RecipientGroupError RecipientGroup)
+saveRecipientGroupInCurrentTransaction groupId input
     | not canManage = pure (Left RecipientGroupAccessDenied)
     | Text.null normalizedName || Text.length normalizedName > 100 =
         pure (Left (RecipientGroupInvalid "Use a group name of 1–100 characters."))
     | otherwise = case validateRecipientAddresses input.recipients of
         Left message -> pure (Left (RecipientGroupInvalid message))
         Right [] -> pure (Left (RecipientGroupInvalid "Add at least one recipient."))
-        Right addresses -> withTransaction do
+        Right addresses -> do
             withPayrollReportVenueLock (unpackId currentVenueId)
             existing <- case groupId of
                 Nothing -> pure (Right Nothing)
@@ -95,9 +102,13 @@ saveRecipientGroup groupId input
     normalizedName = Text.unwords (Text.words input.name)
 
 deleteRecipientGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RecipientGroup -> Int -> Bool -> IO (Either RecipientGroupError ())
-deleteRecipientGroup groupId expectedRevision confirmScheduleDisable
+deleteRecipientGroup groupId expectedRevision confirmScheduleDisable =
+    withTransaction (deleteRecipientGroupInCurrentTransaction groupId expectedRevision confirmScheduleDisable)
+
+deleteRecipientGroupInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RecipientGroup -> Int -> Bool -> IO (Either RecipientGroupError ())
+deleteRecipientGroupInCurrentTransaction groupId expectedRevision confirmScheduleDisable
     | not canManage = pure (Left RecipientGroupAccessDenied)
-    | otherwise = withTransaction do
+    | otherwise = do
         withPayrollReportVenueLock (unpackId currentVenueId)
         fetchRecipientGroup groupId >>= \case
             Left failure -> pure (Left failure)

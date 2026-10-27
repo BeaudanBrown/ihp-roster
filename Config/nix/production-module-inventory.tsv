@@ -375,7 +375,7 @@ Application/PublicHolidays/OverrideIncident.hs	production	runtime	WorkerMain	Rea
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Shadow.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Sync.hs	production	runtime	WorkerMain	Reachable from WorkerMain
-Application/RecipientGroups.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/RecipientGroups.hs	production	runtime	Main	Reachable from Main
 Application/RecipientGroups/Validation.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
@@ -508,6 +508,7 @@ Web/Controller/Passkeys.hs	production	runtime	Main	Reachable from Main
 Web/Controller/PasswordResets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Profiles.hs	production	runtime	Main	Reachable from Main
+Web/Controller/RecipientGroups.hs	production	runtime	Main	Reachable from Main
 Web/Controller/ResendWebhooks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterTemplates.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterWeeks.hs	production	runtime	Main	Reachable from Main
@@ -551,6 +552,7 @@ Web/Mail/WageSourceAlert.hs	production	runtime	Main	Reachable from Main
 Web/Mail/WageSourceDrift.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/RecipientGroups.hs	production	runtime	Main	Reachable from Main
 Web/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/AvailabilityInputs.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Capabilities.hs	production	runtime	Main	Reachable from Main
@@ -603,6 +605,7 @@ Web/View/Admin/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Invites.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/PayrollReportsDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/PayrollWorkbookConfigurationDialog.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/RecipientGroups.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/RosterGroups.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/ShiftTypes.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/VenueSettings.hs	production	runtime	Main	Reachable from Main

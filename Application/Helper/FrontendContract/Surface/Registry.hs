@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.Registry
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin (AdminExportsSurface,
+                                                          AdminRecipientGroupsSurface,
                                                           AdminInvitesSurface,
                                                           AdminPageSurface,
                                                           AdminRosterGroupsSurface,
@@ -41,6 +42,7 @@ type RegisteredFrontendSurfaces =
      , AdminVenueSettingsSurface
      , AdminInvitesSurface
      , AdminExportsSurface
+     , AdminRecipientGroupsSurface
      , AdminShiftTypesSurface
      , AdminRosterGroupsSurface
      , AdminXeroSurface

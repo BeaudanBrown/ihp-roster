@@ -9,6 +9,8 @@ module Web.Admin.FrontendSurface
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
     , adminExportsSurfaceImplForWindow
+    , adminRecipientGroupsSurfaceImpl
+    , adminRecipientGroupsFragment
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
@@ -84,6 +86,11 @@ adminExportsSurfaceImplForWindow scope anchorDate =
         (adminVenueScopeFields scope)
         noSurfaceFields
         [adminExportsFragmentForWindow anchorDate]
+
+adminRecipientGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRecipientGroupsSurface
+adminRecipientGroupsSurfaceImpl scope =
+    mkSurfaceImplFromValues @Surface.AdminRecipientGroupsSurface @Surface.AdminRecipientGroupsScope
+        "primary" (adminVenueScopeFields scope) noSurfaceFields [adminRecipientGroupsFragment]
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
 adminShiftTypesSurfaceImpl scope =
@@ -179,6 +186,11 @@ adminExportsFragmentForWindow anchorDate =
         noSurfaceFields
         (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("anchorDate", tshow anchorDate)])
         FrontendSurfaceReplace
+
+adminRecipientGroupsFragment :: FrontendSurfaceMountedFragment
+adminRecipientGroupsFragment =
+    frontendSurfaceMountedFragmentFor @Surface.AdminRecipientGroupsSurface @Surface.AdminRecipientGroupsFragment
+        noSurfaceFields noSurfaceFields (pathTo ShowadminRecipientGroupsFragmentAction) FrontendSurfaceReplace
 
 adminShiftTypesFragment :: FrontendSurfaceMountedFragment
 adminShiftTypesFragment =

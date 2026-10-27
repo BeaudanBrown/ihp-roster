@@ -28,6 +28,18 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPayrollWorkbookConfigurationDeleteDialog
     , DeletePayrollWorkbookConfigurationOverlay
     , ConfirmDisablePayrollReportsField
+    , OpenRecipientGroupDialog
+    , SaveRecipientGroup
+    , OpenRecipientGroupDeleteDialog
+    , DeleteRecipientGroup
+    , RecipientGroupIdField
+    , RecipientGroupNameField
+    , RecipientGroupAddressesField
+    , RecipientGroupEntryField
+    , RecipientGroupAddField
+    , RecipientGroupRemoveField
+    , RecipientGroupRevisionField
+    , RecipientGroupDisableScheduleField
     , OpenPayrollReports
     , SavePayrollReports
     , PreviewPayrollReport
@@ -179,6 +191,18 @@ data SelectedTimesheetEntriesField
 data OpenPayrollWorkbookConfigurationDeleteDialog
 data DeletePayrollWorkbookConfigurationOverlay
 data ConfirmDisablePayrollReportsField
+data OpenRecipientGroupDialog
+data SaveRecipientGroup
+data OpenRecipientGroupDeleteDialog
+data DeleteRecipientGroup
+data RecipientGroupIdField
+data RecipientGroupNameField
+data RecipientGroupAddressesField
+data RecipientGroupEntryField
+data RecipientGroupAddField
+data RecipientGroupRemoveField
+data RecipientGroupRevisionField
+data RecipientGroupDisableScheduleField
 data OpenPayrollReports
 data SavePayrollReports
 data PreviewPayrollReport
@@ -314,6 +338,26 @@ type AppShellContract =
          , AppShellAction OpenPageHelpDialog
             '[]
             DialogLauncherOptions
+         , AppShellAction OpenRecipientGroupDialog '[] DialogLauncherOptions
+         , AppShellAction OpenRecipientGroupDeleteDialog '[] DialogLauncherOptions
+         , AppShellAction SaveRecipientGroup
+            '[ Field RecipientGroupNameField 'WireText
+             , Field RecipientGroupAddressesField 'WireText
+             , OptionalField RecipientGroupIdField 'WireUUID
+             , OptionalField RecipientGroupRevisionField 'WireInt
+             , OptionalField RecipientGroupEntryField 'WireText
+             , OptionalField RecipientGroupAddField 'WireBool
+             , OptionalField RecipientGroupRemoveField 'WireText
+             ] DialogSubmitOptions
+         , AppShellAction DeleteRecipientGroup
+            '[ Field RecipientGroupRevisionField 'WireInt
+             , OptionalField RecipientGroupDisableScheduleField 'WireBool
+             ]
+            '[ AppShellHtmxMethod 'AppShellDelete
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
          , AppShellAction SavePayrollReports
             '[ Field ReportRecipientsField 'WireText

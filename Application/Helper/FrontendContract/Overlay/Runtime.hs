@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogMountAttrs
     , dialogPointerDismissBlurAttrs
     , dialogSubmitAttrs
+    , dialogEnterSubmitAttrs
     , navigationLoadingAttrs
     , toastCloseAttrs
     , toastMountAttrs
@@ -98,6 +99,12 @@ dialogFocusRegionAttrs = roleAttrs canonicalOverlayDom.overlayDialogFocusRegionA
 -- | Opt in only this launcher to next-frame pointer-dismiss focus cleanup.
 dialogPointerDismissBlurAttrs :: [(Text, Text)]
 dialogPointerDismissBlurAttrs = roleAttrs canonicalOverlayDom.overlayDialogPointerDismissBlurAttribute
+
+-- | An explicit default Enter target, independent of the final-save loading
+-- role. Draft buttons may carry successful-control values and must not be
+-- disabled by final submission mechanics before browser serialization.
+dialogEnterSubmitAttrs :: [(Text, Text)]
+dialogEnterSubmitAttrs = roleAttrs (domAttrValue @Contract.DialogEnterSubmit)
 
 dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =

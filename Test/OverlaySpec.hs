@@ -7,6 +7,7 @@ import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..),
                                                             dialogDismissalGuardAttrs,
+                                                            dialogEnterSubmitAttrs,
                                                             dialogPointerDismissBlurAttrs,
                                                             navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
@@ -32,6 +33,9 @@ import Web.View.RosterWeeks.ShiftDialog
 pureTests :: Spec
 pureTests = do
     describe "Overlay contract attributes" do
+        it "declares a draft Enter target without final-save loading or locking" do
+            dialogEnterSubmitAttrs `shouldBe` [("data-bepis-dialog-enter-submit", "true")]
+
         it "renders the exact generated pointer-dismiss opt-in role" do
             dialogPointerDismissBlurAttrs `shouldBe` [("data-bepis-dialog-pointer-dismiss-blur", "true")]
 

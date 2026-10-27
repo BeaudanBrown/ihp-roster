@@ -76,7 +76,13 @@ and read-only presentation fields cannot consume the target. HTML/HTMX applies
 initial focus, not a second application page-ready/after-swap selector. Keep
 HTMX's ordinary settlement delay: interaction before settlement can still be
 superseded by autofocus. Focus restoration, Tab containment, and explicit loading
-state focus remain separate existing runtime responsibilities.
+state focus remain separate existing runtime responsibilities. A keyboard dialog
+may declare `DialogEnterSubmit` on its default draft-submit button (for example,
+Add); otherwise Enter uses the final `DialogSubmit` button. The draft target is
+independent of final-save loading/locking, preserving native validation and its
+successful-control value. Haskell chooses the target; TypeScript only activates
+the native button (including HTMX's named-submitter tracking). Focused native
+buttons and links keep their own Enter activation, never the form default.
 
 Binary settings that apply immediately use switches; selections saved with a
 form use checkboxes. Both share neutral, whole-control click/touch containers,

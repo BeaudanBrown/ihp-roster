@@ -11,6 +11,7 @@ import {
     dialogOverlayMountDomId,
     dialogSubmitConfigDomAttr,
     dialogSubmitDomAttr,
+    dialogEnterSubmitDomAttr,
     navigationLoadingConfigDomAttr,
     navigationLoadingDomAttr,
     pageReadyEvent,
@@ -587,10 +588,17 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (event.key === "Enter" && focusRegion !== null && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
             const target = event.target;
             if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
-            const submitter = activeDialog.querySelector(`[${dialogSubmitDomAttr}]`);
+            // Focused native controls retain their own Enter activation (e.g.
+            // Remove, Save or Cancel), rather than invoking the form default.
+            if (target instanceof HTMLElement && target.closest('button, a[href], input[type="submit"], input[type="button"], input[type="reset"]') !== null) return;
+            const submitter = activeDialog.querySelector(`[${dialogEnterSubmitDomAttr}]`)
+                ?? activeDialog.querySelector(`[${dialogSubmitDomAttr}]`);
             if (submitter instanceof HTMLButtonElement && !submitter.disabled && submitter.form !== null) {
                 event.preventDefault();
-                submitter.form.requestSubmit(submitter);
+                // Activate the native button: HTMX 1.9 records named submitters
+                // through click/focus, not SubmitEvent.submitter. This preserves
+                // its value and formnovalidate while retaining native validation.
+                submitter.click();
             }
             return;
         }

@@ -17,6 +17,7 @@ import Web.Controller.Auth () -- Mounted controller instance.
 import Web.Controller.Billing () -- Mounted controller instance.
 import Web.Controller.E2ETest () -- Mounted controller instance.
 import Web.Controller.Exports () -- Mounted controller instance.
+import Web.Controller.RecipientGroups () -- Mounted controller instance.
 import Web.Controller.Feedback () -- Mounted controller instance.
 import Web.Controller.Help () -- Mounted controller instance.
 import Web.Controller.LeaveRequests () -- Mounted controller instance.
@@ -49,6 +50,7 @@ instance FrontController WebApplication where
         , parseRoute @TimesheetsController
         , parseRoute @LeaveRequestsController
         , parseRoute @ExportsController
+        , parseRoute @RecipientGroupsController
         , parseRoute @StaffDocumentsController
         , parseRoute @BillingController
         , parseRoute @StripeWebhooksController

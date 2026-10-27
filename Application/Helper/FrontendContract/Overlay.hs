@@ -25,6 +25,7 @@ module Application.Helper.FrontendContract.Overlay
     , DialogClose
     , DialogDismissed
     , DialogSubmit
+    , DialogEnterSubmit
     , DialogDismissalGuard
     , DialogBlocking
     , DialogKeyboard
@@ -67,6 +68,7 @@ data DialogBackdrop
 data DialogClose
 data DialogDismissed
 data DialogSubmit
+data DialogEnterSubmit
 data DialogDismissalGuard
 data DialogBlocking
 data DialogKeyboard
@@ -103,6 +105,7 @@ type OverlayContract =
          , DomAttr DialogBackdrop
          , DomAttr DialogClose
          , DomAttr DialogSubmit
+         , DomAttr DialogEnterSubmit
          , DomAttr DialogSubmitConfig
          , DomAttr DialogDismissalGuard
          , DomAttr DialogDismissalGuardConfig

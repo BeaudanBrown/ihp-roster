@@ -3,6 +3,7 @@
 -- | Typed generator ownership for Admin Surface adapters.
 module Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
     ( AdminExportsAdapterFamily
+    , AdminRecipientGroupsAdapterFamily
     , AdminInvitesAdapterFamily
     , AdminPageAdapterFamily
     , AdminRosterGroupsAdapterFamily
@@ -20,6 +21,7 @@ data AdminXeroPageAdapterFamily
 data AdminVenueSettingsAdapterFamily
 data AdminInvitesAdapterFamily
 data AdminExportsAdapterFamily
+data AdminRecipientGroupsAdapterFamily
 data AdminShiftTypesAdapterFamily
 data AdminRosterGroupsAdapterFamily
 data AdminXeroAdapterFamily
@@ -38,6 +40,9 @@ instance SurfaceAdapterFamily AdminInvitesAdapterFamily where
 
 instance SurfaceAdapterFamily AdminExportsAdapterFamily where
     type AdapterFamilySurface AdminExportsAdapterFamily = Admin.AdminExportsSurface
+
+instance SurfaceAdapterFamily AdminRecipientGroupsAdapterFamily where
+    type AdapterFamilySurface AdminRecipientGroupsAdapterFamily = Admin.AdminRecipientGroupsSurface
 
 instance SurfaceAdapterFamily AdminShiftTypesAdapterFamily where
     type AdapterFamilySurface AdminShiftTypesAdapterFamily = Admin.AdminShiftTypesSurface

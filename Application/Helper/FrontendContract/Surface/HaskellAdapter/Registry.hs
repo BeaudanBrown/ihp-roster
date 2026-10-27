@@ -57,6 +57,7 @@ type RegisteredSurfaceAdapterFamilies =
      , AdminVenueSettingsAdapterFamily
      , AdminInvitesAdapterFamily
      , AdminExportsAdapterFamily
+     , AdminRecipientGroupsAdapterFamily
      , AdminShiftTypesAdapterFamily
      , AdminRosterGroupsAdapterFamily
      , AdminXeroAdapterFamily
@@ -91,6 +92,7 @@ type RegisteredSurfaceScopeAdapterHomes =
      , SurfaceScopeAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueConfigScope
      , SurfaceScopeAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesScope
      , SurfaceScopeAdapterHome AdminExportsAdapterFamily Admin.AdminExportsScope
+     , SurfaceScopeAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroupsScope
      , SurfaceScopeAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesScope
      , SurfaceScopeAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsScope
      , SurfaceScopeAdapterHome AdminXeroAdapterFamily Admin.AdminXeroScope
@@ -144,6 +146,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettingsFragment
      , SurfaceFragmentAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesFragment
      , SurfaceFragmentAdapterHome AdminExportsAdapterFamily Admin.AdminExportsFragment
+     , SurfaceFragmentAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroupsFragment
      , SurfaceFragmentAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesFragment
      , SurfaceFragmentAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsFragment
      , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroShellFragment
@@ -183,6 +186,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettings
      , SurfaceResourceAdapterHome AdminInvitesAdapterFamily Admin.AdminInvites
      , SurfaceResourceAdapterHome AdminExportsAdapterFamily Admin.AdminExports
+     , SurfaceResourceAdapterHome AdminRecipientGroupsAdapterFamily Admin.AdminRecipientGroups
      , SurfaceResourceAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypes
      , SurfaceResourceAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroups
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection

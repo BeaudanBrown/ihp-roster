@@ -3,6 +3,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Live
     , adminExportsLiveScope
     , adminInvitesLiveFragment
     , adminInvitesLiveScope
+    , adminRecipientGroupsLiveFragment
+    , adminRecipientGroupsLiveScope
     , adminRosterGroupsLiveFragment
     , adminRosterGroupsLiveScope
     , adminShiftTypesLiveFragment
@@ -20,6 +22,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Live (adminEx
                                                                          adminExportsLiveScope,
                                                                          adminInvitesLiveFragment,
                                                                          adminInvitesLiveScope,
+                                                                         adminRecipientGroupsLiveFragment,
+                                                                         adminRecipientGroupsLiveScope,
                                                                          adminRosterGroupsLiveFragment,
                                                                          adminRosterGroupsLiveScope,
                                                                          adminShiftTypesLiveFragment,

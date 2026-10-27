@@ -114,6 +114,15 @@ data LeaveRequestsController
     | DeleteUnavailabilityBlackoutAction { unavailabilityBlackoutId :: !(Id UnavailabilityBlackout) }
     deriving (Eq, Show, Data)
 
+data RecipientGroupsController
+    = NewRecipientGroupAction
+    | EditRecipientGroupAction { recipientGroupId :: !(Id RecipientGroup) }
+    | SaveRecipientGroupAction
+    | ConfirmDeleteRecipientGroupAction { recipientGroupId :: !(Id RecipientGroup) }
+    | DeleteRecipientGroupAction { recipientGroupId :: !(Id RecipientGroup) }
+    | ShowadminRecipientGroupsFragmentAction
+    deriving (Eq, Show, Data)
+
 data ExportsController
     = ExportJobsAction
     | PayrollReportsAction

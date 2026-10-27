@@ -20,6 +20,22 @@ selection, disables automation and cancels only unstarted automatic work.
 Prepared manual/updated sends remain eligible. SMTP already underway cannot be
 recalled. Payroll settings own this narrowly scoped cancellation operation.
 
+Admin → Recipient groups is a separate accordion section. `Web.RecipientGroups`
+owns typed dialog requests/responses; `Web.View.Admin.RecipientGroups` owns
+server-rendered drafts and confirmation copy. Native email validation blocks
+malformed Add/Enter submissions; the shared typed default-Enter target activates
+Add rather than Save. Remove bypasses pending-entry validation, and Cancel never
+submits. Empty pending input permits saving a valid list. Server validation,
+venue authority, bounds and revision checks remain mandatory.
+
+Successful writes and the recipient-group Surface invalidation commit together;
+actor feedback refreshes the same fragment and passive viewers use the durable
+outbox. The `*InCurrentTransaction` domain APIs let this outer owner retain atomic
+publication. DELETE confirmation fields are non-private typed URL values because
+IHP does not parse DELETE request bodies. Browser evidence lives in
+`e2e/recipient-groups.spec.ts`; HTTP authority in
+`Test/Controller/RecipientGroupsSpec.hs`.
+
 Migration `1793068000` adds storage and nullable schedule links. It does not invent
 groups from legacy lists, retime schedules, or alter existing report snapshots.
 Upgrade through the normal migration procedure, preserving tables on application

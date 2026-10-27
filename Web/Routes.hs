@@ -13,6 +13,7 @@ instance AutoRoute ProfilesController
 instance AutoRoute TimesheetsController
 instance AutoRoute LeaveRequestsController
 instance AutoRoute ExportsController
+instance AutoRoute RecipientGroupsController
 instance AutoRoute StaffDocumentsController
 instance AutoRoute BillingController
 instance AutoRoute StripeWebhooksController

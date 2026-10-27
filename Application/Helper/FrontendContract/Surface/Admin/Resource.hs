@@ -1,6 +1,7 @@
 module Application.Helper.FrontendContract.Surface.Admin.Resource
     ( adminExportsResource
     , adminInvitesResource
+    , adminRecipientGroupsResource
     , adminRosterGroupsResource
     , adminShiftTypesResource
     , adminVenueSettingsResource
@@ -10,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Resource
 
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Resource (adminExportsResource,
                                                                              adminInvitesResource,
+                                                                             adminRecipientGroupsResource,
                                                                              adminRosterGroupsResource,
                                                                              adminShiftTypesResource,
                                                                              adminVenueSettingsResource,
