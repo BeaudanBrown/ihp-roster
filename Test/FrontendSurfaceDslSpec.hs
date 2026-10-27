@@ -868,6 +868,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "admin-venue-config"
                        , "admin-invites"
                        , "admin-exports"
+                       , "admin-recipient-groups"
                        , "admin-shift-types"
                        , "admin-roster-groups"
                        , "admin-xero"

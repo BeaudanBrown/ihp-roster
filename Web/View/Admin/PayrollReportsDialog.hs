@@ -7,7 +7,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.View.ToggleButton
-import Application.Helper.Url (appendQueryParams)
 import Application.VenueTime
 import Web.View.Prelude
 

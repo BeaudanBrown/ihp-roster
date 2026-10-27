@@ -6,7 +6,6 @@ import Application.Helper.FrontendContract.AppShell.Request (appShellActionField
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
-import Application.Helper.Url (appendQueryParams)
 import Application.PayrollReports.Manual (ManualPayrollReportPreview (..))
 import Application.PayrollReports.Selection
 import Web.View.Prelude

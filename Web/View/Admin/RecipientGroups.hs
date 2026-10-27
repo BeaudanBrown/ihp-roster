@@ -8,7 +8,6 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
-import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminRecipientGroupsSurfaceImpl)
 import Web.View.Admin.Common
