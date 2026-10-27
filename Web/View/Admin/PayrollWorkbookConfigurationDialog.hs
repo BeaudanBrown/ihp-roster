@@ -254,7 +254,9 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
   where
     configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
     formId = "delete-payroll-workbook-configuration-confirmation-form"
-    actionUrl = pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))
+    -- IHP skips DELETE bodies: confirmation authority must travel in the
+    -- generated non-private query fields, not a hidden body field alone.
+    actionUrl = appendQueryParams (pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))) (surfaceFieldsText deleteFields)
     deleteForm =
         renderAppShellActionForm
             (appShellActionByMarker @AppShell.DeletePayrollWorkbookConfigurationOverlay)
@@ -263,7 +265,6 @@ renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
                 })
             [hsx|
                 <input type="hidden" name="_method" value="DELETE"/>
-                <input type="hidden" name={surfaceFieldNameFrom @AppShell.ConfirmDisablePayrollReportsField deleteFields} value="true"/>
             |]
     deleteFields = appShellActionFields @AppShell.DeletePayrollWorkbookConfigurationOverlay
         (surfaceOptionalField @AppShell.ConfirmDisablePayrollReportsField (Just True)) noSurfaceFields

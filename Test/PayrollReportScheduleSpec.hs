@@ -5,7 +5,6 @@ import Application.Async.Queue (appJobMaxAttempts)
 import Application.PayrollReports.Generation
 import Application.PayrollReports.Job
 import Application.PayrollReports.Settings
-import qualified Application.PayrollReports.Settings as Settings
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Control.Concurrent.Async (concurrently)
 import Data.Time (fromGregorian)
@@ -14,7 +13,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
-import Test.PayrollReportSettingsSpec (input)
+import Test.PayrollReportSettingsSpec (saveSettingsForTemplate)
 import Test.PayrollWorkbookConfigurationSpec (asCurrentVenueUser, expectRight, newConfiguration)
 
 instant :: Integer -> Int -> Int -> Integer -> UTCTime
@@ -29,7 +28,7 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "failed-scheduler@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) True) >>= expectRight
                 setting <- setting |> set #scheduleActivatedAt (instant 2025 1 12 0) |> updateRecord
                 Just (_, firstWeek) <- nextScheduledPayrollReport setting
                 _ <- enqueuePayrollReportSweep
@@ -70,10 +69,10 @@ tests = aroundAll withDatabaseTestContext do
                 config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) True) >>= expectRight
                 setting.weekday `shouldBe` 3
                 setting <- setting |> set #weekday 5 |> set #scheduleActivatedAt (instant 2025 1 12 0) |> updateRecord
-                nextScheduledPayrollReport setting `shouldReturn` Just (instant 2025 1 14 (22 * 3600), fromGregorian 2025 1 8)
+                nextScheduledPayrollReport setting `shouldReturn` Just (instant 2025 1 14 (19 * 3600), fromGregorian 2025 1 8)
 
         it "deduplicates automatic weeks, records missed sends, and does not let manual sends suppress scheduling" $ withContext do
             withCleanDb do
@@ -81,7 +80,7 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "scheduler@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) True) >>= expectRight
                 setting <- setting |> set #scheduleActivatedAt (instant 2025 1 12 0) |> updateRecord
                 let week = fromGregorian 2025 1 6
                 Just (due, scheduledWeek) <- nextScheduledPayrollReport setting
@@ -101,7 +100,7 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "scheduler@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) False) >>= expectRight
                 let request = ReportGenerationRequest
                         { runId = "22222222-2222-4222-8222-222222222223"
                         , venueId = venue.id
@@ -126,7 +125,7 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "scheduler@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                setting <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.enabled = True, Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                setting <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) True) >>= expectRight
                 setting <- setting |> set #scheduleActivatedAt (instant 2025 1 12 0) |> updateRecord
                 Just (due, week) <- nextScheduledPayrollReport setting
                 run <- generatePayrollReportSnapshot venue.id (unpackId admin.id) PayrollReportScheduled (Just due) week due >>= expectRight

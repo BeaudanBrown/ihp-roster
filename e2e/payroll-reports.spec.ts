@@ -6,79 +6,96 @@ import { runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
-test('scheduled payroll modal selects completed weeks without displaying history', async ({ page }, testInfo) => {
+test('scheduled reports enable group selections at 06:00 and preserve them while disabled', async ({ page }, testInfo) => {
     test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
     runSql(`
-        UPDATE venues SET created_at = LEAST(created_at, CURRENT_DATE - INTERVAL '35 days') WHERE id = 'a1000000-0000-0000-0000-000000000001';
         DELETE FROM payroll_report_runs WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
         DELETE FROM payroll_report_settings WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
         INSERT INTO payroll_workbook_configurations (id, venue_id, name, definition_version, revision, created_by_user_id)
         VALUES ('a1000000-0000-0000-0000-000000000899', 'a1000000-0000-0000-0000-000000000001', 'Scheduled test payroll', 1, 0, 'a0000000-0000-0000-0000-000000000003')
         ON CONFLICT (id) DO NOTHING;
         INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position)
-        SELECT 'a1000000-0000-0000-0000-000000000899', 'summary', 0
-        WHERE NOT EXISTS (SELECT 1 FROM payroll_workbook_configuration_families WHERE configuration_id = 'a1000000-0000-0000-0000-000000000899');
+        VALUES ('a1000000-0000-0000-0000-000000000899', 'summary', 0)
+        ON CONFLICT (configuration_id, family_key) DO NOTHING;
+        INSERT INTO recipient_groups (id, venue_id, name, recipients, created_by_user_id, updated_by_user_id)
+        VALUES ('a1000000-0000-0000-0000-000000000897', 'a1000000-0000-0000-0000-000000000001', 'Scheduled payroll recipients', ARRAY['e2e-scheduled@example.com'], 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003')
+        ON CONFLICT (id) DO UPDATE SET archived_at = NULL;
     `);
     await loginAsPrivilegedUserWithSeededPasskeySession(page);
     await gotoExports(page);
     await page.getByRole('button', { name: 'Scheduled reports', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled reports', exact: true });
     await expect(dialog).toBeVisible();
-    const emailEntry = dialog.getByLabel('Recipients', { exact: true });
-    const recipientRows = dialog.getByRole('list', { name: 'Report recipients' }).getByRole('listitem');
-    const sendTime = dialog.getByLabel('Send time on the first day of each roster week');
-    await expect(sendTime).toHaveValue('09:00');
-    await expect(dialog.getByLabel('Send day', { exact: true })).toHaveCount(0);
-    await expect(dialog.getByLabel('I am authorised', { exact: false })).toHaveCount(0);
-    await dialog.getByLabel('Saved payroll template').selectOption({ label: 'Scheduled test payroll' });
-    await sendTime.fill('09:30');
-    await emailEntry.fill('invalid-address');
-    await dialog.getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(dialog.getByRole('status')).toContainText('Enter valid email addresses');
-    await emailEntry.fill('e2e-payroll-report@example.com');
-    await dialog.getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(recipientRows).toHaveCount(1);
-    await expect(emailEntry).toHaveValue('');
-    await expect(sendTime).toHaveValue('09:30');
-    await emailEntry.fill('E2E-PAYROLL-REPORT@example.com');
-    await emailEntry.press('Enter');
-    await expect(emailEntry).toHaveValue('');
-    await expect(recipientRows).toHaveCount(1);
-    await emailEntry.fill('remove-me@example.com');
-    await dialog.getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(recipientRows).toHaveCount(2);
-    await dialog.getByRole('button', { name: 'Remove remove-me@example.com', exact: true }).click();
-    await expect(recipientRows).toHaveCount(1);
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    const toggle = dialog.getByRole('checkbox', { name: 'Enable automatic weekly reports', exact: true });
+    const toggleLabel = dialog.getByText('Enable automatic weekly reports', { exact: true });
+    const template = dialog.getByLabel('Export template', { exact: true });
+    const group = dialog.getByLabel('Recipient group', { exact: true });
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    const settled = () => expect(page.locator('#dialog-overlay-mount')).not.toHaveClass(/htmx-settling/);
+    expect(await dialog.locator('input[type="checkbox"], select').evaluateAll(nodes => nodes.map(node => node.id)))
+        .toEqual(['report-enabled', 'report-template', 'report-group']);
+    await expect(toggle).not.toBeChecked();
+    await expect(template).toBeDisabled();
+    await expect(group).toBeDisabled();
+    await expect(dialog).toContainText('06:00 venue-local');
+    await expect(dialog.locator('input[type="time"], input[type="email"]')).toHaveCount(0);
+    await expect(dialog.getByLabel('Reporting week', { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Review and send', exact: true })).toHaveCount(0);
+    await expect(dialog.getByText('Last four reporting weeks', { exact: true })).toHaveCount(0);
+    await save.click();
     await expect(dialog.getByRole('status')).toContainText('settings saved');
-    await expect(dialog.getByLabel('Enable automatic weekly reports')).not.toBeChecked();
-    const weekSelector = dialog.getByRole('combobox', { name: 'Reporting week', exact: true });
-    const weeks = await weekSelector.locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
-    expect(weeks.length).toBeGreaterThan(1);
-    await expect(weekSelector).toHaveValue(weeks[0]);
-    await expect(weekSelector.locator('option').first()).toContainText(' – ');
-    await weekSelector.selectOption(weeks[1]);
-    const reportingWeek = weeks[1];
-    await expect(dialog.getByRole('heading', { name: 'Last four reporting weeks' })).toHaveCount(0);
-    await expect(dialog.getByRole('button', { name: 'Refresh saved settings and history' })).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'Review and send', exact: true }).click();
-    const confirmation = page.getByRole('dialog', { name: 'Confirm payroll email', exact: true });
-    await expect(confirmation).toContainText(reportingWeek);
-    await expect(confirmation).toContainText('e2e-payroll-report@example.com');
-    await expect(confirmation).toContainText('no-data email');
-    await confirmation.getByRole('button', { name: 'Send to entire list', exact: true }).click();
-    await expect(dialog.getByRole('status')).toContainText('Report prepared');
-    await expect(dialog.getByRole('heading', { name: 'Last four reporting weeks' })).toHaveCount(0);
-    await expect(dialog.getByRole('button', { name: 'Review updated resend' })).toHaveCount(0);
-    await expect(weekSelector).toHaveValue(weeks[0]);
-    await dialog.getByLabel('Enable automatic weekly reports').check();
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await settled();
+    await toggleLabel.click();
+    await expect(toggle).toBeChecked();
+    await expect(template).toBeEnabled();
+    await expect(group).toBeEnabled();
+    await template.selectOption({ label: 'Scheduled test payroll' });
+    await save.click();
+    await expect(dialog.getByRole('status')).toContainText('Choose an available recipient group');
+    await expect(template).toHaveValue('a1000000-0000-0000-0000-000000000899');
+    await settled();
+    await group.selectOption({ label: 'Scheduled payroll recipients' });
+    await save.click();
     await expect(dialog.getByRole('status')).toContainText('settings saved');
     await expect(dialog).toContainText('Scheduled for');
-    await weekSelector.scrollIntoViewIfNeeded();
+    await settled();
     await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-settings.png`, fullPage: true });
-    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-    expect(hasHorizontalOverflow).toBe(false);
-    await dialog.getByRole('button', { name: 'Review and send', exact: true }).click();
-    await expect(confirmation).toContainText('does not suppress it');
+    await toggleLabel.click();
+    await expect(template).toBeDisabled();
+    await expect(group).toBeDisabled();
+    await save.click();
+    await expect(dialog.getByRole('status')).toContainText('settings saved');
+    await expect(toggle).not.toBeChecked();
+    await expect(template).toHaveValue('a1000000-0000-0000-0000-000000000899');
+    await expect(group).toHaveValue('a1000000-0000-0000-0000-000000000897');
+    await settled();
+    await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-disabled-settings.png`, fullPage: true });
+    expect(await dialog.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    runSql(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM payroll_report_settings
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001' AND NOT enabled AND minute_of_day = 360
+              AND configuration_id = 'a1000000-0000-0000-0000-000000000899'
+              AND recipient_group_id = 'a1000000-0000-0000-0000-000000000897')
+        THEN RAISE EXCEPTION 'disabled schedule did not preserve selections and 06:00 default'; END IF;
+    END $$;`);
+    await toggleLabel.click();
+    await save.click();
+    await expect(dialog.getByRole('status')).toContainText('settings saved');
+    await settled();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const card = page.locator('[data-payroll-workbook-configuration="a1000000-0000-0000-0000-000000000899"]');
+    await card.getByRole('button', { name: 'Delete', exact: true }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Delete export', exact: true });
+    await expect(confirmation).toContainText('disables automatic reports');
+    await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(card).toHaveCount(0);
+    await page.getByRole('button', { name: 'Scheduled reports', exact: true }).click();
+    await expect(toggle).not.toBeChecked();
+    await expect(group).toHaveValue('a1000000-0000-0000-0000-000000000897');
+    await expect(template).toHaveValue('');
+    await dialog.getByRole('link', { name: 'Manage recipient groups', exact: true }).click();
+    await expect(page).toHaveURL(/showRecipientGroups=true/);
+    await expect(page.getByRole('button', { name: 'Create recipient group', exact: true })).toBeVisible();
 });

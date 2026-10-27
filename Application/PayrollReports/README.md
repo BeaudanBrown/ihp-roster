@@ -3,16 +3,15 @@
 See [rollout and recovery](ROLLOUT.md) for migration, Resend verification and
 controlled-send approval boundaries.
 
-`Settings.hs` owns venue-scoped payroll email configuration. Recipients are
-edited as individual Add/Remove rows in the modal; draft operations preserve
-other fields without saving settings. Save also validates any pending address.
-Sharing does not require an authorisation checkbox; venue access controls and
-recipient validation still apply.
+`Settings.hs` owns venue-scoped payroll email configuration. The schedule modal
+starts with an enable checkbox, then Export template and Recipient group. Turning
+it off disables the selectors; saving preserves their persisted selections even
+though disabled HTML controls are omitted. Enabling requires current venue-owned
+template and active group selections. There is no inline recipient editor, time
+input, manual-send section, history or sharing-authority checkbox.
 Reusable group lifecycle is owned by [Recipient groups](../RecipientGroups/README.md).
 Its edits preserve prepared snapshots; confirmed group deletion disables a linked
-schedule without revoking explicit manual sends. The legacy inline settings list
-below retains its existing recipient-revocation behaviour until selection authority
-moves to groups.
+schedule without revoking explicit manual sends.
 Saved workbook definitions remain owned by `Application/Helper/Export/`.
 HTTP/modal adaptation belongs to `Web/Exports/PayrollReports.hs` and
 `Web/View/Admin/PayrollReportsDialog.hs`, not this domain. The Admin → Exports
@@ -27,13 +26,9 @@ settings. Template/group revisions and calendar facts are rechecked before
 preparation. Repeat warnings include queued, accepted and uncertain attempts for
 the same template/week across groups, not just confirmed delivery. Run UUID retries
 return only the same immutable selection; a new repeat requires acknowledgement.
-The current modal's legacy entry point remains settings-backed.
-
-Manual sending uses a completed roster-week selector, newest first and defaulting
-to the previous week. It includes empty weeks back to the earlier of venue
-creation or its earliest retained timesheet date (always at least the previous
-week). Labels show both dates and years; current/future weeks are excluded and
-requests retain server-side alignment/completion validation.
+Legacy settings-backed HTTP manual endpoints reject group-backed schedules;
+these require explicit template/group confirmation. Manual requests retain
+server-side alignment/completion validation and are independent of automation.
 
 `Generation.hs` owns repeatable-read report snapshots using explicit venue/actor
 provenance. `Export/WorkbookGeneration.hs` is shared with manual downloads, so
@@ -53,8 +48,9 @@ this fence before workbook locks. Standalone operations own their transaction; d
 must use explicitly named in-current-transaction operations.
 
 Automatic reports run on the venue's roster-week start day at the saved local
-time (09:00 by default), covering the previous completed roster week. The request
-cannot choose a weekday; settings save derives it under the venue lock, and the
+time (06:00 for new records), covering the previous completed roster week. The
+schedule UI accepts neither time nor weekday. Settings save retains an existing
+record's time and derives its weekday under the venue lock, and the
 scheduler reads the current venue calendar. The retained settings `weekday`
 column is a compatibility snapshot, not a separate calendar authority.
 
@@ -69,12 +65,13 @@ Changing the roster-week start disables automation and cancels pending automatic
 sends. Re-enablement starts in the future. Historical Resend carries the original
 run reference and dates; new manual sends must align with the current calendar.
 
-`revision` rejects stale settings edits. `delivery_revision` revokes unstarted
-settings-backed recipient/template-selection snapshots without changing attachments
-already generated. Standalone manual runs have no settings link: changes to
-schedule settings, group membership or template deletion cannot revoke them.
-Their frozen recipients and artifacts remain subject to expiry/transport checks. The scheduler must separately check automatic enablement and schedule
-activation: disabling automation must not disable explicit manual sending.
+`revision` rejects stale settings edits. The retained `delivery_revision` check
+protects historical revocation decisions; ordinary schedule changes and linked
+template/group deletion no longer increment it or cancel prepared explicit sends.
+Standalone manual runs have no settings link. All frozen recipients and artifacts
+remain subject to expiry/transport checks. The scheduler separately checks
+automatic enablement and schedule activation: disabling automation must not
+disable explicit manual sending.
 Template layout edits do not revoke snapshots. Confirmed deletion clears the
 selection and disables automation while preserving recipients and timing.
 
@@ -87,6 +84,11 @@ all group recipients remain visible in To and Reply-To.
 Migration `1792639000` is additive, creates no opted-in venues and changes no
 existing customer rows. Deploy through the normal backed-up migration procedure;
 rollback application code without dropping the retained settings table.
+
+Migration `1793076000` changes only the time default to 360 minutes (06:00).
+It does not retime saved settings or change snapshots/delivery state. Verify the
+operator's expected absence of legacy schedules before production cutover; any
+unexpected lists/times require operator review, never an implicit conversion.
 
 Migration `1793071000` makes the run's settings link optional for explicit manual
 selection and adds immutable template/group provenance. Scheduled runs still

@@ -20,10 +20,9 @@ import IHP.ControllerPrelude
 
 -- Do not derive Show: settings contain private external recipient addresses.
 data PayrollReportSettingsInput = PayrollReportSettingsInput
-    { recipients :: ![Text]
-    , configurationId :: !(Maybe UUID)
+    { configurationId :: !(Maybe UUID)
+    , recipientGroupId :: !(Maybe UUID)
     , enabled :: !Bool
-    , minuteOfDay :: !Int
     , expectedRevision :: !(Maybe Int)
     }
 
@@ -32,6 +31,7 @@ data PayrollReportSettingsError
     | PayrollReportInvalidSettings !Text
     | PayrollReportStaleSettings
     | PayrollReportTemplateUnavailable
+    | PayrollReportRecipientGroupUnavailable
     deriving (Eq, Show)
 
 validatePayrollReportRecipients :: [Text] -> Either PayrollReportSettingsError [Text]
@@ -58,49 +58,53 @@ withPayrollReportVenueLock venueId = do
 savePayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
 savePayrollReportSettings input
     | not canManage = pure (Left PayrollReportAccessDenied)
-    | input.minuteOfDay < 0 || input.minuteOfDay >= 1440 =
-        pure (Left (PayrollReportInvalidSettings "Choose a valid time."))
-    | otherwise = case validatePayrollReportRecipients input.recipients of
-        Left failure -> pure (Left failure)
-        Right addresses
-            | input.enabled && (null addresses || isNothing input.configurationId) ->
-                pure (Left (PayrollReportInvalidSettings "Choose a template and at least one recipient before enabling."))
-            | otherwise -> withTransaction do
-                withPayrollReportVenueLock (unpackId currentVenueId)
-                config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
-                existing <- query @PayrollReportSetting |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing
-                templateValid <- case input.configurationId of
-                    Nothing -> pure True
-                    Just configurationId -> query @PayrollWorkbookConfiguration
-                        |> filterWhere (#id, Id configurationId)
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> fetchExists
-                let recipientsChanged = maybe (not (null addresses)) ((/= addresses) . (.recipients)) existing
-                if fmap (.revision) existing /= input.expectedRevision then pure (Left PayrollReportStaleSettings)
-                else if not templateValid then pure (Left PayrollReportTemplateUnavailable)
-                else do
-                    now <- getCurrentTime
-                    let record = fromMaybe (newRecord @PayrollReportSetting |> set #venueId (unpackId currentVenueId)) existing
-                    let templateChanged = record.configurationId /= input.configurationId
-                    let scheduleChanged = record.enabled /= input.enabled || record.weekday /= config.rosterWeekStartsOn || record.minuteOfDay /= input.minuteOfDay
-                    let updated = record
-                            |> set #configurationId input.configurationId
-                            |> set #recipients addresses
-                            |> set #enabled input.enabled
-                            |> set #weekday config.rosterWeekStartsOn
-                            |> set #minuteOfDay input.minuteOfDay
-                            |> set #revision (maybe 0 ((+ 1) . (.revision)) existing)
-                            |> set #deliveryRevision (record.deliveryRevision + if recipientsChanged || templateChanged then 1 else 0)
-                            |> set #scheduleActivatedAt (if isNothing existing || scheduleChanged || recipientsChanged || templateChanged then now else record.scheduleActivatedAt)
-                            |> set #updatedByUserId (unpackId authenticatedCurrentUser.id)
-                            |> set #updatedAt now
-                    saved <- if isNothing existing then createRecord updated else updateRecord updated
-                    when (recipientsChanged || templateChanged || scheduleChanged) $
-                        cancelPendingPayrollReports (unpackId currentVenueId) (recipientsChanged || templateChanged)
-                    pure (Right saved)
+    | otherwise = withTransaction do
+        withPayrollReportVenueLock (unpackId currentVenueId)
+        config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
+        existing <- query @PayrollReportSetting |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing
+        if fmap (.revision) existing /= input.expectedRevision then pure (Left PayrollReportStaleSettings)
+        else do
+            let record = fromMaybe (newRecord @PayrollReportSetting |> set #venueId (unpackId currentVenueId) |> set #minuteOfDay 360) existing
+            -- Disabled HTML controls are omitted. Preserve saved selections;
+            -- neither omission nor a tampered disabled request may erase them.
+            let selectedTemplate = if input.enabled then input.configurationId else record.configurationId
+            let selectedGroup = if input.enabled then input.recipientGroupId else record.recipientGroupId
+            templateValid <- case selectedTemplate of
+                Nothing -> pure False
+                Just identifier -> query @PayrollWorkbookConfiguration
+                    |> filterWhere (#id, Id identifier) |> filterWhere (#venueId, unpackId currentVenueId) |> fetchExists
+            group <- case selectedGroup of
+                Nothing -> pure Nothing
+                Just identifier -> query @RecipientGroup
+                    |> filterWhere (#id, Id identifier) |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#archivedAt, Nothing) |> fetchOneOrNothing
+            if input.enabled && not templateValid then pure (Left PayrollReportTemplateUnavailable)
+            else if input.enabled && isNothing group then pure (Left PayrollReportRecipientGroupUnavailable)
+            else do
+                -- Legacy settings retain their old list/time for compatibility;
+                -- enabled group-backed settings mirror the chosen group's list
+                -- only for the existing database constraint. Preparation resolves
+                -- the current group under this same venue fence.
+                let addresses = if input.enabled then maybe [] (.recipients) group else record.recipients
+                case if input.enabled then validatePayrollReportRecipients addresses else Right addresses of
+                    Left failure -> pure (Left failure)
+                    Right addresses -> do
+                        now <- getCurrentTime
+                        let changed = record.enabled /= input.enabled || record.weekday /= config.rosterWeekStartsOn
+                                || record.configurationId /= selectedTemplate || record.recipientGroupId /= selectedGroup
+                        let updated = record
+                                |> set #configurationId selectedTemplate |> set #recipientGroupId selectedGroup
+                                |> set #recipients addresses |> set #enabled input.enabled
+                                |> set #weekday config.rosterWeekStartsOn
+                                |> set #revision (maybe 0 ((+ 1) . (.revision)) existing)
+                                |> set #scheduleActivatedAt (if isNothing existing || changed then now else record.scheduleActivatedAt)
+                                |> set #updatedByUserId (unpackId authenticatedCurrentUser.id) |> set #updatedAt now
+                        saved <- if isNothing existing then createRecord updated else updateRecord updated
+                        when changed (cancelPendingPayrollReports (unpackId currentVenueId))
+                        pure (Right saved)
 
--- Caller owns the transaction and venue lock. Clearing the template revokes
--- pending recipient snapshots through deliveryRevision, preserving timing/list.
+-- Caller owns the transaction and venue lock. Template removal disables future
+-- automation; prepared explicit snapshots retain their accepted recipients/bytes.
 clearPayrollReportTemplateInCurrentTransaction :: (?modelContext :: ModelContext) => UUID -> UUID -> UUID -> IO ()
 clearPayrollReportTemplateInCurrentTransaction venueId configurationId actorId = do
     settings <- query @PayrollReportSetting
@@ -113,13 +117,12 @@ clearPayrollReportTemplateInCurrentTransaction venueId configurationId actorId =
             |> set #configurationId Nothing
             |> set #enabled False
             |> set #revision (record.revision + 1)
-            |> set #deliveryRevision (record.deliveryRevision + 1)
             |> set #scheduleActivatedAt now
             |> set #updatedByUserId actorId
             |> set #updatedAt now
             |> updateRecord
             |> void
-        cancelPendingPayrollReports venueId True
+        cancelPendingPayrollReports venueId
 
 -- Group deletion is explicit schedule disablement, not recipient revocation.
 -- Caller owns the transaction and venue lock, and has confirmed the impact.
@@ -136,7 +139,7 @@ clearPayrollReportRecipientGroupInCurrentTransaction venueId groupId actorId = d
             |> set #revision (record.revision + 1)
             |> set #scheduleActivatedAt now |> set #updatedAt now
             |> set #updatedByUserId actorId |> updateRecord |> void
-        cancelPendingPayrollReports venueId False
+        cancelPendingPayrollReports venueId
 
 -- Caller holds the roster calendar transaction; acquire the venue lock before
 -- changing the calendar so report snapshots cannot cross that boundary.
@@ -148,13 +151,13 @@ disablePayrollReportsForCalendarChange venueId = do
         now <- getCurrentTime
         record |> set #enabled False |> set #revision (record.revision + 1)
             |> set #scheduleActivatedAt now |> set #updatedAt now |> updateRecord |> void
-    cancelPendingPayrollReports venueId False
+    cancelPendingPayrollReports venueId
 
-cancelPendingPayrollReports :: (?modelContext :: ModelContext) => UUID -> Bool -> IO ()
-cancelPendingPayrollReports venueId includeManual = do
+cancelPendingPayrollReports :: (?modelContext :: ModelContext) => UUID -> IO ()
+cancelPendingPayrollReports venueId = do
     pending <- query @PayrollReportRun |> filterWhere (#venueId, venueId)
         |> filterWhereIn (#status, [PayrollReportReady, PayrollReportNoData, PayrollReportQueued]) |> fetch
-    forM_ (filter (\run -> run.origin == PayrollReportScheduled || (includeManual && isJust run.settingsId)) pending) \run -> do
+    forM_ (filter (\run -> run.origin == PayrollReportScheduled) pending) \run -> do
         now <- getCurrentTime
         run |> set #status PayrollReportCancelled |> set #updatedAt now |> updateRecord |> void
 

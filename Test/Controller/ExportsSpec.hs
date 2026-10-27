@@ -49,28 +49,25 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
-        it "shows a venue-scoped completed-week selector without report history" $ withContext do
+        it "shows grouped 06:00 scheduling without inline recipients, time input, manual sends or history" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Week selector"
-                other <- createVenueWithConfig "Other selector"
+                venue <- createVenueWithConfig "Scheduled controls"
                 admin <- createUserRecord "selector@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
-                staff <- createStaffRecord venue (Just admin) "Current" "Venue"
-                foreignStaff <- createStaffRecord other Nothing "Other" "Venue"
-                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 6)
-                _ <- createTimesheetEntryRecord other foreignStaff (fromGregorian 2020 1 1)
-                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction PayrollReportsAction
-                response `responseBodyShouldContain` "report-manual-week"
-                response `responseBodyShouldContain` "01 Jan 2025"
-                response `responseBodyShouldNotContain` "01 Jan 2020"
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction PayrollReportsAction)
+                response `responseBodyShouldContain` "Enable automatic weekly reports"
+                response `responseBodyShouldContain` "Export template"
+                response `responseBodyShouldContain` "Recipient group"
+                response `responseBodyShouldContain` "06:00 venue-local"
+                response `responseBodyShouldContain` "Create a recipient group in Admin"
+                response `responseBodyShouldContain` "Manage recipient groups"
+                response `responseBodyShouldNotContain` "report-manual-week"
+                response `responseBodyShouldNotContain` "report-recipient-entry"
+                response `responseBodyShouldNotContain` "report-time"
                 response `responseBodyShouldNotContain` "Last four reporting weeks"
-                response `responseBodyShouldNotContain` "Refresh saved settings and history"
-                response `responseBodyShouldNotContain` "Review updated resend"
+                response `responseBodyShouldNotContain` "Review and send"
 
-        it "saves manual-only payroll settings, preserves rejected drafts, and previews completed sends" $ withContext do
+        it "saves group scheduling at 06:00, preserves disabled selections, and ignores submitted times" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Scheduled modal"
                 admin <- createUserRecord "scheduled-modal@example.com" "staff" True
@@ -79,38 +76,29 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
                         [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Payroll"), ("payrollWorkbookSheetFamilies", "[\"summary\"]")]
                 template <- query @PayrollWorkbookConfiguration |> fetchOne
-                let params = [("reportRecipients", "payroll@example.com"), ("reportTemplate", cs (tshow template.id)), ("reportMinute", "09:30")]
-                denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientEntry", "invalid-address"), ("reportRecipientAdd", "true")])
-                denied `responseBodyShouldContain` "Enter valid email addresses"
-                denied `responseBodyShouldContain` "payroll@example.com"
-                added <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientEntry", "extra@example.com"), ("reportRecipientAdd", "true")])
-                added `responseBodyShouldContain` "Remove extra@example.com"
-                removed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction (params <> [("reportRecipientRemove", "payroll@example.com")])
-                removed `responseBodyShouldNotContain` "Remove payroll@example.com"
-                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
-                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction params
+                group <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Payroll group"
+                    |> set #recipients ["payroll@example.com"] |> set #createdByUserId (unpackId admin.id) |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                let params = [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportEnabled", "true"), ("reportMinute", "15:45")]
+                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SavePayrollReportsAction params)
                 saved `responseBodyShouldContain` "settings saved"
                 setting <- query @PayrollReportSetting |> fetchOne
-                setting.enabled `shouldBe` False
-                setting.minuteOfDay `shouldBe` 570
-                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction params
+                setting.enabled `shouldBe` True
+                setting.minuteOfDay `shouldBe` 360
+                setting.recipientGroupId `shouldBe` Just (unpackId group.id)
+                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SavePayrollReportsAction params)
                 stale `responseBodyShouldContain` "Settings changed"
-                preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "2025-01-06")]
-                preview `responseBodyShouldContain` "Confirm payroll email"
-                preview `responseBodyShouldContain` "payroll@example.com"
-                preview `responseBodyShouldContain` "reportConfirmation"
-                unfinished <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "2999-01-01")]
-                unfinished `responseBodyShouldContain` "Choose a completed reporting week"
-                malformed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams PreviewPayrollReportAction [("reportWeek", "not-a-date")]
-                malformed `responseStatusShouldBe` status200
+                stale `responseBodyShouldContain` "Payroll group"
+                disabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow setting.revision)), ("reportMinute", "23:59")]
+                disabledResponse `responseBodyShouldContain` "settings saved"
+                disabled <- fetch setting.id
+                disabled.enabled `shouldBe` False
+                disabled.configurationId `shouldBe` setting.configurationId
+                disabled.recipientGroupId `shouldBe` setting.recipientGroupId
+                disabled.minuteOfDay `shouldBe` 360
+                legacySend <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams SendPayrollReportAction [("reportWeek", "2025-01-06"), ("reportRevision", cs (tshow disabled.revision)), ("reportConfirmation", "99999999-9999-4999-8999-999999999999")]
+                legacySend `responseBodyShouldContain` "require a fresh export-template confirmation"
                 query @PayrollReportRun |> fetchCount `shouldReturn` 0
 
         it "denies managers access to every payroll modal endpoint before parsing" $ withContext do

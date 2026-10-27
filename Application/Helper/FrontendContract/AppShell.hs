@@ -44,14 +44,10 @@ module Application.Helper.FrontendContract.AppShell
     , SavePayrollReports
     , PreviewPayrollReport
     , SendPayrollReport
-    , ReportRecipientsField
     , ReportTemplateField
+    , ReportGroupField
     , ReportEnabledField
-    , ReportMinuteField
     , ReportRevisionField
-    , ReportRecipientEntryField
-    , ReportRecipientAddField
-    , ReportRecipientRemoveField
     , ReportWeekField
     , ReportPreviousRunField
     , ReportConfirmationField
@@ -207,14 +203,10 @@ data OpenPayrollReports
 data SavePayrollReports
 data PreviewPayrollReport
 data SendPayrollReport
-data ReportRecipientsField
 data ReportTemplateField
+data ReportGroupField
 data ReportEnabledField
-data ReportMinuteField
 data ReportRevisionField
-data ReportRecipientEntryField
-data ReportRecipientAddField
-data ReportRecipientRemoveField
 data ReportWeekField
 data ReportPreviousRunField
 data ReportConfirmationField
@@ -360,14 +352,10 @@ type AppShellContract =
              ]
          , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
          , AppShellAction SavePayrollReports
-            '[ Field ReportRecipientsField 'WireText
-             , OptionalField ReportTemplateField 'WireUUID
+            '[ OptionalField ReportTemplateField 'WireUUID
+             , OptionalField ReportGroupField 'WireUUID
              , OptionalField ReportEnabledField 'WireBool
-             , Field ReportMinuteField 'WireText
              , OptionalField ReportRevisionField 'WireInt
-             , OptionalField ReportRecipientEntryField 'WireText
-             , OptionalField ReportRecipientAddField 'WireBool
-             , OptionalField ReportRecipientRemoveField 'WireText
              ] DialogSubmitOptions
          , AppShellAction PreviewPayrollReport
             '[ Field ReportWeekField 'WireDay

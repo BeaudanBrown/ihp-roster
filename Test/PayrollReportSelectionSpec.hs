@@ -92,8 +92,9 @@ tests = aroundAll withDatabaseTestContext do
                     run.exportJobId `shouldBe` Nothing
                     queued <- fetch run.id
                     changed <- saveRecipientGroup (Just group.id) (GroupsFixture.input { Groups.expectedRevision = Just 0, Groups.recipients = ["replacement@example.com"] }) >>= expectRight
-                    settings <- savePayrollReportSettings (SettingsFixture.input { Settings.configurationId = Just templateId }) >>= expectRight
-                    _ <- savePayrollReportSettings (SettingsFixture.input { Settings.expectedRevision = Just settings.revision, Settings.recipients = ["different@example.com"], Settings.configurationId = Just templateId }) >>= expectRight
+                    settings <- SettingsFixture.saveSettingsForTemplate templateId False >>= expectRight
+                    _ <- savePayrollReportSettings (SettingsFixture.input { Settings.expectedRevision = Just settings.revision
+                        , Settings.enabled = True, Settings.configurationId = Just templateId, Settings.recipientGroupId = settings.recipientGroupId }) >>= expectRight
                     deleteRecipientGroup group.id changed.revision False `shouldReturn` Right ()
                     deleteSavedPayrollWorkbookConfiguration (Id templateId) `shouldReturn` Left PayrollWorkbookConfigurationScheduleConfirmationRequired
                     deleteSavedPayrollWorkbookConfigurationConfirmingScheduleDisable True (Id templateId) `shouldReturn` Right ()
@@ -235,7 +236,7 @@ tests = aroundAll withDatabaseTestContext do
                 (venue, admin, templateId) <- setup
                 asCurrentVenueUser admin venue.id do
                     group <- saveRecipientGroup Nothing GroupsFixture.input >>= expectRight
-                    setting <- savePayrollReportSettings (SettingsFixture.input { Settings.enabled = True, Settings.configurationId = Just templateId }) >>= expectRight
+                    setting <- savePayrollReportSettings (SettingsFixture.input { Settings.enabled = True, Settings.configurationId = Just templateId, Settings.recipientGroupId = Just (unpackId group.id) }) >>= expectRight
                     _ <- setting |> set #recipientGroupId (Just (unpackId group.id))
                         |> set #scheduleActivatedAt (UTCTime (fromGregorian 2025 1 1) 0) |> updateRecord
                     let due = UTCTime (fromGregorian 2025 1 13) (22 * 3600)

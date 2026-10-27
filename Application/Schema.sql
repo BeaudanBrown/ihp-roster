@@ -1428,7 +1428,7 @@ CREATE TABLE payroll_report_settings (
     recipients TEXT[] DEFAULT '{}' NOT NULL,
     enabled BOOLEAN DEFAULT FALSE NOT NULL,
     weekday INT DEFAULT 1 NOT NULL,
-    minute_of_day INT DEFAULT 540 NOT NULL,
+    minute_of_day INT DEFAULT 360 NOT NULL,
     revision INT DEFAULT 0 NOT NULL,
     delivery_revision INT DEFAULT 0 NOT NULL,
     schedule_activated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,

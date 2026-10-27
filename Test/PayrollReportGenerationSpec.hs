@@ -3,8 +3,7 @@ module Test.PayrollReportGenerationSpec where
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.Helper.Export.Service (requestPayrollWorkbookXlsxExportWithDefinition)
 import Application.PayrollReports.Generation (generatePayrollReportSnapshot, validCompletedReportWeek)
-import Application.PayrollReports.Settings
-import qualified Application.PayrollReports.Settings as Settings
+import qualified Application.RecipientGroups as Groups
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -12,7 +11,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
-import Test.PayrollReportSettingsSpec (input)
+import Test.PayrollReportSettingsSpec (saveSettingsForTemplate)
 import Test.PayrollWorkbookConfigurationSpec (asCurrentVenueUser, expectRight, newConfiguration, updateConfiguration)
 
 week :: Day
@@ -33,7 +32,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord other admin VenueAdmin
                 forM_ [venue, other] \target -> asCurrentVenueUser admin target.id do
                     template <- createSavedPayrollWorkbookConfiguration (newConfiguration "History" 1 ["summary"]) >>= expectRight
-                    _ <- savePayrollReportSettings (input { Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) }) >>= expectRight
+                    _ <- saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) False >>= expectRight
                     pure ()
                 forM_ (replicate 6 week <> map (`addDays` week) [-7, -14, -21, -28]) \period -> do
                     _ <- generatePayrollReportSnapshot venue.id (unpackId admin.id) PayrollReportManual Nothing period now >>= expectRight
@@ -56,7 +55,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just admin) "Payroll" "Person"
                 _ <- createTimesheetEntryRecord venue staff week
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                _ <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (input { Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) })) >>= expectRight
+                _ <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) False) >>= expectRight
                 run <- generatePayrollReportSnapshot venue.id (unpackId admin.id) PayrollReportManual Nothing week now >>= expectRight
                 run.status `shouldBe` PayrollReportNoData
                 run.excludedEntryCount `shouldBe` 1
@@ -73,8 +72,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just admin) "Payroll" "Person"
                 _ <- createApprovedTimesheetEntryRecordAt venue staff admin week now
                 template <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Payroll" 1 ["summary"])) >>= expectRight
-                let configured = input { Settings.configurationId = Just (unpackId template.savedPayrollWorkbookConfigurationRecord.id) }
-                settings <- asCurrentVenueUser admin venue.id (savePayrollReportSettings configured) >>= expectRight
+                settings <- asCurrentVenueUser admin venue.id (saveSettingsForTemplate (unpackId template.savedPayrollWorkbookConfigurationRecord.id) False) >>= expectRight
                 run <- generatePayrollReportSnapshot venue.id (unpackId admin.id) PayrollReportManual Nothing week now >>= expectRight
                 run.status `shouldBe` PayrollReportReady
                 exportId <- maybe (expectationFailure "Expected export" >> fail "Missing export") pure run.exportJobId
@@ -83,7 +81,9 @@ tests = aroundAll withDatabaseTestContext do
                 export.fileContents `shouldBe` download.fileContents
                 export.deliveryMethod `shouldBe` "payroll_email"
                 query @ExportJobEntry |> filterWhere (#exportJobId, exportId) |> fetchCount `shouldReturn` 1
-                _ <- asCurrentVenueUser admin venue.id (savePayrollReportSettings (configured { expectedRevision = Just settings.revision, Settings.recipients = ["changed@example.com"] })) >>= expectRight
+                groupId <- maybe (fail "Expected group") pure settings.recipientGroupId
+                _ <- asCurrentVenueUser admin venue.id (Groups.saveRecipientGroup (Just (Id groupId))
+                    (Groups.RecipientGroupInput "Payroll recipients" ["changed@example.com"] (Just 0))) >>= expectRight
                 retained <- fetch run.id
                 retained.recipients `shouldBe` ["payroll@example.com"]
                 retained.templateSnapshot `shouldBe` run.templateSnapshot

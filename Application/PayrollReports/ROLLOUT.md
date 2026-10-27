@@ -23,7 +23,11 @@ Resend acceptance, inbox placement, or recipient replies.
    `1793068000.sql` adds recipient groups and nullable schedule links without
    inventing lists or retiming schedules. `1793071000.sql` adds frozen group/template
    provenance and permits standalone manual runs without a settings link; existing
-   links and snapshot contents stay unchanged. Run their preservation fixtures too.
+   links and snapshot contents stay unchanged. `1793076000.sql` changes only the
+   new-record time default to 06:00; it must not update existing rows. Run their
+   preservation fixtures too. Confirm zero unexpected legacy schedules before
+   group-selection cutover; if any exist, stop for an approved mapping/time review,
+   never silently convert their lists or times.
    Never use `make db` or replay a schema dump against production.
 3. Confirm the web and worker share the existing SMTP configuration and delivery
    policy described in [EmailDelivery](../EmailDelivery/README.md). The group
@@ -60,9 +64,12 @@ Resend acceptance, inbox placement, or recipient replies.
    workbook structure privately. Confirm Resend events correlate to the job;
    simulate an adverse event only with provider-approved test destinations.
    Retain only bounded status/timestamp evidence. No customer payroll is needed.
-5. A venue admin/owner (or authorised founder support) selects a saved template,
-   recipients and local send time, and enables automation. The send day follows
-   the venue's roster-week start; all recipients are visible in To and Reply-To. Review the next occurrence and reporting dates. New or
+5. A venue admin/owner (or authorised founder support) creates a named recipient
+   group in Admin, then enables automation and selects an Export template and
+   Recipient group. New schedules use 06:00 venue-local on the roster-week start
+   day; the UI cannot alter times. Turning automation off retains both selections.
+   All recipients are visible in To and Reply-To. Review the next occurrence and
+   reporting dates. New or
    edited schedules start in the future, without backfill. Calendar changes
    disable automation until reviewed and explicitly re-enabled.
 
@@ -95,11 +102,11 @@ local tests or documentation alone.
 ## Failure, rollback and recovery
 
 - Disable the venue schedule to stop unstarted automatic sends. This does not
-  cancel explicit manual sends. Legacy settings recipient/template-selection
-  changes revoke settings-backed unstarted snapshots; template layout edits affect
-  future generation only. Group edits never change prepared recipients. Confirmed
-  deletion of a linked group disables its schedule but preserves prepared manual
-  sends. Standalone manual snapshots are independent of automatic settings.
+  cancel explicit manual sends. Group/template changes affect future preparation,
+  never frozen recipients or bytes. Confirmed deletion of a linked group/template
+  disables its schedule but preserves prepared manual/updated sends, including
+  retained settings-backed snapshots. Standalone manual snapshots are independent
+  of automatic settings.
 - SMTP begins only after a durable uncertain-delivery marker. Exceptions/crashes
   after that boundary require manual review, never blind whole-list retry.
   Known pre-transport failures use the shared retry lifecycle. Expired/purged
