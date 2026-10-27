@@ -34,6 +34,7 @@ import Web.Controller.Admin.Support
 import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
+import Application.PayrollReports.Selection (isCompletedPayrollReportWeek)
 import Web.Controller.Prelude
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
 import Web.SurfaceInvalidation (withDurableLiveMutation)
@@ -544,7 +545,9 @@ instance Controller AdminController where
             exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
             savedConfigurations <- profileActionSpan "admin.exports_fragment.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection savedConfigurations))
+            config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
+            now <- getCurrentTime
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment (isCompletedPayrollReportWeek config now exportWeekSelection.weekStart) exportWeekSelection savedConfigurations))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

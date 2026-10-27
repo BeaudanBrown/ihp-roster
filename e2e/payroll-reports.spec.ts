@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { gotoWhenReady } from './support/runtime';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoExports } from './support/exports';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
@@ -98,4 +100,78 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     await dialog.getByRole('link', { name: 'Manage recipient groups', exact: true }).click();
     await expect(page).toHaveURL(/showRecipientGroups=true/);
     await expect(page.getByRole('button', { name: 'Create recipient group', exact: true })).toBeVisible();
+});
+
+test('export email reviews current recipients and requires whole-group repeat acknowledgement', async ({ page }, testInfo) => {
+    test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
+    const templateId = randomUUID();
+    const groupId = randomUUID();
+    const otherGroupId = randomUUID();
+    const suffix = templateId.slice(0, 8);
+    const address = `e2e-${suffix}@example.com`;
+    const changedAddress = `e2e-new-${suffix}@example.com`;
+    const otherAddress = `e2e-other-${suffix}@example.com`;
+    runSql(`
+        INSERT INTO payroll_workbook_configurations (id, venue_id, name, definition_version, revision, created_by_user_id)
+        VALUES ('${templateId}', 'a1000000-0000-0000-0000-000000000001', 'Email template ${suffix}', 1, 0, 'a0000000-0000-0000-0000-000000000003');
+        INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES ('${templateId}', 'summary', 0);
+        INSERT INTO recipient_groups (id, venue_id, name, recipients, created_by_user_id, updated_by_user_id) VALUES
+        ('${groupId}', 'a1000000-0000-0000-0000-000000000001', 'Email group ${suffix}', ARRAY['${address}'], 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003'),
+        ('${otherGroupId}', 'a1000000-0000-0000-0000-000000000001', 'Other email group ${suffix}', ARRAY['${otherAddress}'], 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003');
+        INSERT INTO payroll_report_settings (venue_id, enabled, recipient_group_id, updated_by_user_id)
+        VALUES ('a1000000-0000-0000-0000-000000000001', false, '${groupId}', 'a0000000-0000-0000-0000-000000000003')
+        ON CONFLICT (venue_id) DO UPDATE SET enabled = false, recipient_group_id = EXCLUDED.recipient_group_id;
+    `);
+    await loginAsPrivilegedUserWithSeededPasskeySession(page);
+    await gotoExports(page);
+    const card = page.locator(`[data-payroll-workbook-configuration="${templateId}"]`);
+    await expect(card.getByRole('button', { name: 'Email…', exact: true })).toBeDisabled();
+    await expect(page.getByText('Email is available only for completed roster weeks.', { exact: false })).toBeVisible();
+    await gotoWhenReady(page, '/Admin?showExports=true&anchorDate=2025-01-06#exports', 'h1:has-text("Admin")');
+    await card.getByRole('button', { name: 'Email…', exact: true }).click();
+    const chooser = page.getByRole('dialog', { name: 'Email export', exact: true });
+    const confirmation = page.getByRole('dialog', { name: 'Confirm payroll email', exact: true });
+    const settled = () => expect(page.locator('#dialog-overlay-mount')).not.toHaveClass(/htmx-settling/);
+    await expect(chooser.getByLabel('Recipient group', { exact: true })).toHaveValue(groupId);
+    await expect(chooser).toContainText(`Email template ${suffix}`);
+    await expect(chooser).toContainText('2025-01-06 – 2025-01-12');
+    await chooser.getByRole('button', { name: 'Review recipients', exact: true }).click();
+    await expect(confirmation.getByText(address, { exact: true })).toBeVisible();
+    await expect(confirmation.getByRole('checkbox')).toHaveCount(0);
+    await settled();
+    runSql(`UPDATE recipient_groups SET recipients = ARRAY['${changedAddress}'], revision = revision + 1 WHERE id = '${groupId}';`);
+    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
+    await expect(confirmation.getByRole('status')).toContainText('Review the send confirmation again');
+    await expect(confirmation.getByText(changedAddress, { exact: true })).toBeVisible();
+    await expect(confirmation.getByText(address, { exact: true })).toHaveCount(0);
+    await settled();
+    await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-email-confirmation.png`, fullPage: true });
+    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
+    await expect(chooser.getByRole('status')).toContainText('Report prepared for delivery');
+    await chooser.getByRole('button', { name: 'Close', exact: true }).click();
+    await card.getByRole('button', { name: 'Email…', exact: true }).click();
+    await expect(chooser.getByLabel('Recipient group', { exact: true })).toHaveValue(groupId);
+    await chooser.getByLabel('Recipient group', { exact: true }).selectOption(otherGroupId);
+    await chooser.getByRole('button', { name: 'Review recipients', exact: true }).click();
+    await expect(confirmation.getByText(otherAddress, { exact: true })).toBeVisible();
+    await expect(confirmation).toContainText('possibly for another group');
+    const acknowledgement = confirmation.getByRole('checkbox', { name: 'I confirm sending another report to the entire group.', exact: true });
+    await expect(acknowledgement).not.toBeChecked();
+    await settled();
+    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
+    await expect(confirmation).toBeVisible();
+    runSql(`DO $$ BEGIN IF (SELECT count(*) FROM payroll_report_runs WHERE configuration_id = '${templateId}') <> 1
+        THEN RAISE EXCEPTION 'unacknowledged repeat created another run'; END IF; END $$;`);
+    await acknowledgement.check();
+    await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-email-repeat-confirmation.png`, fullPage: true });
+    expect(await confirmation.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
+    await expect(chooser.getByRole('status')).toContainText('Report prepared for delivery');
+    runSql(`DO $$ BEGIN
+        IF (SELECT count(*) FROM payroll_report_runs WHERE configuration_id = '${templateId}' AND reporting_week = DATE '2025-01-06' AND settings_id IS NULL AND export_job_id IS NULL) <> 2
+        THEN RAISE EXCEPTION 'email selection or no-data snapshot mismatch'; END IF;
+        IF NOT EXISTS (SELECT 1 FROM payroll_report_runs WHERE configuration_id = '${templateId}' AND recipients = ARRAY['${changedAddress}'])
+        THEN RAISE EXCEPTION 'accepted recipient snapshot mismatch'; END IF;
+    END $$;`);
 });

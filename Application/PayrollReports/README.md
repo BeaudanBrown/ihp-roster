@@ -26,9 +26,16 @@ settings. Template/group revisions and calendar facts are rechecked before
 preparation. Repeat warnings include queued, accepted and uncertain attempts for
 the same template/week across groups, not just confirmed delivery. Run UUID retries
 return only the same immutable selection; a new repeat requires acknowledgement.
-Legacy settings-backed HTTP manual endpoints reject group-backed schedules;
-these require explicit template/group confirmation. Manual requests retain
-server-side alignment/completion validation and are independent of automation.
+Each Admin Exports template card offers Email… for the page-selected completed
+roster week; current/future weeks are disabled and independently rejected on the
+server. Download and Filtered… are unchanged; email always uses the full template.
+A separate group chooser defaults to an available saved schedule group even with
+automation off, but works without settings. Review shows the actual addresses and
+exact template/dates before whole-group confirmation. Pre-acceptance group,
+template or calendar changes require fresh review; repeat sends across groups
+require a fresh explicit acknowledgement. HTTP sends consume only the explicit
+selection contract, never the former settings-backed revision/week request.
+Dialogs are rendered by `Web/View/Admin/PayrollReportEmailDialog.hs`.
 
 `Generation.hs` owns repeatable-read report snapshots using explicit venue/actor
 provenance. `Export/WorkbookGeneration.hs` is shared with manual downloads, so

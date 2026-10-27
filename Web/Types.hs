@@ -126,6 +126,7 @@ data RecipientGroupsController
 data ExportsController
     = ExportJobsAction
     | PayrollReportsAction
+    | EmailPayrollReportAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | SavePayrollReportsAction
     | PreviewPayrollReportAction
     | SendPayrollReportAction

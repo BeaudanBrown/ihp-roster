@@ -1,21 +1,22 @@
 module Web.Exports.PayrollReports
-    ( openPayrollReports, savePayrollReports, previewPayrollReport, sendPayrollReport ) where
+    ( openPayrollReports, savePayrollReports, openPayrollReportEmail, previewPayrollReport, sendPayrollReport ) where
 
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.PayrollReports.Generation (validCompletedReportWeek)
 import Application.PayrollReports.Job (nextScheduledPayrollReport)
 import Application.PayrollReports.Manual
+import Application.PayrollReports.Selection
 import Application.PayrollReports.Settings
 import qualified Application.PayrollReports.Settings as Settings
-import Application.VenueTime
 import Application.RecipientGroups (listRecipientGroups)
 import qualified Data.UUID.V4 as UUID
+import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.View.Admin.PayrollReportsDialog
+import Web.View.Admin.PayrollReportEmailDialog
 
 openPayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 openPayrollReports = respondReports Nothing Nothing
@@ -61,45 +62,68 @@ settingsError = \case
     PayrollReportTemplateUnavailable -> "Choose an available export template before enabling scheduled reports."
     PayrollReportRecipientGroupUnavailable -> "Choose an available recipient group before enabling scheduled reports."
 
+openPayrollReportEmail :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Id PayrollWorkbookConfiguration -> Text -> IO ResponseReceived
+openPayrollReportEmail templateId anchorDate = do
+    ensureVenueWritable
+    case readMaybe (cs anchorDate) of
+        Nothing -> respondHtml (renderEmailNotice "Choose a completed roster week from Exports.")
+        Just week -> respondEmailChoices (unpackId templateId) week Nothing Nothing
+
+respondEmailChoices :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UUID -> Day -> Maybe UUID -> Maybe Text -> IO ResponseReceived
+respondEmailChoices templateId week preferred message = do
+    template <- fetchSavedPayrollWorkbookConfigurationForVenue currentVenueId (Id templateId)
+    config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
+    now <- getCurrentTime
+    case template of
+        Left _ -> respondHtml (renderEmailNotice "The selected export template is unavailable.")
+        Right _ | not (isCompletedPayrollReportWeek config now week) -> respondHtml (renderEmailNotice "Choose a completed roster week from Exports.")
+        Right template -> do
+            groups <- listRecipientGroups
+            settings <- fetchPayrollReportSettings
+            let available = either (const []) (\values -> values) groups
+            let savedGroup = either (const Nothing) (>>= (.recipientGroupId)) settings
+            let chosen = preferred <|> savedGroup
+            let activeChoice = chosen >>= \identifier -> if any (\group -> unpackId group.id == identifier) available then Just identifier else Nothing
+            respondHtml (renderEmailGroupChooser template week available activeChoice message)
+
 previewPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 previewPayrollReport = do
     ensureVenueWritable
     case parseAppShellActionParams @Shell.PreviewPayrollReport of
-        Left errors -> respondReports Nothing (Just (surfaceRequestFieldErrorsMessage errors))
+        Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
         Right fields -> do
             let week = surfaceFieldValue @Shell.ReportWeekField fields
-            let previous = surfaceFieldValue @Shell.ReportPreviousRunField fields
-            config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
-            now <- getCurrentTime
-            let today = localDay (resolvedInstantLocalTime (resolvedInstantFromUTC now))
-            valid <- case previous of
-                Nothing -> pure (validCompletedReportWeek config.rosterWeekStartsOn today week)
-                Just runId -> do
-                    run <- query @PayrollReportRun |> filterWhere (#id, Id runId) |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing
-                    pure (maybe False (\r -> r.reportingWeek == week && r.rangeEnd == addDays 6 week && r.rangeEnd < today) run)
-            settings <- fetchPayrollReportSettings
-            case settings of
-                Right (Just setting) | valid && isNothing setting.recipientGroupId && not (null setting.recipients) && isJust setting.configurationId -> do
-                    confirmation <- UUID.nextRandom
-                    next <- nextScheduledPayrollReport setting
-                    respondHtml (renderPayrollReportConfirmation setting week previous confirmation next)
-                _ -> respondReports Nothing (Just "Choose a completed reporting week and save a current template and recipients before sending.")
+            let templateId = surfaceFieldValue @Shell.ReportTemplateField fields
+            case surfaceFieldValue @Shell.ReportGroupField fields of
+                Nothing -> respondEmailChoices templateId week Nothing (Just "Choose an available recipient group.")
+                Just groupId -> respondEmailReview templateId groupId week Nothing
+
+respondEmailReview :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UUID -> UUID -> Day -> Maybe Text -> IO ResponseReceived
+respondEmailReview templateId groupId week message = do
+    preview <- previewManualPayrollReport templateId groupId week
+    case preview of
+        Left failure -> respondEmailChoices templateId week (Just groupId) (Just failure)
+        Right preview -> do
+            confirmation <- UUID.nextRandom
+            respondHtml (renderEmailConfirmation preview confirmation message)
 
 sendPayrollReport :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 sendPayrollReport = do
     ensureVenueWritable
-    settings <- fetchPayrollReportSettings
-    case settings of
-        Right (Just setting) | isJust setting.recipientGroupId ->
-            respondReports Nothing (Just "Group-based manual emails require a fresh export-template confirmation.")
-        _ -> case parseAppShellActionParams @Shell.SendPayrollReport of
-            Left errors -> respondReports Nothing (Just (surfaceRequestFieldErrorsMessage errors))
-            Right fields -> do
-                outcome <- requestManualPayrollReport
-                    (surfaceFieldValue @Shell.ReportConfirmationField fields)
-                    (surfaceFieldValue @Shell.ReportRevisionField fields)
-                    (surfaceFieldValue @Shell.ReportWeekField fields)
-                    (surfaceFieldValue @Shell.ReportPreviousRunField fields)
-                case outcome of
-                    Left message -> respondReports Nothing (Just message)
-                    Right _ -> respondReports Nothing (Just "Report prepared for delivery. This does not confirm inbox delivery.")
+    case parseAppShellActionParams @Shell.SendPayrollReport of
+        Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let week = surfaceFieldValue @Shell.ReportWeekField fields
+            let selection = ManualReportSelection
+                    { configurationId = surfaceFieldValue @Shell.ReportTemplateField fields
+                    , configurationRevision = surfaceFieldValue @Shell.ReportConfigurationRevisionField fields
+                    , recipientGroupId = surfaceFieldValue @Shell.ReportGroupField fields
+                    , recipientGroupRevision = surfaceFieldValue @Shell.ReportGroupRevisionField fields
+                    , rosterWeekStartsOn = surfaceFieldValue @Shell.ReportRosterStartField fields
+                    , timezone = surfaceFieldValue @Shell.ReportTimezoneField fields
+                    , repeatSendConfirmed = fromMaybe False (surfaceFieldValue @Shell.ReportRepeatField fields) }
+            outcome <- requestSelectedManualPayrollReport (surfaceFieldValue @Shell.ReportConfirmationField fields) selection week
+            case outcome of
+                Left failure -> respondEmailReview selection.configurationId selection.recipientGroupId week
+                    (Just failure)
+                Right _ -> respondHtml (renderEmailNotice "Report prepared for delivery. This does not confirm inbox delivery. Do not send another copy merely because delivery has not yet been confirmed.")

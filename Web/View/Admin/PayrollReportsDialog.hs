@@ -9,7 +9,6 @@ import Application.Helper.View.Overlay
 import Application.Helper.View.ToggleButton
 import Application.Helper.Url (appendQueryParams)
 import Application.VenueTime
-import qualified Data.Text as Text
 import Web.View.Prelude
 
 data ReportDraft = ReportDraft
@@ -89,28 +88,3 @@ renderPayrollReportsDialog draft templates groups next now message =
         Nothing -> [hsx|<p>Automation is off or a usable schedule is unavailable. Saved selections are retained while automation is off.</p>|]
         Just (due, week) -> [hsx|<p>Scheduled for <strong>{reportLocalTimestamp due}</strong>, reporting {tshow week} – {tshow (addDays 6 week)}.</p>{overdue due}|]
     overdue due = if due <= now then [hsx|<p>Awaiting scheduler processing. Catch-up is permitted for 24 hours; older occurrences are marked missed.</p>|] else mempty
-
-renderPayrollReportConfirmation :: PayrollReportSetting -> Day -> Maybe UUID -> UUID -> Maybe (UTCTime, Day) -> Html
-renderPayrollReportConfirmation setting week previous confirmation next = renderConfirmationDialog
-    ((defaultConfirmationDialogConfig "Confirm payroll email" description "payroll-report-send-form" form)
-        { confirmationDialogApproveLabel = "Send to entire list", confirmationDialogLoadingLabel = "Preparing report…" })
-  where
-    description = [hsx|
-        <p>Reporting {tshow week} – {tshow (addDays 6 week)} using the current saved template and approved data at generation.</p>
-        <p>To and Reply-To: <strong>{Text.intercalate ", " setting.recipients}</strong>. All recipients can see each other and reply directly to the group.</p>
-        <p>Submitted but unapproved entries are excluded. With no approved entries, a no-data email is sent without an attachment.</p>
-        {resendWarning}
-        {forEach next automaticWarning}
-    |]
-    resendWarning = if isJust previous then [hsx|<p class="alert alert-warning">This creates an updated report, not a replay. The entire current list receives another copy, including people who previously received the report.</p>|] else mempty
-    automaticWarning (due, automaticWeek) = [hsx|<p class="alert alert-warning">Automation remains scheduled for {reportLocalTimestamp due}, reporting {tshow automaticWeek}. This manual send does not suppress it.</p>|]
-    renderPrevious runId = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportPreviousRunField fields} value={tshow runId}/>|]
-    fields = appShellActionFields @Shell.SendPayrollReport (surfaceField @Shell.ReportWeekField week)
-        (surfaceOptionalField @Shell.ReportPreviousRunField previous &: surfaceField @Shell.ReportRevisionField setting.revision &: surfaceField @Shell.ReportConfirmationField confirmation &: noSurfaceFields)
-    form = renderAppShellActionForm (appShellActionByMarker @Shell.SendPayrollReport)
-        ((defaultAppShellActionRoute (pathTo SendPayrollReportAction)) { appShellActionRouteExtraAttrs = [("id", "payroll-report-send-form")] }) [hsx|
-            <input type="hidden" name={surfaceFieldNameFrom @Shell.ReportWeekField fields} value={tshow week}/>
-            <input type="hidden" name={surfaceFieldNameFrom @Shell.ReportRevisionField fields} value={tshow setting.revision}/>
-            <input type="hidden" name={surfaceFieldNameFrom @Shell.ReportConfirmationField fields} value={tshow confirmation}/>
-            {forEach previous renderPrevious}
-        |]

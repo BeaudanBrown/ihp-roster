@@ -5,11 +5,13 @@ module Application.PayrollReports.Selection
     , selectedReportConfirmation
     , manualReportSelectionIsCurrent
     , validCompletedReportWeek
+    , isCompletedPayrollReportWeek
     , payrollReportAlreadyPrepared
     ) where
 
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.Helper.WeekBoundaries (startOfWeekFor)
+import Application.VenueTime.Model (storedInstantLocalTime)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Generated.Types
@@ -66,6 +68,11 @@ manualReportSelectionIsCurrent selection selected =
 
 validCompletedReportWeek :: Int -> Day -> Day -> Bool
 validCompletedReportWeek startsOn today week = startOfWeekFor startsOn week == week && addDays 6 week < today
+
+isCompletedPayrollReportWeek :: VenueConfig -> UTCTime -> Day -> Bool
+isCompletedPayrollReportWeek config now week = case storedInstantLocalTime config.timezone now of
+    Left _ -> False
+    Right localNow -> validCompletedReportWeek config.rosterWeekStartsOn (localDay localNow) week
 
 -- Prepared/queued/uncertain/accepted are warning-worthy; this is never a claim
 -- of inbox delivery. Failed-before-send, cancelled, missed and disabled are not.

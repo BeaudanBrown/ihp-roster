@@ -46,9 +46,104 @@ archiveEntryText path archive =
         Nothing -> expectationFailure ("Missing XLSX archive entry: " <> path) >> pure ""
         Just entry -> pure (decodeUtf8 (LBS.toStrict (Zip.fromEntry entry)))
 
+emailFixture :: (?modelContext :: ModelContext) => IO (Venue, User, PayrollWorkbookConfiguration, RecipientGroup)
+emailFixture = do
+    venue <- createVenueWithConfig "Export email"
+    admin <- createUserRecord "export-email-admin@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue admin VenueAdmin
+    template <- newRecord @PayrollWorkbookConfiguration |> set #venueId (unpackId venue.id)
+        |> set #name "Email template" |> set #createdByUserId (unpackId admin.id) |> createRecord
+    _ <- newRecord @PayrollWorkbookConfigurationFamily |> set #configurationId (unpackId template.id)
+        |> set #familyKey "summary" |> set #position 0 |> createRecord
+    group <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Email group"
+        |> set #recipients ["email-fixture@example.com"] |> set #createdByUserId (unpackId admin.id)
+        |> set #updatedByUserId (unpackId admin.id) |> createRecord
+    pure (venue, admin, template, group)
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "emails a full selected template without settings, refreshes stale recipients and deduplicates confirmation retries" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let previewParams = [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-06")]
+                let sendParams = previewParams <> [("reportConfigurationRevision", cs (tshow template.revision)), ("reportRosterStart", cs (tshow config.rosterWeekStartsOn)), ("reportTimezone", cs config.timezone), ("reportConfirmation", "99999999-9999-4999-8999-999999999901")]
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
+                opened `responseBodyShouldContain` "Review recipients"
+                opened `responseBodyShouldContain` "Email template"
+                preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams PreviewPayrollReportAction previewParams)
+                preview `responseBodyShouldContain` "email-fixture@example.com"
+                preview `responseBodyShouldContain` "2025-01-06"
+                preview `responseBodyShouldContain` "2025-01-12"
+                _ <- group |> set #recipients ["changed-fixture@example.com"] |> set #revision 1 |> updateRecord
+                stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "0")]))
+                stale `responseBodyShouldContain` "Review the send confirmation again"
+                stale `responseBodyShouldContain` "changed-fixture@example.com"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+                sent <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
+                sent `responseBodyShouldContain` "Report prepared for delivery"
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
+                query @PayrollReportRun |> fetchCount `shouldReturn` 1
+                query @PayrollReportSetting |> fetchCount `shouldReturn` 0
+                run <- query @PayrollReportRun |> fetchOne
+                run.configurationId `shouldBe` Just (unpackId template.id)
+                run.recipients `shouldBe` ["changed-fixture@example.com"]
+                run.reportingWeek `shouldBe` fromGregorian 2025 1 6
+                run.exportJobId `shouldBe` Nothing
+
+        it "requires whole-group repeat acknowledgement across groups and defaults disabled schedule groups" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                other <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Another group"
+                    |> set #recipients ["another-fixture@example.com"] |> set #createdByUserId (unpackId admin.id)
+                    |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                _ <- newRecord @PayrollReportSetting |> set #venueId (unpackId venue.id) |> set #enabled False
+                    |> set #recipientGroupId (Just (unpackId group.id)) |> set #updatedByUserId (unpackId admin.id) |> createRecord
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
+                opened `responseBodyShouldContain` cs ("value=\"" <> tshow group.id <> "\" selected")
+                let base = [("reportTemplate", cs (tshow template.id)), ("reportWeek", "2025-01-06"), ("reportConfigurationRevision", cs (tshow template.revision)), ("reportGroupRevision", "0"), ("reportRosterStart", cs (tshow config.rosterWeekStartsOn)), ("reportTimezone", cs config.timezone)]
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (base <> [("reportGroup", cs (tshow group.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999902")]))
+                let repeatParams = base <> [("reportGroup", cs (tshow other.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999903")]
+                denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction repeatParams)
+                denied `responseBodyShouldContain` "I confirm sending another report"
+                denied `responseBodyShouldContain` "another-fixture@example.com"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 1
+                accepted <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (repeatParams <> [("reportRepeat", "true")]))
+                accepted `responseBodyShouldContain` "Report prepared for delivery"
+                query @PayrollReportRun |> fetchCount `shouldReturn` 2
+
+        it "rejects malformed, incomplete, misaligned and foreign email selections without leaking recipients" $ withContext do
+            withCleanDb do
+                (venue, admin, template, group) <- emailFixture
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #rosterWeekStartsOn 3 |> updateRecord
+                forM_ ["not-a-date", "2999-01-01", "2025-01-06"] \week -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id week))
+                    response `responseBodyShouldContain` "Choose a completed roster week"
+                foreignVenue <- createVenueWithConfig "Foreign email group"
+                foreignGroup <- group |> set #venueId (unpackId foreignVenue.id) |> updateRecord
+                rejected <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-01")]
+                rejected `responseBodyShouldContain` "unavailable"
+                rejected `responseBodyShouldNotContain` "email-fixture@example.com"
+                restored <- foreignGroup |> set #venueId (unpackId venue.id) |> updateRecord
+                valid <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-01")]
+                valid `responseBodyShouldContain` "2025-01-01"
+                valid `responseBodyShouldContain` "2025-01-07"
+                valid `responseBodyShouldContain` "Send to entire group"
+                now <- getCurrentTime
+                _ <- restored |> set #archivedAt (Just now) |> updateRecord
+                archived <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-01"))
+                archived `responseBodyShouldContain` "Create a recipient group"
+                archived `responseBodyShouldNotContain` "email-fixture@example.com"
+                malformed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", "not-a-uuid"), ("reportWeek", "2025-01-01")]
+                malformed `responseStatusShouldBe` status200
+                query @PayrollReportRun |> fetchCount `shouldReturn` 0
+
         it "shows grouped 06:00 scheduling without inline recipients, time input, manual sends or history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Scheduled controls"
@@ -98,7 +193,7 @@ tests = aroundAll withDatabaseTestContext do
                 disabled.minuteOfDay `shouldBe` 360
                 legacySend <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams SendPayrollReportAction [("reportWeek", "2025-01-06"), ("reportRevision", cs (tshow disabled.revision)), ("reportConfirmation", "99999999-9999-4999-8999-999999999999")]
-                legacySend `responseBodyShouldContain` "require a fresh export-template confirmation"
+                legacySend `responseBodyShouldContain` "reportTemplate"
                 query @PayrollReportRun |> fetchCount `shouldReturn` 0
 
         it "denies managers access to every payroll modal endpoint before parsing" $ withContext do
@@ -106,7 +201,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Manager denied"
                 manager <- createUserRecord "report-manager-modal@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
-                forM_ [PayrollReportsAction, SavePayrollReportsAction, PreviewPayrollReportAction, SendPayrollReportAction] \action -> do
+                forM_ [PayrollReportsAction, SavePayrollReportsAction, EmailPayrollReportAction (Id (unpackId venue.id)) "invalid", PreviewPayrollReportAction, SendPayrollReportAction] \action -> do
                     response <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id (callAction action)
                     response `responseStatusShouldBe` status302
                     response `responseBodyShouldNotContain` "report-recipients"

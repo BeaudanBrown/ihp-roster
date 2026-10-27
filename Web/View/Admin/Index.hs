@@ -2,7 +2,7 @@
 
 module Web.View.Admin.Index where
 
-import Application.Helper.Export (ReportWeekSelection,
+import Application.Helper.Export (ReportWeekSelection (..),
                                   SavedPayrollWorkbookConfiguration)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
@@ -17,6 +17,7 @@ import Web.View.Admin.RosterGroups
 import Web.View.Admin.RecipientGroups
 import Web.View.Admin.ShiftTypes
 import Web.View.Admin.VenueSettings
+import Application.PayrollReports.Selection (isCompletedPayrollReportWeek)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -77,7 +78,7 @@ renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showIn
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id)}
         {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig awardLevels awardLevelBaseRates)}
-        {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionMount exportWeekSelection savedPayrollWorkbookConfigurations)}
+        {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionMount (isCompletedPayrollReportWeek venueConfig currentTime exportWeekSelection.weekStart) exportWeekSelection savedPayrollWorkbookConfigurations)}
         {renderAccordionItem "recipient-groups" "Recipient groups" recipientGroupsSectionOpen (renderRecipientGroupsMount recipientGroups)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)}

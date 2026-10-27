@@ -31,35 +31,39 @@ adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
 -- The page owns the mount; live responses replace only its inner target.
-renderExportsSectionMount :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSectionMount selection savedConfigurations =
+renderExportsSectionMount :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionMount canEmail selection savedConfigurations =
     renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart)
-        (renderExportsSectionFragment selection savedConfigurations)
+        (renderExportsSectionFragment canEmail selection savedConfigurations)
 
-renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionFragment :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
+renderExportsSectionFragmentWithSwap :: Maybe Text -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob canEmail selection savedConfigurations =
     [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection selection savedConfigurations}
+            {renderExportsSection canEmail selection savedConfigurations}
         </div>
     |]
 
-renderExportsSection :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSection selection savedConfigurations =
+renderExportsSection :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSection canEmail selection savedConfigurations =
     renderConfigSection
         "admin-exports-section"
         mempty
         [hsx|
             <button type="button" class="btn btn-outline-primary mb-3" {...appShellActionAttrs (appShellActionByMarker @AppShell.OpenPayrollReports) (defaultAppShellActionRoute (pathTo PayrollReportsAction))}>Scheduled reports</button>
             {renderExportWeekSelector selection}
-            {renderExportGenerationForm selection savedConfigurations}
+            {unless canEmail incompleteWeekMessage}
+            {renderExportGenerationForm canEmail selection savedConfigurations}
         |]
         mempty
+
+incompleteWeekMessage :: Html
+incompleteWeekMessage = [hsx|<p class="small app-muted">Email is available only for completed roster weeks. Select a previous week to email an export.</p>|]
 
 renderExportWeekSelector :: ReportWeekSelection -> Html
 renderExportWeekSelector selection = [hsx|
@@ -102,19 +106,19 @@ exportWeekLabel selection =
         <> " – "
         <> Text.pack (formatTime defaultTimeLocale "%-d %b %Y" selection.weekEnd)
 
-renderExportGenerationForm :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportGenerationForm selection savedConfigurations = [hsx|
+renderExportGenerationForm :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportGenerationForm canEmail selection savedConfigurations = [hsx|
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div class="fw-semibold">Payroll Workbook exports</div>
         {renderAddExportButton selection}
     </div>
     <div class="d-grid gap-2" data-payroll-workbook-configuration-list="true">
-        {if null savedConfigurations then renderEmptyState "No Payroll Workbook exports configured." else forEach savedConfigurations (renderSavedConfigurationCard selection)}
+        {if null savedConfigurations then renderEmptyState "No Payroll Workbook exports configured." else forEach savedConfigurations (renderSavedConfigurationCard canEmail selection)}
     </div>
 |]
 
-renderSavedConfigurationCard :: ReportWeekSelection -> SavedPayrollWorkbookConfiguration -> Html
-renderSavedConfigurationCard selection configuration = [hsx|
+renderSavedConfigurationCard :: Bool -> ReportWeekSelection -> SavedPayrollWorkbookConfiguration -> Html
+renderSavedConfigurationCard canEmail selection configuration = [hsx|
     <div class={appSurfaceClasses "p-3"}
          data-fixed-export-card="true"
          data-export-type={exportJobTypeToText PayrollWorkbookXlsx}
@@ -127,6 +131,7 @@ renderSavedConfigurationCard selection configuration = [hsx|
             <div class="d-flex flex-wrap gap-2">
                 {downloadForm}
                 {renderFilteredExportButton selection.weekStart selection.weekEnd PayrollWorkbookXlsx (Just (unpackId configurationRecord.id))}
+                {emailButton}
                 {renderEditExportButton selection configurationRecord}
                 {renderDeleteExportButton selection configurationRecord}
             </div>
@@ -135,6 +140,9 @@ renderSavedConfigurationCard selection configuration = [hsx|
 |]
   where
     configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
+    emailButton = [hsx|<button type="button" class="btn btn-outline-primary" disabled={not canEmail} {...emailAttrs}>Email…</button>|]
+    emailAttrs = appShellActionAttrs (appShellActionByMarker @AppShell.OpenPayrollReportEmail)
+        (defaultAppShellActionRoute (pathTo (EmailPayrollReportAction configurationRecord.id (tshow selection.weekStart))))
     fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd PayrollWorkbookXlsx (Just (unpackId configurationRecord.id))
     downloadForm =
         renderFrontendSurfaceActionFormWithHiddenFields

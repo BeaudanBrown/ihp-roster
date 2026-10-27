@@ -139,6 +139,7 @@ instance Controller ExportsController where
         ensureProfileCompleted
         ensureAdminRole
 
+    action currentAction@EmailPayrollReportAction { payrollWorkbookConfigurationId, anchorDate } = runBepis currentAction BepisFormAction (openPayrollReportEmail payrollWorkbookConfigurationId anchorDate)
     action currentAction@PayrollReportsAction = runBepis currentAction BepisFormAction openPayrollReports
     action currentAction@SavePayrollReportsAction = runBepis currentAction BepisMutationAction savePayrollReports
     action currentAction@PreviewPayrollReportAction = runBepis currentAction BepisFormAction previewPayrollReport

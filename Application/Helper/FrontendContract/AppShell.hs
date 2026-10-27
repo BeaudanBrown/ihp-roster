@@ -41,6 +41,7 @@ module Application.Helper.FrontendContract.AppShell
     , RecipientGroupRevisionField
     , RecipientGroupDisableScheduleField
     , OpenPayrollReports
+    , OpenPayrollReportEmail
     , SavePayrollReports
     , PreviewPayrollReport
     , SendPayrollReport
@@ -49,7 +50,11 @@ module Application.Helper.FrontendContract.AppShell
     , ReportEnabledField
     , ReportRevisionField
     , ReportWeekField
-    , ReportPreviousRunField
+    , ReportConfigurationRevisionField
+    , ReportGroupRevisionField
+    , ReportRosterStartField
+    , ReportTimezoneField
+    , ReportRepeatField
     , ReportConfirmationField
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
@@ -200,6 +205,7 @@ data RecipientGroupRemoveField
 data RecipientGroupRevisionField
 data RecipientGroupDisableScheduleField
 data OpenPayrollReports
+data OpenPayrollReportEmail
 data SavePayrollReports
 data PreviewPayrollReport
 data SendPayrollReport
@@ -208,7 +214,11 @@ data ReportGroupField
 data ReportEnabledField
 data ReportRevisionField
 data ReportWeekField
-data ReportPreviousRunField
+data ReportConfigurationRevisionField
+data ReportGroupRevisionField
+data ReportRosterStartField
+data ReportTimezoneField
+data ReportRepeatField
 data ReportConfirmationField
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
@@ -351,6 +361,7 @@ type AppShellContract =
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
+         , AppShellAction OpenPayrollReportEmail '[] DialogLauncherOptions
          , AppShellAction SavePayrollReports
             '[ OptionalField ReportTemplateField 'WireUUID
              , OptionalField ReportGroupField 'WireUUID
@@ -359,12 +370,18 @@ type AppShellContract =
              ] DialogSubmitOptions
          , AppShellAction PreviewPayrollReport
             '[ Field ReportWeekField 'WireDay
-             , OptionalField ReportPreviousRunField 'WireUUID
+             , Field ReportTemplateField 'WireUUID
+             , OptionalField ReportGroupField 'WireUUID
              ] DialogSubmitOptions
          , AppShellAction SendPayrollReport
             '[ Field ReportWeekField 'WireDay
-             , OptionalField ReportPreviousRunField 'WireUUID
-             , Field ReportRevisionField 'WireInt
+             , Field ReportTemplateField 'WireUUID
+             , Field ReportGroupField 'WireUUID
+             , Field ReportConfigurationRevisionField 'WireInt
+             , Field ReportGroupRevisionField 'WireInt
+             , Field ReportRosterStartField 'WireInt
+             , Field ReportTimezoneField 'WireText
+             , OptionalField ReportRepeatField 'WireBool
              , Field ReportConfirmationField 'WireUUID
              ] DialogSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions

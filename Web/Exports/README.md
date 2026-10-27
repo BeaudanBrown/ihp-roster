@@ -16,6 +16,15 @@ downloads and unsaved sheet controls retain their existing owners.
   `Web/View/Admin/PayrollWorkbookConfigurationDialog.hs`; persistence remains in
   `Application/Helper/Export/PayrollWorkbookConfiguration.hs`.
 
+- `PayrollReports.hs` adapts the separate schedule and export-email workflows.
+  Email takes the existing Exports page week and selected template, defaults an
+  available saved recipient group even when automation is off, and renders a
+  separate review before submission. Its typed confirmation carries template,
+  group and calendar revisions plus one retry UUID, never editable addresses.
+  `Application/PayrollReports/Manual.hs` revalidates and prepares immutable full
+  template snapshots through the shared generator/transport. Stale or repeat
+  rejection requires fresh review; success is preparation, not inbox delivery.
+
 ## Editing Constraints
 
 Keep access and writability checks before the request-facing workflows. Parsed
