@@ -25,9 +25,14 @@ Application/Migration/Rehearsal/<revision>/predecessor.sql
 Application/Migration/Rehearsal/<revision>/assert.sql
 ```
 
-The harness rejects an incomplete pair. It executes `predecessor.sql` against
-the reconstructed predecessor database before the pinned IHP runner, then
-executes `assert.sql` after migration and revision verification. Both files run
+The harness rejects an incomplete pair. Pending revisions run in numeric order.
+Immediately before each revision it executes that revision's `predecessor.sql`,
+so fixtures can use tables/columns created by earlier pending migrations. It
+stages unchanged migration files incrementally for the pinned IHP runner, verifies
+the revision was recorded, and executes `assert.sql` before advancing to the next
+revision. Assertions therefore describe their own upgrade boundary, not the
+final state after later legitimate transformations. Final recorded-revision and
+whole-schema convergence checks still cover the complete chain. Both files run
 through PostgreSQL with `ON_ERROR_STOP`; assertions should use `DO` blocks and
 raise a stable, descriptive exception naming the failed invariant without
 including customer row values. Fixture standard output and raw PostgreSQL error

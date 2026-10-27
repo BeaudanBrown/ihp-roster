@@ -131,6 +131,12 @@ done
 pending_csv="$(IFS=,; echo "${pending_revisions[*]:-}")"
 printf 'pending_revisions=%s\n' "${pending_csv:-none}" | tee -a "$metadata_file"
 
+# Expose revisions incrementally to the real runner. Later fixtures can rely
+# on earlier migrations, and each assertion observes its own upgrade boundary.
+# SQL files are copied unchanged; IHP still owns transactions/revision recording.
+staged_migrations="$run_dir/migrations"
+mkdir -p "$staged_migrations"
+migration_url="postgresql:///$database?host=$socket&port=$port&user=$database_user"
 assertion_revisions=()
 for revision in "${pending_revisions[@]}"; do
     rehearsal_fixture_dir="Application/Migration/Rehearsal/$revision"
@@ -151,42 +157,54 @@ for revision in "${pending_revisions[@]}"; do
         assertion_revisions+=("$revision")
         printf 'predecessor_fixture=%s\n' "$predecessor_fixture" | tee -a "$metadata_file"
     fi
-done
-
-migration_url="postgresql:///$database?host=$socket&port=$port&user=$database_user"
-: > "$run_dir/migrate.ready"
-env -i \
-    HOME="${HOME:-/tmp}" \
-    LANG="${LANG:-C.UTF-8}" \
-    PATH="$PATH" \
-    TZ=UTC \
-    DATABASE_URL="$migration_url" \
-    IHP_MIGRATION_DIR="$repo_root/Application/Migration/" \
-    "$runner" >"$migrate_log" 2>&1 &
-runner_pid=$!
-set +e
-wait "$runner_pid"
-runner_status=$?
-set -e
-runner_pid=""
-if [ "$runner_status" -ne 0 ]; then
-    mapfile -t failed_state_revisions < <(
-        pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision' 2>/dev/null || true
-    )
-    failed_revision="unknown"
-    for revision in "${pending_revisions[@]}"; do
-        if ! printf '%s\n' "${failed_state_revisions[@]}" | grep -Fxq "$revision"; then
-            failed_revision="$revision"
-            break
+    for migration in "$repo_root"/Application/Migration/*.sql; do
+        name="${migration##*/}"
+        file_revision="${name%%[^0-9]*}"
+        if [ "$file_revision" = "$revision" ]; then
+            cp -- "$migration" "$staged_migrations/"
         fi
     done
-    sanitize_migrate_failure "$runner_status"
-    echo "migration-rehearsal: FAIL predecessor_ref=$from_ref predecessor_commit=$predecessor_commit candidate_commit=$candidate_commit failed_revision=$failed_revision" >&2
-    bounded_log "$migrate_log"
-    exit 1
-fi
-# Successful runner output is intentionally discarded: notices can contain row values.
-: > "$migrate_log"
+    : > "$run_dir/migrate.ready"
+    env -i \
+        HOME="${HOME:-/tmp}" \
+        LANG="${LANG:-C.UTF-8}" \
+        PATH="$PATH" \
+        TZ=UTC \
+        DATABASE_URL="$migration_url" \
+        IHP_MIGRATION_DIR="$staged_migrations/" \
+        "$runner" >"$migrate_log" 2>&1 &
+    runner_pid=$!
+    set +e
+    wait "$runner_pid"
+    runner_status=$?
+    set -e
+    runner_pid=""
+    if [ "$runner_status" -ne 0 ]; then
+        sanitize_migrate_failure "$runner_status"
+        echo "migration-rehearsal: FAIL predecessor_ref=$from_ref predecessor_commit=$predecessor_commit candidate_commit=$candidate_commit failed_revision=$revision" >&2
+        bounded_log "$migrate_log"
+        exit 1
+    fi
+    # Successful runner output is discarded: notices can contain row values.
+    : > "$migrate_log"
+    recorded="$(pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 \
+        -c "SELECT count(*) FROM schema_migrations WHERE revision = $revision")"
+    if [ "$recorded" != 1 ]; then
+        echo "migration-rehearsal: FAIL missing_candidate_revisions=$revision" >&2
+        exit 1
+    fi
+    if [ -f "$assertion_fixture" ]; then
+        if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 \
+            -f "$assertion_fixture" >/dev/null 2>"$fixture_log"; then
+            printf 'assertion_file=%s\nstatus=failed\n' "$assertion_fixture" > "$fixture_log"
+            echo "migration-rehearsal: focused assertion failed: $assertion_fixture" >&2
+            exit 1
+        fi
+        rm -f "$fixture_log"
+        printf 'assertion_revision=%s assertion_file=%s PASS\n' "$revision" "$assertion_fixture" \
+            | tee -a "$metadata_file"
+    fi
+done
 
 mapfile -t after_revisions < <(
     pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision'
@@ -211,19 +229,6 @@ for revision in "${after_revisions[@]}"; do
 done
 applied_csv="$(IFS=,; echo "${applied_revisions[*]:-}")"
 printf 'applied_revisions=%s\n' "${applied_csv:-none}" | tee -a "$metadata_file"
-
-for revision in "${assertion_revisions[@]}"; do
-    assertion_fixture="Application/Migration/Rehearsal/$revision/assert.sql"
-    if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 \
-        -f "$assertion_fixture" >/dev/null 2>"$fixture_log"; then
-        printf 'assertion_file=%s\nstatus=failed\n' "$assertion_fixture" > "$fixture_log"
-        echo "migration-rehearsal: focused assertion failed: $assertion_fixture" >&2
-        exit 1
-    fi
-    rm -f "$fixture_log"
-    printf 'assertion_revision=%s assertion_file=%s PASS\n' "$revision" "$assertion_fixture" \
-        | tee -a "$metadata_file"
-done
 
 candidate_ihp_schema="$candidate_ihp_source/ihp-ide/data/IHPSchema.sql"
 if ! pg_command psql -d "$fresh_database" -X -q -v ON_ERROR_STOP=1 \

@@ -360,6 +360,40 @@ run_harness --from-ref "$predecessor_commit" >"$fixture_root/data.out" 2>"$fixtu
 grep -F 'assertion_revision=1003' "$fixture_root/data.out" >/dev/null
 grep -F 'assertions=1' "$fixture_root/data.out" >/dev/null
 
+# Later fixtures need tables/columns from pending earlier migrations. Earlier
+# assertions must run before a later migration legitimately changes their data.
+mkdir -p "$fixture_repo/Application/Migration/Rehearsal/1005"
+cat > "$fixture_repo/Application/Migration/1004-create-followup.sql" <<'SQL'
+CREATE TABLE rehearsal_followup (id BIGINT PRIMARY KEY, label TEXT NOT NULL);
+SQL
+cat > "$fixture_repo/Application/Migration/1005-check-followup.sql" <<'SQL'
+ALTER TABLE rehearsal_followup ADD COLUMN checked BOOLEAN NOT NULL DEFAULT TRUE;
+SQL
+cat > "$fixture_repo/Application/Migration/Rehearsal/1005/predecessor.sql" <<'SQL'
+INSERT INTO rehearsal_followup (id, label)
+SELECT id, backfill_key FROM rehearsal_widgets;
+SQL
+cat > "$fixture_repo/Application/Migration/Rehearsal/1005/assert.sql" <<'SQL'
+DO $$ BEGIN
+    IF (SELECT count(*) FROM rehearsal_followup WHERE checked AND label LIKE 'backfilled:%') <> 2 THEN
+        RAISE EXCEPTION 'dependent_fixture_preservation_failed';
+    END IF;
+END $$;
+SQL
+cat > "$fixture_repo/Application/Migration/1006-final-label.sql" <<'SQL'
+UPDATE rehearsal_widgets SET backfill_key = 'final:' || label;
+SQL
+cat >> "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_followup (id BIGINT PRIMARY KEY, label TEXT NOT NULL, checked BOOLEAN NOT NULL DEFAULT TRUE);
+SQL
+git -C "$fixture_repo" add Application
+git -C "$fixture_repo" commit -qm 'dependent revision fixtures and assertion boundaries'
+run_harness --from-ref "$predecessor_commit" >"$fixture_root/chain.out" 2>"$fixture_root/chain.err"
+grep -F 'assertion_revision=1003' "$fixture_root/chain.out" >/dev/null
+grep -F 'assertion_revision=1005' "$fixture_root/chain.out" >/dev/null
+grep -F 'assertions=2' "$fixture_root/chain.out" >/dev/null
+grep -F 'schema_convergence=pass' "$fixture_root/chain.out" >/dev/null
+
 cp "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql" "$fixture_root/valid-assert.sql"
 cat > "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql" <<'SQL'
 SELECT 'sensitive-row-value-must-not-escape';
@@ -387,7 +421,7 @@ cp "$fixture_root/valid-assert.sql" "$fixture_repo/Application/Migration/Rehears
 git -C "$fixture_repo" add Application/Migration/Rehearsal/1003/assert.sql
 git -C "$fixture_repo" commit -qm 'restore valid assertion fixture'
 
-cat > "$fixture_repo/Application/Migration/1004-schema-drift.sql" <<'SQL'
+cat > "$fixture_repo/Application/Migration/1007-schema-drift.sql" <<'SQL'
 SELECT 1;
 SQL
 cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
@@ -398,6 +432,7 @@ CREATE TABLE rehearsal_widgets (
     backfill_key TEXT NOT NULL,
     drift_only TEXT
 );
+CREATE TABLE rehearsal_followup (id BIGINT PRIMARY KEY, label TEXT NOT NULL, checked BOOLEAN NOT NULL DEFAULT TRUE);
 SQL
 git -C "$fixture_repo" add Application
 git -C "$fixture_repo" commit -qm 'schema drift fixture'
