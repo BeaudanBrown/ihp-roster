@@ -8,10 +8,13 @@ import IHP.ControllerPrelude
 -- Legacy disabled payroll settings allow an empty list; saved groups do not.
 validateRecipientAddresses :: [Text] -> Either Text [Text]
 validateRecipientAddresses values
-    | length values > 50 = Left "Use at most 50 recipients."
+    | length (take 51 unique) > 50 = Left "Use at most 50 recipients."
     | any invalidAddress normalized = Left "Enter valid email addresses without display names."
-    | otherwise = Right (List.nub normalized)
+    | otherwise = Right unique
   where
+    -- Bound distinct recipients, not repeated draft entries. Stop deduplicating
+    -- once the limit is exceeded rather than traversing an unbounded unique list.
+    unique = List.nub normalized
     normalized = map (Text.toLower . Text.strip) values
     invalidAddress address = Text.null address || Text.length address > 254
         || Text.any (`elem` ['\r', '\n', ',', ';', '<', '>']) address

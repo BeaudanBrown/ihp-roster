@@ -43,14 +43,17 @@ tests = aroundAll withDatabaseTestContext do
                     saved.revision `shouldBe` 0
                     fetchRecipientGroup saved.id `shouldReturn` Right saved
                     listRecipientGroups `shouldReturn` Right [saved]
-                    forM_ [[], [""], ["not-an-email"], ["x@example.com\r\nBcc: y@example.com"], ["Name <x@example.com>"], replicate 51 "x@example.com"] \addresses ->
-                        saveRecipientGroup Nothing (input { Groups.recipients = addresses }) >>= (`shouldSatisfy` isLeft)
+                    forM_ [[], [""], ["not-an-email"], ["x@example.com\r\nBcc: y@example.com"], ["Name <x@example.com>"], ["person" <> tshow index <> "@example.com" | index <- [1..51 :: Int]]] \addresses ->
+                        saveRecipientGroup Nothing (input { Groups.name = "Invalid list", Groups.recipients = addresses }) >>= (`shouldSatisfy` isLeft)
                     forM_ ["  ", Text.replicate 101 "x"] \name ->
                         saveRecipientGroup Nothing (input { Groups.name = name }) >>= (`shouldSatisfy` isLeft)
                     let fifty = ["person" <> tshow index <> "@example.com" | index <- [1..50 :: Int]]
                     full <- saveRecipientGroup Nothing (input { Groups.name = "Fifty", Groups.recipients = fifty }) >>= expectRight
                     length full.recipients `shouldBe` 50
-                    query @RecipientGroup |> fetchCount `shouldReturn` 2
+                    duplicates <- saveRecipientGroup Nothing (input { Groups.name = "Repeated address"
+                        , Groups.recipients = concat (replicate 30 [" X@EXAMPLE.COM ", "x@example.com"]) }) >>= expectRight
+                    duplicates.recipients `shouldBe` ["x@example.com"]
+                    query @RecipientGroup |> fetchCount `shouldReturn` 3
 
         it "rejects duplicate names and stale edits, and permits name reuse after logical deletion" $ withContext do
             withCleanDb do

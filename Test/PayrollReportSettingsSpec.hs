@@ -41,7 +41,7 @@ tests = aroundAll withDatabaseTestContext do
         it "normalizes recipients and rejects injection, malformed addresses and excessive lists" $ withContext do
             validatePayrollReportRecipients [" Payroll@Example.com ", "payroll@example.com"] `shouldBe` Right ["payroll@example.com"]
             mapM_ (\addresses -> validatePayrollReportRecipients addresses `shouldSatisfy` isLeft)
-                [["missing-at"], ["x@example.com\r\nBcc: other@example.com"], ["Person <x@example.com>"], replicate 51 "x@example.com"]
+                [["missing-at"], ["x@example.com\r\nBcc: other@example.com"], ["Person <x@example.com>"], ["person" <> tshow index <> "@example.com" | index <- [1..51 :: Int]]]
 
         it "saves disabled empty settings at 06:00 and rejects stale edits" $ withContext do
             withCleanDb do
