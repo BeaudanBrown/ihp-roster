@@ -40,12 +40,17 @@ data Options = Options
 runtimeStateDirectoriesFor :: FilePath -> IO [FilePath]
 runtimeStateDirectoriesFor workspacePath = do
     uid <- show <$> getEffectiveUserID
-    workspaceId <- hashPrefix workspacePath
+    targetRoot <- canonicalizePath workspacePath
+    workspaceId <- hashPrefix targetRoot
     configuredState <- lookupEnv "DEVENV_AGENT_STATE_DIR"
+    configuredOwner <- lookupEnv "BEPIS_WORKSPACE_REPO_ROOT" >>= traverse canonicalizePath
     configuredRoot <- lookupEnv "BEPIS_WORKSPACE_STATE_ROOT"
-    let defaults = [workspacePath </> ".devenv/agent", "/tmp/bepis-dev-runtime-" <> uid <> "-" <> workspaceId]
+    -- The explicit directory belongs to the configured caller, not every epic
+    -- inspected from that shell. Shared roots still derive a target-specific path.
+    let explicit = [state | Just state <- [configuredState], configuredOwner == Just targetRoot]
+        defaults = [targetRoot </> ".devenv/agent", "/tmp/bepis-dev-runtime-" <> uid <> "-" <> workspaceId]
         rooted = maybe [] (\root -> [root </> "workspace-" <> workspaceId]) configuredRoot
-    pure (nub (maybe defaults (: defaults) configuredState <> rooted))
+    pure (nub (explicit <> defaults <> rooted))
 
 runWorkspaceCommand :: IO ()
 runWorkspaceCommand = run `catch` handleToolError
