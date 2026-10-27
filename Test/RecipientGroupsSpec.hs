@@ -186,8 +186,8 @@ tests = aroundAll withDatabaseTestContext do
                 fetch manual.id `shouldReturn` queuedManual
                 fetch updatedSend.id `shouldReturn` updatedSend
                 forM_ terminalRuns \run -> fetch run.id `shouldReturn` run
-                payrollReportRunIsCurrent current manual `shouldBe` True
-                payrollReportRunIsCurrent current updatedSend `shouldBe` True
+                payrollReportRunIsCurrent (Just current) manual `shouldBe` True
+                payrollReportRunIsCurrent (Just current) updatedSend `shouldBe` True
                 sent <- newIORef (0 :: Int)
                 job <- query @AppJob |> filterWhere (#relatedId, Just (unpackId manual.id)) |> filterWhere (#payloadSchemaVersion, 2) |> fetchOne
                 performGroupEmailDeliveryWith (GroupDeliveryRuntime (pure False) (\_ -> modifyIORef' sent (+ 1))) job

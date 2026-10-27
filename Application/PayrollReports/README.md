@@ -21,6 +21,14 @@ history section or history refresh. Delivery/run records remain internal for
 idempotency, scheduling and operational recovery; removing the display does not
 remove data. Provider acceptance is not confirmed inbox delivery.
 
+`Selection.hs` and the selected-manual entry points in `Manual.hs` also support
+explicit export-template/group confirmations without creating or updating automatic
+settings. Template/group revisions and calendar facts are rechecked before
+preparation. Repeat warnings include queued, accepted and uncertain attempts for
+the same template/week across groups, not just confirmed delivery. Run UUID retries
+return only the same immutable selection; a new repeat requires acknowledgement.
+The current modal's legacy entry point remains settings-backed.
+
 Manual sending uses a completed roster-week selector, newest first and defaulting
 to the previous week. It includes empty weeks back to the earlier of venue
 creation or its earliest retained timesheet date (always at least the previous
@@ -37,8 +45,11 @@ Delivery must refuse expired/purged artifacts rather than regenerate silently.
 Updated sends create a new snapshot and retain the original history.
 
 Settings mutations and linked-template deletion serialize on the venue row,
-including the first save before a settings row exists. Acquire this lock before
-workbook locks. Standalone operations own their transaction; durable publishers
+including the first save before a settings row exists. The venue-row fence touches
+its row version without changing business fields, so a waiting repeatable-read
+preparation retries with fresh recipient/repeat facts instead of a pre-lock
+snapshot. Generation bounds retries of serialization/unique conflicts. Acquire
+this fence before workbook locks. Standalone operations own their transaction; durable publishers
 must use explicitly named in-current-transaction operations.
 
 Automatic reports run on the venue's roster-week start day at the saved local
@@ -59,8 +70,10 @@ sends. Re-enablement starts in the future. Historical Resend carries the origina
 run reference and dates; new manual sends must align with the current calendar.
 
 `revision` rejects stale settings edits. `delivery_revision` revokes unstarted
-recipient/template-selection snapshots without changing attachments already
-generated. The scheduler must separately check automatic enablement and schedule
+settings-backed recipient/template-selection snapshots without changing attachments
+already generated. Standalone manual runs have no settings link: changes to
+schedule settings, group membership or template deletion cannot revoke them.
+Their frozen recipients and artifacts remain subject to expiry/transport checks. The scheduler must separately check automatic enablement and schedule
 activation: disabling automation must not disable explicit manual sending.
 Template layout edits do not revoke snapshots. Confirmed deletion clears the
 selection and disables automation while preserving recipients and timing.
@@ -74,6 +87,13 @@ all group recipients remain visible in To and Reply-To.
 Migration `1792639000` is additive, creates no opted-in venues and changes no
 existing customer rows. Deploy through the normal backed-up migration procedure;
 rollback application code without dropping the retained settings table.
+
+Migration `1793071000` makes the run's settings link optional for explicit manual
+selection and adds immutable template/group provenance. Scheduled runs still
+require a settings link. Legacy snapshots/links are unchanged; repeat assessment
+uses their immutable saved-definition key, never today's settings. Template IDs
+are historical identity without a deletion-blocking foreign key; group identities
+reference archived records. Preserve these tables/columns on application rollback.
 
 Data-only migration `1792713300` aligns existing differing weekdays, increments
 the settings revision and restarts activation in the future. It cancels only

@@ -112,6 +112,7 @@ tests = aroundAll withDatabaseTestContext do
                         , now = instant 2025 1 14 0
                         , expectedRevision = Just setting.revision
                         , previousRunId = Nothing
+                        , manualSelection = Nothing
                         }
                 (first, second) <- concurrently (generatePayrollReportRequest request) (generatePayrollReportRequest request)
                 firstRun <- expectRight first
@@ -146,6 +147,7 @@ tests = aroundAll withDatabaseTestContext do
                     , now = addUTCTime 60 due
                     , expectedRevision = Just disabled.revision
                     , previousRunId = Just (unpackId run.id)
+                    , manualSelection = Nothing
                     } >>= expectRight
                 updated.reportingWeek `shouldBe` week
                 updated.rangeEnd `shouldBe` addDays 6 week

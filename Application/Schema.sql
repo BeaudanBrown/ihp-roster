@@ -1485,7 +1485,7 @@ CREATE TYPE payroll_report_status_enum AS ENUM ('payroll_report_ready', 'payroll
 CREATE TABLE payroll_report_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
-    settings_id UUID NOT NULL,
+    settings_id UUID,
     export_job_id UUID,
     reporting_week DATE NOT NULL,
     range_end DATE NOT NULL,
@@ -1502,7 +1502,14 @@ CREATE TABLE payroll_report_runs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    configuration_id UUID,
+    recipient_group_id UUID,
+    recipient_group_revision INT,
     FOREIGN KEY (settings_id) REFERENCES payroll_report_settings (id) ON DELETE RESTRICT,
+    CONSTRAINT payroll_report_runs_recipient_group_fkey FOREIGN KEY (recipient_group_id) REFERENCES recipient_groups (id) ON DELETE RESTRICT,
+    CONSTRAINT payroll_report_runs_schedule_link_check CHECK ((origin <> 'payroll_report_scheduled') OR (settings_id IS NOT NULL)),
+    CONSTRAINT payroll_report_runs_group_snapshot_check CHECK (((recipient_group_id IS NULL) AND (recipient_group_revision IS NULL)) OR ((recipient_group_id IS NOT NULL) AND (recipient_group_revision IS NOT NULL) AND (recipient_group_revision >= 0))),
+    CONSTRAINT payroll_report_runs_manual_provenance_check CHECK ((settings_id IS NOT NULL) OR ((origin = 'payroll_report_manual') AND (configuration_id IS NOT NULL) AND (recipient_group_id IS NOT NULL))),
     FOREIGN KEY (export_job_id) REFERENCES export_jobs (id) ON DELETE RESTRICT,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((excluded_entry_count >= 0) AND (approved_entry_count >= 0)),
@@ -1512,6 +1519,7 @@ CREATE TABLE payroll_report_runs (
 );
 CREATE UNIQUE INDEX payroll_report_runs_scheduled_week_idx ON payroll_report_runs (venue_id, reporting_week) WHERE origin = 'payroll_report_scheduled';
 CREATE INDEX payroll_report_runs_venue_week_idx ON payroll_report_runs (venue_id, reporting_week, created_at);
+CREATE INDEX payroll_report_runs_template_week_idx ON payroll_report_runs (venue_id, configuration_id, reporting_week);
 
 -- schema-nav: billing
 CREATE TABLE venue_billing_customers (

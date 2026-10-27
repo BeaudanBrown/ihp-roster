@@ -45,11 +45,14 @@ fetchPayrollReportSettings
     | not canManage = pure (Left PayrollReportAccessDenied)
     | otherwise = Right <$> (query @PayrollReportSetting |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing)
 
--- A venue row exists before the first settings row. Serialising on it also makes
--- first-save races and template deletion atomic without unsafe business SQL.
+-- A venue row exists before the first settings row. Touching its row version
+-- makes a waiting REPEATABLE READ preparation fail/retry with a fresh snapshot:
+-- SELECT FOR UPDATE alone would leave it reading pre-lock group/repeat facts.
+-- No business field changes. Every group/settings/preparation mutation uses this
+-- same fence before other locks; generation retries SQLSTATE 40001.
 withPayrollReportVenueLock :: (?modelContext :: ModelContext) => UUID -> IO ()
 withPayrollReportVenueLock venueId = do
-    _ :: [Only UUID] <- unsafeSqlQuery "SELECT id FROM venues WHERE id = ? FOR UPDATE" (Only venueId)
+    _ :: [Only UUID] <- unsafeSqlQuery "UPDATE venues SET id = id WHERE id = ? RETURNING id" (Only venueId)
     pure ()
 
 savePayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
@@ -151,12 +154,16 @@ cancelPendingPayrollReports :: (?modelContext :: ModelContext) => UUID -> Bool -
 cancelPendingPayrollReports venueId includeManual = do
     pending <- query @PayrollReportRun |> filterWhere (#venueId, venueId)
         |> filterWhereIn (#status, [PayrollReportReady, PayrollReportNoData, PayrollReportQueued]) |> fetch
-    forM_ (filter (\run -> includeManual || run.origin == PayrollReportScheduled) pending) \run -> do
+    forM_ (filter (\run -> run.origin == PayrollReportScheduled || (includeManual && isJust run.settingsId)) pending) \run -> do
         now <- getCurrentTime
         run |> set #status PayrollReportCancelled |> set #updatedAt now |> updateRecord |> void
 
-payrollReportRunIsCurrent :: PayrollReportSetting -> PayrollReportRun -> Bool
-payrollReportRunIsCurrent settings run =
-    settings.venueId == run.venueId && unpackId settings.id == run.settingsId
-        && settings.deliveryRevision == run.deliveryRevision
-        && (run.origin /= PayrollReportScheduled || (settings.enabled && settings.scheduleActivatedAt == run.scheduleActivatedAt))
+payrollReportRunIsCurrent :: Maybe PayrollReportSetting -> PayrollReportRun -> Bool
+payrollReportRunIsCurrent settings run = case run.settingsId of
+    Nothing -> run.origin == PayrollReportManual && isJust run.configurationId
+        && isJust run.recipientGroupId && isJust run.recipientGroupRevision
+    Just settingId -> case settings of
+        Nothing -> False
+        Just settings -> settings.venueId == run.venueId && unpackId settings.id == settingId
+            && settings.deliveryRevision == run.deliveryRevision
+            && (run.origin /= PayrollReportScheduled || (settings.enabled && settings.scheduleActivatedAt == run.scheduleActivatedAt))

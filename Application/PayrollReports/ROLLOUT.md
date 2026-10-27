@@ -20,6 +20,10 @@ Resend acceptance, inbox placement, or recipient replies.
    Its rehearsal fixtures must pass: recipients/templates/send times, manual and
    updated sends, terminal history and already aligned schedules are preserved.
    Review changed schedules' next occurrences before restarting the timer.
+   `1793068000.sql` adds recipient groups and nullable schedule links without
+   inventing lists or retiming schedules. `1793071000.sql` adds frozen group/template
+   provenance and permits standalone manual runs without a settings link; existing
+   links and snapshot contents stay unchanged. Run their preservation fixtures too.
    Never use `make db` or replay a schema dump against production.
 3. Confirm the web and worker share the existing SMTP configuration and delivery
    policy described in [EmailDelivery](../EmailDelivery/README.md). The group
@@ -91,8 +95,11 @@ local tests or documentation alone.
 ## Failure, rollback and recovery
 
 - Disable the venue schedule to stop unstarted automatic sends. This does not
-  cancel explicit manual sends. Recipient/template-selection changes revoke
-  unstarted snapshots; template layout edits affect future generation only.
+  cancel explicit manual sends. Legacy settings recipient/template-selection
+  changes revoke settings-backed unstarted snapshots; template layout edits affect
+  future generation only. Group edits never change prepared recipients. Confirmed
+  deletion of a linked group disables its schedule but preserves prepared manual
+  sends. Standalone manual snapshots are independent of automatic settings.
 - SMTP begins only after a durable uncertain-delivery marker. Exceptions/crashes
   after that boundary require manual review, never blind whole-list retry.
   Known pre-transport failures use the shared retry lifecycle. Expired/purged
@@ -113,6 +120,11 @@ local tests or documentation alone.
   group-envelope jobs: drain them with the compatible worker before rollback,
   or leave processing stopped and perform reviewed forward recovery. Do not
   bulk-reset terminal jobs, delete history, or silently resend ambiguous runs.
+  Once standalone runs exist, pre-`1793071000` application versions cannot safely
+  read nullable settings links. Do not roll back to those binaries against this
+  data, even with the queue drained. Keep processing stopped and deploy a reviewed
+  forward fix/compatible recovery build; never fabricate settings links or remove
+  standalone runs to make an old binary fit.
 - Restore a database backup only under the separately reviewed recovery plan:
   restoring queue state can recreate work already accepted externally. Keep
   outbound delivery stopped until accepted/ambiguous jobs are reconciled. A

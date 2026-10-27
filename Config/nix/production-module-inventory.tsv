@@ -363,6 +363,7 @@ Application/PayrollReports/Job.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Manual.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Notifications.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Schedule.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Selection.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain

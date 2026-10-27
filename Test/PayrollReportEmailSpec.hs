@@ -96,7 +96,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 run <- makeRun False
                 job <- queuedJob run
-                setting <- fetch (Id run.settingsId :: Id PayrollReportSetting)
+                Just settingsId <- pure run.settingsId
+                setting <- fetch (Id settingsId :: Id PayrollReportSetting)
                 _ <- setting |> set #deliveryRevision (setting.deliveryRevision + 1) |> updateRecord
                 let noSend = \_ -> expectationFailure "Transport must not run"
                 performGroupEmailDeliveryWith (GroupDeliveryRuntime (pure False) noSend) job

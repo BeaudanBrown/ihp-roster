@@ -108,6 +108,7 @@ performPayrollReportJob job = do
                 , now
                 , expectedRevision = Just setting.revision
                 , previousRunId = Nothing
+                , manualSelection = Nothing
                 }
             case outcome of
                 Left _ -> do

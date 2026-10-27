@@ -68,7 +68,9 @@ performGroupEmailDeliveryWith runtime job = do
         unless (job.venueId == Just run.venueId) (throwAppJobError JobInvalidProvenance)
         withPayrollReportVenueLock run.venueId
         current <- fetch run.id
-        setting <- fetch (Id current.settingsId :: Id PayrollReportSetting)
+        setting <- case current.settingsId of
+            Nothing -> pure Nothing
+            Just settingId -> fetchOneOrNothing (Id settingId :: Id PayrollReportSetting)
         if current.status `notElem` [PayrollReportReady, PayrollReportNoData, PayrollReportQueued]
             then completeGroupJob job current >> pure Nothing
         else if not (payrollReportRunIsCurrent setting current)
