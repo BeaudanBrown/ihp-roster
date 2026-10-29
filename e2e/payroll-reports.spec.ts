@@ -102,7 +102,7 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     await expect(page.getByRole('button', { name: 'Create recipient group', exact: true })).toBeVisible();
 });
 
-test('export email reviews current recipients and requires whole-group repeat acknowledgement', async ({ page }, testInfo) => {
+test('export email reviews current recipients and confirms repeats with Send again', async ({ page }, testInfo) => {
     test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
     const templateId = randomUUID();
     const groupId = randomUUID();
@@ -135,39 +135,51 @@ test('export email reviews current recipients and requires whole-group repeat ac
     await expect(chooser.getByLabel('Recipient group', { exact: true })).toHaveValue(groupId);
     await expect(chooser).toContainText(`Email template ${suffix}`);
     await expect(chooser).toContainText('2025-01-06 – 2025-01-12');
+    await expect(chooser.getByRole('link', { name: 'Manage recipient groups', exact: true })).toHaveCount(0);
+    await expect(chooser).not.toContainText('download filters do not apply');
+    await chooser.getByLabel('Recipient group', { exact: true }).selectOption(otherGroupId);
+    await chooser.getByRole('button', { name: 'Review recipients', exact: true }).click();
+    await expect(confirmation.getByText(otherAddress, { exact: true })).toBeVisible();
+    await settled();
+    await confirmation.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(chooser.getByLabel('Recipient group', { exact: true })).toHaveValue(otherGroupId);
+    await expect(chooser).toContainText('2025-01-06 – 2025-01-12');
+    await settled();
+    await chooser.getByLabel('Recipient group', { exact: true }).selectOption(groupId);
     await chooser.getByRole('button', { name: 'Review recipients', exact: true }).click();
     await expect(confirmation.getByText(address, { exact: true })).toBeVisible();
     await expect(confirmation.getByRole('checkbox')).toHaveCount(0);
     await settled();
     runSql(`UPDATE recipient_groups SET recipients = ARRAY['${changedAddress}'], revision = revision + 1 WHERE id = '${groupId}';`);
-    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Send email', exact: true }).click();
     await expect(confirmation.getByRole('status')).toContainText('Review the send confirmation again');
     await expect(confirmation.getByText(changedAddress, { exact: true })).toBeVisible();
     await expect(confirmation.getByText(address, { exact: true })).toHaveCount(0);
     await settled();
     await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-email-confirmation.png`, fullPage: true });
-    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
-    await expect(chooser.getByRole('status')).toContainText('Report prepared for delivery');
-    await chooser.getByRole('button', { name: 'Close', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Send email', exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(chooser).toHaveCount(0);
+    await expect(page.getByText('Report queued for delivery', { exact: true })).toBeVisible();
+    await settled();
     await card.getByRole('button', { name: 'Email…', exact: true }).click();
     await expect(chooser.getByLabel('Recipient group', { exact: true })).toHaveValue(groupId);
     await chooser.getByLabel('Recipient group', { exact: true }).selectOption(otherGroupId);
     await chooser.getByRole('button', { name: 'Review recipients', exact: true }).click();
     await expect(confirmation.getByText(otherAddress, { exact: true })).toBeVisible();
-    await expect(confirmation).toContainText('possibly for another group');
-    const acknowledgement = confirmation.getByRole('checkbox', { name: 'I confirm sending another report to the entire group.', exact: true });
-    await expect(acknowledgement).not.toBeChecked();
+    await expect(confirmation.getByRole('alert')).toContainText('This sends a new copy to this group.');
+    await expect(confirmation.getByRole('checkbox')).toHaveCount(0);
+    await expect(confirmation.getByRole('button', { name: 'Send again', exact: true })).toBeEnabled();
     await settled();
-    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
-    await expect(confirmation).toBeVisible();
     runSql(`DO $$ BEGIN IF (SELECT count(*) FROM payroll_report_runs WHERE configuration_id = '${templateId}') <> 1
-        THEN RAISE EXCEPTION 'unacknowledged repeat created another run'; END IF; END $$;`);
-    await acknowledgement.check();
+        THEN RAISE EXCEPTION 'review created another run before Send again'; END IF; END $$;`);
     await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-email-repeat-confirmation.png`, fullPage: true });
     expect(await confirmation.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-    await confirmation.getByRole('button', { name: 'Send to entire group', exact: true }).click();
-    await expect(chooser.getByRole('status')).toContainText('Report prepared for delivery');
+    await confirmation.getByRole('button', { name: 'Send again', exact: true }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(chooser).toHaveCount(0);
+    await expect(page.getByText('Report queued for delivery', { exact: true })).toBeVisible();
     runSql(`DO $$ BEGIN
         IF (SELECT count(*) FROM payroll_report_runs WHERE configuration_id = '${templateId}' AND reporting_week = DATE '2025-01-06' AND settings_id IS NULL AND export_job_id IS NULL) <> 2
         THEN RAISE EXCEPTION 'email selection or no-data snapshot mismatch'; END IF;

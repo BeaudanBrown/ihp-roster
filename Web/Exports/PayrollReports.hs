@@ -12,6 +12,7 @@ import Application.PayrollReports.Selection
 import Application.PayrollReports.Settings
 import qualified Application.PayrollReports.Settings as Settings
 import Application.RecipientGroups (listRecipientGroups)
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter), renderDialogOverlayClearOob, renderToastOob, successToast)
 import qualified Data.UUID.V4 as UUID
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
@@ -67,7 +68,9 @@ openPayrollReportEmail templateId anchorDate = do
     ensureVenueWritable
     case readMaybe (cs anchorDate) of
         Nothing -> respondHtml (renderEmailNotice "Choose a completed roster week from Exports.")
-        Just week -> respondEmailChoices (unpackId templateId) week Nothing Nothing
+        Just week -> case parseAppShellActionParams @Shell.OpenPayrollReportEmail of
+            Left errors -> respondHtml (renderEmailNotice (surfaceRequestFieldErrorsMessage errors))
+            Right fields -> respondEmailChoices (unpackId templateId) week (surfaceFieldValue @Shell.ReportGroupField fields) Nothing
 
 respondEmailChoices :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UUID -> Day -> Maybe UUID -> Maybe Text -> IO ResponseReceived
 respondEmailChoices templateId week preferred message = do
@@ -126,4 +129,4 @@ sendPayrollReport = do
             case outcome of
                 Left failure -> respondEmailReview selection.configurationId selection.recipientGroupId week
                     (Just failure)
-                Right _ -> respondHtml (renderEmailNotice "Report prepared for delivery. This does not confirm inbox delivery. Do not send another copy merely because delivery has not yet been confirmed.")
+                Right _ -> respondHtml (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Report queued for delivery"))

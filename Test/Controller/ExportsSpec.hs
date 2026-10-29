@@ -72,6 +72,8 @@ tests = aroundAll withDatabaseTestContext do
                 opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
                 opened `responseBodyShouldContain` "Review recipients"
                 opened `responseBodyShouldContain` "Email template"
+                opened `responseBodyShouldNotContain` "Manage recipient groups"
+                opened `responseBodyShouldNotContain` "download filters do not apply"
                 preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams PreviewPayrollReportAction previewParams)
                 preview `responseBodyShouldContain` "email-fixture@example.com"
                 preview `responseBodyShouldContain` "2025-01-06"
@@ -82,7 +84,9 @@ tests = aroundAll withDatabaseTestContext do
                 stale `responseBodyShouldContain` "changed-fixture@example.com"
                 query @PayrollReportRun |> fetchCount `shouldReturn` 0
                 sent <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
-                sent `responseBodyShouldContain` "Report prepared for delivery"
+                sent `responseBodyShouldContain` "Report queued for delivery"
+                sent `responseBodyShouldContain` "hx-swap-oob"
+                sent `responseBodyShouldNotContain` "This does not confirm inbox delivery"
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "1")]))
                 query @PayrollReportRun |> fetchCount `shouldReturn` 1
                 query @PayrollReportSetting |> fetchCount `shouldReturn` 0
@@ -103,15 +107,20 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #recipientGroupId (Just (unpackId group.id)) |> set #updatedByUserId (unpackId admin.id) |> createRecord
                 opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-06"))
                 opened `responseBodyShouldContain` cs ("value=\"" <> tshow group.id <> "\" selected")
+                back <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams (EmailPayrollReportAction template.id "2025-01-06") [("reportGroup", cs (tshow other.id))])
+                back `responseBodyShouldContain` cs ("value=\"" <> tshow other.id <> "\" selected")
                 let base = [("reportTemplate", cs (tshow template.id)), ("reportWeek", "2025-01-06"), ("reportConfigurationRevision", cs (tshow template.revision)), ("reportGroupRevision", "0"), ("reportRosterStart", cs (tshow config.rosterWeekStartsOn)), ("reportTimezone", cs config.timezone)]
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (base <> [("reportGroup", cs (tshow group.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999902")]))
                 let repeatParams = base <> [("reportGroup", cs (tshow other.id)), ("reportConfirmation", "99999999-9999-4999-8999-999999999903")]
                 denied <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction repeatParams)
-                denied `responseBodyShouldContain` "I confirm sending another report"
+                denied `responseBodyShouldContain` "Send again"
+                denied `responseBodyShouldContain` "This sends a new copy to this group."
+                denied `responseBodyShouldNotContain` "type=\"checkbox\""
                 denied `responseBodyShouldContain` "another-fixture@example.com"
                 query @PayrollReportRun |> fetchCount `shouldReturn` 1
                 accepted <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (repeatParams <> [("reportRepeat", "true")]))
-                accepted `responseBodyShouldContain` "Report prepared for delivery"
+                accepted `responseBodyShouldContain` "Report queued for delivery"
                 query @PayrollReportRun |> fetchCount `shouldReturn` 2
 
         it "rejects malformed, incomplete, misaligned and foreign email selections without leaking recipients" $ withContext do
@@ -133,7 +142,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams PreviewPayrollReportAction [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportWeek", "2025-01-01")]
                 valid `responseBodyShouldContain` "2025-01-01"
                 valid `responseBodyShouldContain` "2025-01-07"
-                valid `responseBodyShouldContain` "Send to entire group"
+                valid `responseBodyShouldContain` "Send email"
                 now <- getCurrentTime
                 _ <- restored |> set #archivedAt (Just now) |> updateRecord
                 archived <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction (EmailPayrollReportAction template.id "2025-01-01"))

@@ -361,7 +361,7 @@ type AppShellContract =
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
-         , AppShellAction OpenPayrollReportEmail '[] DialogLauncherOptions
+         , AppShellAction OpenPayrollReportEmail '[ OptionalField ReportGroupField 'WireUUID ] DialogLauncherOptions
          , AppShellAction SavePayrollReports
             '[ OptionalField ReportTemplateField 'WireUUID
              , OptionalField ReportGroupField 'WireUUID

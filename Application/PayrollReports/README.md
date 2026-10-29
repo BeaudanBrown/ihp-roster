@@ -33,8 +33,12 @@ A separate group chooser defaults to an available saved schedule group even with
 automation off, but works without settings. Review shows the actual addresses and
 exact template/dates before whole-group confirmation. Pre-acceptance group,
 template or calendar changes require fresh review; repeat sends across groups
-require a fresh explicit acknowledgement. HTTP sends consume only the explicit
-selection contract, never the former settings-backed revision/week request.
+require a fresh explicit acknowledgement through **Send again**, alongside a
+warning rather than an extra checkbox. **Back** returns to the chooser with its
+selected group and week retained. Successful preparation closes the dialog and
+shows “Report queued for delivery”; it does not claim inbox delivery. HTTP sends
+consume only the explicit selection contract, never the former settings-backed
+revision/week request.
 Dialogs are rendered by `Web/View/Admin/PayrollReportEmailDialog.hs`.
 
 `Generation.hs` owns repeatable-read report snapshots using explicit venue/actor

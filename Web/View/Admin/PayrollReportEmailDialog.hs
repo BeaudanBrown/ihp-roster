@@ -27,9 +27,8 @@ renderEmailGroupChooser template week groups selected message = renderConfirmati
     description = [hsx|
         {forEach message renderEmailMessage}
         <p>Export template: <strong class="text-break">{record.name}</strong></p>
-        <p>Reporting {tshow week} – {tshow (addDays 6 week)}. The full template is emailed; download filters do not apply.</p>
+        <p>{tshow week} – {tshow (addDays 6 week)}</p>
         {when (null groups) noGroups}
-        <a href={appendQueryParams (pathTo AdminAction) [("showRecipientGroups", "true")] <> "#recipient-groups"}>Manage recipient groups</a>
     |]
     noGroups = [hsx|<p>Create a recipient group before emailing this export.</p>|]
     form = renderAppShellActionForm (appShellActionByMarker @Shell.PreviewPayrollReport)
@@ -47,7 +46,9 @@ renderEmailGroupChooser template week groups selected message = renderConfirmati
 renderEmailConfirmation :: ManualPayrollReportPreview -> UUID -> Maybe Text -> Html
 renderEmailConfirmation preview confirmation message = renderConfirmationDialog
     ((defaultConfirmationDialogConfig "Confirm payroll email" description "payroll-email-send-form" form)
-        { confirmationDialogApproveLabel = "Send to entire group", confirmationDialogLoadingLabel = "Preparing report…", confirmationDialogClass = "modal-lg" })
+        { confirmationDialogApproveLabel = if preview.repeatWarning then "Send again" else "Send email"
+        , confirmationDialogRejectButton = backButton
+        , confirmationDialogLoadingLabel = "Preparing report…", confirmationDialogClass = "modal-lg" })
   where
     selection = preview.selection
     record = preview.selected.template.savedPayrollWorkbookConfigurationRecord
@@ -59,34 +60,33 @@ renderEmailConfirmation preview confirmation message = renderConfirmationDialog
         &: surfaceField @Shell.ReportGroupRevisionField selection.recipientGroupRevision
         &: surfaceField @Shell.ReportRosterStartField selection.rosterWeekStartsOn
         &: surfaceField @Shell.ReportTimezoneField selection.timezone
-        &: surfaceOptionalField @Shell.ReportRepeatField Nothing
+        &: surfaceOptionalField @Shell.ReportRepeatField (Just preview.repeatWarning)
         &: surfaceField @Shell.ReportConfirmationField confirmation &: noSurfaceFields)
     description = [hsx|
         {forEach message renderEmailMessage}
-        <p>Export template: <strong class="text-break">{record.name}</strong></p>
-        <p>Reporting {tshow preview.reportingWeek} – {tshow (addDays 6 preview.reportingWeek)} using current approved data and the full template.</p>
-        <p>Recipient group: <strong class="text-break">{group.name}</strong></p>
-        <p>To and Reply-To:</p>
-        <ul>{forEach group.recipients renderAddress}</ul>
-        <p>All recipients can see each other and reply directly to the group.</p>
-        <p>Only approved entries are included. If none qualify, a status email explains whether approvals are pending; no attachment is sent. Unrecorded work cannot be detected.</p>
-        <p>Manual email does not suppress automation. Acceptance is not inbox delivery; investigate uncertain delivery before sending again.</p>
-        <button type="button" class="btn btn-outline-secondary" {...changeGroupAttrs}>Change recipient group</button>
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Export</dt><dd class="col-sm-9 text-break">{record.name}</dd>
+            <dt class="col-sm-3">Week</dt><dd class="col-sm-9">{tshow preview.reportingWeek} – {tshow (addDays 6 preview.reportingWeek)}</dd>
+            <dt class="col-sm-3">Entries</dt><dd class="col-sm-9">Approved only</dd>
+            <dt class="col-sm-3">Group</dt><dd class="col-sm-9 text-break">{group.name}</dd>
+            <dt class="col-sm-3">To / Reply-To</dt><dd class="col-sm-9"><ul class="list-unstyled mb-0">{forEach group.recipients renderAddress}</ul></dd>
+        </dl>
     |]
-    changeGroupAttrs = appShellActionAttrs (appShellActionByMarker @Shell.OpenPayrollReportEmail)
-        (defaultAppShellActionRoute (pathTo (EmailPayrollReportAction record.id (tshow preview.reportingWeek))))
+    backFields = appShellActionFields @Shell.OpenPayrollReportEmail
+        (surfaceOptionalField @Shell.ReportGroupField (Just selection.recipientGroupId)) noSurfaceFields
+    backButton = OverlayButton
+        { overlayButtonLabel = "Back", overlayButtonClass = "btn btn-outline-secondary"
+        , overlayButtonAction = GeneratedDialogButtonAction (appShellActionByMarker @Shell.OpenPayrollReportEmail)
+            (defaultAppShellActionRoute (appendQueryParams
+                (pathTo (EmailPayrollReportAction record.id (tshow preview.reportingWeek))) (surfaceFieldsText backFields))) True }
     renderAddress address = [hsx|<li class="text-break">{address}</li>|]
     form = renderAppShellActionForm (appShellActionByMarker @Shell.SendPayrollReport)
         ((defaultAppShellActionRoute (pathTo SendPayrollReportAction)) { appShellActionRouteExtraAttrs = [("id", "payroll-email-send-form")] }) [hsx|
             {forEach (surfaceFieldsText fields) renderEmailHidden}
-            {when preview.repeatWarning repeatAcknowledgement}
+            {when preview.repeatWarning repeatWarning}
         |]
-    repeatAcknowledgement = [hsx|
-        <p class="alert alert-warning">This template and reporting week already has a prepared, sent or uncertain report, possibly for another group. This creates a new report for the entire selected group, not a replay or a retry only to missed recipients.</p>
-        <label class="form-check-label">
-            <input type="checkbox" class="form-check-input" name={surfaceFieldNameFrom @Shell.ReportRepeatField fields} value="true" required="required"/>
-            I confirm sending another report to the entire group.
-        </label>
+    repeatWarning = [hsx|
+        <p role="alert" class="alert alert-warning">A report for this template and week already exists. This sends a new copy to this group.</p>
     |]
 
 renderEmailMessage :: Text -> Html
