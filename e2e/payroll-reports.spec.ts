@@ -24,7 +24,7 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
         ON CONFLICT (id) DO UPDATE SET archived_at = NULL;
     `);
     await loginAsPrivilegedUserWithSeededPasskeySession(page);
-    await gotoExports(page);
+    await gotoWhenReady(page, '/Admin?showExports=true&anchorDate=2025-01-06#exports', 'h1:has-text("Admin")');
     await page.getByRole('button', { name: 'Scheduled reports', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled reports', exact: true });
     await expect(dialog).toBeVisible();
@@ -39,14 +39,27 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     await expect(toggle).not.toBeChecked();
     await expect(template).toBeDisabled();
     await expect(group).toBeDisabled();
-    await expect(dialog).toContainText('06:00 venue-local');
+    await expect(dialog).not.toContainText('New schedules send');
+    await expect(dialog).not.toContainText('Next automatic report');
+    await expect(dialog.getByRole('link')).toHaveCount(0);
     await expect(dialog.locator('input[type="time"], input[type="email"]')).toHaveCount(0);
     await expect(dialog.getByLabel('Reporting week', { exact: true })).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: 'Review and send', exact: true })).toHaveCount(0);
     await expect(dialog.getByText('Last four reporting weeks', { exact: true })).toHaveCount(0);
+    const savedAndReopen = async (enabled: boolean) => {
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByText('Scheduled reports saved', { exact: true })).toBeVisible();
+        const schedule = page.getByText(/^Report email scheduled for /);
+        if (enabled) await expect(schedule).toHaveText(/^Report email scheduled for \w+ 06:00$/);
+        else await expect(schedule).toHaveCount(0);
+        await expect(page.locator('[data-payroll-workbook-configuration="a1000000-0000-0000-0000-000000000899"]').getByRole('button', { name: 'Email…', exact: true })).toBeEnabled();
+        await settled();
+        await page.getByRole('button', { name: 'Scheduled reports', exact: true }).click();
+        await expect(dialog).toBeVisible();
+        await settled();
+    };
     await save.click();
-    await expect(dialog.getByRole('status')).toContainText('settings saved');
-    await settled();
+    await savedAndReopen(false);
     await toggleLabel.click();
     await expect(toggle).toBeChecked();
     await expect(template).toBeEnabled();
@@ -58,15 +71,13 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     await settled();
     await group.selectOption({ label: 'Scheduled payroll recipients' });
     await save.click();
-    await expect(dialog.getByRole('status')).toContainText('settings saved');
-    await expect(dialog).toContainText('Scheduled for');
-    await settled();
+    await savedAndReopen(true);
     await page.screenshot({ path: `output/payroll-reports/${testInfo.project.name}-settings.png`, fullPage: true });
     await toggleLabel.click();
     await expect(template).toBeDisabled();
     await expect(group).toBeDisabled();
     await save.click();
-    await expect(dialog.getByRole('status')).toContainText('settings saved');
+    await savedAndReopen(false);
     await expect(toggle).not.toBeChecked();
     await expect(template).toHaveValue('a1000000-0000-0000-0000-000000000899');
     await expect(group).toHaveValue('a1000000-0000-0000-0000-000000000897');
@@ -83,8 +94,7 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     END $$;`);
     await toggleLabel.click();
     await save.click();
-    await expect(dialog.getByRole('status')).toContainText('settings saved');
-    await settled();
+    await savedAndReopen(true);
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     const card = page.locator('[data-payroll-workbook-configuration="a1000000-0000-0000-0000-000000000899"]');
     await card.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -97,9 +107,8 @@ test('scheduled reports enable group selections at 06:00 and preserve them while
     await expect(toggle).not.toBeChecked();
     await expect(group).toHaveValue('a1000000-0000-0000-0000-000000000897');
     await expect(template).toHaveValue('');
-    await dialog.getByRole('link', { name: 'Manage recipient groups', exact: true }).click();
-    await expect(page).toHaveURL(/showRecipientGroups=true/);
-    await expect(page.getByRole('button', { name: 'Create recipient group', exact: true })).toBeVisible();
+    await expect(page.getByText(/^Report email scheduled for /)).toHaveCount(0);
+    await expect(dialog.getByRole('link')).toHaveCount(0);
 });
 
 test('export email reviews current recipients and confirms repeats with Send again', async ({ page }, testInfo) => {

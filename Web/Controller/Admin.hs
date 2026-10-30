@@ -35,6 +35,7 @@ import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Application.PayrollReports.Selection (isCompletedPayrollReportWeek)
+import Application.PayrollReports.Job (nextScheduledPayrollReportForVenue)
 import Web.Controller.Prelude
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
 import Web.SurfaceInvalidation (withDurableLiveMutation)
@@ -244,6 +245,7 @@ instance Controller AdminController where
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
             recipientGroups <- either (const []) (\values -> values) <$> RecipientGroups.listRecipientGroups
             let recipientGroupsSectionOpen = paramOrDefault False "showRecipientGroups"
+            nextAutomaticReport <- nextScheduledPayrollReportForVenue (unpackId currentVenueId)
             currentTime <- getCurrentTime
             let today = utctDay currentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
@@ -547,7 +549,8 @@ instance Controller AdminController where
             savedConfigurations <- profileActionSpan "admin.exports_fragment.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
             config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
             now <- getCurrentTime
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment (isCompletedPayrollReportWeek config now exportWeekSelection.weekStart) exportWeekSelection savedConfigurations))
+            nextAutomaticReport <- nextScheduledPayrollReportForVenue (unpackId currentVenueId)
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment nextAutomaticReport (isCompletedPayrollReportWeek config now exportWeekSelection.weekStart) exportWeekSelection savedConfigurations))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

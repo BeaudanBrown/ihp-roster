@@ -20,6 +20,7 @@ module Web.Admin.FrontendSurface
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminExportsFragmentForWindow
+    , adminExportsFragment
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
@@ -180,11 +181,18 @@ adminInvitesFragment maybeRosterGroupId =
 
 
 adminExportsFragmentForWindow :: Day -> FrontendSurfaceMountedFragment
-adminExportsFragmentForWindow anchorDate =
+adminExportsFragmentForWindow anchorDate = adminExportsFragmentWithQuery [("anchorDate", tshow anchorDate)]
+
+-- Actor refresh emits the semantic key only; the browser retains its mounted week URL.
+adminExportsFragment :: FrontendSurfaceMountedFragment
+adminExportsFragment = adminExportsFragmentWithQuery []
+
+adminExportsFragmentWithQuery :: [(Text, Text)] -> FrontendSurfaceMountedFragment
+adminExportsFragmentWithQuery query =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
         noSurfaceFields
         noSurfaceFields
-        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("anchorDate", tshow anchorDate)])
+        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) query)
         FrontendSurfaceReplace
 
 adminRecipientGroupsFragment :: FrontendSurfaceMountedFragment

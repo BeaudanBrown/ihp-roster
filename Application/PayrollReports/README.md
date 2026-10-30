@@ -8,7 +8,13 @@ starts with an enable checkbox, then Export template and Recipient group. Turnin
 it off disables the selectors; saving preserves their persisted selections even
 though disabled HTML controls are omitted. Enabling requires current venue-owned
 template and active group selections. There is no inline recipient editor, time
-input, manual-send section, history or sharing-authority checkbox.
+input, manual-send section, history or sharing-authority checkbox. The modal has
+only controls (plus validation feedback); saving closes it with a “Scheduled
+reports saved” toast. When enabled, the Exports section shows the next report's
+venue-local weekday/time beside Scheduled reports, using the actual stored time.
+Settings and their durable Exports invalidation commit atomically; the actor keeps
+its selected export week while the summary refreshes. Group and venue-setting
+changes also invalidate the summary.
 Reusable group lifecycle is owned by [Recipient groups](../RecipientGroups/README.md).
 Its edits preserve prepared snapshots; confirmed group deletion disables a linked
 schedule without revoking explicit manual sends.

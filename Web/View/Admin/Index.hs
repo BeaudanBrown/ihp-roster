@@ -30,6 +30,7 @@ data IndexView = IndexView
     , importedPayItems                   :: [XeroImportedPayItem]
     , invitations                        :: [VenueInvitation]
     , today                              :: Day
+    , nextAutomaticReport                :: Maybe UTCTime
     , currentTime                        :: UTCTime
     , exportWeekSelection                :: ReportWeekSelection
     , savedPayrollWorkbookConfigurations :: [SavedPayrollWorkbookConfiguration]
@@ -54,7 +55,7 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = renderAdminPageContentSurface [hsx|
                         <div id={surfaceFragmentTargetId @Surface.AdminPageSurface @Surface.AdminPageContentFragment noSurfaceFields}>
-                            {renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen recipientGroups recipientGroupsSectionOpen}
+                            {renderConfigSectionsAccordion currentTime nextAutomaticReport rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen recipientGroups recipientGroupsSectionOpen}
                         </div>
                     |]
                     }
@@ -73,12 +74,12 @@ renderAdminPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderAdminPageContentSurface body =
     renderFrontendSurfaceMount (adminPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) body
 
-renderConfigSectionsAccordion :: UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Bool -> [RecipientGroup] -> Bool -> Html
-renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen recipientGroups recipientGroupsSectionOpen = [hsx|
+renderConfigSectionsAccordion :: UTCTime -> Maybe UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Bool -> [RecipientGroup] -> Bool -> Html
+renderConfigSectionsAccordion currentTime nextAutomaticReport rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen recipientGroups recipientGroupsSectionOpen = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id)}
         {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig awardLevels awardLevelBaseRates)}
-        {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionMount (isCompletedPayrollReportWeek venueConfig currentTime exportWeekSelection.weekStart) exportWeekSelection savedPayrollWorkbookConfigurations)}
+        {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionMount nextAutomaticReport (isCompletedPayrollReportWeek venueConfig currentTime exportWeekSelection.weekStart) exportWeekSelection savedPayrollWorkbookConfigurations)}
         {renderAccordionItem "recipient-groups" "Recipient groups" recipientGroupsSectionOpen (renderRecipientGroupsMount recipientGroups)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)}

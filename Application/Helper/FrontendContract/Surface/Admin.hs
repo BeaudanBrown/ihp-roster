@@ -321,7 +321,10 @@ type AdminInvitesSurface =
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminExportsFragment '[] '[ 'MountTarget AdminExportsFragment '[], 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminExportsFragment '[] '[ 'MountTarget AdminExportsFragment '[], 'Eager, 'Live
+             , 'DependsOn AdminExportsResource '[ 'FromScope VenueId ]
+             , 'DependsOn AdminRecipientGroupsResource '[ 'FromScope VenueId ]
+             , 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
          , Action CreateExportJob
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay

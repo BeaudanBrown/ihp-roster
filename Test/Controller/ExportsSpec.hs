@@ -162,9 +162,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Enable automatic weekly reports"
                 response `responseBodyShouldContain` "Export template"
                 response `responseBodyShouldContain` "Recipient group"
-                response `responseBodyShouldContain` "06:00 venue-local"
-                response `responseBodyShouldContain` "Create a recipient group in Admin"
-                response `responseBodyShouldContain` "Manage recipient groups"
+                response `responseBodyShouldNotContain` "New schedules send"
+                response `responseBodyShouldNotContain` "Next automatic report"
+                response `responseBodyShouldNotContain` "Manage recipient groups"
                 response `responseBodyShouldNotContain` "report-manual-week"
                 response `responseBodyShouldNotContain` "report-recipient-entry"
                 response `responseBodyShouldNotContain` "report-time"
@@ -183,8 +183,12 @@ tests = aroundAll withDatabaseTestContext do
                 group <- newRecord @RecipientGroup |> set #venueId (unpackId venue.id) |> set #name "Payroll group"
                     |> set #recipients ["payroll@example.com"] |> set #createdByUserId (unpackId admin.id) |> set #updatedByUserId (unpackId admin.id) |> createRecord
                 let params = [("reportTemplate", cs (tshow template.id)), ("reportGroup", cs (tshow group.id)), ("reportEnabled", "true"), ("reportMinute", "15:45")]
-                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SavePayrollReportsAction params)
-                saved `responseBodyShouldContain` "settings saved"
+                beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                saved <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (withRequestHeaders [("HX-Request", "true")] (callActionWithParams SavePayrollReportsAction params))
+                saved `responseBodyShouldContain` "Scheduled reports saved"
+                saved `responseBodyShouldNotContain` "payroll-report-settings-form"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
                 setting <- query @PayrollReportSetting |> fetchOne
                 setting.enabled `shouldBe` True
                 setting.minuteOfDay `shouldBe` 360
@@ -192,14 +196,22 @@ tests = aroundAll withDatabaseTestContext do
                 stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SavePayrollReportsAction params)
                 stale `responseBodyShouldContain` "Settings changed"
                 stale `responseBodyShouldContain` "Payroll group"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
+                _ <- setting |> set #minuteOfDay 570 |> updateRecord
+                summary <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction ShowadminExportsLiveFragmentAction)
+                summary `responseBodyShouldContain` "Report email scheduled for"
+                summary `responseBodyShouldContain` "09:30"
                 disabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow setting.revision)), ("reportMinute", "23:59")]
-                disabledResponse `responseBodyShouldContain` "settings saved"
+                    withRequestHeaders [("HX-Request", "true")] (callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow setting.revision)), ("reportMinute", "23:59")])
+                disabledResponse `responseBodyShouldContain` "Scheduled reports saved"
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 2)
+                hidden <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callAction ShowadminExportsLiveFragmentAction)
+                hidden `responseBodyShouldNotContain` "Report email scheduled for"
                 disabled <- fetch setting.id
                 disabled.enabled `shouldBe` False
                 disabled.configurationId `shouldBe` setting.configurationId
                 disabled.recipientGroupId `shouldBe` setting.recipientGroupId
-                disabled.minuteOfDay `shouldBe` 360
+                disabled.minuteOfDay `shouldBe` 570
                 legacySend <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams SendPayrollReportAction [("reportWeek", "2025-01-06"), ("reportRevision", cs (tshow disabled.revision)), ("reportConfirmation", "99999999-9999-4999-8999-999999999999")]
                 legacySend `responseBodyShouldContain` "reportTemplate"

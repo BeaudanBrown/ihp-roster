@@ -8,6 +8,8 @@ module Web.View.Admin.Exports
     ) where
 
 import Application.Helper.Export
+import Application.VenueTime (resolvedInstantLocalTime, resolvedInstantFromUTC)
+import Data.Time.Format (formatTime, defaultTimeLocale)
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionAttrs,
@@ -31,36 +33,44 @@ adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
 -- The page owns the mount; live responses replace only its inner target.
-renderExportsSectionMount :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSectionMount canEmail selection savedConfigurations =
+renderExportsSectionMount :: Maybe UTCTime -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionMount nextAutomaticReport canEmail selection savedConfigurations =
     renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart)
-        (renderExportsSectionFragment canEmail selection savedConfigurations)
+        (renderExportsSectionFragment nextAutomaticReport canEmail selection savedConfigurations)
 
-renderExportsSectionFragment :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionFragment :: Maybe UTCTime -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob canEmail selection savedConfigurations =
+renderExportsSectionFragmentWithSwap :: Maybe Text -> Maybe UTCTime -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob nextAutomaticReport canEmail selection savedConfigurations =
     [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection canEmail selection savedConfigurations}
+            {renderExportsSection nextAutomaticReport canEmail selection savedConfigurations}
         </div>
     |]
 
-renderExportsSection :: Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
-renderExportsSection canEmail selection savedConfigurations =
+renderExportsSection :: Maybe UTCTime -> Bool -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSection nextAutomaticReport canEmail selection savedConfigurations =
     renderConfigSection
         "admin-exports-section"
         mempty
         [hsx|
-            <button type="button" class="btn btn-outline-primary mb-3" {...appShellActionAttrs (appShellActionByMarker @AppShell.OpenPayrollReports) (defaultAppShellActionRoute (pathTo PayrollReportsAction))}>Scheduled reports</button>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <button type="button" class="btn btn-outline-primary" {...appShellActionAttrs (appShellActionByMarker @AppShell.OpenPayrollReports) (defaultAppShellActionRoute (pathTo PayrollReportsAction))}>Scheduled reports</button>
+                {forEach nextAutomaticReport renderScheduledReport}
+            </div>
             {renderExportWeekSelector selection}
             {unless canEmail incompleteWeekMessage}
             {renderExportGenerationForm canEmail selection savedConfigurations}
         |]
         mempty
+
+renderScheduledReport :: UTCTime -> Html
+renderScheduledReport due = [hsx|<span class="small app-muted">Report email scheduled for {localTime}</span>|]
+  where
+    localTime = cs (formatTime defaultTimeLocale "%A %H:%M" (resolvedInstantLocalTime (resolvedInstantFromUTC due))) :: Text
 
 incompleteWeekMessage :: Html
 incompleteWeekMessage = [hsx|<p class="small app-muted">Email is available only for completed roster weeks. Select a previous week to email an export.</p>|]

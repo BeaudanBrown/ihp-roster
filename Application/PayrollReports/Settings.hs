@@ -4,6 +4,7 @@ module Application.PayrollReports.Settings
     , validatePayrollReportRecipients
     , fetchPayrollReportSettings
     , savePayrollReportSettings
+    , savePayrollReportSettingsInCurrentTransaction
     , withPayrollReportVenueLock
     , clearPayrollReportTemplateInCurrentTransaction
     , clearPayrollReportRecipientGroupInCurrentTransaction
@@ -56,9 +57,13 @@ withPayrollReportVenueLock venueId = do
     pure ()
 
 savePayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
-savePayrollReportSettings input
+savePayrollReportSettings input = withTransaction (savePayrollReportSettingsInCurrentTransaction input)
+
+-- Caller owns the transaction so settings and durable UI invalidation commit together.
+savePayrollReportSettingsInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
+savePayrollReportSettingsInCurrentTransaction input
     | not canManage = pure (Left PayrollReportAccessDenied)
-    | otherwise = withTransaction do
+    | otherwise = do
         withPayrollReportVenueLock (unpackId currentVenueId)
         config <- query @VenueConfig |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOne
         existing <- query @PayrollReportSetting |> filterWhere (#venueId, unpackId currentVenueId) |> fetchOneOrNothing

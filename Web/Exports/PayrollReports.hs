@@ -2,11 +2,17 @@ module Web.Exports.PayrollReports
     ( openPayrollReports, savePayrollReports, openPayrollReportEmail, previewPayrollReport, sendPayrollReport ) where
 
 import Application.Helper.Export.PayrollWorkbookConfiguration
+import Application.Helper.Url (appendQueryParams)
 import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.PayrollReports.Job (nextScheduledPayrollReport)
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
+import qualified Data.Set as Set
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
+import Web.Admin.FrontendSurface (adminExportsFragment)
 import Application.PayrollReports.Manual
 import Application.PayrollReports.Selection
 import Application.PayrollReports.Settings
@@ -27,14 +33,12 @@ respondReports submitted message = do
     settings <- fetchPayrollReportSettings
     templates <- listSavedPayrollWorkbookConfigurations
     groups <- listRecipientGroups
-    now <- getCurrentTime
     let current = either (const Nothing) (\value -> value) settings
-    next <- maybe (pure Nothing) nextScheduledPayrollReport current
     let draft = fromMaybe (reportDraft current) submitted
     let retained = if draft.enabled then draft else draft
             { templateId = current >>= (.configurationId), groupId = current >>= (.recipientGroupId) }
     respondHtml (renderPayrollReportsDialog retained
-        (either (const []) (\value -> value) templates) (either (const []) (\value -> value) groups) next now message)
+        (either (const []) (\value -> value) templates) (either (const []) (\value -> value) groups) message)
 
 savePayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 savePayrollReports = do
@@ -48,12 +52,18 @@ savePayrollReports = do
                     , enabled = fromMaybe False (surfaceFieldValue @Shell.ReportEnabledField fields)
                     , revision = surfaceFieldValue @Shell.ReportRevisionField fields
                     }
-            outcome <- savePayrollReportSettings PayrollReportSettingsInput
-                { configurationId = draft.templateId, recipientGroupId = draft.groupId
-                , Settings.enabled = draft.enabled, expectedRevision = draft.revision }
+            let resources = Set.singleton (adminExportsResource (unpackId currentVenueId))
+            outcome <- withDurableLiveMutationOutcome (either (const Nothing) (const (Just ("payroll_report.settings", resources))))
+                (savePayrollReportSettingsInCurrentTransaction PayrollReportSettingsInput
+                    { configurationId = draft.templateId, recipientGroupId = draft.groupId
+                    , Settings.enabled = draft.enabled, expectedRevision = draft.revision })
             case outcome of
                 Left failure -> respondReports (Just draft) (Just (settingsError failure))
-                Right _ -> respondReports Nothing (Just "Payroll report settings saved.")
+                Right _ | isHtmxRequest -> do
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefresh (adminExportsLiveScope (unpackId currentVenueId)) resources [adminExportsFragment]
+                    respondHtml (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Scheduled reports saved"))
+                Right _ -> setSuccessMessage "Scheduled reports saved" >> redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
 
 settingsError :: PayrollReportSettingsError -> Text
 settingsError = \case

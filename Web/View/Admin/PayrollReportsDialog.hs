@@ -7,7 +7,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.View.ToggleButton
-import Application.VenueTime
 import Web.View.Prelude
 
 data ReportDraft = ReportDraft
@@ -25,11 +24,8 @@ reportDraft setting = ReportDraft
     , revision = (.revision) <$> setting
     }
 
-reportLocalTimestamp :: UTCTime -> Text
-reportLocalTimestamp = tshow . resolvedInstantLocalTime . resolvedInstantFromUTC
-
-renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> [RecipientGroup] -> Maybe (UTCTime, Day) -> UTCTime -> Maybe Text -> Html
-renderPayrollReportsDialog draft templates groups next now message =
+renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> [RecipientGroup] -> Maybe Text -> Html
+renderPayrollReportsDialog draft templates groups message =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Scheduled reports"
         , dialogOverlayBody = body
@@ -53,16 +49,8 @@ renderPayrollReportsDialog draft templates groups next now message =
         {forEach message renderMessage}
         {renderAppShellActionForm (appShellActionByMarker @Shell.SavePayrollReports)
             ((defaultAppShellActionRoute (pathTo SavePayrollReportsAction)) { appShellActionRouteExtraAttrs = [("id", "payroll-report-settings-form")] }) settingsFields}
-        <p>New schedules send at <strong>06:00 venue-local</strong> on the first day of each roster week, reporting the previous completed week.</p>
-        <p class="small app-muted">Only approved entries are included. With no eligible entries, a status email is sent without an attachment. This schedule does not control manual emails.</p>
-        {when (null groups) noGroups}
-        <a href={appendQueryParams (pathTo AdminAction) [("showRecipientGroups", "true")] <> "#recipient-groups"}>Manage recipient groups</a>
-        <hr/>
-        <h3 class="h6">Next automatic report</h3>
-        {nextDescription}
     |]
     renderMessage text = [hsx|<p role="status" class="alert alert-info">{text}</p>|]
-    noGroups = [hsx|<p class="alert alert-info">Create a recipient group in Admin before enabling scheduled reports.</p>|]
     renderTemplate template = let record = template.savedPayrollWorkbookConfigurationRecord in [hsx|<option value={tshow record.id} selected={draft.templateId == Just (unpackId record.id)}>{record.name}</option>|]
     renderGroup group = [hsx|<option value={tshow group.id} selected={draft.groupId == Just (unpackId group.id)}>{group.name}</option>|]
     renderRevision revision = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportRevisionField fields} value={tshow revision}/>|]
@@ -83,7 +71,3 @@ renderPayrollReportsDialog draft templates groups next now message =
             {forEach groups renderGroup}
         </select>
     |]
-    nextDescription = case next of
-        Nothing -> [hsx|<p>Automation is off or a usable schedule is unavailable. Saved selections are retained while automation is off.</p>|]
-        Just (due, week) -> [hsx|<p>Scheduled for <strong>{reportLocalTimestamp due}</strong>, reporting {tshow week} – {tshow (addDays 6 week)}.</p>{overdue due}|]
-    overdue due = if due <= now then [hsx|<p>Awaiting scheduler processing. Catch-up is permitted for 24 hours; older occurrences are marked missed.</p>|] else mempty
