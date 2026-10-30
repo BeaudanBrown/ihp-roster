@@ -30,7 +30,7 @@ data IndexView = IndexView
     , importedPayItems                   :: [XeroImportedPayItem]
     , invitations                        :: [VenueInvitation]
     , today                              :: Day
-    , nextAutomaticReport                :: Maybe UTCTime
+    , nextAutomaticReport                :: Maybe PayrollReportSetting
     , currentTime                        :: UTCTime
     , exportWeekSelection                :: ReportWeekSelection
     , savedPayrollWorkbookConfigurations :: [SavedPayrollWorkbookConfiguration]
@@ -74,7 +74,7 @@ renderAdminPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderAdminPageContentSurface body =
     renderFrontendSurfaceMount (adminPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) body
 
-renderConfigSectionsAccordion :: UTCTime -> Maybe UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Bool -> [RecipientGroup] -> Bool -> Html
+renderConfigSectionsAccordion :: UTCTime -> Maybe PayrollReportSetting -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Bool -> [RecipientGroup] -> Bool -> Html
 renderConfigSectionsAccordion currentTime nextAutomaticReport rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen recipientGroups recipientGroupsSectionOpen = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id)}

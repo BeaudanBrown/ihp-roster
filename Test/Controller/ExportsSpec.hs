@@ -212,6 +212,13 @@ tests = aroundAll withDatabaseTestContext do
                 disabled.configurationId `shouldBe` setting.configurationId
                 disabled.recipientGroupId `shouldBe` setting.recipientGroupId
                 disabled.minuteOfDay `shouldBe` 570
+                opened <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams PayrollReportsAction [("reportWeek", "2025-01-06")])
+                opened `responseBodyShouldContain` "name=\"reportWeek\" value=\"2025-01-06\""
+                native <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id
+                    (callActionWithParams SavePayrollReportsAction [("reportRevision", cs (tshow disabled.revision)), ("reportWeek", "2025-01-06")])
+                native `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders native) `shouldSatisfy` maybe False (Text.isInfixOf "anchorDate=2025-01-06" . cs)
                 legacySend <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams SendPayrollReportAction [("reportWeek", "2025-01-06"), ("reportRevision", cs (tshow disabled.revision)), ("reportConfirmation", "99999999-9999-4999-8999-999999999999")]
                 legacySend `responseBodyShouldContain` "reportTemplate"

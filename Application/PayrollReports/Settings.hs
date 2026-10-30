@@ -3,6 +3,7 @@ module Application.PayrollReports.Settings
     , PayrollReportSettingsError (..)
     , validatePayrollReportRecipients
     , fetchPayrollReportSettings
+    , fetchEnabledPayrollReportSettings
     , savePayrollReportSettings
     , savePayrollReportSettingsInCurrentTransaction
     , withPayrollReportVenueLock
@@ -55,6 +56,12 @@ withPayrollReportVenueLock :: (?modelContext :: ModelContext) => UUID -> IO ()
 withPayrollReportVenueLock venueId = do
     _ :: [Only UUID] <- unsafeSqlQuery "UPDATE venues SET id = id WHERE id = ? RETURNING id" (Only venueId)
     pure ()
+
+-- The compact weekly label depends on settings, not a particular run's progress.
+fetchEnabledPayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe PayrollReportSetting)
+fetchEnabledPayrollReportSettings = do
+    settings <- fetchPayrollReportSettings
+    pure (either (const Nothing) (>>= \setting -> if setting.enabled then Just setting else Nothing) settings)
 
 savePayrollReportSettings :: (?context :: ControllerContext, ?modelContext :: ModelContext) => PayrollReportSettingsInput -> IO (Either PayrollReportSettingsError PayrollReportSetting)
 savePayrollReportSettings input = withTransaction (savePayrollReportSettingsInCurrentTransaction input)

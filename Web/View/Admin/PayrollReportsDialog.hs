@@ -24,8 +24,8 @@ reportDraft setting = ReportDraft
     , revision = (.revision) <$> setting
     }
 
-renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> [RecipientGroup] -> Maybe Text -> Html
-renderPayrollReportsDialog draft templates groups message =
+renderPayrollReportsDialog :: ReportDraft -> [SavedPayrollWorkbookConfiguration] -> [RecipientGroup] -> Maybe Day -> Maybe Text -> Html
+renderPayrollReportsDialog draft templates groups anchorWeek message =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Scheduled reports"
         , dialogOverlayBody = body
@@ -40,6 +40,7 @@ renderPayrollReportsDialog draft templates groups message =
         ( surfaceOptionalField @Shell.ReportGroupField draft.groupId
         &: surfaceOptionalField @Shell.ReportEnabledField (Just draft.enabled)
         &: surfaceOptionalField @Shell.ReportRevisionField draft.revision
+        &: surfaceOptionalField @Shell.ReportWeekField anchorWeek
         &: noSurfaceFields )
     selectionRegion = toggleBreakRegion "payroll-report-selections"
     enableControl = renderAppToggleButton
@@ -54,10 +55,12 @@ renderPayrollReportsDialog draft templates groups message =
     renderTemplate template = let record = template.savedPayrollWorkbookConfigurationRecord in [hsx|<option value={tshow record.id} selected={draft.templateId == Just (unpackId record.id)}>{record.name}</option>|]
     renderGroup group = [hsx|<option value={tshow group.id} selected={draft.groupId == Just (unpackId group.id)}>{group.name}</option>|]
     renderRevision revision = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportRevisionField fields} value={tshow revision}/>|]
+    renderAnchorWeek week = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Shell.ReportWeekField fields} value={tshow week}/>|]
     settingsFields = [hsx|
         {enableControl}
         {renderAppToggleBreakRegion selectionRegion draft.enabled "" selectionFields}
         {forEach draft.revision renderRevision}
+        {forEach anchorWeek renderAnchorWeek}
     |]
     selectionFields = [hsx|
         <label class="form-label" for="report-template">Export template</label>

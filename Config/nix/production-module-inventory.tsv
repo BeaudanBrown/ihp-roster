@@ -359,7 +359,7 @@ Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Email.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Generation.hs	production	runtime	Main	Reachable from Main
-Application/PayrollReports/Job.hs	production	runtime	Main	Reachable from Main
+Application/PayrollReports/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PayrollReports/Manual.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Notifications.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Schedule.hs	production	runtime	Main	Reachable from Main

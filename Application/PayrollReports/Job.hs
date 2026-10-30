@@ -3,7 +3,6 @@ module Application.PayrollReports.Job
     , enqueuePayrollReportSweep
     , performPayrollReportJob
     , nextScheduledPayrollReport
-    , nextScheduledPayrollReportForVenue
     , handlePayrollReportGenerationFinalFailure
     ) where
 
@@ -52,11 +51,6 @@ enqueuePayrollReportSweep = do
                 }
             pure 1
     pure (sum results)
-
-nextScheduledPayrollReportForVenue :: (?modelContext :: ModelContext) => UUID -> IO (Maybe UTCTime)
-nextScheduledPayrollReportForVenue venueId = do
-    setting <- query @PayrollReportSetting |> filterWhere (#venueId, venueId) |> fetchOneOrNothing
-    maybe (pure Nothing) (fmap (fmap fst) . nextScheduledPayrollReport) setting
 
 nextScheduledPayrollReport :: (?modelContext :: ModelContext) => PayrollReportSetting -> IO (Maybe (UTCTime, Day))
 nextScheduledPayrollReport setting

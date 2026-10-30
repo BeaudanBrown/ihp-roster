@@ -360,13 +360,14 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
-         , AppShellAction OpenPayrollReports '[] DialogLauncherOptions
+         , AppShellAction OpenPayrollReports '[ OptionalField ReportWeekField 'WireDay ] DialogLauncherOptions
          , AppShellAction OpenPayrollReportEmail '[ OptionalField ReportGroupField 'WireUUID ] DialogLauncherOptions
          , AppShellAction SavePayrollReports
             '[ OptionalField ReportTemplateField 'WireUUID
              , OptionalField ReportGroupField 'WireUUID
              , OptionalField ReportEnabledField 'WireBool
              , OptionalField ReportRevisionField 'WireInt
+             , OptionalField ReportWeekField 'WireDay
              ] DialogSubmitOptions
          , AppShellAction PreviewPayrollReport
             '[ Field ReportWeekField 'WireDay

@@ -26,10 +26,12 @@ import Web.View.Admin.PayrollReportsDialog
 import Web.View.Admin.PayrollReportEmailDialog
 
 openPayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
-openPayrollReports = respondReports Nothing Nothing
+openPayrollReports = case parseAppShellActionParams @Shell.OpenPayrollReports of
+    Left errors -> respondReports Nothing Nothing (Just (surfaceRequestFieldErrorsMessage errors))
+    Right fields -> respondReports Nothing (surfaceFieldValue @Shell.ReportWeekField fields) Nothing
 
-respondReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe ReportDraft -> Maybe Text -> IO ResponseReceived
-respondReports submitted message = do
+respondReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe ReportDraft -> Maybe Day -> Maybe Text -> IO ResponseReceived
+respondReports submitted anchorWeek message = do
     settings <- fetchPayrollReportSettings
     templates <- listSavedPayrollWorkbookConfigurations
     groups <- listRecipientGroups
@@ -38,13 +40,13 @@ respondReports submitted message = do
     let retained = if draft.enabled then draft else draft
             { templateId = current >>= (.configurationId), groupId = current >>= (.recipientGroupId) }
     respondHtml (renderPayrollReportsDialog retained
-        (either (const []) (\value -> value) templates) (either (const []) (\value -> value) groups) message)
+        (either (const []) (\value -> value) templates) (either (const []) (\value -> value) groups) anchorWeek message)
 
 savePayrollReports :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 savePayrollReports = do
     ensureVenueWritable
     case parseAppShellActionParams @Shell.SavePayrollReports of
-        Left errors -> respondReports Nothing (Just (surfaceRequestFieldErrorsMessage errors))
+        Left errors -> respondReports Nothing Nothing (Just (surfaceRequestFieldErrorsMessage errors))
         Right fields -> do
             let draft = ReportDraft
                     { templateId = surfaceFieldValue @Shell.ReportTemplateField fields
@@ -52,18 +54,19 @@ savePayrollReports = do
                     , enabled = fromMaybe False (surfaceFieldValue @Shell.ReportEnabledField fields)
                     , revision = surfaceFieldValue @Shell.ReportRevisionField fields
                     }
+            let anchorWeek = surfaceFieldValue @Shell.ReportWeekField fields
             let resources = Set.singleton (adminExportsResource (unpackId currentVenueId))
             outcome <- withDurableLiveMutationOutcome (either (const Nothing) (const (Just ("payroll_report.settings", resources))))
                 (savePayrollReportSettingsInCurrentTransaction PayrollReportSettingsInput
                     { configurationId = draft.templateId, recipientGroupId = draft.groupId
                     , Settings.enabled = draft.enabled, expectedRevision = draft.revision })
             case outcome of
-                Left failure -> respondReports (Just draft) (Just (settingsError failure))
+                Left failure -> respondReports (Just draft) anchorWeek (Just (settingsError failure))
                 Right _ | isHtmxRequest -> do
                     setHeader ("HX-Reswap", "none")
                     setActorLiveResourcesRefresh (adminExportsLiveScope (unpackId currentVenueId)) resources [adminExportsFragment]
                     respondHtml (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Scheduled reports saved"))
-                Right _ -> setSuccessMessage "Scheduled reports saved" >> redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
+                Right _ -> setSuccessMessage "Scheduled reports saved" >> redirectToPath (appendQueryParams (pathTo AdminAction) ([("showExports", "true")] <> maybe [] (\week -> [("anchorDate", tshow week)]) anchorWeek) <> "#exports")
 
 settingsError :: PayrollReportSettingsError -> Text
 settingsError = \case
