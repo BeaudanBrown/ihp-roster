@@ -67,7 +67,6 @@ renderEmailConfirmation preview confirmation message = renderConfirmationDialog
         <dl class="row mb-0">
             <dt class="col-sm-3">Export</dt><dd class="col-sm-9 text-break">{record.name}</dd>
             <dt class="col-sm-3">Week</dt><dd class="col-sm-9">{tshow preview.reportingWeek} – {tshow (addDays 6 preview.reportingWeek)}</dd>
-            <dt class="col-sm-3">Entries</dt><dd class="col-sm-9">Approved only</dd>
             <dt class="col-sm-3">Group</dt><dd class="col-sm-9 text-break">{group.name}</dd>
             <dt class="col-sm-3">To / Reply-To</dt><dd class="col-sm-9"><ul class="list-unstyled mb-0">{forEach group.recipients renderAddress}</ul></dd>
         </dl>

@@ -78,6 +78,7 @@ tests = aroundAll withDatabaseTestContext do
                 preview `responseBodyShouldContain` "email-fixture@example.com"
                 preview `responseBodyShouldContain` "2025-01-06"
                 preview `responseBodyShouldContain` "2025-01-12"
+                preview `responseBodyShouldNotContain` "Approved only"
                 _ <- group |> set #recipients ["changed-fixture@example.com"] |> set #revision 1 |> updateRecord
                 stale <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id (callActionWithParams SendPayrollReportAction (sendParams <> [("reportGroupRevision", "0")]))
                 stale `responseBodyShouldContain` "Review the send confirmation again"
