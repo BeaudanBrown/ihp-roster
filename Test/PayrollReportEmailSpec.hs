@@ -64,6 +64,8 @@ tests = aroundAll withDatabaseTestContext do
                         rendered <- renderMail' mail
                         (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "Payroll &lt;Venue&gt;"
+                        (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "<p>"
+                        (cs rendered :: Text) `shouldSatisfy` (not . Text.isInfixOf "<pre>")
                     _ -> expectationFailure "Expected one grouped email"
                 current <- fetch run.id
                 current.status `shouldBe` PayrollReportAccepted

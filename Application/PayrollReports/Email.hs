@@ -29,7 +29,7 @@ buildPayrollReportMail venueName run export = do
             if BS.length bytes > 29000000 then Left "attachment_too_large" else
                 Right [("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename, LBS.fromStrict bytes)]
     let title = "Bepis payroll report — " <> cleanHeader venueName <> " — " <> tshow run.reportingWeek <> " to " <> tshow run.rangeEnd <> label
-    let body = Text.intercalate "\n\n"
+    let paragraphs =
             [ "Payroll report for " <> venueName <> ": " <> tshow run.reportingWeek <> " to " <> tshow run.rangeEnd <> "."
             , if isNothing export then "No approved payroll entries. No workbook is attached." else "The attached workbook contains approved payroll entries only."
             , if run.excludedEntryCount > 0 then "WARNING: " <> tshow run.excludedEntryCount <> " unapproved entries were excluded. This report may be incomplete." else "No unapproved entries were found in this period. Work not recorded in Bepis cannot be detected."
@@ -39,12 +39,14 @@ buildPayrollReportMail venueName run export = do
                 PayrollReportUpdated -> "UPDATED REPORT: generated from current approved entries and the current template. This may replace an earlier report for the same dates."
             , "All recipients can see the recipient list. Reply or Reply all to continue the conversation directly with the payroll participants."
             ]
+    let body = Text.intercalate "\n\n" paragraphs
     case addresses of
         [] -> Left "missing_recipients"
-        first : _ -> Right $ (simpleMailInMemory first (Address (Just "Bepis Reports") "reports@bepis.lol") title (cs body) (renderMarkupLazyText [hsx|<pre>{body}</pre>|]) attachments)
+        first : _ -> Right $ (simpleMailInMemory first (Address (Just "Bepis Reports") "reports@bepis.lol") title (cs body) (renderMarkupLazyText [hsx|{forEach paragraphs renderParagraph}|]) attachments)
             { mailTo = addresses
             , mailHeaders = [("Subject", title), ("Reply-To", Text.intercalate ", " (map renderAddress addresses))]
             }
   where
+    renderParagraph paragraph = [hsx|<p>{paragraph}</p>|]
     label = if run.origin == PayrollReportUpdated then " (updated)" else ""
     cleanHeader = Text.filter (\character -> character /= '\r' && character /= '\n')
