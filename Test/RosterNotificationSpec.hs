@@ -263,7 +263,7 @@ tests = aroundAll withDatabaseTestContext do
                 recipients <- decodeRosterNotificationRecipients run
                 recipient <- maybe (fail "expected recipient") pure (find ((== unpackId recipientUser.id) . (.recipientUserId)) recipients)
                 let mail = RosterNotificationMail
-                        { notificationSnapshot = snapshot
+                        { notificationSnapshot = snapshot { snapshotVenueName = "Venue <script>alert(1)</script>" }
                         , notificationRecipient = recipient
                         , rosterUrl = "https://app.example/ShowRosterWindow?anchorDate=2025-01-06&rosterGroupId=test"
                         , fromAddress = "rosters@example.com"
@@ -281,6 +281,12 @@ tests = aroundAll withDatabaseTestContext do
                     let renderedHtml = LazyText.toStrict (Markup.renderMarkupLazyText (Mail.html mail))
                     renderedHtml `shouldSatisfy` isInfixOf "Open coverage"
                     renderedHtml `shouldSatisfy` isInfixOf "rosterGroupId=test"
+                    renderedHtml `shouldSatisfy` isInfixOf "<p>"
+                    renderedHtml `shouldSatisfy` isInfixOf "<br"
+                    renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;"
+                    renderedHtml `shouldSatisfy` not . isInfixOf "<script>"
+                    renderedHtml `shouldSatisfy` not . isInfixOf "<pre"
+                    renderedHtml `shouldSatisfy` not . isInfixOf "Private schedule"
 
         it "delivers immutable recipient content through the shared worker after roster changes" $ withContext do
             withCleanDb do
