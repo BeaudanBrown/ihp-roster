@@ -18,6 +18,8 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Application.Helper.Export.Failure (ExportFailure (..))
+import Web.Exports.Responses (respondWithExportFailure)
 import Web.Exports.Mutations (requestSelectedExportMutation)
 import Web.View.TimesheetSelection
 import IHP.ViewPrelude (Html)
@@ -89,7 +91,8 @@ generateSelectedExport complete =
             case parseExplicitTimesheetSelection request.tokens of
                 Left failure -> showSelection False (Just (renderTimesheetSelectionFailure failure)) request
                 Right selection -> requestSelectedExportMutation selection request.exportType (Id <$> request.configurationId) request.rangeStart request.rangeEnd >>= \case
-                    Left message -> showSelection False (Just message) request
+                    Left (ExportMessage message) -> showSelection False (Just message) request
+                    Left failure@(ExportEntryFailures _) -> respondWithExportFailure failure
                     Right result -> complete result.liveMutationValue
 
 showSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Bool -> Maybe Text -> ExportSelectionRequest -> IO ResponseReceived

@@ -7,6 +7,8 @@ module Application.Helper.Export.Service
     ) where
 
 import Application.Helper.Controller
+import Application.Helper.Export.Failure
+import qualified Data.Bifunctor as Bifunctor
 import Application.Helper.Export.Definitions
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
@@ -37,21 +39,21 @@ requestFixedExport ::
     ExportJobType ->
     Day ->
     Day ->
-    IO (Either Text ExportJob)
+    IO (Either ExportFailure ExportJob)
 requestFixedExport = requestFixedExportWithSelection AllEligible
 
 requestFixedExportWithSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    TimesheetSelection -> ExportJobType -> Day -> Day -> IO (Either Text ExportJob)
+    TimesheetSelection -> ExportJobType -> Day -> Day -> IO (Either ExportFailure ExportJob)
 requestFixedExportWithSelection selection exportType rangeStart rangeEnd =
     withExportTelemetrySpan (exportJobTypeToText exportType) isRight $
         withExportSelection selection exportType rangeStart rangeEnd \entries ->
             case exportType of
-                ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport entries rangeStart rangeEnd
-                StaffPayCsv -> requestFixedStaffPayCsvExport entries rangeStart rangeEnd
+                ApprovedTimesheetsCsv -> fmap (Bifunctor.first ExportMessage) (requestApprovedTimesheetsCsvExport entries rangeStart rangeEnd)
+                StaffPayCsv -> fmap (Bifunctor.first ExportMessage) (requestFixedStaffPayCsvExport entries rangeStart rangeEnd)
                 HourlyBreakdownZip -> requestHourlyZipExport entries StaffHoursZip rangeStart rangeEnd
                 HourlyWageTotalsZip -> requestHourlyZipExport entries WageTotalsZip rangeStart rangeEnd
-                PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport entries rangeStart rangeEnd
+                PayrollEarningsCsv -> fmap (Bifunctor.first ExportMessage) (requestFixedPayrollEarningsCsvExport entries rangeStart rangeEnd)
                 PayrollWorkbookXlsx -> requestPayrollWorkbookForEntries entries "Payroll workbook" defaultPayrollWorkbookDefinition rangeStart rangeEnd
 
 fetchExportSelectionCandidates ::
@@ -72,13 +74,13 @@ fetchExportSelectionCandidates exportType rangeStart rangeEnd = do
 withExportSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     TimesheetSelection -> ExportJobType -> Day -> Day ->
-    ((?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either Text ExportJob)) ->
-    IO (Either Text ExportJob)
-withExportSelection selection exportType rangeStart rangeEnd consume =
-    withTimesheetSelectionSnapshot (unpackId currentVenueId) rangeStart rangeEnd selection
+    ((?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either ExportFailure ExportJob)) ->
+    IO (Either ExportFailure ExportJob)
+withExportSelection selection exportType rangeStart rangeEnd consume = do
+    result <- withTimesheetSelectionSnapshot (unpackId currentVenueId) rangeStart rangeEnd selection
         (fetchExportSelectionCandidates exportType rangeStart rangeEnd) \entries ->
-            consume entries >>= \case
-                Left message -> pure (Left message)
+            fmap Right $ consume entries >>= \case
+                Left failure -> pure (Left failure)
                 Right job -> case selection of
                     AllEligible -> pure (Right job)
                     ExplicitSelection _ -> do
@@ -86,6 +88,7 @@ withExportSelection selection exportType rangeStart rangeEnd consume =
                                 Aeson.Object fields -> Aeson.Object (KeyMap.insert "selection" (Aeson.toJSON (map timesheetSelectionIdentity entries)) fields)
                                 _ -> Aeson.object ["selection" Aeson..= map timesheetSelectionIdentity entries]
                         Right <$> (job |> set #scope scope |> updateRecord)
+    pure (either (Left . ExportMessage) (\value -> value) result)
 
 requestPayrollWorkbookXlsxExportWithDefinition ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -93,24 +96,24 @@ requestPayrollWorkbookXlsxExportWithDefinition ::
     PayrollWorkbookDefinition ->
     Day ->
     Day ->
-    IO (Either Text ExportJob)
+    IO (Either ExportFailure ExportJob)
 requestPayrollWorkbookXlsxExportWithDefinition = requestPayrollWorkbookXlsxExportWithSelection AllEligible
 
 requestPayrollWorkbookXlsxExportWithSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    TimesheetSelection -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
+    TimesheetSelection -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either ExportFailure ExportJob)
 requestPayrollWorkbookXlsxExportWithSelection selection exportName definition rangeStart rangeEnd =
     withExportSelection selection PayrollWorkbookXlsx rangeStart rangeEnd \entries ->
         requestPayrollWorkbookForEntries entries exportName definition rangeStart rangeEnd
 
 requestPayrollWorkbookForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [TimesheetEntry] -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
+    [TimesheetEntry] -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either ExportFailure ExportJob)
 requestPayrollWorkbookForEntries entries exportName definition rangeStart rangeEnd = do
     venueConfig <- fetchVenueConfig
     generateWorkbookForVenue currentVenueId venueConfig entries definition rangeStart rangeEnd >>= \case
         Left message -> pure (Left message)
-        Right Nothing -> pure (Left "No approved payroll entries were found for the Payroll Workbook range.")
+        Right Nothing -> pure (Left (ExportMessage "No approved payroll entries were found for the Payroll Workbook range."))
         Right (Just generated) -> persistModel definition generated.entries generated.manifests generated.facts generated.workbook
   where
     persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
@@ -253,13 +256,14 @@ data HourlyZipKind = StaffHoursZip | WageTotalsZip
 -- reads. Wage allocation remains an explicit additional failure boundary.
 requestHourlyZipExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [TimesheetEntry] -> HourlyZipKind -> Day -> Day -> IO (Either Text ExportJob)
+    [TimesheetEntry] -> HourlyZipKind -> Day -> Day -> IO (Either ExportFailure ExportJob)
 requestHourlyZipExport entries kind rangeStart rangeEnd = do
     venueConfig <- fetchVenueConfig
-    enforceFinalWageEntries entries >>= \case
-        Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
-        Right calculations -> case buildHourlyReportWindow venueConfig entries of
-            Left _ -> pure (Left invalidTimesheetTimingExportMessage)
+    staffById <- fetchStaffMap entries
+    loadCheckedExportCalculations entries staffById >>= \case
+        Left failure -> pure (Left failure)
+        Right calculations -> case Bifunctor.first (const (ExportMessage invalidTimesheetTimingExportMessage)) (buildHourlyReportWindow venueConfig entries) of
+            Left failure -> pure (Left failure)
             Right window -> do
                 activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
                 reportShiftTypes <- fetchReportShiftTypes entries
@@ -309,7 +313,7 @@ requestHourlyZipExport entries kind rangeStart rangeEnd = do
                             (\date -> renderHourlyBreakdownDateCsv date window columns entries)
                     WageTotalsZip ->
                         case buildHourlyWageCents entries (calculationMap entries calculations) of
-                            Left message -> pure (Left ("Hourly wage totals blocked: " <> message))
+                            Left message -> pure (Left (ExportMessage ("Hourly wage totals blocked: " <> message)))
                             Right wageCents ->
                                 Right <$> persistZip HourlyWageTotalsZip "hourly_wage_totals" "wage_totals"
                                     (\date -> renderHourlyWageTotalsDateCsv date window columns wageCents)

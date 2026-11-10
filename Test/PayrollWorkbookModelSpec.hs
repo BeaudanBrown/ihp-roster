@@ -1,5 +1,6 @@
 module Test.PayrollWorkbookModelSpec where
 
+import Application.Helper.Export.Failure
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
@@ -20,6 +21,19 @@ import Test.Hspec
 tests :: Spec
 tests =
     describe "Payroll Workbook authoritative hourly model" do
+        it "collects all invalid timesheet intervals instead of stopping at the first" do
+            let day = fromGregorian 2025 1 6
+                firstEntry = testEntry firstEntryId testStaffId firstShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+                secondEntry = testEntry secondEntryId testStaffId secondShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+                outside = paidSegment Worked day (testUtc 2025 1 5 22) (testUtc 2025 1 6 1)
+                calculations = Map.fromList
+                    [ (firstEntryId, calculation firstEntryId day [outside] [hourlyComponent outside 9000])
+                    , (secondEntryId, calculation secondEntryId day [outside] [hourlyComponent outside 9000]) ]
+                failures = collectPayrollTimingFailures [firstEntry, secondEntry] Map.empty calculations
+            map (.entryFailureId) failures `shouldBe` [firstEntry.id, secondEntry.id]
+            map (.entryFailureDate) failures `shouldBe` [day, day]
+            map (.entryFailureMessage) failures `shouldSatisfy` all (Text.isInfixOf "worked segment falls outside")
+            collectPayrollTimingFailures [] Map.empty Map.empty `shouldBe` []
         it "aggregates shift types sharing one approval-pinned pay bucket and reconciles breaks, top-up hours, and cents" do
             let day = fromGregorian 2025 1 6
             let staff = testStaff testStaffId "Ada" "Lovelace"

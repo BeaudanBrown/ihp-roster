@@ -3,6 +3,11 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
+import Application.Helper.Export.Failure
+import Application.Helper.Export.WorkbookGeneration (generateWorkbookForVenue)
+import Application.Helper.View.Overlay (renderDialogOverlay, dialogOverlayMountId)
+import IHP.HSX.Markup (renderMarkupLazyText)
+import Web.View.Admin.ExportFailure (exportFailureDialog)
 import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
 import Application.Helper.TimesheetSelection
 import qualified Application.WageEngine as Wage
@@ -64,6 +69,17 @@ emailFixture = do
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "renders every blocked timesheet with an escaped reason and an edit link" $ withContext $ withCurrentControllerContext do
+            let firstId = Id "00000000-0000-0000-0000-000000000001" :: Id TimesheetEntry
+                secondId = Id "00000000-0000-0000-0000-000000000002" :: Id TimesheetEntry
+                failure entryId = ExportEntryFailure entryId (fromGregorian 2026 11 4) (Just "Staff <Name>") Nothing Nothing "Saved interval <invalid>"
+                rendered = cs (renderMarkupLazyText (renderDialogOverlay (exportFailureDialog [failure firstId, failure secondId]))) :: Text
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction firstId))
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction secondId))
+            rendered `shouldSatisfy` Text.isInfixOf "Staff &lt;Name&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "Saved interval &lt;invalid&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "No payroll file was generated."
+            rendered `shouldSatisfy` Text.isInfixOf "Do not change valid times"
         it "emails a full selected template without settings, refreshes stale recipients and deduplicates confirmation retries" $ withContext do
             withCleanDb do
                 (venue, admin, template, group) <- emailFixture
@@ -1067,7 +1083,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Bar"
-                staff <- createStaffRecord venue Nothing "Rounded" "Duration"
+                staff <- createStaffRecord venue (Just admin) "Rounded" "Duration"
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
                 entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
@@ -1104,6 +1120,21 @@ tests = aroundAll withDatabaseTestContext do
                 after `shouldBe` calculationResult
                 buildHourlyWageCents [entry |> set #endsAt (addUTCTime (-60) entry.endsAt)] (Map.singleton (unpackId entry.id) calculation)
                     `shouldSatisfy` isLeft
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0) ]
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                blocked <- generateWorkbookForVenue venue.id config
+                    [ entry |> set #endsAt (addUTCTime (-60) entry.endsAt)
+                    , second |> set #activePayCalculationId Nothing ]
+                    defaultPayrollWorkbookDefinition (fromGregorian 2025 1 6) (fromGregorian 2025 1 12)
+                case blocked of
+                    Left (ExportEntryFailures failures) -> do
+                        map (.entryFailureId) failures `shouldMatchList` [entry.id, second.id]
+                        map (.entryFailureStaffName) failures `shouldBe` replicate 2 (Just "Rounded Duration")
+                    _ -> expectationFailure "Expected all source and interval failures, not a partial workbook"
+                query @ExportJob |> fetchCount `shouldReturn` 1
 
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do
@@ -1397,7 +1428,19 @@ tests = aroundAll withDatabaseTestContext do
                         , ("rangeEnd", "2025-01-12")
                         ]
 
-                response `responseStatusShouldBe` status302
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Payroll export blocked"
+                response `responseBodyShouldContain` "Source Blocked"
+                response `responseBodyShouldContain` "No payroll file was generated."
+                fragment <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                            , ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12") ]
+                lookup "HX-Retarget" (responseHeaders fragment) `shouldBe` Just (cs ("#" <> dialogOverlayMountId))
+                lookup "HX-Reswap" (responseHeaders fragment) `shouldBe` Just "innerHTML"
+                fragment `responseBodyShouldContain` "Source Blocked"
+                fragment `responseBodyShouldContain` "EditTimesheetEntry"
                 exportJobs <- query @ExportJob |> fetch
                 exportJobs `shouldBe` []
 

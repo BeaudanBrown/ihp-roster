@@ -3,7 +3,8 @@
 -- | Saved Workbook feedback and dialog completion. Passive publication remains
 -- exclusively with the durable mutation; these responses only refresh the actor.
 module Web.Exports.Responses
-    ( adminExportsPath
+    ( respondWithExportFailure
+    , adminExportsPath
     , payrollWorkbookConfigurationErrorMessage
     , respondWithNewWorkbookEditor
     , respondWithWorkbookEditor
@@ -15,6 +16,9 @@ module Web.Exports.Responses
     ) where
 
 import Application.Helper.Export
+import Application.Helper.Export.Failure
+import Application.Helper.View.Overlay (dialogOverlayMountId, renderDialogOverlay)
+import Web.View.Admin.ExportFailure
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
@@ -27,6 +31,26 @@ import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.Exports.WorkbookConfigurations (WorkbookEditorOutcome (..))
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
+
+respondWithExportFailure ::
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    ExportFailure -> IO ResponseReceived
+respondWithExportFailure = \case
+    ExportMessage message ->
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Reswap", "none")
+                respondHtml (renderToastOob ToastBottomCenter (errorToast message))
+            else do
+                setErrorMessage message
+                redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
+    ExportEntryFailures failures ->
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Retarget", cs ("#" <> dialogOverlayMountId))
+                setHeader ("HX-Reswap", "innerHTML")
+                respondHtml (renderDialogOverlay (exportFailureDialog failures))
+            else render ExportFailureView { failures }
 
 respondWithWorkbookEditorOutcome ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>

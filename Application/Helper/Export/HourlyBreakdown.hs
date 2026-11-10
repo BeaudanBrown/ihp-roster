@@ -237,7 +237,10 @@ shareForMissedBreak entryStartsAt entryEndsAt component = do
     let missedStart = Seconds.addTo (Seconds.fromMinutes 360) entryStartsAt
         missedEnd = Seconds.addTo (Seconds.fromStoredHours component.quantity) missedStart
     when (component.quantity <= 0 || missedEnd > entryEndsAt) $
-        Left "Approved missed-meal-break quantity falls outside its timesheet interval."
+        Left ("Approved missed-meal-break quantity falls outside its timesheet interval. The saved payment covers "
+            <> tshow (Seconds.toSeconds (Seconds.fromStoredHours component.quantity))
+            <> " seconds; " <> tshow (Seconds.toSeconds (Seconds.between missedStart entryEndsAt))
+            <> " seconds fit after the six-hour mark.")
     pure (shareForInterval component missedStart missedEnd component.amount)
 
 qualifiesForCommenced :: Text -> SourceCondition -> PaidTimeSegment -> Bool

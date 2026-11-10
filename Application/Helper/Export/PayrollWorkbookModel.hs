@@ -9,6 +9,7 @@ module Application.Helper.Export.PayrollWorkbookModel
     , PayrollWorkbookRow (..)
     , buildPayrollWorkbookFactModel
     , payrollWorkbookHourlyModelFromFacts
+    , validateCalculationTiming
     ) where
 
 import Application.Helper.Export.HourlyBreakdown
