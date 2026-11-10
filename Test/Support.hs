@@ -21,8 +21,8 @@ import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
                               melbourneTimeZoneName)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import Config
 import Control.Applicative ((<|>))
 import Control.Exception (bracket)

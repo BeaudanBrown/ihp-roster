@@ -6,23 +6,24 @@ module Application.Helper.Export.WorkbookGeneration
     ) where
 
 import Application.Helper.Export.Failure
-import qualified Data.Bifunctor as Bifunctor
 import Application.Helper.Export.HourlyBreakdown (buildHourlyShiftTypeColumns)
-import Application.Helper.Export.Payloads (calculationMap, shouldIncludeFixedStaffPayEntry)
+import Application.Helper.Export.Payloads (calculationMap,
+                                           shouldIncludeFixedStaffPayEntry)
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.XeroPayItems
 import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import IHP.ControllerPrelude
 
 data GeneratedWorkbook = GeneratedWorkbook
-    { entries :: ![TimesheetEntry]
+    { entries   :: ![TimesheetEntry]
     , manifests :: !(Map.Map UUID Text)
-    , facts :: !PayrollWorkbookFactModel
-    , workbook :: !PayrollWorkbook
+    , facts     :: !PayrollWorkbookFactModel
+    , workbook  :: !PayrollWorkbook
     }
 
 generateWorkbookForVenue :: (?modelContext :: ModelContext) =>

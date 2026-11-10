@@ -14,12 +14,12 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.RosterShiftAssignment (rosterShiftIsOpen,
                                           rosterShiftIsStaffAssigned)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds,
                                     rosterShiftTimingEndTime,
                                     rosterShiftTimingStartTime)
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text

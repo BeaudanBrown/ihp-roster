@@ -1,8 +1,8 @@
 module Test.VenueTimeSpec where
 
 import Application.VenueTime
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime,

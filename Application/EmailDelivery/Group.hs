@@ -27,7 +27,7 @@ payrollReportMailKind = "payroll_report_group_v1"
 
 data GroupDeliveryRuntime = GroupDeliveryRuntime
     { groupDeliveryDisabled :: !(IO Bool)
-    , deliverGroupMail :: !(Mail -> IO ())
+    , deliverGroupMail      :: !(Mail -> IO ())
     }
 
 data GroupEnvelope = GroupEnvelope !Text !UUID
@@ -80,7 +80,7 @@ performGroupEmailDeliveryWith runtime job = do
         else do
             now <- getCurrentTime
             export <- case current.exportJobId of
-                Nothing -> pure Nothing
+                Nothing       -> pure Nothing
                 Just exportId -> fetchOneOrNothing (Id exportId :: Id ExportJob)
             let artifactValid = case export of
                     Nothing -> current.approvedEntryCount == 0 && isNothing current.exportJobId

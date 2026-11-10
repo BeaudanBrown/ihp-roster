@@ -30,8 +30,8 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     TimesheetIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     ValidatedTimesheetTiming)
-import Generated.Types
 import qualified Application.VenueTime.Seconds as Seconds
+import Generated.Types
 import IHP.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
                                   RosterWindowState (..))
@@ -96,22 +96,22 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 
 -- Shared by both panel containers and their settings fragment responses.
 data RosterSettingsRenderModel = RosterSettingsRenderModel
-    { settingsWeekStartDate :: Day
-    , settingsRosterGroups :: [RosterGroup]
-    , settingsCurrentRosterGroup :: RosterGroup
-    , settingsViewCapabilities :: RosterViewCapabilities
-    , settingsRosterPayDisplayMode :: RosterPayDisplayMode
-    , settingsShowRosterWarnings :: Bool
+    { settingsWeekStartDate          :: Day
+    , settingsRosterGroups           :: [RosterGroup]
+    , settingsCurrentRosterGroup     :: RosterGroup
+    , settingsViewCapabilities       :: RosterViewCapabilities
+    , settingsRosterPayDisplayMode   :: RosterPayDisplayMode
+    , settingsShowRosterWarnings     :: Bool
     , settingsHighlightOwnLiveShifts :: Bool
-    , settingsManagement :: Maybe RosterManagementSettings
+    , settingsManagement             :: Maybe RosterManagementSettings
     }
 
 data RosterManagementSettings = RosterManagementSettings
-    { settingsRosterWeek :: Maybe RosterWindowState
-    , settingsCalendarRevision :: Int
-    , settingsAssignmentFilters :: RosterAssignmentFilters
-    , settingsRosterLayoutMode :: RosterLayoutModeEnum
-    , settingsViewMode :: RosterGridViewMode
+    { settingsRosterWeek            :: Maybe RosterWindowState
+    , settingsCalendarRevision      :: Int
+    , settingsAssignmentFilters     :: RosterAssignmentFilters
+    , settingsRosterLayoutMode      :: RosterLayoutModeEnum
+    , settingsViewMode              :: RosterGridViewMode
     , settingsNotificationPanelData :: Maybe RosterNotificationPanelData
     }
 
@@ -124,7 +124,7 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelAssignmentFilters      :: RosterAssignmentFilters
     , staffPanelViewCapabilities       :: RosterViewCapabilities
     , staffPanelRosterLayoutMode       :: RosterLayoutModeEnum
-    , staffPanelRosterPayDisplayMode      :: RosterPayDisplayMode
+    , staffPanelRosterPayDisplayMode   :: RosterPayDisplayMode
     , staffPanelShowRosterWarnings     :: Bool
     , staffPanelHighlightOwnLiveShifts :: Bool
     , staffPanelViewMode               :: RosterGridViewMode
@@ -248,7 +248,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRosterLayoutMode      :: RosterLayoutModeEnum
     , dayRosterEndTimesEnabled :: Bool
     , dayRosterWagePrediction  :: Maybe RosterWagePrediction
-    , dayRosterPayDisplayMode     :: RosterPayDisplayMode
+    , dayRosterPayDisplayMode  :: RosterPayDisplayMode
     , dayShowRosterWarnings    :: Bool
     , dayPublicHolidays        :: Map Day Text
     , dayPublishAttempted      :: Bool

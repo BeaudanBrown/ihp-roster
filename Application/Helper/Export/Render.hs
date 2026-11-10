@@ -2,12 +2,12 @@ module Application.Helper.Export.Render where
 
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (ValidatedTimesheetTiming,
                                     timesheetTimingBreakElapsedSeconds,
                                     timesheetTimingEndTime,
                                     timesheetTimingStartTime,
                                     timesheetTimingWorkedOn)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WagePublication (StaffHoursBucketKind (..),
                                     StaffHoursContribution (..))
 import qualified "zip-archive" Codec.Archive.Zip as Zip

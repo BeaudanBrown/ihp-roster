@@ -7,9 +7,8 @@ module Application.Helper.Export.Service
     ) where
 
 import Application.Helper.Controller
-import Application.Helper.Export.Failure
-import qualified Data.Bifunctor as Bifunctor
 import Application.Helper.Export.Definitions
+import Application.Helper.Export.Failure
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
 import Application.Helper.Export.PayrollWorkbook
@@ -21,11 +20,12 @@ import Application.Helper.Export.Types
 import Application.Helper.Export.WorkbookGeneration
 import Application.Helper.Telemetry (withExportTelemetrySpan)
 import Application.Helper.TimesheetSelection
-import qualified Data.Aeson.KeyMap as KeyMap
 import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Bifunctor as Bifunctor
 import Data.Coerce (coerce)
 import Data.Either (isRight)
 import qualified Data.List as List
@@ -62,10 +62,10 @@ fetchExportSelectionCandidates ::
 fetchExportSelectionCandidates exportType rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     case exportType of
-        StaffPayCsv -> payrollEntries entries
-        PayrollEarningsCsv -> payrollEntries entries
+        StaffPayCsv         -> payrollEntries entries
+        PayrollEarningsCsv  -> payrollEntries entries
         PayrollWorkbookXlsx -> payrollEntries entries
-        _ -> pure entries
+        _                   -> pure entries
   where
     payrollEntries entries = do
         staffById <- fetchStaffMap entries
@@ -88,7 +88,7 @@ withExportSelection selection exportType rangeStart rangeEnd consume = do
                                 Aeson.Object fields -> Aeson.Object (KeyMap.insert "selection" (Aeson.toJSON (map timesheetSelectionIdentity entries)) fields)
                                 _ -> Aeson.object ["selection" Aeson..= map timesheetSelectionIdentity entries]
                         Right <$> (job |> set #scope scope |> updateRecord)
-    pure (either (Left . ExportMessage) (\value -> value) result)
+    pure (either (Left . ExportMessage) IHP.ControllerPrelude.id result)
 
 requestPayrollWorkbookXlsxExportWithDefinition ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

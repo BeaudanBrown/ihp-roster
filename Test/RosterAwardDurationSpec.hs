@@ -2,8 +2,8 @@ module Test.RosterAwardDurationSpec where
 
 import Application.Helper.RosterAwardDuration
 import Application.VenueTime (melbourneTimeZoneName)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))

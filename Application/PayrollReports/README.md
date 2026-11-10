@@ -57,6 +57,14 @@ entry provenance and normal expiry, not public links or duplicate blob storage.
 Delivery must refuse expired/purged artifacts rather than regenerate silently.
 Updated sends create a new snapshot and retain the original history.
 
+`Email.hs` uses the frozen template snapshot name in
+`Bepis - <report name> - <readable date range>` (never the renamed live template).
+The normal body states that the attachment includes approved timesheets only,
+reports whether any await approval, and ends with the automatic-email notice.
+No-data mail truthfully omits the attachment; updated/delayed notices remain.
+Recipient instructions, reply instructions and routine scheduling caveats belong
+in-app, not in the recipient body. Envelope recipients and Reply-To are unchanged.
+
 Settings mutations and linked-template deletion serialize on the venue row,
 including the first save before a settings row exists. The venue-row fence touches
 its row version without changing business fields, so a waiting repeatable-read

@@ -33,4 +33,4 @@ exportFailureDialog failures =
     |]
     renderInterval failure = case (failure.entryFailureStart, failure.entryFailureEnd) of
         (Just start, Just end) -> [hsx|<p>{start} to {end}</p>|]
-        _ -> mempty
+        _                      -> mempty

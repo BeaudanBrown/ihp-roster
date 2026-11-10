@@ -3,7 +3,6 @@ module Application.WageEngine.Rules
     )
 where
 
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (AwardSegment, LocalDayKind (..), ResolvedInstant,
                               ResolvedInterval, awardSegmentElapsedSeconds,
                               awardSegmentEnd, awardSegmentLocalDate,
@@ -13,6 +12,7 @@ import Application.VenueTime (AwardSegment, LocalDayKind (..), ResolvedInstant,
                               resolvedIntervalElapsedSeconds,
                               resolvedIntervalEnd, resolvedIntervalFromInstants,
                               resolvedIntervalStart)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine.Components (awardHourlyComponent,
                                           commencedHourAdditionComponents,
                                           importedHourlyComponent,

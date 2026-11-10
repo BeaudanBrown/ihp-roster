@@ -1,14 +1,14 @@
 module Test.WageEngine.ComponentsSpec where
 
+import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Application.WagePublication
 import qualified Data.Set as Set
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
-import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (NonNegative (..), Positive (..), property)

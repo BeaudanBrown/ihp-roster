@@ -2,6 +2,7 @@ module Test.WageEngine.MinimumPaymentSpec where
 
 import Application.PublicHolidays.Sync (importDataVicPublicHolidayRecordsForYears)
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
@@ -10,7 +11,6 @@ import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec

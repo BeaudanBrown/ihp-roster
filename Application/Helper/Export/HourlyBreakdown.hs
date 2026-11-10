@@ -13,7 +13,6 @@ module Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (TimesheetIntegrityError,
                                     authoritativeEndLocalTime,
@@ -23,6 +22,7 @@ import Application.VenueTime.Model (TimesheetIntegrityError,
                                     resolveBoundaryInstant,
                                     storedInstantLocalTime,
                                     timesheetTimingBoundaries)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Control.Monad (foldM, zipWithM)
 import qualified Data.List as List

@@ -25,8 +25,8 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Control.Exception as Exception
 import Data.Either (fromRight)
 import qualified Data.Text as Text
@@ -47,7 +47,7 @@ requireBlankTimesheetClassification = case paramOrNothing @Text "blankClassifica
     Just "none" -> pure TimesheetNoRosterGroup
     Just value -> case Text.stripPrefix "group:" value >>= UUID.fromText of
         Just groupId -> pure (TimesheetInRosterGroup groupId)
-        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+        Nothing      -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
     Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
 
 submittedTimesheetRosterGroupClassification :: (?request :: Request, ?respond :: Respond) => IO (Maybe TimesheetRosterGroupClassification)

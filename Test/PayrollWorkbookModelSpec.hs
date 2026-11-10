@@ -5,6 +5,7 @@ import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import qualified Application.WageEngine as WageEngine
 import qualified Data.Map.Strict as Map
@@ -14,7 +15,6 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
 import IHP.ModelSupport
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 

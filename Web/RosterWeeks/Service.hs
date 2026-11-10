@@ -32,8 +32,8 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (OpenAssignment,
                                           rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import Control.Monad (void)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import qualified Data.Bifunctor as Bifunctor

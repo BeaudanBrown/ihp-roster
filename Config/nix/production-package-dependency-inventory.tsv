@@ -65,7 +65,7 @@ Data.Time	time	Application/Helper/FrontendContract/Surface/Roster/Generated/Live
 Data.Time.Calendar	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/VenueTime.hs via Main
 Data.Time.Clock.POSIX	time	Application/Billing/Checkout.hs via Main
-Data.Time.Format	time	Web/View/Admin/Exports.hs via Main
+Data.Time.Format	time	Web/View/RosterTemplates/ApplicationConfirmation.hs via Main
 Data.Time.Zones	tz	Application/VenueTime.hs via Main
 Data.Time.Zones.All	tz	Application/VenueTime.hs via Main
 Data.Traversable	base	Web/RosterWeeks/TemplateApplication.hs via Main

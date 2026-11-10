@@ -43,8 +43,8 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (formatMoneyAmount)
 import Application.Helper.View.FilterSelection
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text

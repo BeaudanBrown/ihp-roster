@@ -1,17 +1,16 @@
 module Application.PayrollReports.Email (buildPayrollReportMail) where
 
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Time (formatTime, defaultTimeLocale, toGregorian)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
 import Generated.Types
-import IHP.Prelude
-import Network.Mail.Mime
 import IHP.HSX.Markup (renderMarkupLazyText)
 import IHP.HSX.MarkupQQ (hsx)
+import IHP.Prelude
+import Network.Mail.Mime
 
 -- Headers are constructed from validated address values, never concatenated into
 -- an Address. Multiple Reply-To addresses form a standard RFC address-list.
@@ -22,7 +21,7 @@ buildPayrollReportMail run export = do
             , not (Text.null (Text.strip (cleanHeader name))) -> Right (Text.strip (cleanHeader name))
         _ -> Left "missing_report_name"
     addresses <- case map (Address Nothing) run.recipients of
-        [] -> Left "missing_recipients"
+        []     -> Left "missing_recipients"
         values -> Right values
     attachments <- case export of
         Nothing | run.approvedEntryCount == 0 -> Right []

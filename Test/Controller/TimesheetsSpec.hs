@@ -15,7 +15,6 @@ import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime (RepeatedTimeOccurrence (..),
                               melbourneTimeZoneName)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
                                     authoritativeBreakElapsedSeconds,
@@ -29,6 +28,7 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     timesheetEntryBoundaries,
                                     timesheetEntryElapsedSeconds,
                                     timesheetEntryOperationalDate)
+import qualified Application.VenueTime.Seconds as Seconds
 import Config
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson

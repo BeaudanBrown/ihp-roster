@@ -15,12 +15,12 @@ module Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.VenueTime.Model (civilBoundaryIsRepeated)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Generated.Types
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.ControllerPrelude
 
 -- | Approval-pinned pay authority. IDs, rather than display labels, control

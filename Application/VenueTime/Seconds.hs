@@ -16,9 +16,9 @@ module Application.VenueTime.Seconds
     , addTo
     ) where
 
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Prelude hiding (subtract, sum)
 import qualified Prelude
-import Data.Time (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 
 -- No Num instance: units must be explicit and division must not silently create
 -- fractional business durations. Signed offsets and zero are valid; interval

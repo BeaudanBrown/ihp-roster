@@ -41,13 +41,13 @@ import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.Exports.WorkbookConfigurationsSpec
 import qualified Test.Controller.ExportsSpec
-import qualified Test.Controller.RecipientGroupsSpec
 import qualified Test.Controller.FeedbackSpec
 import qualified Test.Controller.FixedExportGoldenSpec
 import qualified Test.Controller.HelpSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.ProfilesSpec
+import qualified Test.Controller.RecipientGroupsSpec
 import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
@@ -92,11 +92,10 @@ import qualified Test.PageHelpSpec
 import qualified Test.PasskeySpec
 import qualified Test.PayRateSelectionSpec
 import qualified Test.PayrollReportEmailSpec
-import qualified Test.PayrollReportScheduleSpec
 import qualified Test.PayrollReportGenerationSpec
-import qualified Test.PayrollReportSettingsSpec
+import qualified Test.PayrollReportScheduleSpec
 import qualified Test.PayrollReportSelectionSpec
-import qualified Test.RecipientGroupsSpec
+import qualified Test.PayrollReportSettingsSpec
 import qualified Test.PayrollWorkbookConfigurationSpec
 import qualified Test.PayrollWorkbookModelSpec
 import qualified Test.PayrollWorkbookSpec
@@ -108,6 +107,7 @@ import qualified Test.PublicHolidayOverrideSpec
 import qualified Test.PublicHolidayShadowSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.PwaInstallSpec
+import qualified Test.RecipientGroupsSpec
 import qualified Test.ResendWebhookSpec
 import qualified Test.ResetIsolationSpec
 import qualified Test.RosterAwardDurationSpec
@@ -119,6 +119,7 @@ import qualified Test.RosterTemplateCaptureSpec
 import qualified Test.RosterTemplatesSpec
 import qualified Test.RosterWageDisplaySpec
 import qualified Test.SchemaSpec
+import qualified Test.SecondsSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
 import qualified Test.StripeContractSpec
@@ -139,7 +140,6 @@ import qualified Test.TypedErrorCategorySpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
 import qualified Test.VenueTimeSpec
-import qualified Test.SecondsSpec
 import qualified Test.WageCutoverMigrationSpec
 import qualified Test.WageEngine.AdapterSpec
 import qualified Test.WageEngine.ComponentsSpec

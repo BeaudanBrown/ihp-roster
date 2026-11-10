@@ -6,9 +6,9 @@ module Web.RosterWeeks.Overview
 
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds)
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Time.Calendar as Calendar

@@ -7,8 +7,8 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      automaticMealBreakMinutes,
                                      automaticMealBreakStartOffsetMinutes,
                                      automaticMealBreakThresholdMinutes)
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Bifunctor as Bifunctor
 import Generated.Types
 import IHP.Prelude

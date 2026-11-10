@@ -8,13 +8,13 @@ module Application.WageEngine.Components
     )
 where
 
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (AwardSegment, LocalDayKind (..),
                               LocalTimeWindow (..), ResolvedInterval,
                               awardSegmentEnd, awardSegmentLocalDate,
                               awardSegmentLocalDayKind, awardSegmentLocalWindow,
                               awardSegmentStart, resolvedInstantUTC,
                               resolvedIntervalElapsedSeconds)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine.RateBook (AwardClassification,
                                         BaseRateKind (OrdinaryRate),
                                         EmploymentBasis (PermanentPartTime),

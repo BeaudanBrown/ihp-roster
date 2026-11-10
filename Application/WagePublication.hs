@@ -9,9 +9,10 @@ module Application.WagePublication
     , staffHoursContributions
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import qualified Application.VenueTime.Seconds as Seconds
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map

@@ -9,10 +9,15 @@ module Application.Helper.Export.Failure
 
 import Application.Helper.Export.HourlyBreakdown (wageCentsForEntryBySlot)
 import Application.Helper.Export.PayrollWorkbookModel (validateCalculationTiming)
-import Application.VenueTime.Model (decodeTimesheetTiming, storedInstantLocalTime)
+import Application.VenueTime.Model (decodeTimesheetTiming,
+                                    storedInstantLocalTime)
 import Application.WageEngine (WageCalculation)
-import Application.WageSourceEnforcement (WageEntryOutcome (..), evaluateDraftWageEntriesAt, finalWageEntryResult, renderWageEntryFailures)
+import Application.WageSourceEnforcement (WageEntryOutcome (..),
+                                          evaluateDraftWageEntriesAt,
+                                          finalWageEntryResult,
+                                          renderWageEntryFailures)
 import Application.WageSourcePolicy (PolicyClock (..))
+import Control.Monad (void)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Generated.Types
@@ -24,12 +29,12 @@ data ExportFailure
     deriving (Eq, Show)
 
 data ExportEntryFailure = ExportEntryFailure
-    { entryFailureId :: !(Id TimesheetEntry)
-    , entryFailureDate :: !Day
+    { entryFailureId        :: !(Id TimesheetEntry)
+    , entryFailureDate      :: !Day
     , entryFailureStaffName :: !(Maybe Text)
-    , entryFailureStart :: !(Maybe LocalTime)
-    , entryFailureEnd :: !(Maybe LocalTime)
-    , entryFailureMessage :: !Text
+    , entryFailureStart     :: !(Maybe LocalTime)
+    , entryFailureEnd       :: !(Maybe LocalTime)
+    , entryFailureMessage   :: !Text
     }
     deriving (Eq, Show)
 
@@ -42,11 +47,11 @@ collectPayrollTimingFailures entries staffById calculations =
   where
     validate entry = do
         case decodeTimesheetTiming entry of
-            Left _ -> Left "The recorded shift or break interval is invalid."
+            Left _  -> Left "The recorded shift or break interval is invalid."
             Right _ -> Right ()
         calculation <- maybe (Left "The approved wage calculation is missing.") Right (Map.lookup (unpackId entry.id) calculations)
         validateCalculationTiming entry calculation
-        () <$ wageCentsForEntryBySlot entry calculation
+        void (wageCentsForEntryBySlot entry calculation)
 
 entryFailureFor :: Map.Map UUID Staff -> TimesheetEntry -> Text -> ExportEntryFailure
 entryFailureFor staffById entry message =

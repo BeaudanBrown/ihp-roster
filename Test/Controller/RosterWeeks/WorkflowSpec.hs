@@ -7,13 +7,13 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (noShiftCopyOccurrenceSelections,
                                     rosterSlotElapsedSeconds,
                                     rosterSlotEndOccurrence,
                                     rosterSlotStartOccurrence,
                                     storedInstantLocalTime,
                                     storedInstantOccurrence)
+import qualified Application.VenueTime.Seconds as Seconds
 import Config
 import qualified Control.Exception as Exception
 import qualified Data.ByteString.Char8 as ByteString

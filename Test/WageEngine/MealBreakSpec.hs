@@ -1,13 +1,13 @@
 module Test.WageEngine.MealBreakSpec where
 
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (NonNegative (..), Positive (..), property)

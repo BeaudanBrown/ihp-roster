@@ -34,12 +34,12 @@ module Application.WageEngine.Types
 where
 
 import Application.VenueTime (AwardSegment, ResolvedInterval, VenueTimeError)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine.RateBook (AwardRateContext, EmploymentBasis,
                                         RateBookVersion, RateSourceIdentity,
                                         ValidatedRateKey)
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
-import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 
 newtype CalculationEntryId = CalculationEntryId Text

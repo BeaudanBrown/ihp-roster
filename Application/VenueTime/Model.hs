@@ -70,8 +70,8 @@ module Application.VenueTime.Model
     , storedInstantOccurrence
     ) where
 
-import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.Prelude

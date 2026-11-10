@@ -1,25 +1,26 @@
 module Test.PayrollReportEmailSpec where
 
+import Application.EmailDelivery.Correlation (emailDeliveryMessageId)
 import Application.EmailDelivery.Group
 import Application.EmailDelivery.ResendWebhook (handleResendWebhook)
-import Application.EmailDelivery.Correlation (emailDeliveryMessageId)
-import Test.ResendWebhookSpec (signedFixture, webhookBody)
+import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.PayrollReports.Email (buildPayrollReportMail)
 import Application.PayrollReports.Generation (generatePayrollReportSnapshot)
-import Application.Helper.Export.PayrollWorkbookConfiguration
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.IORef
-import Data.Time (fromGregorian)
-import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
+import Data.Time (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking (withContext)
-import Network.Mail.Mime (Mail (..), Address (..), Part (..), PartContent (..), renderMail')
+import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..),
+                          renderMail')
 import Test.Hspec
-import Test.Support
 import Test.PayrollWorkbookConfigurationSpec (expectRight)
+import Test.ResendWebhookSpec (signedFixture, webhookBody)
+import Test.Support
 
 makeRun :: (?modelContext :: ModelContext) => Bool -> IO PayrollReportRun
 makeRun approved = do
