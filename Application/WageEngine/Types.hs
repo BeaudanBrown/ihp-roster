@@ -39,6 +39,7 @@ import Application.WageEngine.RateBook (AwardRateContext, EmploymentBasis,
                                         ValidatedRateKey)
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 
 newtype CalculationEntryId = CalculationEntryId Text
@@ -171,8 +172,8 @@ data PaidTimeSegment = PaidTimeSegment
     }
     deriving (Eq, Show)
 
-paidTimeDurationSeconds :: PaidTimeSegment -> Rational
-paidTimeDurationSeconds segment = toRational (diffUTCTime segment.paidTimeEnd segment.paidTimeStart)
+paidTimeDurationSeconds :: PaidTimeSegment -> Seconds.Seconds
+paidTimeDurationSeconds segment = Seconds.between segment.paidTimeStart segment.paidTimeEnd
 
 data EarningsUnit
     = Hours

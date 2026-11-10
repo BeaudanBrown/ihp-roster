@@ -5,6 +5,7 @@ import Application.Fixture.PayrollFixtures (createAndApproveEntry,
 import Application.Helper.Export
 import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
 import Application.Helper.TimesheetSelection
+import qualified Application.WageEngine as Wage
 import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
                                     TimesheetIntegrityError (TimesheetTimingInvalid))
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
@@ -1057,6 +1058,52 @@ tests = aroundAll withDatabaseTestContext do
                 mondayWages `shouldSatisfy` Text.isInfixOf "14:00-15:00,37.50,37.50"
                 mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,43.12,43.12"
                 mondayWages `shouldSatisfy` Text.isInfixOf "Total,268.12,268.12"
+
+        it "exports a persisted ten-minute missed-break penalty without nanosecond overrun" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Rounded missed break"
+                admin <- createUserRecord "rounded-missed-break@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue Nothing "Rounded" "Duration"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 19 30 0)
+                    , setTestEndTime (TimeOfDay 1 40 0)
+                    , setTestHadBreak True
+                    , setTestBreakMinutes 30
+                    , setTestBreakStartTime (Just (TimeOfDay 21 5 0))
+                    , setTestBreakEndTime (Just (TimeOfDay 21 35 0))
+                    ]
+                calculationResult <- loadApprovedTimesheetPayCalculation entry
+                calculation <- case calculationResult of
+                    Right (Just value) -> pure value
+                    other -> expectationFailure (cs (tshow other)) >> fail "Expected sealed calculation"
+                let missed = filter ((== Wage.MissedMealBreakAdditionCondition) . (.sourceCondition)) calculation.earningsComponents
+                map (.quantity) missed `shouldBe` [166666666667 / 1000000000000]
+                cents <- case buildHourlyWageCents [entry] (Map.singleton (unpackId entry.id) calculation) of
+                    Right value -> pure value
+                    Left failure -> expectationFailure (cs failure) >> fail "Hourly allocation failed"
+                sum (Map.elems cents) `shouldBe` round ((Wage.deriveFinalEarnings calculation.earningsComponents).finalEarningsTotalAmount * 100)
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+                job <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                job.status `shouldBe` exportJobStatusToText ExportReady
+                download <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                download `responseStatusShouldBe` status200
+                after <- loadApprovedTimesheetPayCalculation entry
+                after `shouldBe` calculationResult
+                buildHourlyWageCents [entry |> set #endsAt (addUTCTime (-60) entry.endsAt)] (Map.singleton (unpackId entry.id) calculation)
+                    `shouldSatisfy` isLeft
 
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do

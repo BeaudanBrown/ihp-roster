@@ -13,6 +13,7 @@ module Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (TimesheetIntegrityError,
                                     authoritativeEndLocalTime,
@@ -166,34 +167,34 @@ intervalSharesForCalculation timezone entryStartsAt entryEndsAt calculation = do
     let paidSegments = calculation.paidTimeSegments
         (paidComponents, extraComponents) = List.splitAt (length paidSegments) calculation.earningsComponents
         workedSegments = filter ((== Worked) . (.paidTimeKind)) paidSegments
-        workedSeconds = sum (map paidTimeDurationSeconds workedSegments)
+        workedSeconds = Seconds.sum (map paidTimeDurationSeconds workedSegments)
     when (length paidComponents /= length paidSegments) $
         Left "Approved wage calculation does not contain one base earnings component per paid-time segment."
     paidShares <- concat <$> zipWithM (sharesForPaidComponent workedSegments workedSeconds) paidSegments paidComponents
     extraShares <- sharesForExtraComponents timezone entryStartsAt entryEndsAt workedSegments extraComponents
     pure (paidShares <> extraShares)
 
-sharesForPaidComponent :: [PaidTimeSegment] -> Rational -> PaidTimeSegment -> EarningsComponent -> Either Text [IntervalEarningsShare]
+sharesForPaidComponent :: [PaidTimeSegment] -> Seconds.Seconds -> PaidTimeSegment -> EarningsComponent -> Either Text [IntervalEarningsShare]
 sharesForPaidComponent workedSegments workedSeconds segment component = do
     validatePaidComponent segment component
     case segment.paidTimeKind of
         Worked -> pure [shareForInterval component segment.paidTimeStart segment.paidTimeEnd component.amount]
         _
-            | workedSeconds <= 0 -> Left "Approved wage calculation has a minimum-payment top-up but no actual worked time."
+            | workedSeconds <= Seconds.fromSeconds 0 -> Left "Approved wage calculation has a minimum-payment top-up but no actual worked time."
             | otherwise ->
                 pure
                     [ shareForInterval
                         component
                         worked.paidTimeStart
                         worked.paidTimeEnd
-                        (component.amount * paidTimeDurationSeconds worked / workedSeconds)
+                        (component.amount * Seconds.toHours (paidTimeDurationSeconds worked) / Seconds.toHours workedSeconds)
                     | worked <- workedSegments
                     ]
 
 validatePaidComponent :: PaidTimeSegment -> EarningsComponent -> Either Text ()
 validatePaidComponent segment component
     | component.unitType /= Hours = Left "Approved wage calculation base component is not hourly."
-    | component.quantity /= roundWageLedgerRational (paidTimeDurationSeconds segment / 3600) = Left "Approved wage calculation base component quantity does not match its paid-time segment."
+    | component.quantity /= roundWageLedgerRational (Seconds.toHours (paidTimeDurationSeconds segment)) = Left "Approved wage calculation base component quantity does not match its paid-time segment."
     | component.sourceCondition /= segment.paidTimeSourceCondition = Left "Approved wage calculation base component condition does not match its paid-time segment."
     | otherwise = Right ()
 
@@ -218,23 +219,23 @@ sharesForExtraComponents timezone entryStartsAt entryEndsAt workedSegments compo
             Right
             (safeListIndex dates occurrence)
         let datedEligible = filter ((== date) . (.paidTimeLocalDate)) eligible
-            totalSeconds = sum (map paidTimeDurationSeconds datedEligible)
-        when (totalSeconds <= 0) $
+            totalSeconds = Seconds.sum (map paidTimeDurationSeconds datedEligible)
+        when (totalSeconds <= Seconds.fromSeconds 0) $
             Left "Approved commenced-hour addition has no positive qualifying worked duration."
         let componentShares =
                 [ shareForInterval
                     component
                     segment.paidTimeStart
                     segment.paidTimeEnd
-                    (component.amount * paidTimeDurationSeconds segment / totalSeconds)
+                    (component.amount * Seconds.toHours (paidTimeDurationSeconds segment) / Seconds.toHours totalSeconds)
                 | segment <- datedEligible
                 ]
         pure (Map.insert condition (occurrence + 1) conditionCounts, shares <> componentShares)
 
 shareForMissedBreak :: UTCTime -> UTCTime -> EarningsComponent -> Either Text IntervalEarningsShare
 shareForMissedBreak entryStartsAt entryEndsAt component = do
-    let missedStart = addUTCTime (6 * 60 * 60) entryStartsAt
-        missedEnd = addUTCTime (fromRational (component.quantity * 3600)) missedStart
+    let missedStart = Seconds.addTo (Seconds.fromMinutes 360) entryStartsAt
+        missedEnd = Seconds.addTo (Seconds.fromStoredHours component.quantity) missedStart
     when (component.quantity <= 0 || missedEnd > entryEndsAt) $
         Left "Approved missed-meal-break quantity falls outside its timesheet interval."
     pure (shareForInterval component missedStart missedEnd component.amount)
@@ -266,16 +267,16 @@ splitIntervalShareIntoHours entry share =
         { timedShareHour = fromInteger (diffDays localDate ownershipDate) * 24 + localHour
         , timedShareOccurrence = occurrence
         , timedShareBucketKey = share.intervalShareBucketKey
-        , timedShareAmount = share.intervalShareAmount * toRational elapsed / totalSeconds
+        , timedShareAmount = share.intervalShareAmount * Seconds.toHours elapsed / Seconds.toHours totalSeconds
         , timedShareOrdinal = ordinal
         }
     | (ordinal, (localDate, localHour, occurrence, elapsed)) <- zip [0 ..] localSegments
-    , elapsed > 0
+    , elapsed > Seconds.fromSeconds 0
     ]
   where
     ownershipDate = entry.operationalDate
     localSegments = storedIntervalLocalHourOccurrenceSegments entry.timezone share.intervalShareStart share.intervalShareEnd
-    totalSeconds = toRational (diffUTCTime share.intervalShareEnd share.intervalShareStart)
+    totalSeconds = Seconds.between share.intervalShareStart share.intervalShareEnd
 
 allocateFinalEarningsCents :: WageCalculation -> [TimedEarningsShare] -> Either Text (Map.Map (Int, HourlyOccurrence) Integer)
 allocateFinalEarningsCents calculation shares = do
@@ -332,25 +333,25 @@ entryHoursForHourlyWindow hourOfWindow shiftTypeId entry
             shiftSeconds = intervalSecondsInLocalHour entry.timezone targetDate targetHour entry.startsAt entry.endsAt
             breakSeconds = case (entry.breakStartsAt, entry.breakEndsAt) of
                 (Just breakStartsAt, Just breakEndsAt) -> intervalSecondsInLocalHour entry.timezone targetDate targetHour breakStartsAt breakEndsAt
-                _ -> 0
-         in toRational (max 0 (shiftSeconds - breakSeconds)) / 3600
+                _ -> Seconds.fromSeconds 0
+         in Seconds.toHours (max (Seconds.fromSeconds 0) (Seconds.subtract shiftSeconds breakSeconds))
 
-intervalSecondsInLocalHour :: Text -> Day -> Int -> UTCTime -> UTCTime -> NominalDiffTime
+intervalSecondsInLocalHour :: Text -> Day -> Int -> UTCTime -> UTCTime -> Seconds.Seconds
 intervalSecondsInLocalHour timezone targetDate targetHour startsAt endsAt =
-    sum
+    Seconds.sum
         [ elapsed
         | (localDate, localHour, elapsed) <- storedIntervalLocalHourSegments timezone startsAt endsAt
         , localDate == targetDate
         , localHour == targetHour
         ]
 
-storedIntervalLocalHourSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, NominalDiffTime)]
+storedIntervalLocalHourSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, Seconds.Seconds)]
 storedIntervalLocalHourSegments timezone startsAt endsAt =
     [ (date, hour, elapsed)
     | (date, hour, _occurrence, elapsed) <- storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt
     ]
 
-storedIntervalLocalHourOccurrenceSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, HourlyOccurrence, NominalDiffTime)]
+storedIntervalLocalHourOccurrenceSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, HourlyOccurrence, Seconds.Seconds)]
 storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt = go startsAt
   where
     go cursor
@@ -361,7 +362,7 @@ storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt = go startsAt
                 Right local ->
                     let segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
                         occurrence = occurrenceForCursor cursor local
-                     in (local.localDay, local.localTimeOfDay.todHour, occurrence, diffUTCTime segmentEnd cursor) : go segmentEnd
+                     in (local.localDay, local.localTimeOfDay.todHour, occurrence, Seconds.between cursor segmentEnd) : go segmentEnd
 
     occurrenceForCursor cursor local
         | not (civilBoundaryIsRepeated local.localDay hourStart) = FirstHourlyOccurrence

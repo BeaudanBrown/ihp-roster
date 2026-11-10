@@ -10,6 +10,7 @@ import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
@@ -387,10 +388,10 @@ workedSegments :: WageCalculation -> [PaidTimeSegment]
 workedSegments = filter ((== Worked) . (.paidTimeKind)) . (.paidTimeSegments)
 
 paidSeconds :: WageCalculation -> Rational
-paidSeconds = sum . map paidTimeDurationSeconds . (.paidTimeSegments)
+paidSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . (.paidTimeSegments)
 
 workedSeconds :: WageCalculation -> Rational
-workedSeconds = sum . map paidTimeDurationSeconds . workedSegments
+workedSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . workedSegments
 
 hourlyDetails :: WageCalculation -> [(SourceCondition, Rational, Scientific)]
 hourlyDetails =

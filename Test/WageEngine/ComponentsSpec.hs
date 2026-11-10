@@ -7,6 +7,8 @@ import qualified Data.Set as Set
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (NonNegative (..), Positive (..), property)
@@ -21,7 +23,7 @@ tests =
                 calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [eveningQuarterHour] })
 
             calculation.paidTimeSegments `shouldSatisfy` all ((== Worked) . (.paidTimeKind))
-            sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 15 * 60
+            Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` Seconds.fromMinutes 15
             calculation.earningsComponents
                 `shouldBe`
                     [ EarningsComponent
@@ -90,7 +92,7 @@ tests =
                         (TimeOfDay 0 15 0)
                 calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = intervals })
 
-            sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 5 * 60 * 60 + 30 * 60
+            Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` Seconds.fromMinutes 330
             hourlyQuantity calculation `shouldBe` 11 / 2
             fixedComponents calculation
                 `shouldBe`
@@ -158,7 +160,7 @@ tests =
 
                 fixedComponents calculation `shouldBe` []
                 hourlyQuantity calculation `shouldBe` expectedHours
-                sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` expectedHours * 60 * 60
+                Seconds.toHours (Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments)) `shouldBe` expectedHours
 
         it "HIGA-POLICY-IMPORTED-OVERRIDE keeps an evening imported pay item flat and addition-free" do
             let day = fromGregorian 2026 1 5
@@ -207,7 +209,7 @@ tests =
                             }
                         )
 
-            sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 30 * 60
+            Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` Seconds.fromMinutes 30
             hourlyQuantity calculation `shouldBe` 1 / 2
             commencedQuantity calculation `shouldBe` 1
 
@@ -306,6 +308,23 @@ tests =
                     ]
 
             missed `shouldBe` [(day, 1)]
+
+        it "HIGA-POLICY-OUTPUT-CONSERVATION allocates rounded persisted missed-break hours without residual dates or changed money" do
+            let day = fromGregorian 2026 1 5
+                nextDay = addDays 1 day
+                calculated = calculateOrFail (testCalculationInput
+                    { calculationShiftSegments = awardSegmentsBetween day (TimeOfDay 17 55 0) nextDay (TimeOfDay 0 5 0) })
+                rounded component = component
+                    { quantity = roundWageLedgerRational component.quantity
+                    , amount = roundWageLedgerRational component.amount }
+                calculation = calculated { earningsComponents = map rounded calculated.earningsComponents }
+                original = filter ((== MissedMealBreakAdditionCondition) . (.sourceCondition)) calculation.earningsComponents
+                contributions = filter ((== MissedMealBreakAdditionCondition) . (.sourceCondition) . snd) (datedEarningsComponents calculation)
+            map fst contributions `shouldBe` [day, nextDay]
+            map (.quantity) original `shouldBe` [166666666667 / 1000000000000]
+            sum (map ((.quantity) . snd) contributions) `shouldBe` sum (map (.quantity) original)
+            sum (map ((.amount) . snd) contributions) `shouldBe` sum (map (.amount) original)
+            map ((.quantity) . snd) contributions `shouldBe` replicate 2 (166666666667 / 2000000000000)
 
         it "HIGA-POLICY-OUTPUT-CONSERVATION sends non-worked casual minimum top-up time to the ordinary Staff Hours bucket" do
             let day = fromGregorian 2026 1 5
@@ -457,8 +476,8 @@ propArtificialSplitInvariance (Positive durationSeed) (NonNegative splitSeed) =
                     (Right directCalculation, Right splitCalculation) ->
                         deriveFinalEarnings directCalculation.earningsComponents
                             == deriveFinalEarnings splitCalculation.earningsComponents
-                            && sum (map paidTimeDurationSeconds directCalculation.paidTimeSegments)
-                                == sum (map paidTimeDurationSeconds splitCalculation.paidTimeSegments)
+                            && Seconds.sum (map paidTimeDurationSeconds directCalculation.paidTimeSegments)
+                                == Seconds.sum (map paidTimeDurationSeconds splitCalculation.paidTimeSegments)
                             && commencedQuantity directCalculation == expectedUnits
                             && commencedQuantity splitCalculation == expectedUnits
                     _ -> False

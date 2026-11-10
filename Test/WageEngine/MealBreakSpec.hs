@@ -20,7 +20,7 @@ tests =
             let day = fromGregorian 2026 1 5
                 calculation = calculationFor day (TimeOfDay 9 0 0) day (TimeOfDay 17 0 0) Nothing
 
-            sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 8 * 60 * 60
+            Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` Seconds.fromMinutes 480
             calculation.earningsComponents
                 `shouldBe`
                     [ EarningsComponent
@@ -361,7 +361,7 @@ mealBreakForCivil startCivil endCivil =
         Right interval -> interval
 
 paidSeconds :: WageCalculation -> Rational
-paidSeconds = sum . map paidTimeDurationSeconds . (.paidTimeSegments)
+paidSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . (.paidTimeSegments)
 
 missedQuantity :: WageCalculation -> Rational
 missedQuantity = sum . map (.quantity) . missedComponents

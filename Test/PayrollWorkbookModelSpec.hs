@@ -13,6 +13,7 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
 import IHP.ModelSupport
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 
@@ -274,7 +275,7 @@ dstModel day startsAt endsAt = do
         (Map.singleton firstEntryId bucket)
         (Map.singleton firstEntryId "Bar")
         [HourlyShiftTypeColumn firstShiftTypeId "Bar"]
-        (Map.singleton firstEntryId (calculation firstEntryId day [segment] [hourlyComponent segment (round (paidTimeDurationSeconds segment / 3600) * 3000)]))
+        (Map.singleton firstEntryId (calculation firstEntryId day [segment] [hourlyComponent segment (round (Seconds.toHours (paidTimeDurationSeconds segment)) * 3000)]))
         |> expectRight
 
 calculation :: UUID -> Day -> [PaidTimeSegment] -> [EarningsComponent] -> WageCalculation
@@ -291,7 +292,7 @@ calculation entryId day segments components =
 hourlyComponent :: PaidTimeSegment -> Integer -> EarningsComponent
 hourlyComponent segment cents =
     EarningsComponent
-        { quantity = paidTimeDurationSeconds segment / 3600
+        { quantity = Seconds.toHours (paidTimeDurationSeconds segment)
         , unitType = Hours
         , ratePerUnit = 30
         , amount = fromInteger cents / 100

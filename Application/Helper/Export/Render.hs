@@ -334,7 +334,8 @@ formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)
 
 formatElapsedSeconds :: Seconds.Seconds -> Text
-formatElapsedSeconds = tshow . Seconds.toSeconds
+formatElapsedSeconds duration =
+    tshow (fromInteger (Seconds.toSeconds duration) :: Scientific.Scientific)
 
 formatUtc :: UTCTime -> Text
 formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" timestamp)

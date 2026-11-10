@@ -19,6 +19,7 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Generated.Types
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.ControllerPrelude
 
 -- | Approval-pinned pay authority. IDs, rather than display labels, control
@@ -320,23 +321,23 @@ workedHoursForEntry entry calculation = do
 hoursForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map (Int, HourlyOccurrence) Rational)
 hoursForEntry entry calculation = do
     let workedSegments = filter ((== Worked) . (.paidTimeKind)) calculation.paidTimeSegments
-    let workedSeconds = sum (map paidTimeDurationSeconds workedSegments)
-    let paidSeconds = sum (map paidTimeDurationSeconds calculation.paidTimeSegments)
-    when (workedSeconds <= 0) $
+    let workedSeconds = Seconds.sum (map paidTimeDurationSeconds workedSegments)
+    let paidSeconds = Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments)
+    when (workedSeconds <= Seconds.fromSeconds 0) $
         Left ("Payroll Workbook entry has no positive actual worked time: " <> tshow entry.id)
     when (paidSeconds < workedSeconds) $
         Left ("Payroll Workbook entry has invalid paid-time totals: " <> tshow entry.id)
     let workedBySlot = Map.fromListWith (+) (concatMap (segmentSecondsBySlot entry) workedSegments)
-    pure (Map.map (\seconds -> seconds * paidSeconds / workedSeconds / 3600) workedBySlot)
+    pure (Map.map (\seconds -> seconds * Seconds.toHours paidSeconds / Seconds.toHours workedSeconds / 3600) workedBySlot)
 
 segmentSecondsBySlot :: TimesheetEntry -> PaidTimeSegment -> [((Int, HourlyOccurrence), Rational)]
 segmentSecondsBySlot entry segment =
     [ ( (fromInteger (diffDays date entry.operationalDate) * 24 + hour, occurrence)
-      , toRational elapsed
+      , fromInteger (Seconds.toSeconds elapsed)
       )
     | (date, hour, occurrence, elapsed) <-
         storedIntervalLocalHourOccurrenceSegments entry.timezone segment.paidTimeStart segment.paidTimeEnd
-    , elapsed > 0
+    , elapsed > Seconds.fromSeconds 0
     ]
 
 roundHoursWithResidual :: [Rational] -> [Rational]
