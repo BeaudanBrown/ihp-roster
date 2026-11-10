@@ -82,12 +82,11 @@ performGroupEmailDeliveryWith runtime job = do
             export <- case current.exportJobId of
                 Nothing -> pure Nothing
                 Just exportId -> fetchOneOrNothing (Id exportId :: Id ExportJob)
-            venue <- fetch (Id current.venueId :: Id Venue)
             let artifactValid = case export of
                     Nothing -> current.approvedEntryCount == 0 && isNothing current.exportJobId
                     Just artifact -> artifact.venueId == current.venueId && artifact.expiresAt > now && isJust artifact.fileContents && artifact.fileEncoding == "base64"
             if not artifactValid then terminal current PayrollReportFailed else
-                case (validatePayrollReportRecipients current.recipients, buildPayrollReportMail venue.name current export) of
+                case (validatePayrollReportRecipients current.recipients, buildPayrollReportMail current export) of
                     (Right _, Right mail) -> do
                         correlation <- prepareProviderCorrelation job
                         -- Commit uncertainty BEFORE any transport call. A crash here

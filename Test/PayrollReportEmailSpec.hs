@@ -4,9 +4,11 @@ import Application.EmailDelivery.Group
 import Application.EmailDelivery.ResendWebhook (handleResendWebhook)
 import Application.EmailDelivery.Correlation (emailDeliveryMessageId)
 import Test.ResendWebhookSpec (signedFixture, webhookBody)
+import Application.PayrollReports.Email (buildPayrollReportMail)
 import Application.PayrollReports.Generation (generatePayrollReportSnapshot)
 import Application.Helper.Export.PayrollWorkbookConfiguration
 import Control.Monad (void)
+import Data.Either (isLeft)
 import Data.IORef
 import Data.Time (fromGregorian)
 import qualified Data.Aeson as Aeson
@@ -14,7 +16,7 @@ import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking (withContext)
-import Network.Mail.Mime (Mail (..), Address (..), renderMail')
+import Network.Mail.Mime (Mail (..), Address (..), Part (..), PartContent (..), renderMail')
 import Test.Hspec
 import Test.Support
 import Test.PayrollWorkbookConfigurationSpec (expectRight)
@@ -42,6 +44,14 @@ queuedJob run = do
     enqueuePayrollReportOutcome run
     query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> filterWhere (#payloadSchemaVersion, 2) |> fetchOne
 
+mailTextBodies :: Mail -> [Text]
+mailTextBodies mail = concatMap body (concat mail.mailParts)
+  where
+    body part = case part.partContent of
+        PartContent bytes | "text/" `Text.isPrefixOf` part.partType -> [cs bytes]
+        NestedParts parts -> concatMap body parts
+        _ -> []
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Payroll group email delivery" do
@@ -63,7 +73,15 @@ tests = aroundAll withDatabaseTestContext do
                         lookup "Message-ID" mail.mailHeaders `shouldSatisfy` isJust
                         rendered <- renderMail' mail
                         (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "Payroll &lt;Venue&gt;"
+                        lookup "Subject" mail.mailHeaders `shouldBe` Just "Bepis - Payroll Workbook - 6–12 January 2025"
+                        (cs rendered :: Text) `shouldSatisfy` (not . Text.isInfixOf "Payroll &lt;Venue&gt;")
+                        length (mailTextBodies mail) `shouldBe` 2
+                        forM_ (mailTextBodies mail) \body -> do
+                            body `shouldSatisfy` Text.isInfixOf "The attached workbook includes approved timesheets only."
+                            body `shouldSatisfy` Text.isInfixOf "No timesheets are awaiting approval for this period."
+                            body `shouldSatisfy` Text.isInfixOf "This email was generated automatically by Bepis."
+                        (cs rendered :: Text) `shouldSatisfy` (not . Text.isInfixOf "All recipients can see")
+                        (cs rendered :: Text) `shouldSatisfy` (not . Text.isInfixOf "Any scheduled send")
                         (cs rendered :: Text) `shouldSatisfy` Text.isInfixOf "<p>"
                         (cs rendered :: Text) `shouldSatisfy` (not . Text.isInfixOf "<pre>")
                     _ -> expectationFailure "Expected one grouped email"
@@ -71,6 +89,40 @@ tests = aroundAll withDatabaseTestContext do
                 current.status `shouldBe` PayrollReportAccepted
                 enqueuePayrollReportOutcome run
                 query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> filterWhere (#payloadSchemaVersion, 2) |> fetchCount `shouldReturn` 1
+
+        it "uses the frozen template name and readable dates, not a later template rename" $ withContext do
+            withCleanDb do
+                run <- makeRun False
+                forM_ run.configurationId \configurationId -> do
+                    template <- fetch (Id configurationId :: Id PayrollWorkbookConfiguration)
+                    void (template |> set #name "Renamed after preparation" |> updateRecord)
+                original <- buildPayrollReportMail run Nothing |> expectRight
+                lookup "Subject" original.mailHeaders `shouldBe` Just "Bepis - Payroll Workbook - 6–12 January 2025"
+                forM_
+                    [ (fromGregorian 2026 9 22, fromGregorian 2026 9 28, "22–28 September 2026")
+                    , (fromGregorian 2026 9 28, fromGregorian 2026 10 4, "28 September–4 October 2026")
+                    , (fromGregorian 2026 12 28, fromGregorian 2027 1 3, "28 December 2026–3 January 2027")
+                    ] \(start, end, dates) -> do
+                        mail <- buildPayrollReportMail (run |> set #reportingWeek start |> set #rangeEnd end) Nothing |> expectRight
+                        lookup "Subject" mail.mailHeaders `shouldBe` Just ("Bepis - Payroll Workbook - " <> dates)
+                sanitized <- buildPayrollReportMail (run |> set #templateSnapshot (Aeson.object ["name" Aeson..= ("Weekly\r\nPayroll" :: Text)])) Nothing |> expectRight
+                lookup "Subject" sanitized.mailHeaders `shouldBe` Just "Bepis - WeeklyPayroll - 6–12 January 2025"
+                buildPayrollReportMail (run |> set #templateSnapshot (Aeson.object [])) Nothing `shouldSatisfy` isLeft
+
+        it "retains missing-attachment, excluded-entry and exceptional delivery warnings" $ withContext do
+            withCleanDb do
+                run <- makeRun False
+                forM_
+                    [ (run, ["No approved timesheets were found. No workbook is attached.", "No timesheets are awaiting approval"])
+                    , (run |> set #excludedEntryCount 2, ["2 unapproved timesheets were excluded", "This report may be incomplete."])
+                    , (run |> set #origin PayrollReportUpdated, ["UPDATED REPORT:"])
+                    , (run |> set #origin PayrollReportScheduled |> set #scheduledAt (Just (addUTCTime (-120) run.createdAt)), ["This scheduled report was delayed."])
+                    ] \(variant, expected) -> do
+                        mail <- buildPayrollReportMail variant Nothing |> expectRight
+                        forM_ (mailTextBodies mail) \body -> do
+                            forM_ expected \message -> body `shouldSatisfy` Text.isInfixOf message
+                            body `shouldSatisfy` Text.isInfixOf "This email was generated automatically by Bepis."
+                buildPayrollReportMail (run |> set #approvedEntryCount 1) Nothing `shouldSatisfy` isLeft
 
         it "never blindly retries an ambiguous SMTP result and emits one minimal support incident" $ withContext do
             withCleanDb do

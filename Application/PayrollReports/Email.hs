@@ -4,6 +4,9 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Time (formatTime, defaultTimeLocale, toGregorian)
 import Generated.Types
 import IHP.Prelude
 import Network.Mail.Mime
@@ -12,8 +15,12 @@ import IHP.HSX.MarkupQQ (hsx)
 
 -- Headers are constructed from validated address values, never concatenated into
 -- an Address. Multiple Reply-To addresses form a standard RFC address-list.
-buildPayrollReportMail :: Text -> PayrollReportRun -> Maybe ExportJob -> Either Text Mail
-buildPayrollReportMail venueName run export = do
+buildPayrollReportMail :: PayrollReportRun -> Maybe ExportJob -> Either Text Mail
+buildPayrollReportMail run export = do
+    reportName <- case run.templateSnapshot of
+        Aeson.Object fields | Just (Aeson.String name) <- KeyMap.lookup "name" fields
+            , not (Text.null (Text.strip (cleanHeader name))) -> Right (Text.strip (cleanHeader name))
+        _ -> Left "missing_report_name"
     addresses <- case map (Address Nothing) run.recipients of
         [] -> Left "missing_recipients"
         values -> Right values
@@ -28,17 +35,18 @@ buildPayrollReportMail venueName run export = do
             -- total-message limit. Never truncate payroll to fit an attachment.
             if BS.length bytes > 29000000 then Left "attachment_too_large" else
                 Right [("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename, LBS.fromStrict bytes)]
-    let title = "Bepis payroll report — " <> cleanHeader venueName <> " — " <> tshow run.reportingWeek <> " to " <> tshow run.rangeEnd <> label
+    let title = "Bepis - " <> reportName <> " - " <> readableDateRange run.reportingWeek run.rangeEnd
     let paragraphs =
-            [ "Payroll report for " <> venueName <> ": " <> tshow run.reportingWeek <> " to " <> tshow run.rangeEnd <> "."
-            , if isNothing export then "No approved payroll entries. No workbook is attached." else "The attached workbook contains approved payroll entries only."
-            , if run.excludedEntryCount > 0 then "WARNING: " <> tshow run.excludedEntryCount <> " unapproved entries were excluded. This report may be incomplete." else "No unapproved entries were found in this period. Work not recorded in Bepis cannot be detected."
-            , case run.origin of
-                PayrollReportScheduled -> if maybe False (\due -> diffUTCTime run.createdAt due > 60) run.scheduledAt then "This scheduled report was delayed. It covers the originally intended reporting week." else "Scheduled weekly report."
-                PayrollReportManual -> "Manually requested report. Any scheduled send will still occur."
-                PayrollReportUpdated -> "UPDATED REPORT: generated from current approved entries and the current template. This may replace an earlier report for the same dates."
-            , "All recipients can see the recipient list. Reply or Reply all to continue the conversation directly with the payroll participants."
+            [ (if isNothing export then "No approved timesheets were found. No workbook is attached." else "The attached workbook includes approved timesheets only.")
+                <> (if run.excludedEntryCount > 0
+                    then " WARNING: " <> tshow run.excludedEntryCount <> " unapproved timesheets were excluded. This report may be incomplete."
+                    else " No timesheets are awaiting approval for this period.")
             ]
+            <> (case run.origin of
+                PayrollReportScheduled -> ["This scheduled report was delayed. It covers the originally intended reporting week." | maybe False (\due -> diffUTCTime run.createdAt due > 60) run.scheduledAt]
+                PayrollReportManual -> []
+                PayrollReportUpdated -> ["UPDATED REPORT: generated from current approved timesheets and the selected template. This may replace an earlier report for the same dates."])
+            <> ["This email was generated automatically by Bepis."]
     let body = Text.intercalate "\n\n" paragraphs
     case addresses of
         [] -> Left "missing_recipients"
@@ -48,5 +56,15 @@ buildPayrollReportMail venueName run export = do
             }
   where
     renderParagraph paragraph = [hsx|<p>{paragraph}</p>|]
-    label = if run.origin == PayrollReportUpdated then " (updated)" else ""
     cleanHeader = Text.filter (\character -> character /= '\r' && character /= '\n')
+
+readableDateRange :: Day -> Day -> Text
+readableDateRange start end
+    | start == end = formatted "%-d %B %Y" start
+    | startYear == endYear && startMonth == endMonth = formatted "%-d" start <> "–" <> formatted "%-d %B %Y" end
+    | startYear == endYear = formatted "%-d %B" start <> "–" <> formatted "%-d %B %Y" end
+    | otherwise = formatted "%-d %B %Y" start <> "–" <> formatted "%-d %B %Y" end
+  where
+    (startYear, startMonth, _) = toGregorian start
+    (endYear, endMonth, _) = toGregorian end
+    formatted format day = cs (formatTime defaultTimeLocale format day)
