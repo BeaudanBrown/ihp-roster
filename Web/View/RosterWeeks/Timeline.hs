@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.RosterShiftAssignment (rosterShiftIsOpen,
                                           rosterShiftIsStaffAssigned)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds,
@@ -218,7 +219,7 @@ timelineShiftFromSlot timelineWindow timingBySlotId slot =
             let start = rosterShiftTimingStartTime timing
                 end = rosterShiftTimingEndTime timing
                 startMin = normalizeTimelineMinute timelineWindow start
-                endMin = startMin + realToFrac (rosterShiftTimingElapsedSeconds timing) / 60
+                endMin = startMin + fromInteger (Seconds.toSeconds (rosterShiftTimingElapsedSeconds timing)) / 60
              in TimelineShift
                     { timelineShiftSlot = slot
                     , timelineShiftStartMin = startMin

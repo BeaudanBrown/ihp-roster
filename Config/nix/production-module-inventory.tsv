@@ -421,7 +421,7 @@ Application/VenueOnboardingInvitation/Mutations.hs	production	runtime	Main	Reach
 Application/VenueRole.hs	production	runtime	Main	Reachable from Main
 Application/VenueTime.hs	production	runtime	Main	Reachable from Main
 Application/VenueTime/Model.hs	production	runtime	Main	Reachable from Main
-Application/VenueTime/Seconds.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/VenueTime/Seconds.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine/Adapter.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine/Components.hs	production	runtime	Main	Reachable from Main

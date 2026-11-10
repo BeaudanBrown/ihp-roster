@@ -3,6 +3,7 @@ module Application.WageEngine.Rules
     )
 where
 
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (AwardSegment, LocalDayKind (..), ResolvedInstant,
                               ResolvedInterval, awardSegmentElapsedSeconds,
                               awardSegmentEnd, awardSegmentLocalDate,
@@ -59,7 +60,7 @@ calculateTimesheetPay calculationInput = do
                 (\minimumPayment ->
                     hypotheticalContinuationSegments
                         shiftBounds
-                        (minimumPaymentRequiredSeconds basis minimumPayment - paidIntervalElapsedSeconds intervals)
+                        (Seconds.subtract (minimumPaymentRequiredSeconds basis minimumPayment) (paidIntervalElapsedSeconds intervals))
                 )
                 selectedMinimum
         intervalResults <- traverse (calculateAwardInterval Worked awardRateContext basis) intervals
@@ -157,7 +158,7 @@ selectMinimumPayment basis statewidePublicHolidayDates intervals
     | basis == CasualEmployment = Just CasualMinimumPayment
     | otherwise = Nothing
 
-minimumPaymentRequiredSeconds :: EmploymentBasis -> MinimumPayment -> NominalDiffTime
+minimumPaymentRequiredSeconds :: EmploymentBasis -> MinimumPayment -> Seconds.Seconds
 minimumPaymentRequiredSeconds basis = \case
     CasualMinimumPayment -> twoHours
     PublicHolidayMinimumPayment -> case basis of
@@ -231,21 +232,21 @@ segmentPieces start end
             Left failure   -> Left (AuthoritativeSegmentationFailure failure)
             Right segments -> Right segments
 
-hypotheticalContinuationSegments :: ShiftBounds -> NominalDiffTime -> Either WageCalculationError [AwardSegment]
+hypotheticalContinuationSegments :: ShiftBounds -> Seconds.Seconds -> Either WageCalculationError [AwardSegment]
 hypotheticalContinuationSegments _ duration
-    | duration <= 0 = Right []
+    | duration <= Seconds.fromSeconds 0 = Right []
 hypotheticalContinuationSegments shiftBounds duration =
     case
         resolvedIntervalFromInstants
             shiftBounds.shiftBoundsEnd
-            (resolvedInstantFromUTC (addUTCTime duration (resolvedInstantUTC shiftBounds.shiftBoundsEnd)))
+            (resolvedInstantFromUTC (Seconds.addTo duration (resolvedInstantUTC shiftBounds.shiftBoundsEnd)))
             >>= awardSegments
         of
             Left failure   -> Left (AuthoritativeSegmentationFailure failure)
             Right segments -> Right segments
 
-paidIntervalElapsedSeconds :: [AwardSegment] -> NominalDiffTime
-paidIntervalElapsedSeconds = sum . map awardSegmentElapsedSeconds
+paidIntervalElapsedSeconds :: [AwardSegment] -> Seconds.Seconds
+paidIntervalElapsedSeconds = Seconds.sum . map awardSegmentElapsedSeconds
 
 missedMealBreakInterval :: ShiftBounds -> Maybe ResolvedInterval -> Either WageCalculationError (Maybe ResolvedInterval)
 missedMealBreakInterval shiftBounds maybeMealBreak
@@ -256,7 +257,7 @@ missedMealBreakInterval shiftBounds maybeMealBreak
             Left failure   -> Left (AuthoritativeSegmentationFailure failure)
             Right interval -> Right (Just interval)
   where
-    shiftDuration = diffUTCTime (resolvedInstantUTC shiftBounds.shiftBoundsEnd) (resolvedInstantUTC shiftBounds.shiftBoundsStart)
+    shiftDuration = Seconds.between (resolvedInstantUTC shiftBounds.shiftBoundsStart) (resolvedInstantUTC shiftBounds.shiftBoundsEnd)
     sixHourThreshold = offsetFromShiftStart sixHours shiftBounds
     delayedMealBreakEnd =
         case maybeMealBreak of
@@ -276,21 +277,21 @@ mealBreakHasMinimumDuration :: ResolvedInterval -> Bool
 mealBreakHasMinimumDuration mealBreak =
     resolvedIntervalElapsedSeconds mealBreak >= mealBreakMinimumDuration
 
-offsetFromShiftStart :: NominalDiffTime -> ShiftBounds -> ResolvedInstant
+offsetFromShiftStart :: Seconds.Seconds -> ShiftBounds -> ResolvedInstant
 offsetFromShiftStart offset shiftBounds =
-    resolvedInstantFromUTC (addUTCTime offset (resolvedInstantUTC shiftBounds.shiftBoundsStart))
+    resolvedInstantFromUTC (Seconds.addTo offset (resolvedInstantUTC shiftBounds.shiftBoundsStart))
 
-twoHours :: NominalDiffTime
-twoHours = 2 * 60 * 60
+twoHours :: Seconds.Seconds
+twoHours = Seconds.fromMinutes 120
 
-fourHours :: NominalDiffTime
-fourHours = 4 * 60 * 60
+fourHours :: Seconds.Seconds
+fourHours = Seconds.fromMinutes 240
 
-sixHours :: NominalDiffTime
-sixHours = 6 * 60 * 60
+sixHours :: Seconds.Seconds
+sixHours = Seconds.fromMinutes 360
 
-mealBreakMinimumDuration :: NominalDiffTime
-mealBreakMinimumDuration = 30 * 60
+mealBreakMinimumDuration :: Seconds.Seconds
+mealBreakMinimumDuration = Seconds.fromMinutes 30
 
 awardCondition :: Set.Set Day -> AwardSegment -> (BaseRateKind, SourceCondition)
 awardCondition statewidePublicHolidayDates interval

@@ -30,6 +30,7 @@ module Application.VenueTime
     )
 where
 
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Zones (LocalToUTCResult (..), TZ, localTimeToUTCFull,
                         utcToLocalTimeTZ)
@@ -121,11 +122,11 @@ resolvedIntervalStart = (.intervalStart)
 resolvedIntervalEnd :: ResolvedInterval -> ResolvedInstant
 resolvedIntervalEnd = (.intervalEnd)
 
-resolvedIntervalElapsedSeconds :: ResolvedInterval -> NominalDiffTime
+resolvedIntervalElapsedSeconds :: ResolvedInterval -> Seconds.Seconds
 resolvedIntervalElapsedSeconds interval =
-    diffUTCTime
-        (resolvedInstantUTC (resolvedIntervalEnd interval))
+    Seconds.between
         (resolvedInstantUTC (resolvedIntervalStart interval))
+        (resolvedInstantUTC (resolvedIntervalEnd interval))
 
 data CopyOccurrenceSelections = CopyOccurrenceSelections
     { copiedStartOccurrence :: !(Maybe RepeatedTimeOccurrence)
@@ -211,11 +212,11 @@ awardSegmentLocalDayKind = (.segmentLocalDayKind)
 awardSegmentLocalWindow :: AwardSegment -> LocalTimeWindow
 awardSegmentLocalWindow = (.segmentLocalWindow)
 
-awardSegmentElapsedSeconds :: AwardSegment -> NominalDiffTime
+awardSegmentElapsedSeconds :: AwardSegment -> Seconds.Seconds
 awardSegmentElapsedSeconds segment =
-    diffUTCTime
-        (resolvedInstantUTC (awardSegmentEnd segment))
+    Seconds.between
         (resolvedInstantUTC (awardSegmentStart segment))
+        (resolvedInstantUTC (awardSegmentEnd segment))
 
 nextAwardBoundary :: LocalTime -> LocalTime
 nextAwardBoundary localTime

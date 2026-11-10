@@ -25,6 +25,7 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
 import qualified Control.Exception as Exception
 import Data.Either (fromRight)
@@ -314,7 +315,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
          in addDays (if breakEndTime <= breakStartTime && not (repeatedEndpointPairCanShareDate resolvedBreakStartDate breakStartTime breakEndTime) then 1 else 0) resolvedBreakStartDate
 
     validateElapsedDuration boundaries record
-        | authoritativeElapsedSeconds boundaries > 16 * 60 * 60 = record |> attachFailure #endsAt "Shift cannot exceed 16 elapsed hours"
+        | authoritativeElapsedSeconds boundaries > Seconds.fromMinutes (16 * 60) = record |> attachFailure #endsAt "Shift cannot exceed 16 elapsed hours"
         | otherwise = record
 
     attachBoundaryFailure failure record =

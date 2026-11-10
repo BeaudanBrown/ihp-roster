@@ -7,6 +7,7 @@ import qualified Data.Set as Set
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (NonNegative (..), Positive (..), property)
@@ -267,7 +268,7 @@ tests =
                 autumnWithBreak = calculationFor autumnSunday (TimeOfDay 0 0 0) autumnSunday (TimeOfDay 7 0 0) (Just autumnBreak)
                 springWithBreak = calculationFor springSunday (TimeOfDay 0 0 0) springSunday (TimeOfDay 8 0 0) (Just springBreak)
 
-            map resolvedIntervalElapsedSeconds [autumnBreak, springBreak] `shouldBe` [60 * 60, 60 * 60]
+            map resolvedIntervalElapsedSeconds [autumnBreak, springBreak] `shouldBe` replicate 2 (Seconds.fromMinutes 60)
             map paidSeconds [autumn, spring, autumnWithBreak, springWithBreak]
                 `shouldBe` [8 * 60 * 60, 7 * 60 * 60, 7 * 60 * 60, 6 * 60 * 60]
             map baseHourlyQuantity [autumn, spring, autumnWithBreak, springWithBreak] `shouldBe` [8, 7, 7, 6]

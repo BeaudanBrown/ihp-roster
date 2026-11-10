@@ -8,6 +8,7 @@ module Application.WageEngine.Components
     )
 where
 
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime (AwardSegment, LocalDayKind (..),
                               LocalTimeWindow (..), ResolvedInterval,
                               awardSegmentEnd, awardSegmentLocalDate,
@@ -71,7 +72,7 @@ missedMealBreakAdditionComponent rateBook classification delayedInterval = do
             |> Bifunctor.first (\(ValidatedRateMissing key) -> MissingValidatedRate key)
     pure $
         hourlyComponent
-            (toRational (resolvedIntervalElapsedSeconds delayedInterval) / 3600)
+            (Seconds.toHours (resolvedIntervalElapsedSeconds delayedInterval))
             (ordinaryRate / 2)
             MissedMealBreakAdditionCondition
             HospitalityAward
@@ -153,9 +154,7 @@ additionCondition = \case
 
 intervalDurationHours :: AwardSegment -> Rational
 intervalDurationHours interval =
-    toRational
-        ( diffUTCTime
-            (resolvedInstantUTC (awardSegmentEnd interval))
+    Seconds.toHours
+        (Seconds.between
             (resolvedInstantUTC (awardSegmentStart interval))
-        )
-        / 3600
+            (resolvedInstantUTC (awardSegmentEnd interval)))

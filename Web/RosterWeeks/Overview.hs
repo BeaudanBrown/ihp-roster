@@ -6,6 +6,7 @@ module Web.RosterWeeks.Overview
 
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds)
 import Data.Coerce (coerce)
@@ -74,7 +75,7 @@ buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
                     , rosterShiftIsStaffAssigned slot
                     ]
                 scheduledElapsedSeconds =
-                    sum [rosterShiftTimingElapsedSeconds timing | Right timing <- assignedTimingOutcomes]
+                    Seconds.sum [rosterShiftTimingElapsedSeconds timing | Right timing <- assignedTimingOutcomes]
                 overviewInvalidTimingCount =
                     length [() | Left _ <- assignedTimingOutcomes]
                 leaveRequestCount =

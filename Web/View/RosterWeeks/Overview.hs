@@ -8,7 +8,7 @@ module Web.View.RosterWeeks.Overview
 import Application.Helper.FrontendContract.Surface.Roster.WeekOverview
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
                                           weekdayIndexForDay)
-import qualified Data.Scientific as Scientific
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Paths (rosterWeekWithDateUrl)
@@ -214,25 +214,24 @@ overviewHoursDisplay daySummary
     | overviewInvalidTimingCount daySummary > 0 = "Needs repair"
     | otherwise = formatElapsedSecondsAsHours daySummary.scheduledElapsedSeconds
 
-formatElapsedSecondsAsHours :: NominalDiffTime -> Text
+formatElapsedSecondsAsHours :: Seconds.Seconds -> Text
 formatElapsedSecondsAsHours elapsedSeconds =
     Text.intercalate " " components
     where
-        nonNegativeElapsedSeconds = max 0 elapsedSeconds
+        nonNegativeElapsedSeconds = max 0 (Seconds.toSeconds elapsedSeconds)
         hours :: Integer
-        hours = floor (nonNegativeElapsedSeconds / 3600)
-        remainingAfterHours = nonNegativeElapsedSeconds - fromInteger (hours * 60 * 60)
+        hours = nonNegativeElapsedSeconds `div` 3600
+        remainingAfterHours = nonNegativeElapsedSeconds - hours * 60 * 60
         minutes :: Integer
-        minutes = floor (remainingAfterHours / 60)
-        remainingSeconds = remainingAfterHours - fromInteger (minutes * 60)
+        minutes = remainingAfterHours `div` 60
+        remainingSeconds = remainingAfterHours - minutes * 60
         components =
             [tshow hours <> "h"]
                 <> [tshow minutes <> "m" | minutes > 0]
                 <> [formatRemainingSeconds remainingSeconds | remainingSeconds > 0]
 
-formatRemainingSeconds :: NominalDiffTime -> Text
-formatRemainingSeconds seconds =
-    tshow (fromRational (toRational seconds) :: Scientific.Scientific) <> "s"
+formatRemainingSeconds :: Integer -> Text
+formatRemainingSeconds seconds = tshow seconds <> "s"
 
 startOfWeek :: Day -> Day -> Day
 startOfWeek date referenceWeekStart =

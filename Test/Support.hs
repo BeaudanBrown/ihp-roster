@@ -21,6 +21,7 @@ import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
                               melbourneTimeZoneName)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
 import Config
 import Control.Applicative ((<|>))
@@ -278,7 +279,7 @@ instance TestBreakRecord TimesheetEntry where
         let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakMinutes = floor . (/ 60) . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
+    testBreakMinutes = fromInteger . (`div` 60) . Seconds.toSeconds . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
     setTestBreakMinutes minutes entry =
         case entry.breakStartsAt of
             Nothing -> entry
@@ -309,7 +310,7 @@ setTestRosterSlotBoundaries rosterDate startTime endTime slot =
      in applyRosterSlotBoundaries boundaries slot
 
 testDurationMinutes :: RosterSlot -> Maybe Int
-testDurationMinutes = fmap (floor . (/ 60)) . rosterSlotElapsedSeconds
+testDurationMinutes = fmap (fromInteger . (`div` 60) . Seconds.toSeconds) . rosterSlotElapsedSeconds
 
 setTestDurationMinutes :: Maybe Int -> RosterSlot -> RosterSlot
 setTestDurationMinutes Nothing slot = slot |> set #endsAt Nothing

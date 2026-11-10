@@ -31,6 +31,7 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     ValidatedTimesheetTiming)
 import Generated.Types
+import qualified Application.VenueTime.Seconds as Seconds
 import IHP.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
                                   RosterWindowState (..))
@@ -76,7 +77,7 @@ data RosterWeekOverviewDay = RosterWeekOverviewDay
     { overviewDate               :: Day
     , leaveRequestCount          :: Int
     , overviewAssignedShiftCount :: Int
-    , scheduledElapsedSeconds    :: NominalDiffTime
+    , scheduledElapsedSeconds    :: Seconds.Seconds
     , overviewInvalidTimingCount :: Int
     , overviewIsClosed           :: Bool
     }

@@ -70,6 +70,7 @@ module Application.VenueTime.Model
     , storedInstantOccurrence
     ) where
 
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime
 import Data.Traversable (traverse)
 import Generated.Types
@@ -296,15 +297,15 @@ authoritativeBreakEndsAt = fmap (authoritativeInstant . resolvedIntervalEnd) . (
 authoritativeTimezone :: AuthoritativeBoundaries -> Text
 authoritativeTimezone = (.storedTimezone)
 
-authoritativeElapsedSeconds :: AuthoritativeBoundaries -> NominalDiffTime
+authoritativeElapsedSeconds :: AuthoritativeBoundaries -> Seconds.Seconds
 authoritativeElapsedSeconds = resolvedIntervalElapsedSeconds . (.storedShiftInterval)
 
-authoritativeBreakElapsedSeconds :: AuthoritativeBoundaries -> NominalDiffTime
-authoritativeBreakElapsedSeconds = maybe 0 resolvedIntervalElapsedSeconds . (.storedBreakInterval)
+authoritativeBreakElapsedSeconds :: AuthoritativeBoundaries -> Seconds.Seconds
+authoritativeBreakElapsedSeconds = maybe (Seconds.fromSeconds 0) resolvedIntervalElapsedSeconds . (.storedBreakInterval)
 
-authoritativePaidElapsedSeconds :: AuthoritativeBoundaries -> NominalDiffTime
+authoritativePaidElapsedSeconds :: AuthoritativeBoundaries -> Seconds.Seconds
 authoritativePaidElapsedSeconds boundaries =
-    authoritativeElapsedSeconds boundaries - authoritativeBreakElapsedSeconds boundaries
+    Seconds.subtract (authoritativeElapsedSeconds boundaries) (authoritativeBreakElapsedSeconds boundaries)
 
 authoritativeAwardSegments :: AuthoritativeBoundaries -> Either BoundaryModelError [AwardSegment]
 authoritativeAwardSegments =
@@ -378,13 +379,13 @@ timesheetTimingBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakStart
 timesheetTimingBreakEndTime :: ValidatedTimesheetTiming -> Maybe TimeOfDay
 timesheetTimingBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . timesheetTimingBoundaries
 
-timesheetTimingBreakElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingBreakElapsedSeconds :: ValidatedTimesheetTiming -> Seconds.Seconds
 timesheetTimingBreakElapsedSeconds = authoritativeBreakElapsedSeconds . timesheetTimingBoundaries
 
-timesheetTimingElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingElapsedSeconds :: ValidatedTimesheetTiming -> Seconds.Seconds
 timesheetTimingElapsedSeconds = authoritativeElapsedSeconds . timesheetTimingBoundaries
 
-timesheetTimingPaidElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingPaidElapsedSeconds :: ValidatedTimesheetTiming -> Seconds.Seconds
 timesheetTimingPaidElapsedSeconds = authoritativePaidElapsedSeconds . timesheetTimingBoundaries
 
 decodeRosterShiftTiming :: RosterSlot -> Either RosterShiftIntegrityError ValidatedRosterShiftTiming
@@ -405,7 +406,7 @@ rosterShiftTimingStartTime = (.localTimeOfDay) . authoritativeStartLocalTime . r
 rosterShiftTimingEndTime :: ValidatedRosterShiftTiming -> TimeOfDay
 rosterShiftTimingEndTime = (.localTimeOfDay) . authoritativeEndLocalTime . rosterShiftTimingBoundaries
 
-rosterShiftTimingElapsedSeconds :: ValidatedRosterShiftTiming -> NominalDiffTime
+rosterShiftTimingElapsedSeconds :: ValidatedRosterShiftTiming -> Seconds.Seconds
 rosterShiftTimingElapsedSeconds = authoritativeElapsedSeconds . rosterShiftTimingBoundaries
 
 rosterShiftTimingStartOccurrence :: ValidatedRosterShiftTiming -> Maybe RepeatedTimeOccurrence
@@ -429,7 +430,7 @@ timesheetEntryOperationalDate = (.operationalDate)
 timesheetEntryHadBreak :: TimesheetEntry -> Bool
 timesheetEntryHadBreak = isJust . (.breakStartsAt)
 
-timesheetEntryElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
+timesheetEntryElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError Seconds.Seconds
 timesheetEntryElapsedSeconds = fmap timesheetTimingElapsedSeconds . decodeTimesheetTiming
 
 rosterSlotStartTime :: RosterSlot -> Maybe TimeOfDay
@@ -438,7 +439,7 @@ rosterSlotStartTime slot = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime
 rosterSlotEndTime :: RosterSlot -> Maybe TimeOfDay
 rosterSlotEndTime slot = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime slot.timezone slot.endsAt)
 
-rosterSlotElapsedSeconds :: RosterSlot -> Maybe NominalDiffTime
+rosterSlotElapsedSeconds :: RosterSlot -> Maybe Seconds.Seconds
 rosterSlotElapsedSeconds = fmap rosterShiftTimingElapsedSeconds . eitherToMaybe . decodeRosterShiftTiming
 
 rosterSlotStartOccurrence :: RosterSlot -> Maybe RepeatedTimeOccurrence

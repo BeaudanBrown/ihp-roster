@@ -15,6 +15,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.SurfaceResource
 import Application.Helper.View (dialogOverlayMountId)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     ShiftCopyOccurrenceSelections (..),
                                     applyRosterSlotBoundaries,
@@ -1473,7 +1474,7 @@ tests = aroundAll withDatabaseTestContext do
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
                 rosterSlotStartOccurrence movedSlot `shouldBe` Just FirstOccurrence
                 rosterSlotEndOccurrence movedSlot `shouldBe` Just SecondOccurrence
-                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (Seconds.fromMinutes 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 fmap (.localDay) (movedSlot.startsAt >>= either (const Nothing) Just . storedInstantLocalTime movedSlot.timezone)
@@ -1535,7 +1536,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
-                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (Seconds.fromMinutes 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 10 0 0)
 

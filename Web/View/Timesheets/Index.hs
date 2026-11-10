@@ -43,6 +43,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (formatMoneyAmount)
 import Application.Helper.View.FilterSelection
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
@@ -789,7 +790,7 @@ stripMeridiem label =
 
 renderDuration :: ValidatedTimesheetTiming -> Html
 renderDuration timing =
-    let totalSeconds = max 0 (floor (timesheetTimingPaidElapsedSeconds timing) :: Int)
+    let totalSeconds = max 0 (fromInteger (Seconds.toSeconds (timesheetTimingPaidElapsedSeconds timing)) :: Int)
         (hours, afterHours) = totalSeconds `divMod` (60 * 60)
         (minutes, seconds) = afterHours `divMod` 60
         secondsSuffix = if seconds > 0 then " " <> tshow seconds <> "s" else ""
@@ -864,11 +865,11 @@ timesheetShapeSegments scale timing =
         breakSegments =
             case (authoritativeBreakStartsAt boundaries, authoritativeBreakEndsAt boundaries) of
                 (Just breakStart, Just breakEnd) ->
-                    let breakStartMinutes = shiftStartMinutes + elapsedMinutes (diffUTCTime breakStart (authoritativeStartsAt boundaries))
+                    let breakStartMinutes = shiftStartMinutes + elapsedMinutes (Seconds.between (authoritativeStartsAt boundaries) breakStart)
                      in buildSegments
                             "timesheet-shape-segment-break"
                             scale
-                            (breakStartMinutes, breakStartMinutes + elapsedMinutes (diffUTCTime breakEnd breakStart))
+                            (breakStartMinutes, breakStartMinutes + elapsedMinutes (Seconds.between breakStart breakEnd))
                 _ -> []
         boundaries = timesheetTimingBoundaries timing
      in shiftSegments <> breakSegments
@@ -901,8 +902,8 @@ timeOfDayToMinutes :: TimeOfDay -> Double
 timeOfDayToMinutes TimeOfDay { todHour, todMin, todSec } =
     fromIntegral (todHour * 60 + todMin) + realToFrac (todSec :: Pico) / 60
 
-elapsedMinutes :: NominalDiffTime -> Double
-elapsedMinutes seconds = realToFrac seconds / 60
+elapsedMinutes :: Seconds.Seconds -> Double
+elapsedMinutes seconds = fromInteger (Seconds.toSeconds seconds) / 60
 
 timesheetMarkerLeft :: TimesheetTimelineScale -> Int -> Double
 timesheetMarkerLeft scale minutes =

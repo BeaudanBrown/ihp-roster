@@ -2,6 +2,7 @@ module Application.Helper.Export.Render where
 
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (ValidatedTimesheetTiming,
                                     timesheetTimingBreakElapsedSeconds,
                                     timesheetTimingEndTime,
@@ -332,9 +333,8 @@ renderApprovedTimesheetCsv entriesWithTiming staffById approversById versionMani
 formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)
 
-formatElapsedSeconds :: NominalDiffTime -> Text
-formatElapsedSeconds elapsedSeconds =
-    tshow (fromRational (toRational elapsedSeconds) :: Scientific.Scientific)
+formatElapsedSeconds :: Seconds.Seconds -> Text
+formatElapsedSeconds = tshow . Seconds.toSeconds
 
 formatUtc :: UTCTime -> Text
 formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" timestamp)

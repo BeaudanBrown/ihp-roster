@@ -32,6 +32,7 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (OpenAssignment,
                                           rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
 import Control.Monad (void)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
@@ -99,10 +100,10 @@ rosterSlotCopyAmbiguousEndpoints _venueConfig sourceDay targetDay slot = do
          in civilBoundaryIsRepeated targetDate localTime.localTimeOfDay
     rosterIntegrityBoundaryError (RosterShiftTimingInvalid failure) = failure
 
-resolveRosterTimelineTargetBoundaries :: Text -> NominalDiffTime -> Day -> TimeOfDay -> Maybe RepeatedTimeOccurrence -> Either BoundaryModelError AuthoritativeBoundaries
+resolveRosterTimelineTargetBoundaries :: Text -> Seconds.Seconds -> Day -> TimeOfDay -> Maybe RepeatedTimeOccurrence -> Either BoundaryModelError AuthoritativeBoundaries
 resolveRosterTimelineTargetBoundaries timezone duration targetDate targetStartTime targetStartOccurrence = do
     startsAt <- resolveBoundaryInstant timezone targetDate targetStartTime targetStartOccurrence
-    authoritativeBoundariesFromInstants timezone startsAt (addUTCTime duration startsAt) Nothing Nothing
+    authoritativeBoundariesFromInstants timezone startsAt (Seconds.addTo duration startsAt) Nothing Nothing
 
 data RosterSlotCopyPlan = RosterSlotCopyPlan
     { copiedSourceSlot :: !RosterSlot

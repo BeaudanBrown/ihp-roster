@@ -15,6 +15,7 @@ import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime (RepeatedTimeOccurrence (..),
                               melbourneTimeZoneName)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
                                     authoritativeBreakElapsedSeconds,
@@ -948,7 +949,7 @@ tests = aroundAll withDatabaseTestContext do
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
                 storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just SecondOccurrence)
-                timesheetEntryElapsedSeconds entry `shouldBe` Right (90 * 60)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (Seconds.fromMinutes 90)
 
         it "creates a positive repeated-hour timesheet with equal local clocks" $ withContext do
             withCleanDb do
@@ -986,7 +987,7 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- query @TimesheetEntry |> fetchOne
                 storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just FirstOccurrence)
                 storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Right (Just SecondOccurrence)
-                timesheetEntryElapsedSeconds entry `shouldBe` Right (60 * 60)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (Seconds.fromMinutes 60)
 
         it "creates a positive repeated-hour break with equal local clocks" $ withContext do
             withCleanDb do
@@ -1756,7 +1757,7 @@ tests = aroundAll withDatabaseTestContext do
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
                 storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just SecondOccurrence)
-                timesheetEntryElapsedSeconds entry `shouldBe` Right (90 * 60)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (Seconds.fromMinutes 90)
                 testWorkedOn entry `shouldBe` fromGregorian 2026 4 5
                 testStartTime entry `shouldBe` TimeOfDay 2 30 0
                 testEndTime entry `shouldBe` TimeOfDay 4 0 0
@@ -1806,7 +1807,7 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- query @TimesheetEntry |> fetchOne
                 storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just FirstOccurrence)
                 storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Right (Just SecondOccurrence)
-                timesheetEntryElapsedSeconds entry `shouldBe` Right (60 * 60)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (Seconds.fromMinutes 60)
                 timing <- either (\reason -> expectationFailure (cs (tshow reason)) >> fail "invalid test timing") pure (decodeTimesheetTiming entry)
                 let shapeSegments = TimesheetsView.timesheetShapeSegments TimesheetsView.defaultTimesheetTimelineScale timing
                 length shapeSegments `shouldBe` 1
@@ -1846,12 +1847,12 @@ tests = aroundAll withDatabaseTestContext do
                         fetchTimesheetRosterPrefillForRosterSlot springSlot.id
                             >>= maybe (expectationFailure "Expected spring suggestion" >> error "unreachable") pure
 
-                authoritativeElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` 480 * 60
-                authoritativeBreakElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` 30 * 60
+                authoritativeElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` Seconds.fromMinutes 480
+                authoritativeBreakElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` Seconds.fromMinutes 30
                 fmap (.localTimeOfDay) (authoritativeBreakStartLocalTime autumnSuggestion.prefillBoundaries)
                     `shouldBe` Just (TimeOfDay 2 30 0)
                 authoritativeBreakStartOccurrence autumnSuggestion.prefillBoundaries `shouldBe` Just SecondOccurrence
-                authoritativeElapsedSeconds springSuggestion.prefillBoundaries `shouldBe` 360 * 60
+                authoritativeElapsedSeconds springSuggestion.prefillBoundaries `shouldBe` Seconds.fromMinutes 360
                 authoritativeBreakStartLocalTime springSuggestion.prefillBoundaries `shouldBe` Nothing
 
         it "keeps a Sunday after-midnight roster suggestion in its source Operational week" $ withContext do

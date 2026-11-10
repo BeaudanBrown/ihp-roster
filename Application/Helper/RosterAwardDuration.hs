@@ -9,6 +9,7 @@ import Application.Helper.TimeRules (automaticMealBreakMinutes,
                                      automaticMealBreakThresholdMinutes)
 import Application.VenueTime.Model (AuthoritativeBoundaries,
                                     authoritativeElapsedSeconds)
+import qualified Application.VenueTime.Seconds as Seconds
 import Generated.Types (StaffEmploymentBasisEnum (Casual, Permanent))
 import IHP.Prelude
 
@@ -18,13 +19,13 @@ data RosterAwardDurationViolation
     | CasualRosterShiftAboveMaximum
     deriving (Eq, Show)
 
-projectedRosterWorkingSeconds :: AuthoritativeBoundaries -> NominalDiffTime
+projectedRosterWorkingSeconds :: AuthoritativeBoundaries -> Seconds.Seconds
 projectedRosterWorkingSeconds boundaries =
-    max 0 (authoritativeElapsedSeconds boundaries - projectedAutomaticMealBreakSeconds)
+    max (Seconds.fromSeconds 0) (Seconds.subtract (authoritativeElapsedSeconds boundaries) projectedAutomaticMealBreakSeconds)
   where
     projectedAutomaticMealBreakSeconds
         | authoritativeElapsedSeconds boundaries >= automaticMealBreakThresholdSeconds = automaticMealBreakDurationSeconds
-        | otherwise = 0
+        | otherwise = Seconds.fromSeconds 0
 
 rosterAwardDurationViolation :: StaffEmploymentBasisEnum -> AuthoritativeBoundaries -> Maybe RosterAwardDurationViolation
 rosterAwardDurationViolation employmentBasis boundaries =
@@ -49,17 +50,17 @@ partTimeDurationMessage :: Text
 partTimeDurationMessage =
     "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
 
-partTimeMinimumWorkingSeconds :: NominalDiffTime
-partTimeMinimumWorkingSeconds = 3 * 60 * 60
+partTimeMinimumWorkingSeconds :: Seconds.Seconds
+partTimeMinimumWorkingSeconds = Seconds.fromMinutes 180
 
-partTimeMaximumWorkingSeconds :: NominalDiffTime
-partTimeMaximumWorkingSeconds = 11 * 60 * 60 + 30 * 60
+partTimeMaximumWorkingSeconds :: Seconds.Seconds
+partTimeMaximumWorkingSeconds = Seconds.fromMinutes 690
 
-casualMaximumWorkingSeconds :: NominalDiffTime
-casualMaximumWorkingSeconds = 12 * 60 * 60
+casualMaximumWorkingSeconds :: Seconds.Seconds
+casualMaximumWorkingSeconds = Seconds.fromMinutes 720
 
-automaticMealBreakThresholdSeconds :: NominalDiffTime
-automaticMealBreakThresholdSeconds = fromIntegral (automaticMealBreakThresholdMinutes * 60)
+automaticMealBreakThresholdSeconds :: Seconds.Seconds
+automaticMealBreakThresholdSeconds = Seconds.fromMinutes (fromIntegral automaticMealBreakThresholdMinutes)
 
-automaticMealBreakDurationSeconds :: NominalDiffTime
-automaticMealBreakDurationSeconds = fromIntegral (automaticMealBreakMinutes * 60)
+automaticMealBreakDurationSeconds :: Seconds.Seconds
+automaticMealBreakDurationSeconds = Seconds.fromMinutes (fromIntegral automaticMealBreakMinutes)

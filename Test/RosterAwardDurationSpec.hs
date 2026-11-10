@@ -2,6 +2,7 @@ module Test.RosterAwardDurationSpec where
 
 import Application.Helper.RosterAwardDuration
 import Application.VenueTime (melbourneTimeZoneName)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.VenueTime.Model
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime)
@@ -19,9 +20,9 @@ tests =
                 partTimeMaximum = boundariesForElapsedSeconds (12 * hours)
                 casualMaximum = boundariesForElapsedSeconds (12 * hours + 30 * minutes)
 
-            projectedRosterWorkingSeconds partTimeMinimum `shouldBe` 3 * hours
-            projectedRosterWorkingSeconds partTimeMaximum `shouldBe` 11 * hours + 30 * minutes
-            projectedRosterWorkingSeconds casualMaximum `shouldBe` 12 * hours
+            projectedRosterWorkingSeconds partTimeMinimum `shouldBe` Seconds.fromMinutes 180
+            projectedRosterWorkingSeconds partTimeMaximum `shouldBe` Seconds.fromMinutes 690
+            projectedRosterWorkingSeconds casualMaximum `shouldBe` Seconds.fromMinutes 720
             rosterAwardDurationViolation Permanent partTimeMinimum `shouldBe` Nothing
             rosterAwardDurationViolation Permanent partTimeMaximum `shouldBe` Nothing
             rosterAwardDurationViolation Casual casualMaximum `shouldBe` Nothing
@@ -30,8 +31,8 @@ tests =
             let beforeBreakThreshold = boundariesForElapsedSeconds (6 * hours + 15 * minutes - 1)
                 atBreakThreshold = boundariesForElapsedSeconds (6 * hours + 15 * minutes)
 
-            projectedRosterWorkingSeconds beforeBreakThreshold `shouldBe` 6 * hours + 15 * minutes - 1
-            projectedRosterWorkingSeconds atBreakThreshold `shouldBe` 5 * hours + 45 * minutes
+            projectedRosterWorkingSeconds beforeBreakThreshold `shouldBe` Seconds.fromSeconds (375 * 60 - 1)
+            projectedRosterWorkingSeconds atBreakThreshold `shouldBe` Seconds.fromMinutes 345
 
         it "HIGA-15.2-PART-TIME-SHIFT-MIN, HIGA-15.2-PART-TIME-SHIFT-MAX and HIGA-11.2-CASUAL-SHIFT-MAX reject one second beyond limits" do
             let partTimeTooShort = boundariesForElapsedSeconds (3 * hours - 1)
@@ -50,9 +51,9 @@ tests =
             autumn <- resolvedBoundaries (fromGregorian 2026 4 5) (TimeOfDay 1 30 0) (TimeOfDay 3 30 0)
             spring <- resolvedBoundaries (fromGregorian 2026 10 4) (TimeOfDay 1 30 0) (TimeOfDay 3 30 0)
 
-            projectedRosterWorkingSeconds overnight `shouldBe` 4 * hours
-            projectedRosterWorkingSeconds autumn `shouldBe` 3 * hours
-            projectedRosterWorkingSeconds spring `shouldBe` hours
+            projectedRosterWorkingSeconds overnight `shouldBe` Seconds.fromMinutes 240
+            projectedRosterWorkingSeconds autumn `shouldBe` Seconds.fromMinutes 180
+            projectedRosterWorkingSeconds spring `shouldBe` Seconds.fromMinutes 60
             rosterAwardDurationViolation Permanent overnight `shouldBe` Nothing
             rosterAwardDurationViolation Permanent autumn `shouldBe` Nothing
             rosterAwardDurationViolation Permanent spring `shouldSatisfy` isJust
@@ -63,8 +64,8 @@ tests =
 
             authoritativeStartLocalTime copied `shouldBe` LocalTime (fromGregorian 2026 4 4) (TimeOfDay 17 45 0)
             authoritativeEndLocalTime copied `shouldBe` LocalTime (fromGregorian 2026 4 5) (TimeOfDay 5 45 0)
-            projectedRosterWorkingSeconds source `shouldBe` 11 * hours + 30 * minutes
-            projectedRosterWorkingSeconds copied `shouldBe` 12 * hours + 30 * minutes
+            projectedRosterWorkingSeconds source `shouldBe` Seconds.fromMinutes 690
+            projectedRosterWorkingSeconds copied `shouldBe` Seconds.fromMinutes 750
             rosterAwardDurationViolation Permanent source `shouldBe` Nothing
             rosterAwardDurationViolation Permanent copied `shouldSatisfy` isJust
 
@@ -101,7 +102,7 @@ resolvedBoundaries day startTime endTime =
 
 propProjectedWorkingSeconds :: NonNegative Integer -> Bool
 propProjectedWorkingSeconds (NonNegative rawSeconds) =
-    projectedRosterWorkingSeconds (boundariesForElapsedSeconds elapsedSeconds)
+    Seconds.toElapsed (projectedRosterWorkingSeconds (boundariesForElapsedSeconds elapsedSeconds))
         == referenceProjectedWorkingSeconds elapsedSeconds
   where
     elapsedSeconds = 1 + fromInteger (rawSeconds `mod` (36 * 60 * 60))
@@ -124,8 +125,8 @@ propCopiedIntervalsUseTargetInstants (NonNegative targetSeed) =
         Right copied ->
             authoritativeStartLocalTime copied == LocalTime targetDate (TimeOfDay 17 45 0)
                 && authoritativeEndLocalTime copied == LocalTime (addDays 1 targetDate) (TimeOfDay 5 45 0)
-                && projectedRosterWorkingSeconds copied
-                    == referenceProjectedWorkingSeconds (authoritativeElapsedSeconds copied)
+                && Seconds.toElapsed (projectedRosterWorkingSeconds copied)
+                    == referenceProjectedWorkingSeconds (Seconds.toElapsed (authoritativeElapsedSeconds copied))
   where
     targetDate = addDays (fromInteger (targetSeed `mod` 1095)) (fromGregorian 2026 1 1)
 
