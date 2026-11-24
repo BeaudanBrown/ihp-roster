@@ -23,7 +23,7 @@ data ArchivePagination = ArchivePagination
 archivePageSize :: Int
 archivePageSize = 10
 
--- The caller supplies the existing archive clock. Stable end-date ordering
+-- The caller supplies the venue-local calendar day. Stable end-date ordering
 -- retains input order for ties; transport and URL selection stay with views.
 projectLeaveArchive :: [LeaveRequest] -> Day -> Int -> ArchiveProjection
 projectLeaveArchive requests today requestedPage =

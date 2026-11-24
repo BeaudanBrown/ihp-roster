@@ -42,6 +42,7 @@ import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
 import Test.Support.EmailDelivery
 import Web.Controller.Staff ()
 import Web.FrontController ()
+import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.Routes
 import Web.Staff.Mutations (staffCreateTouchedResources,
                             staffRosterGroupResources, staffTimesheetResources,
@@ -985,6 +986,35 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "<span class=\"fw-semibold\">Shift Preferences</span>"
                 response `responseBodyShouldNotContain` ">Roster Groups</label>"
                 response `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId soleRosterGroup.id) <> "\"")
+
+        it "shows only current and upcoming unavailability in Staff Edit and its section fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Active Leave Venue"
+                manager <- createUserRecord "staff-active-leave-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Active" "Leave"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                let createRequest startDate endDate status note =
+                        createLeaveRequestRecord venue staff startDate endDate status
+                            >>= updateRecord . set #notes (Just note)
+                _ <- createRequest (addDays (-1) today) today LeaveRequestStatusEnumDenied "Ended staff request"
+                _ <- createRequest today (addDays 1 today) LeaveRequestStatusEnumApproved "Current staff request"
+                _ <- createRequest (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumPending "Upcoming staff request"
+
+                responses <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        sequence
+                            [ callActionWithParams (EditStaffAction staff.id) [("section", "leave")]
+                            , callActionWithParams (ShowStaffContentLiveFragmentAction staff.id) [("section", "leave")]
+                            ]
+
+                forM_ responses \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "Current staff request"
+                    response `responseBodyShouldContain` "Upcoming staff request"
+                    response `responseBodyShouldNotContain` "Ended staff request"
+                    response `responseBodyShouldNotContain` ">Archive<"
 
         it "preserves inactive roster-group history while collapsing the sole active choice" $ withContext do
             withCleanDb do

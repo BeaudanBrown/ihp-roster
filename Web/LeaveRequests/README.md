@@ -18,7 +18,7 @@ checks and response selection; views live under `Web/View/LeaveRequests/`.
   adaptation, scoped target lookup and submission coordination.
 - `Responses.hs` — submission/review outcomes, field feedback, native fallback
   URLs and context-specific actor refresh.
-- `Mutations.hs` — unchanged submission/review authority, writes and typed invalidation.
+- `Mutations.hs` — submission, review and deletion transactions, audit writes and typed invalidation.
 - `FrontendSurface.hs` — manager and self-service Surface contracts.
 - `Application.Helper.FrontendContract.Surface.LeaveRequests.{SidePanel,StaffPanel}`
   — shared panel, tab, sort, and linked-highlight adapters.
@@ -50,11 +50,11 @@ Blackout administration, warning thresholds and archive read models are not
 redesigned by these submission/review interfaces. Its shared manager completion
 helper is merely consumed from `Responses.hs`.
 
-Archive rendering retains its existing UTC-day input and strict `end_date < today`
-classification, despite the exclusive stored end date. Views keep transport
-choices explicit: pagination still uses `swapOob=true` for the archive-only
-`outerHTML` response, with unchanged native/pushed URLs and archive-open state.
-Do not change clocks or migrate that transport while sharing the projection.
+Request lists, manager warnings and archive classification use the venue-local
+calendar day. The exclusive `end_date` is the first archived day. Only the
+manager page exposes the read-only Archive; pagination still uses `swapOob=true`
+for the archive-only `outerHTML` response, with unchanged native/pushed URLs and
+archive-open state.
 
 See `SPEC.md` for durable date, lifecycle, blackout, and privacy rules and
 `AGENTS.md` for local editing constraints.

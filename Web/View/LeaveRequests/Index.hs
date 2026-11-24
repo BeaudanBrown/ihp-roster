@@ -27,6 +27,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
@@ -281,7 +282,7 @@ renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMem
             <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
         </div>
         {if currentUserCanManageBlackouts then renderCreateBlackoutForm today defaultBlackout else mempty}
-        {renderBlackoutPeriods leaveRequests staffMembers blackouts}
+        {renderBlackoutPeriods today leaveRequests staffMembers blackouts}
     </section>
 |]
   where
@@ -291,10 +292,10 @@ renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMem
             |> set #endDate today
             |> set #reason ""
 
-renderBlackoutPeriods :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> [UnavailabilityBlackout] -> Html
-renderBlackoutPeriods _ _ [] = [hsx|<p class="small app-muted mb-0">No current or upcoming blackout periods.</p>|]
-renderBlackoutPeriods leaveRequests staffMembers blackouts = [hsx|
-    <div class="d-grid gap-3">{forEach blackouts (renderBlackoutPeriod leaveRequests staffMembers)}</div>
+renderBlackoutPeriods :: (?context :: ControllerContext) => Day -> [LeaveRequest] -> [Staff] -> [UnavailabilityBlackout] -> Html
+renderBlackoutPeriods _ _ _ [] = [hsx|<p class="small app-muted mb-0">No current or upcoming blackout periods.</p>|]
+renderBlackoutPeriods today leaveRequests staffMembers blackouts = [hsx|
+    <div class="d-grid gap-3">{forEach blackouts (renderBlackoutPeriod today leaveRequests staffMembers)}</div>
 |]
 
 currentUserCanManageBlackouts :: (?context :: ControllerContext) => Bool
@@ -346,8 +347,8 @@ renderBlackoutValidationError :: Maybe Text -> Html
 renderBlackoutValidationError Nothing = mempty
 renderBlackoutValidationError (Just message) = [hsx|<div class="invalid-feedback">{message}</div>|]
 
-renderBlackoutPeriod :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> UnavailabilityBlackout -> Html
-renderBlackoutPeriod leaveRequests staffMembers blackout = [hsx|
+renderBlackoutPeriod :: (?context :: ControllerContext) => Day -> [LeaveRequest] -> [Staff] -> UnavailabilityBlackout -> Html
+renderBlackoutPeriod today leaveRequests staffMembers blackout = [hsx|
     <article class="border rounded p-3" data-blackout-id={tshow blackout.id}>
         <div class="d-flex flex-wrap justify-content-between gap-2">
             <div>
@@ -356,7 +357,7 @@ renderBlackoutPeriod leaveRequests staffMembers blackout = [hsx|
             </div>
             {if currentUserCanManageBlackouts then renderDeleteBlackoutForm blackout else mempty}
         </div>
-        {if currentUserCanManageBlackouts then renderBlackoutExceptions (blackoutExceptions leaveRequests staffMembers blackout) else mempty}
+        {if currentUserCanManageBlackouts then renderBlackoutExceptions (blackoutExceptions today leaveRequests staffMembers blackout) else mempty}
         {if currentUserCanManageBlackouts then renderUpdateBlackoutForm blackout else mempty}
     </article>
 |]
@@ -552,10 +553,14 @@ renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> Arc
 renderArchivePageContent maybeSwapOob ArchiveProjection { archivePagination, archivedPageRequests = requests } staffMembers currentViewerStaffId = [hsx|
     <div id={leaveArchiveListFragmentId} hx-swap-oob={maybeSwapOob}>
         {renderArchivePagination "leave-request-archive-pagination-top" archivePagination}
-        {unless (null requests) (renderArchiveRequestList requests staffMembers currentViewerStaffId)}
+        {archiveRequestList}
         {renderArchivePagination "leave-request-archive-pagination-bottom" archivePagination}
     </div>
 |]
+  where
+    archiveRequestList
+        | null requests = [hsx|<p class="app-muted mb-0">No past unavailable periods.</p>|]
+        | otherwise = renderArchiveRequestList requests staffMembers currentViewerStaffId
 
 renderArchiveRequestList :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderArchiveRequestList requests staffMembers currentViewerStaffId = [hsx|
@@ -715,8 +720,20 @@ renderManagerActionsHeader True  = [hsx|<div>Actions</div>|]
 renderManagerActionsCell :: (?context :: ControllerContext) => Maybe UUID -> Bool -> LeaveRequest -> Html
 renderManagerActionsCell _currentViewerStaffId False _leaveRequest = mempty
 renderManagerActionsCell currentViewerStaffId True leaveRequest = [hsx|
-    <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
+    <div class="leave-request-row-actions">
+        {renderActions currentViewerStaffId leaveRequest}
+        {renderManagerLeaveDelete leaveRequest}
+    </div>
 |]
+
+renderManagerLeaveDelete :: LeaveRequest -> Html
+renderManagerLeaveDelete leaveRequest =
+    renderFrontendSurfaceActionForm
+        (ProfileAction.openStaffLeaveDeleteConfirmationAction ProfileAction.openStaffLeaveDeleteConfirmationActionFields)
+        (defaultFrontendSurfaceActionRoute confirmationUrl)
+        [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>|]
+  where
+    confirmationUrl = appendQueryParams (pathTo (ShowStaffLeaveDeleteConfirmationAction leaveRequest.id)) [("responseContext", "manager")]
 
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
 renderLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|

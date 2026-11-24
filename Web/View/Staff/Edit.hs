@@ -366,7 +366,7 @@ renderStaffLeaveRequestForm staffId leaveRequest =
 renderStaffLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderStaffLeaveRequestsListFragment leaveRequests = [hsx|
     <div id={staffLeaveRequestsListFragmentId}>
-        <h5 class="mb-3">Unavailable periods</h5>
+        <h5 class="mb-3">Current and upcoming unavailable periods</h5>
         {renderStaffLeaveHistory leaveRequests}
     </div>
 |]

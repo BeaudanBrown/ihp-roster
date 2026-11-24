@@ -13,14 +13,6 @@ data BlackoutException = BlackoutException
     , blackoutExceptionStaff   :: !Staff
     }
 
-currentVenueCalendarDay :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
-currentVenueCalendarDay venueConfig = do
-    now <- getCurrentTime
-    localDay :: Day <- unsafeSqlQueryScalar
-        "SELECT (?::timestamptz AT TIME ZONE ?)::date"
-        (now, venueConfig.timezone)
-    pure localDay
-
 fetchCurrentAndFutureUnavailabilityBlackouts ::
     (?modelContext :: ModelContext, ?context :: ControllerContext) =>
     Day ->
@@ -32,15 +24,16 @@ fetchCurrentAndFutureUnavailabilityBlackouts today =
         |> orderByAsc #startDate
         |> fetch
 
-blackoutExceptions :: [LeaveRequest] -> [Staff] -> UnavailabilityBlackout -> [BlackoutException]
-blackoutExceptions leaveRequests staffMembers blackout =
+blackoutExceptions :: Day -> [LeaveRequest] -> [Staff] -> UnavailabilityBlackout -> [BlackoutException]
+blackoutExceptions today leaveRequests staffMembers blackout =
     [ BlackoutException leaveRequest staff
     | leaveRequest <- leaveRequests
     , leaveRequest.venueId == blackout.venueId
     , isNothing leaveRequest.deletedAt
     , leaveRequest.status `elem` [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved]
-    , leaveRequest.startDate <= blackout.endDate
-    , addDays (-1) leaveRequest.endDate >= blackout.startDate
+    , let firstRelevantDay = max today (max leaveRequest.startDate blackout.startDate)
+    , firstRelevantDay <= blackout.endDate
+    , not (leaveRequestIsArchivedOn firstRelevantDay leaveRequest)
     , staff <- staffMembers
     , coerce (get #id staff) == leaveRequest.staffId
     ]

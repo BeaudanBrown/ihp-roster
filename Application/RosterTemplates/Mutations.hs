@@ -91,7 +91,7 @@ lockRosterTemplateApplicationRows templateId venueId rosterGroupId windowStart w
         "SELECT staff.id FROM roster_template_shifts JOIN staff ON staff.id = roster_template_shifts.staff_id WHERE roster_template_shifts.roster_template_id = ? ORDER BY staff.id FOR UPDATE OF staff"
         (Only (unpackId templateId))
     _leaveLocks :: [Only UUID] <- unsafeSqlQuery
-        "SELECT leave_requests.id FROM leave_requests JOIN roster_template_shifts ON roster_template_shifts.staff_id = leave_requests.staff_id WHERE roster_template_shifts.roster_template_id = ? AND leave_requests.venue_id = ? AND leave_requests.status = 'approved' AND leave_requests.start_date < ? AND leave_requests.end_date > ? ORDER BY leave_requests.id FOR UPDATE OF leave_requests"
+        "SELECT leave_requests.id FROM leave_requests JOIN roster_template_shifts ON roster_template_shifts.staff_id = leave_requests.staff_id WHERE roster_template_shifts.roster_template_id = ? AND leave_requests.venue_id = ? AND leave_requests.status = 'approved' AND leave_requests.deleted_at IS NULL AND leave_requests.start_date < ? AND leave_requests.end_date > ? ORDER BY leave_requests.id FOR UPDATE OF leave_requests"
         (unpackId templateId, unpackId venueId, windowEnd, windowStart)
     _membershipLocks :: [Only UUID] <- unsafeSqlQuery
         "SELECT staff_roster_groups.id FROM roster_template_shifts JOIN roster_templates ON roster_templates.id = roster_template_shifts.roster_template_id JOIN staff_roster_groups ON staff_roster_groups.staff_id = roster_template_shifts.staff_id AND staff_roster_groups.roster_group_id = roster_templates.roster_group_id WHERE roster_templates.id = ? AND staff_roster_groups.deleted_at IS NULL ORDER BY staff_roster_groups.id FOR UPDATE OF staff_roster_groups"

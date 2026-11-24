@@ -67,7 +67,9 @@ test.describe('unavailability archive pagination', () => {
             { timeout: E2E_TIMEOUT.assertion },
         ).toBe('true');
         await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toHaveAttribute('aria-selected', 'false', { timeout: E2E_TIMEOUT.assertion });
-        await expect(page.getByRole('tabpanel', { name: 'Archive', exact: true })).toBeVisible();
+        const archivePanel = page.getByRole('tabpanel', { name: 'Archive', exact: true });
+        await expect(archivePanel).toBeVisible();
+        await expect(archivePanel.getByRole('button', { name: /^(Approve|Deny|Delete)$/ })).toHaveCount(0);
         await expect(page.locator('#leave-archive-page-content')).toContainText('e2e-archive-pagination-12', { timeout: E2E_TIMEOUT.assertion });
         await expect.poll(
             async () => page.evaluate(() => (window as Window & { __archivePagerNoReload?: boolean }).__archivePagerNoReload === true),

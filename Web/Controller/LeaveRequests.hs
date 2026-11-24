@@ -15,7 +15,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue,
                                            liveMutationResult)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
-                                renderDialogOverlayClearOob, renderToastOob)
+                                renderToastOob)
 import qualified Application.UnavailabilityBlackout.Mutations as BlackoutMutations
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -125,17 +125,11 @@ instance Controller LeaveRequestsController where
         fetchCurrentUserStaff >>= \case
             Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "No staff record found. Contact an administrator."))
             Just staff -> do
-                requestedLeave <-
-                    query @LeaveRequest
-                        |> filterWhere (#id, leaveRequestId)
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#staffId, unpackId staff.id)
-                        |> filterWhere (#status, LeaveRequestStatusEnumPending)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetchOneOrNothing
+                today <- fetchVenueConfig >>= currentVenueCalendarDay
+                requestedLeave <- fetchDeletableLeaveRequest leaveRequestId (Just staff.id) today
                 respondHtmlProfiled $
                     maybe
-                        (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+                        (renderToastOob ToastBottomCenter (errorToast leaveDeletionUnavailableMessage))
                         renderSelfServiceLeaveDeleteConfirmation
                         requestedLeave
 
@@ -146,42 +140,30 @@ instance Controller LeaveRequestsController where
         fetchCurrentUserStaff >>= \case
             Nothing -> respondWithLeaveContextError LeaveSelfServiceResponseContext "No staff record found. Contact an administrator."
             Just staff -> do
-                requestedLeave <-
-                    query @LeaveRequest
-                        |> filterWhere (#id, leaveRequestId)
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#staffId, unpackId staff.id)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetchOneOrNothing
-                deletionResult <- maybe (pure Nothing) deletePendingLeaveRequest requestedLeave
+                today <- fetchVenueConfig >>= currentVenueCalendarDay
+                requestedLeave <- fetchDeletableLeaveRequest leaveRequestId (Just staff.id) today
+                deletionResult <- maybe (pure Nothing) deleteActiveLeaveRequest requestedLeave
                 respondWithSelfServiceLeaveDeletionResult staff deletionResult
 
     action currentAction@ShowStaffLeaveDeleteConfirmationAction { leaveRequestId } = runBepis currentAction BepisFormAction do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable
-        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
-            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
-            Just leaveRequest -> respondHtmlProfiled (renderStaffLeaveDeleteConfirmation leaveRequest)
+        today <- fetchVenueConfig >>= currentVenueCalendarDay
+        fetchDeletableLeaveRequest leaveRequestId Nothing today >>= \case
+            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast leaveDeletionUnavailableMessage))
+            Just leaveRequest -> respondHtmlProfiled (renderStaffLeaveDeleteConfirmation isManagerLeaveDeletion leaveRequest)
 
     action currentAction@DeleteStaffLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable
-        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
-            Nothing -> do
-                setHeader ("HX-Reswap", "none")
-                respondHtmlProfiled $
-                    renderDialogOverlayClearOob
-                        <> renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted.")
-            Just leaveRequest -> do
-                staff <-
-                    query @Staff
-                        |> filterWhere (#id, Id leaveRequest.staffId)
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> fetchOne
-                deletionResult <- deletePendingLeaveRequest leaveRequest
-                respondWithStaffLeaveDeletionResult staff deletionResult
+        today <- fetchVenueConfig >>= currentVenueCalendarDay
+        requestedLeave <- fetchDeletableLeaveRequest leaveRequestId Nothing today
+        deletionResult <- maybe (pure Nothing) deleteActiveLeaveRequest requestedLeave
+        if isManagerLeaveDeletion
+            then respondWithManagerLeaveDeletionResult deletionResult
+            else respondWithStaffLeaveDeletionResult (Id . (.staffId) <$> requestedLeave) deletionResult
 
     action currentAction@CreateUnavailabilityBlackoutAction = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -283,14 +265,8 @@ instance Controller LeaveRequestsController where
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         reviewLeaveRequest DenyLeave leaveRequest >>= respondWithLeaveReviewResult DenyLeave
 
-fetchPendingVenueLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id LeaveRequest -> IO (Maybe LeaveRequest)
-fetchPendingVenueLeaveRequest leaveRequestId =
-    query @LeaveRequest
-        |> filterWhere (#id, leaveRequestId)
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#status, LeaveRequestStatusEnumPending)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetchOneOrNothing
+isManagerLeaveDeletion :: (?request :: Request) => Bool
+isManagerLeaveDeletion = paramOrNothing @Text "responseContext" == Just "manager"
 
 reportLeaveArchivePageErrors :: (?context :: ControllerContext, ?request :: Request) => IO ()
 reportLeaveArchivePageErrors =

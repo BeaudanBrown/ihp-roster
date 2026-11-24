@@ -6,6 +6,7 @@ module Web.LeaveRequests.Request
     , ReviewedLeaveRequest
     , requestedLeaveResponseContext
     , ensureLeaveProfileAccess
+    , fetchDeletableLeaveRequest
     , fetchLeaveRequestTargetStaff
     , submitRequestedLeave
     ) where
@@ -118,6 +119,19 @@ fetchLeaveRequestTargetStaff LeaveStaffResponseContext =
             ensureRecordInCurrentVenue staff.venueId
             pure (Just staff)
 fetchLeaveRequestTargetStaff _ = fetchCurrentUserStaff
+
+fetchDeletableLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id LeaveRequest -> Maybe (Id Staff) -> Day -> IO (Maybe LeaveRequest)
+fetchDeletableLeaveRequest leaveRequestId ownerStaffId today =
+    baseQuery |> restrictOwner |> fetchOneOrNothing
+  where
+    baseQuery = query @LeaveRequest
+        |> filterWhere (#id, leaveRequestId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#deletedAt, Nothing)
+        |> filterWhereGreaterThan (#endDate, today)
+    restrictOwner = case ownerStaffId of
+        Nothing -> \requests -> requests
+        Just staffId -> filterWhere (#staffId, unpackId staffId)
 
 buildLeaveRequest :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest
 buildLeaveRequest leaveRequest = leaveRequest

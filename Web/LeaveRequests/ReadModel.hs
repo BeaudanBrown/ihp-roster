@@ -20,17 +20,17 @@ import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Actio
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.ProfileLeave (fetchStaffLeaveRequestsOn)
 import Application.Helper.Profiling
 import Application.Helper.Staff (isTrialStaff)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
-import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.LeaveRequests.Archive (projectLeaveArchive)
 import Web.LeaveRequests.AvailabilityWarnings
-import Web.LeaveRequests.Blackouts
+import Web.LeaveRequests.Blackouts (fetchCurrentAndFutureUnavailabilityBlackouts)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsSurfaceImpl)
 import Web.View.LeaveRequests.Index
@@ -43,7 +43,6 @@ data LeaveRequestsReadModel = LeaveRequestsReadModel
     , leaveReadModelToday                :: Day
     , leaveReadModelWarningThreshold     :: Maybe Int
     , leaveReadModelWarningPeriods       :: [AvailabilityWarningPeriod]
-    , leaveReadModelVenueToday           :: Day
     , leaveReadModelBlackouts            :: [UnavailabilityBlackout]
     }
 
@@ -65,8 +64,8 @@ fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: 
 fetchStaffMembersForCurrentVenue =
     query @Staff |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #lastName |> fetch
 
-fetchVisibleLeaveRequests :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [LeaveRequest]
-fetchVisibleLeaveRequests = do
+fetchVisibleLeaveRequests :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Maybe Staff -> IO [LeaveRequest]
+fetchVisibleLeaveRequests today maybeStaff =
     if hasRole Manager
         then
             query @LeaveRequest
@@ -74,33 +73,23 @@ fetchVisibleLeaveRequests = do
                 |> filterWhere (#deletedAt, Nothing)
                 |> orderByDesc #startDate
                 |> fetch
-        else do
-            maybeStaff <- fetchCurrentUserStaff
-            case maybeStaff of
-                Nothing -> pure []
-                Just staff ->
-                    query @LeaveRequest
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#staffId, coerce (get #id staff))
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> orderByDesc #startDate
-                        |> fetch
+        else maybe (pure []) (fetchStaffLeaveRequestsOn today) maybeStaff
 
 fetchLeaveRequestsReadModel :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsReadModel
 fetchLeaveRequestsReadModel = do
-    leaveReadModelStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
-    leaveReadModelRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
-    leaveReadModelCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
-    leaveReadModelToday <- liftIO (utctDay <$> getCurrentTime)
-    leaveReadModelStaffPanelEntries <- profileActionSpan "leave.build_staff_panel" (buildLeaveStaffPanelEntries leaveReadModelToday leaveReadModelStaffMembers leaveReadModelRequests)
     venueConfig <- profileActionSpan "leave.fetch_venue_config" fetchVenueConfig
-    leaveReadModelVenueToday <- profileActionSpan "leave.fetch_venue_today" (currentVenueCalendarDay venueConfig)
-    leaveReadModelBlackouts <- profileActionSpan "leave.fetch_blackouts" (fetchCurrentAndFutureUnavailabilityBlackouts leaveReadModelVenueToday)
+    leaveReadModelToday <- profileActionSpan "leave.fetch_venue_today" (currentVenueCalendarDay venueConfig)
+    leaveReadModelStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
+    maybeViewerStaff <- fetchCurrentUserStaff
+    leaveReadModelRequests <- profileActionSpan "leave.fetch_requests" (fetchVisibleLeaveRequests leaveReadModelToday maybeViewerStaff)
+    let leaveReadModelCurrentViewerStaffId = unpackId . (.id) <$> maybeViewerStaff
+    leaveReadModelStaffPanelEntries <- profileActionSpan "leave.build_staff_panel" (buildLeaveStaffPanelEntries leaveReadModelToday leaveReadModelStaffMembers leaveReadModelRequests)
+    leaveReadModelBlackouts <- profileActionSpan "leave.fetch_blackouts" (fetchCurrentAndFutureUnavailabilityBlackouts leaveReadModelToday)
     let leaveReadModelWarningThreshold = venueConfig.unavailableStaffWarningThreshold
     let leaveReadModelWarningPeriods =
             maybe
                 []
-                (\threshold -> buildAvailabilityWarningPeriods leaveReadModelVenueToday threshold leaveReadModelStaffMembers leaveReadModelRequests)
+                (\threshold -> buildAvailabilityWarningPeriods leaveReadModelToday threshold leaveReadModelStaffMembers leaveReadModelRequests)
                 leaveReadModelWarningThreshold
     pure LeaveRequestsReadModel { .. }
 
@@ -151,7 +140,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
                 readModel.leaveReadModelStaffMembers
                 readModel.leaveReadModelStaffPanelEntries
         UnavailabilityBlackouts ->
-            renderUnavailabilityBlackoutsLiveFragment readModel.leaveReadModelVenueToday readModel.leaveReadModelBlackouts readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers
+            renderUnavailabilityBlackoutsLiveFragment readModel.leaveReadModelToday readModel.leaveReadModelBlackouts readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers
         LeaveAvailabilityWarnings ->
             renderAvailabilityWarningsLiveFragment readModel.leaveReadModelWarningThreshold readModel.leaveReadModelWarningPeriods
         LeaveRequestsSectionCount section ->
@@ -168,7 +157,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         archive = projectLeaveArchive readModel.leaveReadModelRequests readModel.leaveReadModelToday currentLeaveArchivePage
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
-leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelStaffPanelEntries, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =
+leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelStaffPanelEntries, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelBlackouts } =
     IndexView
         { leaveRequests = leaveReadModelRequests
         , staffMembers = leaveReadModelStaffMembers
@@ -179,7 +168,7 @@ leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveRea
         , archiveIsOpen = currentLeaveArchiveOpen
         , warningThreshold = leaveReadModelWarningThreshold
         , warningPeriods = leaveReadModelWarningPeriods
-        , venueToday = leaveReadModelVenueToday
+        , venueToday = leaveReadModelToday
         , blackouts = leaveReadModelBlackouts
         , liveUpdateSurface = Just currentLeaveRequestsSurface
         }

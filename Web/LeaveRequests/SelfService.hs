@@ -141,7 +141,7 @@ renderSelfServiceLeaveForm leaveRequest =
 renderSelfServiceLeaveHistoryFragment :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> Html
 renderSelfServiceLeaveHistoryFragment maybeSwapOob leaveRequests = [hsx|
     <div id={selfServiceLeaveHistoryFragmentId} hx-swap-oob={maybeSwapOob}>
-        <h5 class="mb-3">Unavailable periods</h5>
+        <h5 class="mb-3">Current and upcoming unavailable periods</h5>
         {renderSelfServiceLeaveHistory leaveRequests}
     </div>
 |]
@@ -168,7 +168,7 @@ renderLeaveHistory deleteMode leaveRequests
             , appPanelCustomHeader = mempty
             , appPanelClass = "app-form-width"
             , appPanelBodyClass = ""
-            , appPanelBody = [hsx|<p class="app-muted mb-0">No unavailable periods submitted yet.</p>|]
+            , appPanelBody = [hsx|<p class="app-muted mb-0">No current or upcoming unavailable periods.</p>|]
             }
     | otherwise = [hsx|
         <div class="leave-request-list">
@@ -192,15 +192,13 @@ renderLeaveRequestRow deleteMode leaveRequest = [hsx|
         <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
         <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
         <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
-        <div class="leave-request-row-actions">{renderPendingLeaveRequestDelete deleteMode leaveRequest}</div>
+        <div class="leave-request-row-actions">{renderLeaveRequestDelete deleteMode leaveRequest}</div>
     </article>
 |]
 
-renderPendingLeaveRequestDelete :: (?context :: ControllerContext) => LeaveDeleteMode -> LeaveRequest -> Html
-renderPendingLeaveRequestDelete deleteMode leaveRequest
-    | leaveRequest.status /= LeaveRequestStatusEnumPending =
-        [hsx|<button type="button" class="btn btn-sm btn-outline-danger" disabled aria-label="Delete unavailable period unavailable">Delete</button>|]
-    | otherwise = case deleteMode of
+renderLeaveRequestDelete :: (?context :: ControllerContext) => LeaveDeleteMode -> LeaveRequest -> Html
+renderLeaveRequestDelete deleteMode leaveRequest =
+    case deleteMode of
         SelfServiceLeaveDelete ->
             renderFrontendSurfaceActionForm
                 (SurfaceAction.openSelfServiceLeaveDeleteConfirmationAction SurfaceAction.openSelfServiceLeaveDeleteConfirmationActionFields)
@@ -227,15 +225,16 @@ renderSelfServiceLeaveDeleteConfirmation leaveRequest =
                 })
             mempty
 
-renderStaffLeaveDeleteConfirmation :: (?context :: ControllerContext) => LeaveRequest -> Html
-renderStaffLeaveDeleteConfirmation leaveRequest =
+renderStaffLeaveDeleteConfirmation :: (?context :: ControllerContext) => Bool -> LeaveRequest -> Html
+renderStaffLeaveDeleteConfirmation fromManagerPage leaveRequest =
     renderLeaveDeleteConfirmation leaveRequest formId deleteForm
   where
     formId = "delete-staff-leave-request-confirmation-form"
+    deleteUrl = appendQueryParams (pathTo (DeleteStaffLeaveRequestAction leaveRequest.id)) [("responseContext", "manager") | fromManagerPage]
     deleteForm =
         renderFrontendSurfaceActionForm
             (ProfileAction.deleteStaffLeaveRequestAction ProfileAction.deleteStaffLeaveRequestActionFields)
-            ((defaultFrontendSurfaceActionRoute (pathTo (DeleteStaffLeaveRequestAction leaveRequest.id)))
+            ((defaultFrontendSurfaceActionRoute deleteUrl)
                 { actionRouteExtraAttrs = [("id", formId)]
                 })
             mempty
@@ -245,13 +244,20 @@ renderLeaveDeleteConfirmation leaveRequest formId deleteForm =
     renderConfirmationDialog
         (defaultConfirmationDialogConfig
             "Delete unavailable period?"
-            [hsx|<p class="mb-0">Delete the pending unavailable period {renderDateRangeText leaveRequest}?</p>|]
+            [hsx|
+                <p class="mb-0">Delete the unavailable period {renderDateRangeText leaveRequest}?</p>
+                {approvedDeletionNote}
+            |]
             formId
             deleteForm)
             { confirmationDialogApproveLabel = "Delete"
             , confirmationDialogApproveTone = ConfirmationDanger
             , confirmationDialogLoadingLabel = "Deleting…"
             }
+  where
+    approvedDeletionNote = when (leaveRequest.status == LeaveRequestStatusEnumApproved) [hsx|
+        <p class="mt-2 mb-0">This removes the availability block. It won’t change any assigned shifts.</p>
+    |]
 
 createSelfServiceLeaveRequestPath :: Text
 createSelfServiceLeaveRequestPath =

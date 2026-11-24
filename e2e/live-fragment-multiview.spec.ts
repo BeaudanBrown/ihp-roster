@@ -7,7 +7,7 @@ import {
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady } from './support/runtime';
+import { gotoWhenReady, waitForLiveRecovery } from './support/runtime';
 import { loginAs } from './support/session';
 import { openProfileLeaveSection, setFlatpickrDate } from './support/profile';
 import { openRoster } from './support/roster';
@@ -216,7 +216,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerContext.close();
     });
 
-    test('leave approval exposes the new roster conflict state after viewer refresh', async ({ browser }) => {
+    test('deleting approved leave clears an open roster conflict without changing the assignment', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -289,6 +289,28 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
+        await waitForLiveRecovery(viewerPage);
+
+        const approvedTab = actorPage.locator('#leave-approved-tab');
+        await approvedTab.click();
+        await approvedLeaveRow.getByRole('button', { name: 'Delete', exact: true }).click();
+        const deleteDialog = actorPage.locator(`#${dialogOverlayMountDomId}`);
+        await expect(deleteDialog).toContainText('Delete unavailable period?');
+        await Promise.all([
+            actorPage.waitForResponse((response) => {
+                const url = new URL(response.url());
+                return url.pathname === '/DeleteStaffLeaveRequest'
+                    && url.searchParams.get('responseContext') === 'manager'
+                    && response.request().method() === 'DELETE'
+                    && response.status() === 200;
+            }, { timeout: E2E_TIMEOUT.action }),
+            deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click(),
+        ]);
+
+        await expect(approvedTab).toHaveAttribute('aria-selected', 'true');
+        await expect(approvedLeaveRow).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(viewerTargetLauncher).toBeVisible();
+        await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
 
         await actorContext.close();
         await viewerContext.close();

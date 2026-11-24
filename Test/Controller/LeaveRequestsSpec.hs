@@ -526,9 +526,12 @@ tests = aroundAll withDatabaseTestContext do
                 foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 2) |> updateRecord
-                today <- utctDay <$> getCurrentTime
+                today <- currentVenueCalendarDay venueConfig
                 let firstWarningDay = addDays 1 today
                 let availableAgain = addDays 4 today
+                let pastWarningDay = addDays (-8) today
+                _ <- createLeaveRequestRecord venue linkedStaff pastWarningDay (addDays 1 pastWarningDay) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue trialStaff pastWarningDay (addDays 1 pastWarningDay) LeaveRequestStatusEnumApproved
                 _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain LeaveRequestStatusEnumPending
                 _ <- createLeaveRequestRecord venue trialStaff firstWarningDay (addDays 3 today) LeaveRequestStatusEnumApproved
                 _ <- createLeaveRequestRecord venue trialStaff (addDays 3 today) availableAgain LeaveRequestStatusEnumPending
@@ -554,6 +557,11 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Pending and approved"
                 response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" firstWarningDay))
                 response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" (addDays 3 today)))
+                warningFragment <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("fragment", "leave-availability-warnings")]
+                warningFragment `responseStatusShouldBe` status200
+                warningFragment `responseBodyShouldContain` "Unavailable-staff threshold reached"
+                warningFragment `responseBodyShouldNotContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" pastWarningDay))
                 response `responseBodyShouldNotContain` "3 staff unavailable"
                 response `responseBodyShouldNotContain` "Foreign Worker"
 
@@ -795,10 +803,11 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Already confirmed"
                 response `responseBodyShouldNotContain` "Rejected requests"
 
-        it "archives manager leave requests whose date window is fully in the past" $ withContext do
+        it "archives requests on their exclusive end date and renders the archive read-only" $ withContext do
             withCleanDb do
-                today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Leave Venue"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
                 manager <- createUserRecord "leave-manager-archive@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-archive@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
@@ -815,9 +824,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 1
-                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 1
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 0
                 leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 0
-                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 3
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 4
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                     pendingSection = fst (Text.breakOn "id=\"leave-approved\"" (snd (Text.breakOn "id=\"leave-pending\"" bodyText)))
@@ -827,6 +836,96 @@ tests = aroundAll withDatabaseTestContext do
                 Text.isInfixOf ">Actions<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Approve<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Deny<" archiveSection `shouldBe` False
+                Text.isInfixOf ">Delete<" archiveSection `shouldBe` False
+
+        it "lets staff delete their own approved and denied requests and retains deletion provenance" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Self Delete Venue"
+                worker <- createUserRecord "leave-self-delete@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                staff <- createStaffRecord venue (Just worker) "Self" "Delete"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                forM_ [LeaveRequestStatusEnumApproved, LeaveRequestStatusEnumDenied] \status -> do
+                    request <- createLeaveRequestRecord venue staff today (addDays 1 today) status
+                    withUserAndCurrentVenue worker venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            confirmation <- callAction (ShowSelfServiceLeaveDeleteConfirmationAction request.id)
+                            confirmation `responseStatusShouldBe` status200
+                            confirmation `responseBodyShouldContain` "/DeleteSelfServiceLeaveRequest"
+                            response <- callAction (DeleteSelfServiceLeaveRequestAction request.id)
+                            response `responseStatusShouldBe` status200
+                            response `responseBodyShouldContain` "Unavailable period deleted"
+                            lookup "HX-Trigger" (responseHeaders response)
+                                `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-history" . cs)
+
+                    deleted <- fetch request.id
+                    deleted.status `shouldBe` status
+                    deleted.deletedAt `shouldSatisfy` isJust
+                    deleted.deletedByUserId `shouldBe` Just (unpackId worker.id)
+                    event <- query @LeaveRequestEvent |> filterWhere (#leaveRequestId, unpackId request.id) |> fetchOne
+                    event.eventType `shouldBe` LeaveRequestEventTypeEnumDeleted
+                    event.previousStatus `shouldBe` Just status
+                    event.actorUserId `shouldBe` unpackId worker.id
+                    audit <- query @AuditEvent |> filterWhere (#targetId, unpackId request.id) |> fetchOne
+                    audit.eventType `shouldBe` "leave_deleted"
+
+        it "scopes manager and self-service deletion to active requests and the authorized staff or venue" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Manager Delete Venue"
+                foreignVenue <- createVenueWithConfig "Foreign Leave Manager Delete Venue"
+                manager <- createUserRecord "leave-manager-delete@example.com" "staff" True
+                worker <- createUserRecord "leave-worker-delete@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                staff <- createStaffRecord venue (Just worker) "Own" "Leave"
+                otherStaff <- createStaffRecord venue Nothing "Other" "Leave"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Leave"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                archived <- createLeaveRequestRecord venue staff (addDays (-1) today) today LeaveRequestStatusEnumApproved
+                active <- createLeaveRequestRecord venue otherStaff (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumApproved
+                foreignRequest <- createLeaveRequestRecord foreignVenue foreignStaff (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumApproved
+                let managerParams = [("responseContext", "manager")]
+
+                withUserAndCurrentVenue worker venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        forM_ [archived, active] \request -> do
+                            confirmation <- callAction (ShowSelfServiceLeaveDeleteConfirmationAction request.id)
+                            confirmation `responseBodyShouldNotContain` "/DeleteSelfServiceLeaveRequest"
+                            _ <- callAction (DeleteSelfServiceLeaveRequestAction request.id)
+                            pure ()
+                        _ <- callActionWithParams (DeleteStaffLeaveRequestAction active.id) managerParams
+                        pure ()
+                untouchedActive <- fetch active.id
+                untouchedActive.deletedAt `shouldBe` Nothing
+
+                withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        forM_ [archived, foreignRequest] \request -> do
+                            confirmation <- callActionWithParams (ShowStaffLeaveDeleteConfirmationAction request.id) managerParams
+                            confirmation `responseBodyShouldNotContain` "/DeleteStaffLeaveRequest"
+                            _ <- callActionWithParams (DeleteStaffLeaveRequestAction request.id) managerParams
+                            pure ()
+                        _ <- callAction (DenyLeaveRequestAction archived.id)
+                        confirmation <- callActionWithParams (ShowStaffLeaveDeleteConfirmationAction active.id) managerParams
+                        confirmation `responseBodyShouldContain` "/DeleteStaffLeaveRequest"
+                        confirmation `responseBodyShouldContain` "responseContext=manager"
+                        response <- callActionWithParams (DeleteStaffLeaveRequestAction active.id) managerParams
+                        response `responseStatusShouldBe` status200
+                        response `responseBodyShouldContain` "Unavailable period deleted"
+                        let refresh = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                        refresh `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-list")
+                        refresh `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"approved\"")
+
+                forM_ [archived, foreignRequest] \request -> do
+                    stored <- fetch request.id
+                    stored.deletedAt `shouldBe` Nothing
+                archivedAfter <- fetch archived.id
+                archivedAfter.status `shouldBe` LeaveRequestStatusEnumApproved
+                deleted <- fetch active.id
+                deleted.deletedByUserId `shouldBe` Just (unpackId manager.id)
+                query @LeaveRequestEvent |> fetchCount >>= (`shouldBe` 1)
 
         it "paginates archived manager leave requests without changing active sections" $ withContext do
             withCleanDb do
@@ -997,7 +1096,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
                 _ <- createRosterWeekRecord venue 0 False
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumApproved
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                leaveRequest <- createLeaveRequestRecord venue staff today (addDays 2 today) LeaveRequestStatusEnumApproved
 
                 versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
@@ -1008,6 +1109,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
+                updated <- fetch leaveRequest.id
+                updated.status `shouldBe` LeaveRequestStatusEnumDenied
 
         it "plans manager leave-page actor keys from the same rendered-section resource as passive viewers" $ withContext do
             withCleanDb do
@@ -1192,7 +1295,9 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "leave-approve@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Ava" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumPending
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                leaveRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
@@ -1220,7 +1325,9 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "leave-deny@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) LeaveRequestStatusEnumPending
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                leaveRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }

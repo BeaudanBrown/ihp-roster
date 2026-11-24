@@ -4,10 +4,14 @@
 
 - Records are venue- and staff-scoped. Backing status is `pending`, `approved`,
   or `denied`; lifecycle transitions append event/audit provenance rather than
-  silently deleting reviewed history. Staff may soft-delete only their own pending
-  requests from Profile; approved and denied history retains a visible disabled
-  Delete action and remains read-only.
+  erasing reviewed history. Staff may soft-delete their own current or upcoming
+  requests at any status from Profile. Managers may also soft-delete current or
+  upcoming requests for staff in their venue from Staff Edit or Unavailability.
+  Deleting an approved request removes its availability block, not assigned shifts.
 - `end_date` is exclusive. A one-day unavailable period is `[day, day + 1)`.
+  A request is past once its exclusive end date is on or before the venue-local
+  calendar day. Profile and Staff Edit show no past requests. The manager
+  Unavailability page alone shows them in its read-only Archive.
 - Staff-facing copy uses **Unavailability**, **Unavailable period**, and **Add
   unavailable time** while the backing schema retains leave terminology.
 - Staff self-service, manager review, and support behavior remain server-authorized.

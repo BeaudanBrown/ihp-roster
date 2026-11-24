@@ -33,6 +33,7 @@ import Network.Wai
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
+import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.Profiles.Mutations (profileUpdateTouchedResources)
 import Web.Routes
 import Web.Types
@@ -266,6 +267,36 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "name=\"emergencyContactPhone\""
                 response `responseBodyShouldContain` "name=\"idealShiftsPerWeek\""
                 response `responseBodyShouldContain` "name=\"shiftPreferenceKeys\""
+
+        it "shows only current and upcoming requests in Profile and live history, with no Archive" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Active Leave Venue"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
+                forM_ [(Worker, "worker"), (Manager, "manager")] \(role, roleName) -> do
+                    user <- createUserRecord ("profile-active-leave-" <> roleName <> "@example.com") "staff" True
+                    _ <- createVenueMembershipRecord venue user role
+                    staff <- createStaffRecord venue (Just user) "Profile" "Leave"
+                    let createRequest startDate endDate status note =
+                            createLeaveRequestRecord venue staff startDate endDate status
+                                >>= updateRecord . set #notes (Just note)
+                    _ <- createRequest (addDays (-1) today) today LeaveRequestStatusEnumApproved "Ended profile request"
+                    _ <- createRequest (addDays (-1) today) (addDays 1 today) LeaveRequestStatusEnumApproved "Current profile request"
+                    _ <- createRequest (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumDenied "Upcoming profile request"
+
+                    responses <- withUserAndCurrentVenue user venue.id do
+                        sequence
+                            [ callActionWithParams EditProfileAction [("section", "leave")]
+                            , callActionWithParams ShowprofileContentLiveFragmentAction [("section", "leave")]
+                            , callActionWithParams ShowSelfServiceLeaveFragmentAction [("fragment", "history")]
+                            ]
+
+                    forM_ responses \response -> do
+                        response `responseStatusShouldBe` status200
+                        response `responseBodyShouldContain` "Current profile request"
+                        response `responseBodyShouldContain` "Upcoming profile request"
+                        response `responseBodyShouldNotContain` "Ended profile request"
+                        response `responseBodyShouldNotContain` ">Archive<"
 
         it "hides the dedicated leave header link for workers while keeping profile leave content available" $ withContext do
             withCleanDb do

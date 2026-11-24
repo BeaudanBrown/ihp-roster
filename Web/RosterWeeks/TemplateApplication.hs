@@ -350,6 +350,7 @@ validateAssignments targetGroup availableShiftTypes plans = do
         |> filterWhereIn (#staffId, map unpackId staffIds)
         |> filterWhere (#venueId, targetGroup.venueId)
         |> filterWhere (#status, LeaveRequestStatusEnumApproved)
+        |> filterWhere (#deletedAt, Nothing)
         |> filterWhereLessThan (#startDate, addDays 7 targetStart)
         |> filterWhereGreaterThan (#endDate, targetStart)
         |> fetch
