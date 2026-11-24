@@ -9,9 +9,6 @@ fail() { echo "$program: $*" >&2; exit 1; }
 
 PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal test --offline --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null
-PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
-    --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null \
-    || fail "compatibility Cabal project did not resolve the canonical tooling project"
 core_test="$(PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
 

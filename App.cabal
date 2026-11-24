@@ -1,4 +1,4 @@
--- This file is only a stub file, please see default.nix for adding dependencies.
+-- This file is an editor/tooling stub; Nix owns the application build.
 --
 -- Learn more about dependency management in IHP: https://ihp.digitallyinduced.com/Guide/package-management.html
 --

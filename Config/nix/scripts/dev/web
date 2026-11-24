@@ -5,6 +5,6 @@ set -euo pipefail
 # shellcheck source=../lib/workspace-resources.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
 bepis_workspace_configure
-bepis_workspace_resource_reexec_dev "$(command -v dev-app)" "$@"
+bepis_workspace_resource_reexec_dev bash "$0" "$@"
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 exec start "$@"

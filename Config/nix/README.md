@@ -138,31 +138,13 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
-## Verification Group Durations
+## Verification Sharding
 
-E2E defaults to legacy native Playwright sharding (`E2E_GROUPING=legacy`).
-The opt-in experiment `E2E_GROUPING=duration` makes complete, argument-free
-multi-shard runs discover current membership and ask `bepis-runners e2e-groups`
-to assign whole file/project groups by advisory duration.
-`Config/nix/e2e-duration-baseline.json` retains training provenance, not a test
-manifest or success cache. New groups receive conservative estimates; changed
-counts scale estimates; stale estimates cannot select or omit tests. Native
-run/database/port/process ownership, hooks, serial suites and retries remain
-unchanged. Group plans/selectors accompany durable reports and failures. Each
-shard owns a distinct blob filename, including when Playwright receives
-`--test-list` instead of `--shard`.
-
-Focused/custom-argument invocations retain native Playwright sharding. Whole-file
-assignment alone does not establish fixture independence: retain exact full/fast
-membership and clean repeated acceptance, including fixture-order controls.
-
-The #605 browser outcome is no default scheduling change. Complete full/fast
-preflights passed, but repeated matched acceptance was rejected after a staff-save
-response timeout required a retry. Scoped diagnosis did not reproduce that
-failure and later full diagnostics exposed distinct browser failures. Neither
-clean subsets nor subsequent passing diagnostics establish accepted benefit or
-resolve those failures. Retain the opt-in policy, regression fixtures and rejected
-evidence; do not promote duration grouping without fresh complete acceptance.
+E2E uses native Playwright `--shard` with distinct report blobs per shard.
+The duration-based grouping experiment did not establish a browser speedup:
+309 full and 259 fast preflight tests passed, but a staff-save timeout on the
+seventh comparison pair required a retry. Later diagnostic runs did not
+establish acceptance. See [#605's comparison and fallback](https://github.com/BeaudanBrown/ihp-roster/issues/605#issuecomment-5843300208).
 
 Hspec retains whole-suite grouping and source order. Advisory runtime weights
 use inclusive native example-callback observations, not reset-only sums; suite
@@ -319,11 +301,9 @@ these scanner fixtures. Real repository gates remain separately required.
 
 ## Glue Compatibility And Change Footprint
 
-`glue-compatibility-test` executes the public generated-watcher alias, mobile
-screenshot matrix, and both SSH tunnel roles against isolated fake dependencies.
-It retains exact argument order, exit status, capture count, viewport, port-map,
-and destination assertions without contacting a browser, tunnel, or remote
-service. `tooling-hls-test` resolves one module from every independent package
+`glue-compatibility-test` verifies E2E discovery and the Grill SSH tunnel
+arguments against isolated fake dependencies without starting a browser,
+runtime, or SSH session. `tooling-hls-test` resolves one module from every independent package
 and repeats resolution from `tooling/`, while `hie-bios-test` retains the
 application cradle contract.
 

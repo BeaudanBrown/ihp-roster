@@ -366,7 +366,7 @@ bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendSurface" --match "SurfaceDependency" --match "SurfaceGuard"
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 ```
 
 Run feature-specific Hspec and Playwright when changing a concrete Surface,

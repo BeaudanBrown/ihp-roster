@@ -54,7 +54,7 @@ in
     processes = {
         # Replace IHP's static devenv processes so `devenv up` receives the
         # same workspace-specific ports as dev-start and dev-foreground.
-        web = pkgs.lib.mkForce (script ../scripts/dev/app);
+        web = pkgs.lib.mkForce (script ../scripts/dev/web);
         worker = pkgs.lib.mkForce (script ../scripts/dev/worker);
         hoogle = pkgs.lib.mkForce {
             exec = ''
@@ -71,7 +71,6 @@ in
         pi = script ../scripts/dev/pi;
         workspace-pi-test = script ../scripts/dev/pi-test;
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
-        dev-app = script ../scripts/dev/app;
         dev-worker = script ../scripts/dev/worker;
         dev-workspace-info = script ../scripts/dev/workspace-info;
         dev-workspace-test = script ../scripts/dev/workspace-test;
@@ -91,7 +90,6 @@ in
         frontend-check = script ../scripts/frontend/check;
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
-        frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
         frontend-generated-state-test = script ../scripts/frontend/generated-state-test;
         frontend-generated-sync = script ../scripts/frontend/generated-sync;
@@ -104,7 +102,6 @@ in
         frontend-surface-adapters-check = script ../scripts/frontend/surface-adapters-check;
         frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
-        git-install-hooks = script ../scripts/git/install-hooks;
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
         epic-worktree = script ../scripts/epic/worktree;
         epic-worktree-test = script ../scripts/epic/worktree-test;
@@ -164,7 +161,6 @@ in
         runner-lifecycle-test = script ../scripts/verification/runner-lifecycle-test;
         verify-tooling = script ../scripts/verification/verify-tooling;
         date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
-        verify-all = script ../scripts/verification/verify-all;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
@@ -202,14 +198,12 @@ in
         profile-app = script ../scripts/profile/app;
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
-        otel-runtime-benchmark = script ../scripts/profile/otel-runtime-benchmark;
         telemetry-boundary-probe = script ../scripts/profile/telemetry-boundary-probe;
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
-        profile-live-invalidation = script ../scripts/profile/live-invalidation;
         profile-live-load = script ../scripts/profile/live-load;
         sync-fwc-mapd = script ../scripts/xero/sync-fwc-mapd;
         xero-pay-item-probe = script ../scripts/xero/pay-item-probe;
@@ -223,13 +217,10 @@ in
         e2e-support-import-check = script ../scripts/e2e/support-import-check;
         e2e-typecheck = script ../scripts/e2e/typecheck;
         e2e-typecheck-test = script ../scripts/e2e/typecheck-test;
-        screenshot = script ../scripts/e2e/screenshot;
         pwcli = script ../scripts/e2e/pwcli;
         pwcli-auth-save = script ../scripts/e2e/pwcli-auth-save;
         pwcli-auth-open = script ../scripts/e2e/pwcli-auth-open;
         screenshot-page = script ../scripts/e2e/screenshot-page;
-        screenshot-roster-mobile = script ../scripts/e2e/screenshot-roster-mobile;
-        e2e-roster-mobile-screenshots = script ../scripts/e2e/roster-mobile-screenshots;
         e2e-report = script ../scripts/e2e/report;
         dev-start = script ../scripts/dev/start;
         stripe-listen = script ../scripts/dev/stripe-listen;

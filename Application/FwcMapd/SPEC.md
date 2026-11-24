@@ -72,5 +72,5 @@ Run:
 bash ./bin/in-env hspec-test --match "FWC MAPD"
 bash ./bin/in-env typecheck
 bash ./bin/in-env lint
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 ```

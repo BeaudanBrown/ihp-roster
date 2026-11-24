@@ -158,7 +158,7 @@ bash ./bin/in-env frontend-surface-compile-fail-check
 bash ./bin/in-env frontend-surface-guardrails
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendSurface" --match "RosterInteractionWorkflow"
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 ```
 
 

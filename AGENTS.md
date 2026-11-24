@@ -121,7 +121,7 @@ start multiple outer `bin/in-env` entries concurrently: their direnv/devenv
 materialization can race on generated `.devenv` files. A single `bin/in-env`
 entry may run independent checks concurrently only when they are read-only and
 use isolated outputs. Current safe candidates include `lint`,
-`typed-contract-authority-check`, and `./bin/doc-drift-check`. Keep `typecheck`,
+`typed-contract-authority-check`, and `documentation-repository-check`. Keep `typecheck`,
 Hspec, frontend composite checks, E2E, generators, formatters, database checks,
 and `verify-*` composites serial unless their owning script provides internal
 sharding or explicitly isolated build/runtime directories. Prefer that built-in
@@ -163,7 +163,7 @@ bash ./bin/in-env e2e
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env typed-contract-authority-check
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 ```
 
 `verify-tooling` owns synthetic checker/lifecycle fixtures; `verify-full` owns

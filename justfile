@@ -6,9 +6,6 @@ default:
 # Thin human-facing wrappers over the existing devenv/flake scripts.
 # Keep this file as an alias layer only; do not duplicate real logic here.
 
-start:
-    dev-app
-
 dev:
     dev-foreground
 
@@ -21,23 +18,8 @@ stop:
 status:
     dev-status
 
-android-start:
-    nix run .#bepis-pwa-android -- start
-
-android-open:
-    nix run .#bepis-pwa-android -- open
-
-android-status:
-    nix run .#bepis-pwa-android -- status
-
-android-stop:
-    nix run .#bepis-pwa-android -- stop
-
 tunnel-grill:
     just _workspace-tunnel grill
-
-tunnel-agent:
-    just _workspace-tunnel agent
 
 [private]
 _workspace-tunnel target:
@@ -113,12 +95,6 @@ architecture-query *args:
 
 architecture-trace *args:
     architecture-trace-diagram {{args}}
-
-demo-reset *args:
-    if [ -z "{{args}}" ]; then bash ./bin/demo-reset; else bash ./bin/demo-reset {{args}}; fi
-
-demo-reset-local *args:
-    if [ -z "{{args}}" ]; then bash ./bin/demo-reset-local; else bash ./bin/demo-reset-local {{args}}; fi
 
 typecheck *args:
     typecheck {{args}}
