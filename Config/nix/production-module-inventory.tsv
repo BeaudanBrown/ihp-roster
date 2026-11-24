@@ -366,16 +366,13 @@ Application/PayrollReports/Notifications.hs	production	runtime	Main	Reachable fr
 Application/PayrollReports/Schedule.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Selection.hs	production	runtime	Main	Reachable from Main
 Application/PayrollReports/Settings.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/ActiveImport.hs	production	runtime	WorkerMain	Reachable from WorkerMain
-Application/PublicHolidays/ActiveJob.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/PublicHolidays/ActiveImport.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/ActiveJob.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Client.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/Override.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/OverrideIncident.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+Application/PublicHolidays/OverrideIncident.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Shadow.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Sync.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/RecipientGroups.hs	production	runtime	Main	Reachable from Main
 Application/RecipientGroups/Validation.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
@@ -400,7 +397,6 @@ Application/Script/Prelude.hs	production	operational-script-closure	Application.
 Application/Script/ProfileLiveInvalidation.hs	development	performance-probe	-	Low-rate profiling probe only; runnable from the development shell
 Application/Script/PublicHolidayCutover.hs	production	operational-script-closure	Application.Script.PublicHolidayCutover	Reachable from Application.Script.PublicHolidayCutover
 Application/Script/PublicHolidayRefreshSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayRefreshSweep	Reachable from Application.Script.PublicHolidayRefreshSweep
-Application/Script/PublicHolidayShadowSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayShadowSweep	Reachable from Application.Script.PublicHolidayShadowSweep
 Application/Script/RsaReminderSweep.hs	production	operational-script-closure	Application.Script.RsaReminderSweep	Reachable from Application.Script.RsaReminderSweep
 Application/Script/SeedDev.hs	development	development-seed	-	Destructive local development seed only; runnable from the development shell
 Application/Script/SeedPayrollFixture.hs	development	development-fixture	-	Manual fixture entry point with no deployment consumer

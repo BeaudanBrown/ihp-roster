@@ -8,11 +8,8 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.Support.Generated.Action
     ( CreateFwcMapdRefreshJobActionOperation
-    , CreatePublicHolidayRefreshJobActionOperation
     , createFwcMapdRefreshJobAction
     , createFwcMapdRefreshJobActionFields
-    , createPublicHolidayRefreshJobAction
-    , createPublicHolidayRefreshJobActionFields
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -51,22 +48,3 @@ createFwcMapdRefreshJobActionEvidence =
 createFwcMapdRefreshJobAction :: ActionFields CreateFwcMapdRefreshJobActionOperation -> FrontendSurfaceAction
 createFwcMapdRefreshJobAction =
     frontendSurfaceActionFromEvidence createFwcMapdRefreshJobActionEvidence
-
-data CreatePublicHolidayRefreshJobActionOperation
-
-type instance ActionSurface CreatePublicHolidayRefreshJobActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.SupportAdapterFamily)
-type instance ActionMarker CreatePublicHolidayRefreshJobActionOperation = Types1.CreatePublicHolidayRefreshJob
-type instance ActionFieldSpecs CreatePublicHolidayRefreshJobActionOperation =
-    '[]
-
-createPublicHolidayRefreshJobActionFields :: ActionFields CreatePublicHolidayRefreshJobActionOperation
-createPublicHolidayRefreshJobActionFields =
-    noActionFields
-
-createPublicHolidayRefreshJobActionEvidence :: ActionEvidence CreatePublicHolidayRefreshJobActionOperation
-createPublicHolidayRefreshJobActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreatePublicHolidayRefreshJob" "create-public-holiday-refresh-job" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#support-public-holidays" ["support-public-holidays"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
-
-createPublicHolidayRefreshJobAction :: ActionFields CreatePublicHolidayRefreshJobActionOperation -> FrontendSurfaceAction
-createPublicHolidayRefreshJobAction =
-    frontendSurfaceActionFromEvidence createPublicHolidayRefreshJobActionEvidence

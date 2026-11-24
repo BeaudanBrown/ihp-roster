@@ -11,7 +11,6 @@ LiveInvalidationOutboxPrune	production	recurring-service	Config/nix/modules/ihp-
 PayrollReportSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Enqueues configured venue payroll report schedules; worker owns generation and delivery
 ProfileLiveInvalidation	development	performance-probe	Config/nix/scripts/profile/live-invalidation	Low-rate profiling probe only; runnable from the development shell
 PublicHolidayCutover	production	migration-recovery	Application/PublicHolidays/README.md	Operator-approved transactional DataVic activation with protected-calendar audit
-PublicHolidayShadowSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Read-only authenticated holiday shadow evaluation and existing review monitoring
 PublicHolidayRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed public-holiday refresh timer
 RsaReminderSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed roster shift acknowledgement reminder timer
 SeedDev	development	development-seed	Config/nix/scripts/db/seed-dev	Destructive local development seed only; runnable from the development shell

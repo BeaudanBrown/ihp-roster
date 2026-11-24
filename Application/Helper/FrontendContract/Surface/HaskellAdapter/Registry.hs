@@ -280,8 +280,6 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.RestoreFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
-    , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
-        (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceOperationLocalActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations

@@ -1,5 +1,6 @@
 module Application.PublicHolidays.ActiveImport
-    ( refreshPublicHolidaysWith
+    ( PublicHolidaySyncSummary (..)
+    , refreshPublicHolidaysWith
     , importPublicHolidayCalendars
     , cutoverPublicHolidayCalendars
     , activeImportEnabled
@@ -14,7 +15,6 @@ import Application.PublicHolidays.Client
 import Application.PublicHolidays.Override
 import Application.PublicHolidays.OverrideIncident (retirePublicHolidayOverrideInCurrentTransaction)
 import qualified Application.PublicHolidays.Policy as Policy
-import Application.PublicHolidays.Sync (PublicHolidaySyncSummary (..))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -23,7 +23,14 @@ import Generated.Types
 import IHP.ControllerPrelude
 import qualified System.Environment as Environment
 
--- Deployment gate: legacy queued jobs must not turn into writes merely because
+data PublicHolidaySyncSummary = PublicHolidaySyncSummary
+    { targetYears :: ![Integer]
+    , importedCount :: !Int
+    , prunedCount :: !Int
+    }
+    deriving (Show)
+
+-- Deployment gate: queued imports must not turn into writes merely because
 -- new code was deployed. Cutover is a separate explicit operator operation.
 activeImportEnabled :: IO Bool
 activeImportEnabled = (== Just "true") <$> Environment.lookupEnv "DATAVIC_ACTIVE_IMPORT"
@@ -101,9 +108,7 @@ acceptCalendars reviewer startedAt years calendars complete = do
             |> createRecord
         let count = length (concatMap snd calendars)
         let summary = PublicHolidaySyncSummary
-                { targetYears = years, fetchedCount = count, importedCount = count
-                , insertedCount = count, updatedCount = 0, skippedCount = 0
-                , invalidCount = 0, prunedCount = length replaced
+                { targetYears = years, importedCount = count, prunedCount = length replaced
                 }
         complete summary now
         pure (liveMutationResult summary [supportPublicHolidaysResource])

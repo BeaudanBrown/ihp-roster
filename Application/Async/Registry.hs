@@ -13,8 +13,6 @@ import Application.FwcMapd.Job
 import Application.Helper.Telemetry (withJobTelemetrySpan)
 import Application.PayrollReports.Job
 import Application.PublicHolidays.ActiveJob
-import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
-import Application.PublicHolidays.Shadow
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
@@ -57,9 +55,7 @@ registeredJobKinds =
     , emailDeliveryJobKind
     , payrollReportJobKind
     , fwcMapdRefreshJobKind
-    , publicHolidayRefreshJobKind
     , activePublicHolidayJobKind
-    , publicHolidayShadowJobKind
     , wageSourceHealthCheckJobKind
     , retiredRosterTimesheetCreationJobKind
     , xeroConnectionKeepaliveJobKind
@@ -77,10 +73,9 @@ dispatchAppJobByKind appJob =
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
         kind | kind == payrollReportJobKind -> performPayrollReportJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
-        -- Includes already queued/retrying anonymous jobs at deployment. Never
-        -- turn them into successful refresh evidence or execute the old importer.
-        kind | kind == publicHolidayRefreshJobKind -> throwAppJobError JobValidationRejected
-        kind | kind == publicHolidayShadowJobKind -> performPublicHolidayShadowJob appJob
+        -- Old jobs can survive a deploy or restore. Never fetch or renew coverage.
+        "public_holiday_refresh" -> throwAppJobError JobValidationRejected
+        "public_holiday_shadow" -> throwAppJobError JobValidationRejected
         kind | kind == activePublicHolidayJobKind -> performActivePublicHolidayJob appJob
         kind | kind == wageSourceHealthCheckJobKind -> performWageSourceHealthCheckJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob

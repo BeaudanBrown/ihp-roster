@@ -220,7 +220,7 @@ sourceGuards =
         [ "Web/Admin/Mutations.hs", "Web/Admin/RosterWindowStartDay.hs", "Web/Admin/Xero/Mutations.hs"
         , "Web/Billing/Mutations.hs", "Web/Controller/StripeWebhooks.hs", "Web/Controller/Support.hs"
         , "Web/Exports/Mutations.hs", "Application/Billing/Reconciliation.hs", "Application/EmailDelivery.hs"
-        , "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs", "Application/PublicHolidays/Job.hs"
+        , "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs", "Application/PublicHolidays/ActiveImport.hs", "Application/PublicHolidays/ActiveJob.hs"
         , "Application/Xero/Keepalive.hs", "Application/Xero/ReferenceSyncJob.hs"
         ] sequentialPublicationTokens
     , guard "admin controller keeps config writes behind mutations" ["Web/Controller/Admin.hs"]
@@ -238,7 +238,7 @@ sourceGuards =
         , "refreshAdminShiftTypes", "refreshAdminXero", "performTypedLiveSurfaceMutation", "liveSurfaceMutation"
         ]
     , guard "background invalidation uses touched resources"
-        ["Application/PublicHolidays/Job.hs", "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs"]
+        ["Application/PublicHolidays/ActiveImport.hs", "Application/PublicHolidays/ActiveJob.hs", "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs"]
         ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
     , guard "billing controller keeps writes behind mutations" ["Web/Controller/Billing.hs"]
         ["newRecord @VenueBillingCustomer", "newRecord @VenueBillingControl", "updateRecord", "broadcastBillingInvalidation"]

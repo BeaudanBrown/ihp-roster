@@ -512,6 +512,7 @@ wageSourceSafeMetadata payload candidates =
 
 sourceForRefreshJobKind :: Text -> Maybe WageSourceKind
 sourceForRefreshJobKind "fwc_mapd_refresh"       = Just FwcWageSource
+-- An older queued health check can still reference a persisted anonymous job.
 sourceForRefreshJobKind "public_holiday_refresh" = Just DataVicWageSource
 sourceForRefreshJobKind "public_holiday_active_import" = Just DataVicWageSource
 sourceForRefreshJobKind _                        = Nothing

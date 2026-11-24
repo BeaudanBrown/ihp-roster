@@ -18,18 +18,15 @@ import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
-import Application.Helper.JobStatus (jobStatusLabel)
+import Application.Helper.JobStatus (jobStatusHasDiagnostic, jobStatusLabel)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
 import Application.PublicHolidays.Override (PublicHolidayOverrideStatus (..))
-import Application.PublicHolidays.Shadow (ShadowResult (..),
-                                          ShadowYearSummary (..))
 import Application.Support.LiveUpdates (supportSurface)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnostic (..),
                                                XeroTimesheetDiagnosticLine (..),
                                                XeroTimesheetDiagnosticSnapshot (..))
-import qualified Data.Aeson as Aeson
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Web.View.Passkeys.Management (renderPasskeyManagementWithAddButton)
@@ -50,13 +47,17 @@ data IndexView = IndexView
     , fwcMapdAdminData              :: FwcMapdAdminData
     , latestFwcMapdRefreshJob       :: Maybe AppJob
     , activeFwcMapdRefreshJob       :: Maybe AppJob
-    , publicHolidayCoverage         :: [PublicHolidayCoverageYear]
-    , latestPublicHolidayRefreshJob :: Maybe AppJob
-    , activePublicHolidayRefreshJob :: Maybe AppJob
+    , publicHolidaySection         :: PublicHolidaySection
     , xeroDiagnosticSubmissionId    :: Text
     , xeroTimesheetDiagnostic       :: Maybe XeroTimesheetDiagnostic
     , xeroTimesheetDiagnosticError  :: Maybe Text
     , notificationHealth            :: NotificationHealth
+    }
+
+data PublicHolidaySection = PublicHolidaySection
+    { publicHolidayCoverage :: [PublicHolidayCoverageYear]
+    , latestPublicHolidayImportJob :: Maybe AppJob
+    , latestAcceptedPublicHolidayImport :: Maybe PublicHolidayImportBatch
     }
 
 instance View IndexView where
@@ -101,7 +102,7 @@ instance View IndexView where
                 simpleAppPanel
                     "Public Holidays"
                     (Just "Victorian public holiday cache used by payroll penalty calculations.")
-                    (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+                    (renderPublicHolidaysSection publicHolidaySection)
             notificationHealthPanel = renderNotificationHealthPanel notificationHealth
             page =
                 renderAppPage (AppPageConfig
@@ -389,19 +390,14 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
     </div>
 |]
 
-renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
-renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
+renderPublicHolidaysSection :: PublicHolidaySection -> Html
+renderPublicHolidaysSection PublicHolidaySection { .. } = [hsx|
     <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportPublicHolidays noSurfaceFields}
          class="d-flex flex-column gap-3">
-        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-            <div class="small app-muted">
-                <div>Authenticated DataVic shadow fetch — no dates imported. Anonymous refresh is disabled.</div>
-                <div>Cached calendar and override authority remain unchanged; shadow success does not renew source freshness.</div>
-                <div>{renderPublicHolidayRefreshJobStatus latestRefreshJob}</div>
-            </div>
-            <div class="flex-shrink-0">
-                {renderPublicHolidayRefreshForm activeRefreshJob}
-            </div>
+        <div class="small app-muted">
+            <div>Automated DataVic imports update the Victorian public holiday calendar used by Bepis.</div>
+            <div>{renderPublicHolidayImportJobStatus latestPublicHolidayImportJob}</div>
+            <div>{renderAcceptedPublicHolidayImport latestAcceptedPublicHolidayImport}</div>
         </div>
         {renderPublicHolidayCoverageWarning publicHolidayCoverage}
         {renderPublicHolidayCoverageTable publicHolidayCoverage}
@@ -412,7 +408,7 @@ renderPublicHolidayCoverageWarning :: [PublicHolidayCoverageYear] -> Html
 renderPublicHolidayCoverageWarning publicHolidayCoverage
     | publicHolidayCoverageHasWarning publicHolidayCoverage = [hsx|
         <div class="alert alert-warning mb-0">
-            Public holiday coverage is missing, stale, or requires override review. Review the protected calendar before payroll; shadow fetching cannot renew freshness or extend an override.
+            Public holiday coverage is missing, stale, or requires override review. Check the import status and calendar coverage before payroll.
         </div>
     |]
     | otherwise = mempty
@@ -462,57 +458,21 @@ renderPublicHolidayCoverageStatus status =
                 <div class="small">DataVic writes blocked. Review by {formatTimestamp reviewDueAt}.</div>
             |]
 
-renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
-renderPublicHolidayRefreshForm activeRefreshJob =
-    renderFrontendSurfaceActionForm
-        (SupportAction.createPublicHolidayRefreshJobAction SupportAction.createPublicHolidayRefreshJobActionFields)
-        (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
-            { actionRouteExtraAttrs = [("class", "d-grid")]
-            }
-        [hsx|
-            <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
-                {buttonLabel}
-            </button>
-        |]
-    where
-        buttonClass :: Text
-        buttonClass =
-            if isJust activeRefreshJob
-                then "btn btn-outline-secondary"
-                else "btn btn-primary"
-        buttonLabel =
-            if isJust activeRefreshJob
-                then "Shadow fetch queued/running" :: Text
-                else "Run shadow fetch"
-
-renderPublicHolidayRefreshJobStatus :: Maybe AppJob -> Html
-renderPublicHolidayRefreshJobStatus maybeJob =
-    case maybeJob of
-        Nothing -> [hsx|No public holiday shadow fetch has been queued yet.|]
-        Just appJob -> [hsx|
-            Latest shadow job <span class="fw-semibold">{jobStatusLabel appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
-            {renderJobError appJob}
-            {renderShadowResult appJob}
-        |]
-
-renderShadowResult :: AppJob -> Html
-renderShadowResult appJob = case Aeson.fromJSON @ShadowResult appJob.result of
-    Aeson.Error _ -> mempty
-    Aeson.Success result -> [hsx|
-        <div>Last attempt: {formatTimestamp result.attemptedAt}. Completed: {formatTimestamp result.completedAt}.</div>
-        <div>Requested years: {Text.intercalate ", " (map tshow result.targetYears)}.</div>
-        <div>{if isJust result.failure then ("Shadow fetch failed; no dates imported." :: Text) else "Shadow fetch succeeded; no dates imported."}</div>
-        <div>Differences compare date/name pairs with the cached statewide calendar. They are informational, not failures.</div>
-        <ul class="mb-0">
-            {forEach result.years renderShadowYear}
-        </ul>
+renderPublicHolidayImportJobStatus :: Maybe AppJob -> Html
+renderPublicHolidayImportJobStatus = \case
+    Nothing -> [hsx|No automated DataVic import job recorded yet.|]
+    Just appJob -> [hsx|
+        Latest automated import job: <span class="fw-semibold">{jobStatusLabel appJob.status}</span> (queued {formatTimestamp appJob.createdAt}).
+        {if jobStatusHasDiagnostic appJob.status then renderJobError appJob else mempty}
     |]
 
-renderShadowYear :: ShadowYearSummary -> Html
-renderShadowYear summary = [hsx|
-    <li>{tshow summary.year}: {tshow summary.fetchedCount} fetched; {tshow summary.cachedCount} cached;
-        {tshow summary.providerOnlyCount} provider-only, {tshow summary.cacheOnlyCount} cache-only.</li>
-|]
+renderAcceptedPublicHolidayImport :: Maybe PublicHolidayImportBatch -> Html
+renderAcceptedPublicHolidayImport = \case
+    Nothing -> [hsx|No accepted DataVic import recorded yet.|]
+    Just receipt -> [hsx|
+        Last accepted DataVic import: <span class="fw-semibold">{formatTimestamp receipt.acceptedAt}</span>
+        (years: {Text.intercalate ", " (map tshow receipt.targetYears)}).
+    |]
 
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =

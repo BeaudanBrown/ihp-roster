@@ -278,7 +278,6 @@ data SupportController
     | CreateSupportVenueOnboardingInvitationAction
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
-    | CreatePublicHolidayRefreshJobAction
     | CreateSupportEmailResendAction { emailDeliveryJobId :: !(Id AppJob) }
     | StartSupportImpersonationAction
     | ExitSupportImpersonationAction

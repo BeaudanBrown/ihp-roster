@@ -8,7 +8,6 @@ FwcMapdRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/Fwc
 LiveInvalidationOutboxPrune	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/LiveInvalidationOutboxPrune	Durable live-invalidation outbox pruning timer executable
 PayrollReportSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PayrollReportSweep	Opt-in payroll report scheduling timer executable
 PublicHolidayCutover	migration-recovery	Application/PublicHolidays/README.md	/bin/PublicHolidayCutover	Explicit operator-approved authenticated calendar cutover
-PublicHolidayShadowSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PublicHolidayShadowSweep	Read-only holiday shadow timer executable
 PublicHolidayRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PublicHolidayRefreshSweep	Public-holiday refresh timer executable
 RsaReminderSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/RsaReminderSweep	Roster shift acknowledgement reminder timer executable
 XeroKeepaliveSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/XeroKeepaliveSweep	Xero keepalive timer executable
