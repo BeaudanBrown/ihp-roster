@@ -3,6 +3,7 @@
 module Bepis.Tooling.Workspace.State
     ( PathProblem (..)
     , Registry (..)
+    , RuntimeReservation (..)
     , WorkspaceIdentity (..)
     , WorkspaceRecord (..)
     , WorkspaceStatus (..)
@@ -12,6 +13,10 @@ module Bepis.Tooling.Workspace.State
     , encodeWorkspaceIdentity
     , identityFileName
     , inspectCanonicalPath
+    , runtimePorts
+    , runtimePathOverlap
+    , validRuntimePorts
+    , portConflicts
     , readRegistry
     , readWorkspaceIdentity
     , registryFileRelativePath
@@ -33,11 +38,12 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
-import Data.List (nub)
+import Data.List (intersect, isPrefixOf, nub)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import System.Directory (doesFileExist, makeAbsolute, pathIsSymbolicLink)
-import System.FilePath (isAbsolute, normalise, splitDirectories, takeDirectory, (</>))
+import System.Directory (makeAbsolute, pathIsSymbolicLink)
+import System.Posix.Files (FileStatus, getSymbolicLinkStatus, isRegularFile)
+import System.FilePath (addTrailingPathSeparator, isAbsolute, normalise, splitDirectories, takeDirectory, (</>))
 import System.IO.Error (isDoesNotExistError)
 
 data PathProblem = NonCanonicalPath FilePath | SymlinkPathComponent FilePath
@@ -62,6 +68,18 @@ data WorkspaceRecord = WorkspaceRecord
 data Registry = Registry
     { commonGitDir :: FilePath
     , workspaces   :: [WorkspaceRecord]
+    , runtime      :: [RuntimeReservation]
+    }
+    deriving (Eq, Show)
+
+-- Epic metadata is independent; both plain and epic worktrees own the same
+-- reservation shape. Keep historical evidence locations when overrides change.
+data RuntimeReservation = RuntimeReservation
+    { runtimePath            :: FilePath
+    , runtimeSlot            :: Int
+    , runtimePortOffset      :: Int
+    , runtimeStateDirs       :: [FilePath]
+    , runtimePostgresRoots   :: [FilePath]
     }
     deriving (Eq, Show)
 
@@ -111,19 +129,60 @@ instance ToJSON WorkspaceRecord where
 
 instance FromJSON Registry where
     parseJSON = withObject "Registry" $ \value -> do
-        exactFields 3 value "registry"
         version <- value .: "version"
+        unless (version == (2 :: Int)) $ fail "registry requires v2; complete the operator cutover first"
+        exactFields 4 value "registry"
         owner <- value .: "commonGitDir"
         records <- value .: "workspaces"
-        unless (version == (1 :: Int) && validAbsolutePath owner) $ fail "registry has invalid v1 values"
-        pure Registry {commonGitDir = owner, workspaces = records}
+        reservations <- value .: "runtime"
+        unless (validAbsolutePath owner) $ fail "registry has invalid common Git directory"
+        pure Registry {commonGitDir = owner, workspaces = records, runtime = reservations}
 
 instance ToJSON Registry where
-    toJSON Registry {commonGitDir, workspaces} = object
-        [ "version" .= (1 :: Int), "commonGitDir" .= commonGitDir, "workspaces" .= workspaces ]
+    toJSON Registry {commonGitDir, workspaces, runtime} = object
+        [ "version" .= (2 :: Int), "commonGitDir" .= commonGitDir
+        , "workspaces" .= workspaces, "runtime" .= runtime ]
+
+instance FromJSON RuntimeReservation where
+    parseJSON = withObject "RuntimeReservation" $ \value -> do
+        exactFields 5 value "runtime reservation"
+        reservation <- RuntimeReservation <$> value .: "path" <*> value .: "slot"
+            <*> value .: "portOffset" <*> value .: "stateDirectories" <*> value .: "managedPostgresRoots"
+        unless (validReservation reservation) $ fail "invalid runtime reservation"
+        pure reservation
+
+instance ToJSON RuntimeReservation where
+    toJSON RuntimeReservation {runtimePath, runtimeSlot, runtimePortOffset, runtimeStateDirs, runtimePostgresRoots} = object
+        [ "path" .= runtimePath, "slot" .= runtimeSlot, "portOffset" .= runtimePortOffset
+        , "stateDirectories" .= runtimeStateDirs, "managedPostgresRoots" .= runtimePostgresRoots ]
+
+validReservation :: RuntimeReservation -> Bool
+validReservation RuntimeReservation {runtimePath, runtimeSlot, runtimePortOffset, runtimeStateDirs, runtimePostgresRoots} =
+    validAbsolutePath runtimePath && validRuntimePorts runtimeSlot runtimePortOffset
+        && all validAbsolutePath (runtimeStateDirs <> runtimePostgresRoots)
+        && nub runtimeStateDirs == runtimeStateDirs && nub runtimePostgresRoots == runtimePostgresRoots
+
+-- Every listener selected by the workspace layout, including the development
+-- tools' app+1 port and Tempo's existing slot-only memberlist port.
+runtimePorts :: Int -> Int -> [Int]
+runtimePorts slotNumber offset =
+    [app, app + 1, app + 2, 7946 + slotNumber]
+        <> map (+ (offset + slotNumber)) [1025, 8025, 3200, 9095, 14317, 14318, 4317, 4318, 13133, 3300]
+  where app = 8000 + offset + 3 * slotNumber
+
+validRuntimePorts :: Int -> Int -> Bool
+validRuntimePorts slotNumber offset =
+    slotNumber >= 0 && slotNumber <= 19177 && offset >= 0 && offset <= 40000
+        && all (<= 65535) ports && length (nub ports) == length ports
+  where ports = runtimePorts slotNumber offset
+
+portConflicts :: RuntimeReservation -> RuntimeReservation -> Bool
+portConflicts first second = not (null (ports first `intersect` ports second))
+  where ports reservation = runtimePorts (runtimeSlot reservation) (runtimePortOffset reservation)
+
 
 exactFields :: Int -> KeyMap.KeyMap value -> String -> Aeson.Parser ()
-exactFields count value label = unless (KeyMap.size value == count) (fail (label <> " must contain exactly the v1 fields"))
+exactFields count value label = unless (KeyMap.size value == count) (fail (label <> " must contain exactly the declared fields"))
 
 validText :: Text -> Bool
 validText value = not (Text.null value) && Text.all (`notElem` ['\n', '\r']) value
@@ -173,19 +232,44 @@ readWorkspaceIdentity root = decodeWorkspaceIdentity <$> ByteString.readFile (ro
 readRegistry :: FilePath -> IO (Either String (Maybe Registry))
 readRegistry common = do
     let path = common </> registryFileRelativePath
-    exists <- doesFileExist path
-    if exists then fmap (fmap Just . decodeRegistry) (ByteString.readFile path) else pure (Right Nothing)
+    canonical <- inspectCanonicalPath path
+    case canonical of
+        Left badPath -> pure (Left ("unsafe registry path: " <> show badPath))
+        Right () -> do
+            status <- (Just <$> getSymbolicLinkStatus path) `catch` absent
+            case status of
+                Nothing -> pure (Right Nothing)
+                Just attributes | isRegularFile attributes -> fmap (fmap Just . decodeRegistry) (ByteString.readFile path)
+                _ -> pure (Left "registry exists but is not a regular file")
+  where
+    absent :: IOException -> IO (Maybe FileStatus)
+    absent exception | isDoesNotExistError exception = pure Nothing
+                     | otherwise = throwIO exception
 
 validateRegistry :: FilePath -> Registry -> Either String ()
-validateRegistry owner Registry {commonGitDir, workspaces}
+validateRegistry owner Registry {commonGitDir, workspaces, runtime}
     | commonGitDir /= owner = Left "registry belongs to another Git common directory"
-    | duplicate recordEpic = Left "registry contains duplicate epic numbers"
-    | duplicate recordBranch = Left "registry contains duplicate branches"
-    | duplicate recordPath = Left "registry contains duplicate paths"
-    | duplicate recordSlot = Left "registry contains duplicate slots"
+    | duplicate (map recordEpic workspaces) = Left "registry contains duplicate epic numbers"
+    | duplicate (map recordBranch workspaces) = Left "registry contains duplicate epic branches"
+    | duplicate (map recordPath workspaces) = Left "registry contains duplicate epic paths"
+    | duplicate (map runtimePath runtime) = Left "registry contains duplicate runtime paths"
+    | duplicate (map runtimeSlot runtime) = Left "registry contains duplicate runtime slots"
+    | not (all validReservation runtime) = Left "registry contains an invalid runtime reservation"
+    | not (all hasReservation workspaces) = Left "registry contains an epic without its matching runtime reservation"
+    | anyPair evidenceConflicts runtime = Left "registry contains overlapping runtime state or PostgreSQL paths"
     | otherwise = Right ()
   where
-    duplicate project = let values = map project workspaces in length values /= length (nub values)
+    linked = filter ((/= 0) . runtimeSlot) runtime
+    duplicate values = length values /= length (nub values)
+    hasReservation record = any (\entry -> runtimePath entry == recordPath record && runtimeSlot entry == recordSlot record) linked
+    evidenceConflicts first second = runtimePathOverlap (paths first) (paths second)
+    paths entry = runtimeStateDirs entry <> runtimePostgresRoots entry
+    anyPair _ [] = False
+    anyPair conflicts (entry:rest) = any (conflicts entry) rest || anyPair conflicts rest
+
+runtimePathOverlap :: [FilePath] -> [FilePath] -> Bool
+runtimePathOverlap first second = any (\left -> any (overlaps left) second) first
+  where overlaps left right = left == right || addTrailingPathSeparator left `isPrefixOf` right || addTrailingPathSeparator right `isPrefixOf` left
 
 withRegistryLock :: FilePath -> IO value -> IO value
 withRegistryLock common = withExclusiveLock (common </> registryLockRelativePath)
@@ -204,7 +288,10 @@ withRegisteredWorkspaceCleanup common expected cleanup = withRegistryLock common
             case filter ((== recordEpic expected) . recordEpic) (workspaces registry) of
                 [actual] | actual == expected -> do
                     cleanup
-                    writeRegistryUnlocked common registry {workspaces = filter ((/= recordEpic expected) . recordEpic) (workspaces registry)}
+                    writeRegistryUnlocked common registry
+                        { workspaces = filter ((/= recordEpic expected) . recordEpic) (workspaces registry)
+                        -- The allocator, not epic cleanup, proves runtime absence.
+                        }
                     pure True
                 _ -> pure False
         _ -> pure False

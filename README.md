@@ -121,10 +121,17 @@ fixtures, so combining them is redundant. Both serialize maintenance, preserve
 the running IHP/GHCi process, and wait for one reconnected durable listener before
 returning. Long-lived development processes inherit the workspace's equal-weight
 cgroup slice.
-Managed workspaces
-derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
-`dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
-epic-worktree delegation and approval boundaries.
+A plain Git worktree can run `verify-fast` without an epic or runtime
+reservation. `dev-start` reserves stable, isolated ports on first use; each
+worktree has its own managed PostgreSQL directory and socket. Inspect an
+assignment with `dev-workspace-info --json`. Stop a stack before removing its
+worktree. A later allocation can reclaim a removed worktree’s ports only when
+its runtime is demonstrably gone; it never removes PostgreSQL data.
+
+Epic metadata is only required for epic workflow commands. Owners upgrading an
+existing checkout group should follow the
+[worktree registry cutover](docs/runbooks/worktree-runtime-cutover.md) before
+starting services with the new tooling.
 
 Bepis is live. Schema changes require both `Application/Schema.sql` and a safe
 IHP migration under `Application/Migration/`. Local `make db` resets development

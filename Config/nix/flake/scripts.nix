@@ -60,7 +60,7 @@ in
             exec = ''
                 repo_root="$(git rev-parse --show-toplevel)"
                 . "$repo_root/Config/nix/scripts/lib/workspace.sh"
-                bepis_workspace_configure
+                bepis_workspace_start
                 exec hoogle server --local -p "$IHP_HOOGLE_PORT" --no-security-headers
             '';
         };

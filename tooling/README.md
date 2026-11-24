@@ -35,9 +35,10 @@ Haskell sources. Build/output/log directories do not enter shell resolution.
 ## Packages
 
 - `bepis-tooling-core`: owned atomic files and scoped Linux advisory locks.
-- `bepis-workspace-state`: sole owner of strict v1 registry/identity state, slot
-  allocation, named provisioning, and workspace runtime layout. It invokes local
-  Git and initialization commands but has no GitHub or application dependency.
+- `bepis-workspace-state`: owns the shared runtime reservation registry, slot
+  allocation, and Git worktree runtime layout. Plain worktrees allocate on first
+  runtime use; epic registration additionally records workflow metadata. It uses
+  local Git but has no GitHub or application dependency.
 - `bepis-postgres`: typed managed/external and durable/disposable PostgreSQL
   profiles, owned-root validation, lifecycle/maintenance locks, bounded startup
   logs, E2E capacity, cleanup, development app-recovery coordination, and local

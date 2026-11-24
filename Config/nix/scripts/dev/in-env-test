@@ -39,6 +39,7 @@ chmod +x "$fake_bin/direnv"
     PGHOST="$fixture_root/wrong-db" \
     DATABASE_URL="postgresql:///wrong" \
     IHP_ROSTER_DEV_TEMPO_PORT=3209 \
+    IHP_ROSTER_DEV_TEMPO_MEMBERLIST_PORT=7955 \
     IHP_ROSTER_DEV_OTLP_HTTP_PORT=4327 \
     IHP_ROSTER_DEV_GRAFANA_PORT=3309 \
     OTEL_SERVICE_NAME=ihp-roster-dev-epic-wrong \
@@ -55,6 +56,7 @@ chmod +x "$fake_bin/direnv"
             [ -z "${PGHOST+x}" ]
             [ -z "${DATABASE_URL+x}" ]
             [ -z "${IHP_ROSTER_DEV_TEMPO_PORT+x}" ]
+            [ -z "${IHP_ROSTER_DEV_TEMPO_MEMBERLIST_PORT+x}" ]
             [ -z "${IHP_ROSTER_DEV_OTLP_HTTP_PORT+x}" ]
             [ -z "${IHP_ROSTER_DEV_GRAFANA_PORT+x}" ]
             [ -z "${OTEL_SERVICE_NAME+x}" ]
@@ -62,5 +64,54 @@ chmod +x "$fake_bin/direnv"
             [ -z "${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT+x}" ]
         '
 ) || fail "stale sibling-worktree environment survived wrapper entry"
+
+# A host without direnv can still bootstrap the current checkout's devenv.
+checkout="$fixture_root/checkout with spaces"
+nix_only="$fixture_root/nix-only"
+mkdir -p "$checkout/bin" "$checkout/Config/nix/scripts/lib" "$nix_only"
+cp "$repo_root/bin/in-env" "$checkout/bin/"
+cp "$repo_root/Config/nix/scripts/lib/devenv-bootstrap.sh" "$checkout/Config/nix/scripts/lib/"
+cp "$repo_root/.envrc" "$checkout/.envrc"
+for directory in flake modules hosts; do mkdir -p "$checkout/Config/nix/$directory"; done
+: >"$checkout/flake.nix"
+for command in bash dirname find mkdir mktemp mv realpath rm; do
+    ln -s "$(command -v "$command")" "$nix_only/$command"
+done
+cat >"$nix_only/nix" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$PWD" = "$EXPECTED_REPO_ROOT" ]
+[ -z "${BEPIS_TOOLING_BUILD_PATH+x}" ]
+[ "$1 $2 $3 $4" = 'develop . --override-input devenv-root' ]
+[ "$5" = "file+file://$PWD/.devenv/root" ]
+[ "$(<"$PWD/.devenv/root")" = "$PWD" ]
+[ "$6 $7 $8" = '--accept-flake-config --no-write-lock-file --command' ]
+shift 8
+exec "$@"
+EOF
+chmod +x "$nix_only/nix"
+(
+    cd "$fixture_root/caller"
+    PATH="$nix_only" XDG_CACHE_HOME="$fixture_root/cache" EXPECTED_REPO_ROOT="$checkout" \
+        BEPIS_TOOLING_BUILD_PATH=wrong DEVENV_IN_DIRENV_SHELL=false \
+        bash "$checkout/bin/in-env" bash -c '[ "$1" = "two words" ]' bash 'two words'
+) || fail 'no-direnv fallback did not prepare the explicit checkout root'
+
+# Compare direnv's bootstrap arguments without running its runtime-env tail
+# in an actual shell environment. The fixture PATH has no workspace tooling.
+(
+    cd "$checkout"
+    export PATH="$nix_only" XDG_CACHE_HOME="$fixture_root/cache"
+    has() { return 0; }
+    nix_direnv_version() { return 0; }
+    watch_file() { :; }
+    use() {
+        [ "$1 $2 $3 $4" = 'flake . --override-input devenv-root' ] &&
+            [ "$5" = "file+file://$PWD/.devenv/root" ] &&
+            [ "$6 $7" = '--accept-flake-config --no-write-lock-file' ] &&
+            [ "$(< .devenv/root)" = "$PWD" ]
+    }
+    . ./.envrc
+) || fail 'direnv and direct Nix bootstrap arguments diverged'
 
 echo "in-env-test: ok"

@@ -74,9 +74,9 @@ expected_path="$fixture_root/repo-public-holidays"
 [ "$(jq -r 'keys | sort | join(",")' <<<"$provision_json")" = "appUrl,baseCommit,branch,epic,mailhogUrl,path,slot,targetBranch" ] \
     || fail "published provision JSON fields changed"
 [ "$(jq -r '.path' <<<"$provision_json")" = "$expected_path" ] || fail "unstable sibling path convention"
-[ "$(jq -r '.slot' <<<"$provision_json")" = "1" ] || fail "report omitted allocated slot"
-[ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8003" ] || fail "unexpected app URL"
-[ "$(jq -r '.mailhogUrl' <<<"$provision_json")" = "http://127.0.0.1:8026" ] || fail "unexpected MailHog URL"
+[ "$(jq -r '.slot' <<<"$provision_json")" = "2" ] || fail "report omitted allocated slot"
+[ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8006" ] || fail "unexpected app URL"
+[ "$(jq -r '.mailhogUrl' <<<"$provision_json")" = "http://127.0.0.1:8027" ] || fail "unexpected MailHog URL"
 
 [ "$(git -C "$fixture_repo" branch --show-current)" = "$branch_before" ] || fail "primary branch changed"
 [ "$(git -C "$fixture_repo" rev-parse HEAD)" = "$head_before" ] || fail "primary HEAD changed"

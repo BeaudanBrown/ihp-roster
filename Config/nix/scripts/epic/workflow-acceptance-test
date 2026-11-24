@@ -84,7 +84,7 @@ run_epic() {
             BEPIS_TOOLING_LAUNCHER="$tooling_launcher" "$@"
     )
 }
-[ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"
+[ "$(jq -r '.slot' <<<"$provision")" = 2 ] || fail "provisioning did not allocate slot 2"
 [ "$(git -C "$primary_repo" rev-parse HEAD)" = "$primary_head_before" ] \
     || fail "provisioning changed primary HEAD"
 [ "$(git -C "$primary_repo" status --porcelain=v1)" = "$primary_status_before" ] \

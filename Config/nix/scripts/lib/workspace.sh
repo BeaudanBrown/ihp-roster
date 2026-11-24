@@ -10,7 +10,15 @@ bepis_workspace_tooling_launcher() {
 }
 
 bepis_workspace_configure() {
+    bepis_workspace_load info
+}
+
+bepis_workspace_start() {
+    bepis_workspace_load runtime
+}
+
+bepis_workspace_load() {
     local exports
-    exports="$("$(bepis_workspace_tooling_launcher)" workspace info --shell)" || return
+    exports="$("$(bepis_workspace_tooling_launcher)" workspace "$1" --shell)" || return
     eval "$exports"
 }

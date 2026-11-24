@@ -235,7 +235,7 @@ explicit_epic_state="$(
         BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
         DEVENV_AGENT_STATE_DIR="$fixture_root/caller-state" \
         BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-        bash -c '. "$1"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"' \
+        bash -c '. "$1"; bepis_workspace_start >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"' \
         bash "$repo_root/Config/nix/scripts/lib/workspace.sh"
 )"
 runtime_pid="$("$repo_root/bin/tooling-run" runtime process start "$explicit_epic_state/devenv.pid" "$explicit_epic_state/devenv.owner.json" "$explicit_epic_state/devenv.log" devenv "$epic_path" -- sleep 300)"

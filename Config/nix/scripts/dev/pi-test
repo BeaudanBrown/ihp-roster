@@ -98,9 +98,9 @@ epic_output="$(run_pi "$epic_path" epic)"
 [[ "$epic_output" == *'pi-contained=1 arg=epic hls-cache-protocol=worktree-v1'* ]] \
     || fail "epic Pi was not contained with the current HLS cache protocol"
 epic_slice="$(grep 'systemd-run' "$fixture_root/systemd.log" | tail -1 | grep -Eo -- '--slice=[^|]+' | cut -d= -f2)"
-[[ "$epic_slice" == *'-epic1.slice' ]] || fail "epic slot slice identity is wrong: $epic_slice"
+[[ "$epic_slice" == *'-epic2.slice' ]] || fail "epic slot slice identity is wrong: $epic_slice"
 [ "$primary_slice" != "$epic_slice" ] || fail "primary and epic shared one slice"
-[ "${primary_slice%-primary.slice}" = "${epic_slice%-epic1.slice}" ] || fail "repository workspaces are not sibling slices"
+[ "${primary_slice%-primary.slice}" = "${epic_slice%-epic2.slice}" ] || fail "repository workspaces are not sibling slices"
 [ "$(grep -c 'set-property|--runtime|.*|CPUWeight=100' "$fixture_root/systemd.log")" -ge 2 ] \
     || fail "equal CPU weight was not configured"
 

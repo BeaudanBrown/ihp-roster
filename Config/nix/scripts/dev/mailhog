@@ -2,7 +2,7 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
-bepis_workspace_configure
+bepis_workspace_start
 exec ${BEPIS_MAILHOG_ROOT:?}/bin/MailHog \
     -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
     -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \

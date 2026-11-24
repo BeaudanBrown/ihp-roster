@@ -5,7 +5,7 @@ module Bepis.Tooling.Epic.Manage (manage) where
 import Bepis.Tooling.Epic.Orientation (EpicError (..))
 import Bepis.Tooling.Runtime.Process (Observation (..), RuntimeError, observeOwned, stopOwned)
 import Bepis.Tooling.Workspace.Command (runtimeStateDirectoriesFor)
-import Bepis.Tooling.Workspace.State
+import Bepis.Tooling.Workspace.State hiding (runtime, runtimeStateDirs)
 import Control.Exception (IOException, catch, throwIO)
 import Control.Monad (forM, unless, void, when)
 import Data.Aeson (FromJSON (parseJSON), Value, eitherDecodeStrict', encode, object, withObject, (.:), (.=))

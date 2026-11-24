@@ -10,7 +10,7 @@ if [ -f "$PWD/.env" ]; then
     . "$PWD/.env"
     set +a
 fi
-bepis_workspace_configure
+bepis_workspace_start
 if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
     echo "stripe-listen requires STRIPE_SECRET_KEY in the environment or .env." >&2
     exit 64

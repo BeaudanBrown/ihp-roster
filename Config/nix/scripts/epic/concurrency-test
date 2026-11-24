@@ -158,24 +158,13 @@ run_primary() {
     )
 }
 
-first_provision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
-second_provision="$(run_primary "$provision_command" --epic 902 --base "$target_branch" --name concurrency-two --json)"
-[ "$(jq -r '.path' <<<"$first_provision")" = "$epic_one" ] || fail "first stable worktree path mismatch"
-[ "$(jq -r '.path' <<<"$second_provision")" = "$epic_two" ] || fail "second stable worktree path mismatch"
-[ "$(jq -r '.slot' <<<"$first_provision")" = 1 ] || fail "first worktree slot mismatch"
-[ "$(jq -r '.slot' <<<"$second_provision")" = 2 ] || fail "second worktree slot mismatch"
-reprovision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
-[ "$(jq -r '.path, .slot' <<<"$reprovision")" = "$(printf '%s\n1' "$epic_one")" ] \
-    || fail "idempotent reprovisioning changed identity"
-[ "$(run_primary "$registry_command" inspect --all --json | jq 'length')" = 2 ] \
-    || fail "idempotent reprovisioning duplicated registry state"
-
 ports_available() {
     local offset="$1"
     local slot base port
-    for slot in 1 2; do
+    for slot in 2 4; do
         for base in 8000 1025 8025; do
             port=$((base + offset + slot))
+            if [ "$base" -eq 8000 ]; then port=$((base + offset + 3 * slot)); fi
             if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                 return 1
             fi
@@ -191,6 +180,18 @@ for _ in $(seq 1 100); do
     port_offset=$((port_offset + 20))
 done
 ports_available "$port_offset" || fail "could not reserve an isolated acceptance port range"
+first_provision="$(run_primary env BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
+second_provision="$(run_primary env BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" "$provision_command" --epic 902 --base "$target_branch" --name concurrency-two --json)"
+[ "$(jq -r '.path' <<<"$first_provision")" = "$epic_one" ] || fail "first stable worktree path mismatch"
+[ "$(jq -r '.path' <<<"$second_provision")" = "$epic_two" ] || fail "second stable worktree path mismatch"
+[ "$(jq -r '.slot' <<<"$first_provision")" = 2 ] || fail "first worktree slot mismatch"
+[ "$(jq -r '.slot' <<<"$second_provision")" = 4 ] || fail "second worktree slot mismatch"
+reprovision="$(run_primary env BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" "$provision_command" --epic 901 --base "$target_branch" --name concurrency-one --json)"
+[ "$(jq -r '.path, .slot' <<<"$reprovision")" = "$(printf '%s\n2' "$epic_one")" ] \
+    || fail "idempotent reprovisioning changed identity"
+[ "$(run_primary "$registry_command" inspect --all --json | jq 'length')" = 2 ] \
+    || fail "idempotent reprovisioning duplicated registry state"
+
 cleanup_started=true
 
 run_for() {
@@ -211,8 +212,8 @@ run_for() {
     )
 }
 
-one_info="$(run_for "$epic_one" "$workspace_info_command" --json)"
-two_info="$(run_for "$epic_two" "$workspace_info_command" --json)"
+one_info="$(run_for "$epic_one" "$source_repo/bin/tooling-run" workspace runtime --json)"
+two_info="$(run_for "$epic_two" "$source_repo/bin/tooling-run" workspace runtime --json)"
 one_app="$(jq -r '.appUrl' <<<"$one_info")"
 two_app="$(jq -r '.appUrl' <<<"$two_info")"
 one_mailhog="$(jq -r '.mailhogUrl' <<<"$one_info")"

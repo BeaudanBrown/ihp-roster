@@ -108,9 +108,9 @@ without storing input paths or contents. Keep inputs quiescent: this is a
 bounded, best-effort diagnostic snapshot, not atomic proof or cache identity.
 Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
 remain unavailable. With the explicitly selected current-workspace scripts root,
-metadata also queries the native workspace owner and fingerprints its Haskell,
-frontend-contract and JavaScript generation manifests. Absent manifests differ
-from unavailable ownership. Merely inspecting an unrelated Git tree never
+metadata also fingerprints the checkout-local Haskell, frontend-contract and
+JavaScript generation manifests without resolving runtime identity. Absent
+manifests differ from unavailable ownership. Merely inspecting an unrelated Git tree never
 executes helpers found in that tree. Tooling source is covered by revision and
 tracked/untracked provenance, not by a second lifecycle implementation; compiled
 tooling binaries, other ignored inputs, external dependencies and compiler

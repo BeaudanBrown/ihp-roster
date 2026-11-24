@@ -2,7 +2,7 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
-bepis_workspace_configure
+bepis_workspace_start
 # shellcheck source=../lib/runtime.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 STATE_DIR="$(dev-agent-state-dir)"

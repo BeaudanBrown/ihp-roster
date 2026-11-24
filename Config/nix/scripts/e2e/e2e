@@ -39,7 +39,7 @@ fi
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
-bepis_workspace_configure
+bepis_workspace_start
 # shellcheck source=../lib/runtime.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 bepis_runtime_prepare

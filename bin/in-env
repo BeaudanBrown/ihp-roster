@@ -19,6 +19,7 @@ if [ -n "$inherited_workspace_root" ] \
         PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL SMTP_HOST SMTP_PORT \
         MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL \
         IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT \
+        IHP_ROSTER_DEV_TEMPO_MEMBERLIST_PORT \
         IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT IHP_ROSTER_DEV_GRAFANA_PORT \
@@ -37,14 +38,14 @@ export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 export IHP_TELEMETRY_DISABLED="${IHP_TELEMETRY_DISABLED:-1}"
 mkdir -p "$XDG_CACHE_HOME"
 
-# A newly selected shell owns its compiler PATH, not the caller's shell.
-unset BEPIS_TOOLING_BUILD_PATH
+cd "$REPO_ROOT"
 
 # Ask direnv to validate its watched inputs even when the caller inherited an
 # active shell. Executing the inherited command directly can select stale
 # materialized project-script wrappers after Config/nix changes.
 if command -v direnv >/dev/null 2>&1 && [ -f "$REPO_ROOT/.envrc" ]; then
-    cd "$REPO_ROOT"
+    # A newly selected shell owns its compiler PATH, not the caller's shell.
+    unset BEPIS_TOOLING_BUILD_PATH
     exec direnv exec "$REPO_ROOT" "$@"
 fi
 
@@ -55,8 +56,11 @@ if [ "${DEVENV_IN_DIRENV_SHELL:-}" = "true" ]; then
 fi
 
 if command -v nix >/dev/null 2>&1 && [ -f "$REPO_ROOT/flake.nix" ]; then
-    cd "$REPO_ROOT"
-    exec nix develop . --accept-flake-config --command "$@"
+    unset BEPIS_TOOLING_BUILD_PATH
+    # shellcheck source=../Config/nix/scripts/lib/devenv-bootstrap.sh
+    . "$REPO_ROOT/Config/nix/scripts/lib/devenv-bootstrap.sh"
+    bepis_prepare_devenv_flake_args
+    exec nix develop . "${bepis_devenv_flake_args[@]}" --command "$@"
 fi
 
 cat >&2 <<'EOF'

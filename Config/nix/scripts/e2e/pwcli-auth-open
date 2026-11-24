@@ -14,11 +14,11 @@ if [ -z "$ROLE" ]; then
 fi
 
 STATE_FILE="$PWD/.devenv/playwright-cli/$ROLE-state.json"
-if [ "$BEPIS_WORKSPACE_SLOT" -eq 0 ]; then
-    SESSION_NAME="ihp-$ROLE"
-else
-    SESSION_NAME="ihp-epic-$BEPIS_WORKSPACE_EPIC-$ROLE"
-fi
+case "$BEPIS_WORKSPACE_KIND" in
+    primary) SESSION_NAME="ihp-$ROLE" ;;
+    epic) SESSION_NAME="ihp-epic-$BEPIS_WORKSPACE_EPIC-$ROLE" ;;
+    worktree) SESSION_NAME="ihp-worktree-$BEPIS_WORKSPACE_SLOT-$ROLE" ;;
+esac
 
 if [ ! -f "$STATE_FILE" ]; then
     echo "Missing auth state at $STATE_FILE" >&2

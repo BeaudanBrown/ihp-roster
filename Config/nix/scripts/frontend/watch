@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-state_dir="$(dev-agent-state-dir)/generated-code"
+state_dir="$(bash "${BEPIS_SCRIPTS_ROOT:?}/lib/generated-state-dir" "$repo_root")"
 tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
 mkdir -p "$state_dir"
 if [ "${BEPIS_JS_WATCH_LOCKED:-0}" != 1 ]; then

@@ -8,6 +8,7 @@ library
   exposed-modules:
       Bepis.Tooling.Workspace.Command
       Bepis.Tooling.Workspace.State
+  other-modules: Bepis.Tooling.Workspace.Reclaim
   hs-source-dirs: src
   build-depends:
       aeson
@@ -41,6 +42,7 @@ test-suite bepis-workspace-state-test
     , bytestring
     , directory
     , filepath
+    , process
     , temporary
   default-language: GHC2021
   ghc-options: -Wall -Wcompat -Werror

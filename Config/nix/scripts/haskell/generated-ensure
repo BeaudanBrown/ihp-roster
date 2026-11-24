@@ -4,7 +4,7 @@ repo_root="${HASKELL_GENERATED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev
 cd "$repo_root"
 scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
 tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
-state_dir="$(dev-agent-state-dir)/generated-code"
+state_dir="$(bash "${BEPIS_SCRIPTS_ROOT:?}/lib/generated-state-dir" "$repo_root")"
 generator="${HASKELL_REGEN_TYPES_COMMAND:-$scripts_root/haskell/regen-types-raw}"
 mkdir -p "$state_dir"
 result="$("$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \

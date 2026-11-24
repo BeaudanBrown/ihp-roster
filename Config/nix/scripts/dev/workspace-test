@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
+unset BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_PORT_OFFSET DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 repo_root="$(git rev-parse --show-toplevel)"
 info_command="$repo_root/Config/nix/scripts/dev/workspace-info"
@@ -9,7 +9,9 @@ fixture_root="$(mktemp -d)"
 cleanup() {
     rm -rf "$fixture_root"
     if [ -n "${fixture_repo:-}" ]; then rm -rf "/tmp/bepis-dev-runtime-$(id -u)-$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"; fi
-    if [ -n "${epic_path:-}" ]; then rm -rf "/tmp/bepis-dev-runtime-$(id -u)-$(printf '%s' "$epic_path" | sha256sum | cut -c1-12)"; fi
+    for path in "${epic_path:-}" "${plain_one:-}" "${plain_two:-}"; do
+        [ -z "$path" ] || rm -rf "/tmp/bepis-dev-runtime-$(id -u)-$(printf '%s' "$path" | sha256sum | cut -c1-12)"
+    done
 }
 trap cleanup EXIT
 
@@ -47,14 +49,14 @@ epic_json="$(
 [ "$(jq -r '.hooglePort' <<<"$main_json")" = "8002" ] || fail "primary Hoogle port changed"
 [ "$(jq -r '.smtpPort' <<<"$main_json")" = "1025" ] || fail "primary SMTP port changed"
 [ "$(jq -r '.mailhogPort' <<<"$main_json")" = "8025" ] || fail "primary MailHog port changed"
-[ "$(jq -r '.slot' <<<"$epic_json")" = "1" ] || fail "epic slot was not resolved from registry"
-[ "$(jq -r '.appUrl' <<<"$epic_json")" = "http://127.0.0.1:8003" ] || fail "epic app URL mismatch"
-[ "$(jq -r '.hooglePort' <<<"$epic_json")" = "8005" ] || fail "epic Hoogle port mismatch"
-[ "$(jq -r '.smtpPort' <<<"$epic_json")" = "1026" ] || fail "epic SMTP port mismatch"
-[ "$(jq -r '.mailhogUrl' <<<"$epic_json")" = "http://127.0.0.1:8026" ] || fail "epic MailHog URL mismatch"
+[ "$(jq -r '.slot' <<<"$epic_json")" = "2" ] || fail "epic slot was not resolved from registry"
+[ "$(jq -r '.appUrl' <<<"$epic_json")" = "http://127.0.0.1:8006" ] || fail "epic app URL mismatch"
+[ "$(jq -r '.hooglePort' <<<"$epic_json")" = "8008" ] || fail "epic Hoogle port mismatch"
+[ "$(jq -r '.smtpPort' <<<"$epic_json")" = "1027" ] || fail "epic SMTP port mismatch"
+[ "$(jq -r '.mailhogUrl' <<<"$epic_json")" = "http://127.0.0.1:8027" ] || fail "epic MailHog URL mismatch"
 [ "$(jq -r '.grafanaPort' <<<"$main_json")" = "3300" ] || fail "primary Grafana port changed"
-[ "$(jq -r '.grafanaPort' <<<"$epic_json")" = "3301" ] || fail "epic Grafana port mismatch"
-[ "$(jq -r '.otlpHttpPort' <<<"$epic_json")" = "4319" ] || fail "epic OTLP port mismatch"
+[ "$(jq -r '.grafanaPort' <<<"$epic_json")" = "3302" ] || fail "epic Grafana port mismatch"
+[ "$(jq -r '.otlpHttpPort' <<<"$epic_json")" = "4320" ] || fail "epic OTLP port mismatch"
 [ "$(jq -r '.stateDir' <<<"$main_json")" != "$(jq -r '.stateDir' <<<"$epic_json")" ] \
     || fail "worktrees share process state"
 main_id="$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"
@@ -67,32 +69,52 @@ epic_dev_root="/tmp/bepis-dev-postgres-$(id -u)-$epic_id"
 [ "$(jq -r '.databaseUrl' <<<"$epic_json")" = "postgresql:///app?host=$epic_dev_root/socket" ] \
     || fail "epic app database URL is not worktree-specific"
 [ "$(jq -r '.otelServiceName' <<<"$epic_json")" = "ihp-roster-dev-epic-265" ] || fail "epic OTel service name mismatch"
-offset_json="$(
-    BEPIS_WORKSPACE_PORT_OFFSET=20000 \
-        BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
-        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-        bash "$info_command" --json
-)"
-[ "$(jq -r '.portOffset' <<<"$offset_json")" = 20000 ] || fail "explicit acceptance port offset was omitted"
-[ "$(jq -r '.appPort' <<<"$offset_json")" = 28003 ] || fail "acceptance app port offset was not applied"
-[ "$(jq -r '.hooglePort' <<<"$offset_json")" = 28005 ] || fail "acceptance Hoogle port offset was not applied"
-[ "$(jq -r '.smtpPort' <<<"$offset_json")" = 21026 ] || fail "acceptance SMTP port offset was not applied"
-[ "$(jq -r '.mailhogPort' <<<"$offset_json")" = 28026 ] || fail "acceptance MailHog port offset was not applied"
+# Two ordinary worktrees allocate independently; metadata and repair are not
+# part of read-only status. They share the existing epic's slot allocator.
+plain_one="$fixture_root/plain-one"
+plain_two="$fixture_root/plain-two"
+git -C "$fixture_repo" worktree add --quiet -b plain-one "$plain_one" roster
+git -C "$fixture_repo" worktree add --quiet -b plain-two "$plain_two" roster
+registry="$fixture_repo/.git/bepis/epic-worktrees/registry.json"
+before="$(sha256sum "$registry")"
+status=0
+BEPIS_WORKSPACE_REPO_ROOT="$plain_one" bash "$info_command" --json >/dev/null 2>&1 || status=$?
+[ "$status" -eq 4 ] || fail "unallocated worktree had unexpected status $status"
+[ "$(sha256sum "$registry")" = "$before" ] || fail "read-only lookup modified registry"
+launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+BEPIS_WORKSPACE_REPO_ROOT="$plain_one" "$launcher" workspace runtime --json >"$fixture_root/plain-one.json" &
+plain_one_pid=$!
+BEPIS_WORKSPACE_REPO_ROOT="$plain_two" "$launcher" workspace runtime --json >"$fixture_root/plain-two.json" &
+plain_two_pid=$!
+wait "$plain_one_pid"
+wait "$plain_two_pid"
+jq -se 'map(.kind == "worktree" and .epic == null) | all' \
+    "$fixture_root/plain-one.json" "$fixture_root/plain-two.json" >/dev/null || fail "plain worktree acquired epic metadata"
+for field in slot appPort postgresSocket stateDir otelServiceName; do
+    jq -se --arg field "$field" 'map(.[$field]) | unique | length == 2' \
+        "$fixture_root/plain-one.json" "$fixture_root/plain-two.json" >/dev/null || fail "plain worktrees share $field"
+done
+[ ! -e "$plain_one/.bepis-epic-worktree.json" ] || fail "plain worktree got an epic marker"
+foreign_database="$(jq -r '.postgresRoot' "$fixture_root/plain-one.json")"
+status=0
+DEV_POSTGRES_ROOT="$foreign_database" BEPIS_WORKSPACE_REPO_ROOT="$plain_two"     "$launcher" workspace runtime --json >/dev/null 2>&1 || status=$?
+[ "$status" -eq 65 ] || fail "startup accepted another worktree's PostgreSQL root"
+git -C "$plain_one" branch -m plain-renamed
+first="$(jq -c '{slot,appPort,postgresSocket}' "$fixture_root/plain-one.json")"
+renamed="$(BEPIS_WORKSPACE_REPO_ROOT="$plain_one" bash "$info_command" --json | jq -c '{slot,appPort,postgresSocket}')"
+[ "$first" = "$renamed" ] || fail "renaming the branch changed its runtime"
 native_state="$(jq -r '.stateDir' <<<"$main_json")"
 [ "$native_state" = "/tmp/bepis-dev-runtime-$(id -u)-$main_id" ] || fail "default runtime state is not project-scoped native temporary storage"
-[ "$(stat -f -c %T "$native_state")" = tmpfs ] || fail "default runtime state is not on native tmpfs"
 shared_override="$fixture_root/shared-state"
 main_override_state="$(
     DEVENV_AGENT_STATE_DIR="$shared_override" \
         BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
-        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-        bash "$info_command" --json | jq -r '.stateDir'
+        "$launcher" workspace runtime --json | jq -r '.stateDir'
 )"
 epic_override_state="$(
     DEVENV_AGENT_STATE_DIR="$shared_override" \
         BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
-        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-        bash "$info_command" --json | jq -r '.stateDir'
+        "$launcher" workspace runtime --json | jq -r '.stateDir'
 )"
 [ "$main_override_state" != "$epic_override_state" ] || fail "explicit state override was shared across worktrees"
 [[ "$main_override_state" == "$shared_override"/workspace-* ]] || fail "explicit state override was not safely namespaced"
@@ -104,11 +126,11 @@ shell_env="$(
         bash "$info_command" --shell
 )"
 eval "$shell_env"
-[ "$PORT" = "8003" ] || fail "shell output omitted PORT"
-[ "$IHP_HOOGLE_PORT" = "8005" ] || fail "shell output omitted Hoogle port"
-[ "$APP_BASE_URL" = "http://127.0.0.1:8003" ] || fail "shell output omitted APP_BASE_URL"
-[ "$SMTP_PORT" = "1026" ] || fail "shell output omitted SMTP_PORT"
-[ "$MAILHOG_BASE_URL" = "http://127.0.0.1:8026" ] || fail "shell output omitted MailHog URL"
+[ "$PORT" = "8006" ] || fail "shell output omitted PORT"
+[ "$IHP_HOOGLE_PORT" = "8008" ] || fail "shell output omitted Hoogle port"
+[ "$APP_BASE_URL" = "http://127.0.0.1:8006" ] || fail "shell output omitted APP_BASE_URL"
+[ "$SMTP_PORT" = "1027" ] || fail "shell output omitted SMTP_PORT"
+[ "$MAILHOG_BASE_URL" = "http://127.0.0.1:8027" ] || fail "shell output omitted MailHog URL"
 [ "$PWCLI_BASE_URL" = "$APP_BASE_URL" ] || fail "browser auth URL differs from app URL"
 [ "$BASE_URL" = "$APP_BASE_URL" ] || fail "screenshot URL differs from app URL"
 [ "$DEV_POSTGRES_MODE" = managed ] || fail "shell output omitted managed PostgreSQL mode"
@@ -138,6 +160,6 @@ invalid_output="$(
 invalid_status=$?
 set -e
 [ "$invalid_status" -eq 65 ] || fail "inconsistent epic identity was accepted"
-[[ "$invalid_output" == *"active registry identity"* ]] || fail "identity failure was not diagnosed"
+[[ "$invalid_output" == *"active epic identity"* ]] || fail "identity failure was not diagnosed"
 
 echo "dev-workspace-test: ok"

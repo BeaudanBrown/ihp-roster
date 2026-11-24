@@ -19,6 +19,7 @@ check() {
 }
 
 check devenv-script-freshness-check
+check in-env-test
 check production-source-boundary-check
 check production-build-profile-test
 check node --test scripts/production-artifacts.test.mjs

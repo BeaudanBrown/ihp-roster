@@ -34,13 +34,14 @@ git -C "$fixture_repo" config user.email "epic-worktree-test@example.invalid"
 printf 'fixture\n' >"$fixture_repo/README"
 git -C "$fixture_repo" add README
 git -C "$fixture_repo" commit --quiet -m fixture
-git -C "$fixture_repo" switch --quiet -c epic-266-identity
+identity_checkout="$fixture_root/identity"
+git -C "$fixture_repo" worktree add --quiet -b epic-266-identity "$identity_checkout" roster
 
-register_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
+register_output="$(cd "$identity_checkout" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
 assert_contains "$register_output" "epic #266"
-assert_contains "$register_output" "slot 1"
+assert_contains "$register_output" "slot 2"
 
-identity_file="$fixture_repo/.bepis-epic-worktree.json"
+identity_file="$identity_checkout/.bepis-epic-worktree.json"
 [ -f "$identity_file" ] || fail "register did not write identity"
 
 mkdir -p "$fixture_root/bin"
@@ -58,7 +59,7 @@ EOF
 chmod +x "$fixture_root/bin/haskell-language-server-wrapper"
 long_hls_argument="$(printf '%100000s' '' | tr ' ' x)"
 (
-    cd "$fixture_repo"
+    cd "$identity_checkout"
     BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run" \
         BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/haskell-language-server-wrapper" \
         exec setsid bash "$hls_wrapper" "$long_hls_argument"
@@ -74,7 +75,7 @@ for _ in $(seq 1 300); do
     sleep 0.1
 done
 [ -n "$hls_process_pid" ] || fail "HLS fixture did not become ready"
-[ "$(readlink "/proc/$hls_process_pid/cwd" 2>/dev/null || true)" = "$fixture_repo" ] \
+[ "$(readlink "/proc/$hls_process_pid/cwd" 2>/dev/null || true)"  = "$identity_checkout" ] \
     || fail "HLS fixture did not retain the worktree cwd"
 hls_command="$(head -c 8192 "/proc/$hls_process_pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
 [[ "$hls_command" == *haskell-language-server-wrapper* ]] \
@@ -83,7 +84,7 @@ hls_command="$(head -c 8192 "/proc/$hls_process_pid/cmdline" 2>/dev/null | tr '\
 identity_keys="$(jq -r 'keys | sort | join(",")' "$identity_file")"
 [ "$identity_keys" = "epic,kind,slot,targetBranch,version" ] || fail "identity contains unexpected fields: $identity_keys"
 [ "$(jq -r '.version' "$identity_file")" = "1" ] || fail "identity version is not 1"
-[ "$(jq -r '.slot' "$identity_file")" = "1" ] || fail "first slot is not 1"
+[ "$(jq -r '.slot' "$identity_file")" = "2" ] || fail "first slot is not 2"
 
 # Resolve validates registry, Git, and identity state without loading runtime
 # resource helpers. Routine workspace setup must remain independent of process
@@ -92,17 +93,17 @@ lightweight_scripts_root="$fixture_root/lightweight-scripts"
 mkdir -p "$lightweight_scripts_root/lib"
 printf '# intentionally empty\n' >"$lightweight_scripts_root/lib/hls-cache.sh"
 printf '# intentionally empty\n' >"$lightweight_scripts_root/lib/workspace-resources.sh"
-resolved_json="$(cd "$fixture_repo" && BEPIS_SCRIPTS_ROOT="$lightweight_scripts_root" bash "$command_path" resolve --json)"
+resolved_json="$(cd "$identity_checkout" && BEPIS_SCRIPTS_ROOT="$lightweight_scripts_root" bash "$command_path" resolve --json)"
 [ "$(jq -r '.epic' <<<"$resolved_json")" = "266" ] || fail "resolve did not find epic"
 [ "$(jq -r '.status' <<<"$resolved_json")" = "active" ] || fail "resolve did not validate identity"
 [ "$(jq 'has("resources")' <<<"$resolved_json")" = "false" ] || fail "resolve unexpectedly gathered resources"
 
-json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
+json_output="$(cd "$identity_checkout" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.epic' <<<"$json_output")" = "266" ] || fail "inspect did not find epic"
 [ "$(jq -r '.branch' <<<"$json_output")" = "epic-266-identity" ] || fail "inspect did not report branch"
 [ "$(jq -r '.status' <<<"$json_output")" = "active" ] || fail "inspect did not report active workspace"
 [ "$(jq -r '.resources.cpuWeight' <<<"$json_output")" = "100" ] || fail "inspect omitted equal CPU weight"
-[[ "$(jq -r '.resources.slice' <<<"$json_output")" == *'-epic1.slice' ]] || fail "inspect omitted slot slice identity"
+[[ "$(jq -r '.resources.slice' <<<"$json_output")" == *'-epic2.slice' ]] || fail "inspect omitted slot slice identity"
 [ "$(jq -r '.resources.hls.processes | length' <<<"$json_output")" = "1" ] \
     || fail "inspect omitted HLS process details: $json_output"
 [ "$(jq -r '.resources.hls.processes[0].pid' <<<"$json_output")" = "$hls_process_pid" ] || fail "inspect reported the wrong HLS PID"
@@ -118,14 +119,14 @@ json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
     || fail "inspect did not distinguish uncontained HLS work from idle launchers"
 [ "$(jq -r '.resources.warning' <<<"$json_output")" = "resource-consuming processes in worktree are outside expected slice" ] \
     || fail "inspect warning did not identify resource-consuming work"
-human_inspect_output="$(cd "$fixture_repo" && bash "$command_path" inspect)"
+human_inspect_output="$(cd "$identity_checkout" && bash "$command_path" inspect)"
 assert_contains "$human_inspect_output" "HLS pid $hls_process_pid"
 assert_contains "$human_inspect_output" "CPU "
 assert_contains "$human_inspect_output" "elapsed "
 assert_contains "$human_inspect_output" "cache root $BEPIS_HLS_CACHE_PARENT/"
 
-second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
-assert_contains "$second_output" "slot 1"
+second_output="$(cd "$identity_checkout" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
+assert_contains "$second_output" "slot 2"
 fixture_common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
 registry_file="$fixture_common_dir/bepis/epic-worktrees/registry.json"
 [ -f "$fixture_common_dir/bepis/epic-worktrees/registry.lock" ] \
@@ -156,19 +157,19 @@ done
     || fail "concurrent registration allocated duplicate slots"
 [ "$(jq '.workspaces | length' "$registry_file")" = "5" ] \
     || fail "concurrent registrations were lost"
-[ "$(cd "$concurrent_root/epic-267-test" && bash "$command_path" inspect --epic 266 --json | jq -r '.path')" = "$fixture_repo" ] \
+[ "$(cd "$concurrent_root/epic-267-test" && bash "$command_path" inspect --epic 266 --json | jq -r '.path')" = "$identity_checkout" ] \
     || fail "linked worktree did not discover the common registry"
 
 # Stale and inconsistent local metadata must remain visible and block reuse.
 stale_path="$concurrent_root/epic-270-test"
 git -C "$fixture_repo" worktree remove --force "$stale_path"
-stale_json="$(cd "$fixture_repo" && bash "$command_path" inspect --epic 270 --json)"
+stale_json="$(cd "$identity_checkout" && bash "$command_path" inspect --epic 270 --json)"
 [ "$(jq -r '.status' <<<"$stale_json")" = "stale" ] || fail "removed worktree was not reported stale"
 
 inconsistent_identity="$concurrent_root/epic-269-test/.bepis-epic-worktree.json"
 jq '.slot = 99' "$inconsistent_identity" >"$inconsistent_identity.tmp"
 mv "$inconsistent_identity.tmp" "$inconsistent_identity"
-inconsistent_json="$(cd "$fixture_repo" && bash "$command_path" inspect --epic 269 --json)"
+inconsistent_json="$(cd "$identity_checkout" && bash "$command_path" inspect --epic 269 --json)"
 [ "$(jq -r '.status' <<<"$inconsistent_json")" = "inconsistent-identity" ] \
     || fail "identity drift was not reported"
 set +e
@@ -178,7 +179,7 @@ set -e
 [ "$conflict_status" -eq 65 ] || fail "identity drift did not block registration"
 assert_contains "$conflict_output" "identity conflicts"
 
-all_json="$(cd "$fixture_repo" && bash "$command_path" inspect --all --json)"
+all_json="$(cd "$identity_checkout" && bash "$command_path" inspect --all --json)"
 [ "$(jq 'length' <<<"$all_json")" = "5" ] || fail "machine-readable all inspection is incomplete"
 [ "$(jq '[.[].status] | index("stale") != null' <<<"$all_json")" = "true" ] \
     || fail "all inspection omitted stale status"
@@ -186,15 +187,15 @@ all_json="$(cd "$fixture_repo" && bash "$command_path" inspect --all --json)"
 cp "$registry_file" "$registry_file.valid"
 jq '.commonGitDir = "/tmp/foreign-repository"' "$registry_file.valid" >"$registry_file"
 set +e
-foreign_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json 2>&1)"
+foreign_output="$(cd "$identity_checkout" && bash "$command_path" inspect --json 2>&1)"
 foreign_status=$?
 set -e
 [ "$foreign_status" -eq 65 ] || fail "foreign registry owner did not fail safely"
-assert_contains "$foreign_output" "malformed or foreign registry"
+assert_contains "$foreign_output" "registry belongs to another Git common directory"
 mv "$registry_file.valid" "$registry_file"
 
 set +e
-invalid_branch_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 271 --target 'invalid branch' 2>&1)"
+invalid_branch_output="$(cd "$identity_checkout" && bash "$command_path" register --epic 271 --target 'invalid branch' 2>&1)"
 invalid_branch_status=$?
 set -e
 [ "$invalid_branch_status" -eq 64 ] || fail "invalid branch name was accepted"

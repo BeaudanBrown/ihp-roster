@@ -5,7 +5,7 @@ repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || 
 cd "$repo_root"
 scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
 tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
-state_dir="$(dev-agent-state-dir)/generated-code"
+state_dir="$(bash "${BEPIS_SCRIPTS_ROOT:?}/lib/generated-state-dir" "$repo_root")"
 manifest="$state_dir/frontend-contracts.manifest"
 interval="${FRONTEND_GENERATED_WATCH_INTERVAL:-${FRONTEND_CONTRACTS_WATCH_INTERVAL:-2}}"
 build_root="${FRONTEND_GENERATED_WATCH_BUILD_DIR:-$state_dir/watch-build}"

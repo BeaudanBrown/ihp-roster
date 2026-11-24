@@ -15,9 +15,9 @@ bepis_workspace_resource_names() {
     repository_id="$(printf '%s' "$common_dir" | sha256sum | cut -c1-12)"
     case "$kind" in
         primary) workspace_id="primary" ;;
-        epic)
+        epic|worktree)
             [[ "$slot" =~ ^[1-9][0-9]*$ ]] || return 64
-            workspace_id="epic$slot"
+            workspace_id="$kind$slot"
             ;;
         *) return 64 ;;
     esac

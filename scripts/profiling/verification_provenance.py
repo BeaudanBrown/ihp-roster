@@ -129,25 +129,25 @@ GENERATION_MANIFESTS = ('haskell-types', 'frontend-contracts', 'frontend-js')
 def generation_manifests(root, open_directory):
     result = {name: empty_snapshot() for name in GENERATION_MANIFESTS}
     scripts = root / 'Config/nix/scripts'
-    # Only query the explicitly selected current-workspace owner. Merely
+    # Only query the explicitly selected checkout's artifact owner. Merely
     # capturing another Git tree must never execute scripts found in that tree.
     if os.environ.get('BEPIS_SCRIPTS_ROOT') != str(scripts):
         return result
-    query = scripts / 'dev/agent-state-dir'
+    query = scripts / 'lib/generated-state-dir'
     try:
         with open_directory(query.parent) as parent:
             if not stat.S_ISREG(os.stat(query.name, dir_fd=parent, follow_symlinks=False).st_mode):
                 return result
     except (OSError, ValueError):
         return result
-    output = bounded_output(['bash', str(query)])
+    output = bounded_output(['bash', str(query), str(root)])
     if output is None or len(output) > 4096 or output.count(b'\n') != 1:
         return result
     state = Path(os.fsdecode(output.rstrip(b'\n')))
     if not state.is_absolute():
         return result
     for name in GENERATION_MANIFESTS:
-        relative = Path('generated-code') / (name + '.manifest')
+        relative = Path(name + '.manifest')
         try:
             with open_directory(state / relative.parent) as parent:
                 os.stat(relative.name, dir_fd=parent, follow_symlinks=False)

@@ -2,7 +2,7 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
-bepis_workspace_configure
+bepis_workspace_start
 
 OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
 

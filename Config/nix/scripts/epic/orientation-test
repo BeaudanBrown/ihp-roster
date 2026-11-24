@@ -22,9 +22,10 @@ printf 'fixture\n' >"$fixture_repo/README"
 printf '.bepis-epic-worktree.json\n' >"$fixture_repo/.gitignore"
 git -C "$fixture_repo" add README .gitignore
 git -C "$fixture_repo" commit --quiet -m fixture
-git -C "$fixture_repo" switch --quiet -c epic-265-agent-first
+epic_checkout="$fixture_root/epic"
+git -C "$fixture_repo" worktree add --quiet -b epic-265-agent-first "$epic_checkout" roster
 (
-    cd "$fixture_repo"
+    cd "$epic_checkout"
     bash "$command_path" register --epic 265 --target roster >/dev/null
 )
 
@@ -63,11 +64,11 @@ esac
 EOF
 chmod +x "$mock_bin/gh"
 
-orientation_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+orientation_json="$(cd "$epic_checkout" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
 [ "$(jq -r '.epic.number' <<<"$orientation_json")" = 265 ] || fail "epic identity was not detected"
 [ "$(jq -r '.epic.title' <<<"$orientation_json")" = 'Epic: Staff → café — 日本語 🧪' ] || fail "Unicode parent title was corrupted"
 [ "$(jq -r '.issues.ready[0].title' <<<"$orientation_json")" = 'Fresh-agent orientation → café' ] || fail "Unicode paginated issue title was corrupted"
-[ "$(jq -r '.workspace.slot' <<<"$orientation_json")" = 1 ] || fail "workspace slot was not reported"
+[ "$(jq -r '.workspace.slot' <<<"$orientation_json")" = 2 ] || fail "workspace slot was not reported"
 [ "$(jq -r '.issues.ready[0].number' <<<"$orientation_json")" = 269 ] || fail "ready issue was not presented"
 [ "$(jq -r '.issues.ready[] | select(.number == 271) | .assignees[0]' <<<"$orientation_json")" = agent ] || fail "assignment incorrectly removed a ready issue"
 [ "$(jq '.issues.activeInterrupted | length' <<<"$orientation_json")" = 0 ] || fail "assignment incorrectly marked work active"
@@ -76,30 +77,30 @@ orientation_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_
 [ "$(jq -r '.selection.allowed' <<<"$orientation_json")" = true ] || fail "clean workspace did not allow issue selection"
 [ "$(jq -r '.selection.requiresUserChoice' <<<"$orientation_json")" = false ] || fail "orientation unexpectedly required user choice"
 [ "$(jq -r '.workflowRules[] | select(startswith("Prefer unassigned"))' <<<"$orientation_json")" != "" ] || fail "orientation omitted assigned-work advisory"
-ready_output="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+ready_output="$(cd "$epic_checkout" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
 [[ "$ready_output" == *"#271 Concurrent acceptance [assigned: agent]"* ]] || fail "human output omitted assignment advisory"
-closed_json="$(cd "$fixture_repo" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+closed_json="$(cd "$epic_checkout" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
 [ "$(jq -r '.selection.allowed' <<<"$closed_json")" = false ] || fail "closed epic allowed issue selection"
 [ "$(jq -r '.workflowRules[0]' <<<"$closed_json")" = "Stop: the parent epic is closed; do not select or begin its remaining work." ] || fail "closed epic JSON omitted stop rule"
-closed_output="$(cd "$fixture_repo" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+closed_output="$(cd "$epic_checkout" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient)"
 [[ "$closed_output" == *"STOP: the parent epic is closed"* ]] || fail "closed epic omitted stop instruction"
 [[ "$closed_output" != *"Select and begin the most appropriate ready issue"* ]] || fail "closed epic emitted automatic-selection instruction"
 
-git -C "$fixture_repo" commit --quiet --allow-empty -m 'Implement orientation (#269)'
-pending_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+git -C "$epic_checkout" commit --quiet --allow-empty -m 'Implement orientation (#269)'
+pending_json="$(cd "$epic_checkout" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
 [ "$(jq -r '.selection.allowed' <<<"$pending_json")" = false ] || fail "committed open-issue work still offered new work"
 [ "$(jq -r '.workspace.interrupted' <<<"$pending_json")" = true ] || fail "committed open-issue work was not marked interrupted"
 [ "$(jq -r '.workspace.pendingCommittedIssues[0]' <<<"$pending_json")" = 269 ] || fail "pending committed issue was not reported"
 [ "$(jq -r '.issues.activeInterrupted[] | select(.number == 269) | .reasons[0]' <<<"$pending_json")" = committed-work-awaiting-resolution ] \
     || fail "committed open issue was not presented as active/interrupted"
 
-printf 'interrupted\n' >>"$fixture_repo/README"
-interrupted_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+printf 'interrupted\n' >>"$epic_checkout/README"
+interrupted_json="$(cd "$epic_checkout" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
 [ "$(jq -r '.selection.allowed' <<<"$interrupted_json")" = false ] || fail "dirty worktree still offered new work"
 [ "$(jq -r '.workspace.interrupted' <<<"$interrupted_json")" = true ] || fail "dirty worktree was not marked interrupted"
 [ "$(jq -r '.workspace.changes.unstaged | length' <<<"$interrupted_json")" -gt 0 ] || fail "unstaged work was not reported"
 
-human_output="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+human_output="$(cd "$epic_checkout" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
 [[ "$human_output" == *"EPIC #265"* ]] || fail "human output omitted epic"
 [[ "$human_output" == *"READY — unavailable until interruption resolved"* ]] || fail "human output offered new work despite interruption"
 [[ "$human_output" == *"STOP: interrupted workspace work must be resumed or resolved"* ]] || fail "human output did not block selection"

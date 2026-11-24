@@ -21,6 +21,7 @@ execInWorkspaceResource commonDirectory kind slot command arguments = do
         workspaceId <- case kind of
             "primary" -> pure "primary"
             "epic" | validSlot slot -> pure ("epic" <> slot)
+            "worktree" | validSlot slot -> pure ("worktree" <> slot)
             _ -> failWith "invalid workspace resource identity"
         let parentSlice = "bepis-" <> repositoryId <> ".slice"
             workspaceSlice = "bepis-" <> repositoryId <> "-" <> workspaceId <> ".slice"

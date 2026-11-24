@@ -3,9 +3,10 @@
 
 module Bepis.Tooling.Workspace.Command (runWorkspaceCommand, runtimeStateDirectoriesFor) where
 
+import Bepis.Tooling.Workspace.Reclaim (runtimeAbsent)
 import Bepis.Tooling.Workspace.State
 import Control.Exception (Exception, IOException, catch, throwIO)
-import Control.Monad (unless, when)
+import Control.Monad (filterM, unless, when)
 import Data.Aeson (ToJSON (toJSON), encode, object, (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -65,20 +66,21 @@ run = do
     case arguments of
         ["contract"] -> printJson $ object
             [ "identityFile" .= identityFileName, "identityVersion" .= (1 :: Int)
-            , "registryFile" .= registryFileRelativePath, "registryLock" .= registryLockRelativePath
+            , "registryVersion" .= (2 :: Int), "registryFile" .= registryFileRelativePath, "registryLock" .= registryLockRelativePath
             ]
         [command, help] | command `elem` ["register", "resolve", "provision"] && help `elem` ["-h", "--help"] -> putStrLn usage
         "register":rest  -> registerCommand =<< parseOptions ["--epic", "--target", "--branch", "--path", "--kind"] ["--json"] rest
         "resolve":rest   -> resolveCommand =<< parseOptions ["--epic", "--branch", "--path"] ["--all", "--json"] rest
         "provision":rest -> provisionCommand =<< parseOptions ["--epic", "--base", "--name"] ["--json"] rest
-        "info":rest      -> infoCommand rest
-        ["agent-state-dir"] -> workspaceConfiguration >>= putStrLn . field "DEVENV_AGENT_STATE_DIR"
+        "info":rest      -> infoCommand False rest
+        "runtime":rest   -> infoCommand True rest
+        ["agent-state-dir"] -> workspaceConfiguration False >>= putStrLn . field "DEVENV_AGENT_STATE_DIR"
         _ -> failure 64 usage
 
 usage :: String
 usage = intercalate "\n"
     [ "Usage: bepis-workspace-state COMMAND [OPTIONS]"
-    , "Commands: register, resolve, provision, info, agent-state-dir, contract"
+    , "Commands: register, resolve, provision, info, runtime, agent-state-dir, contract"
     ]
 
 parseOptions :: [String] -> [String] -> [String] -> IO Options
@@ -149,13 +151,18 @@ loadRegistry :: FilePath -> Bool -> IO Registry
 loadRegistry common allowMissing = do
     decoded <- readRegistry common
     registry <- case decoded of
-        Left _ -> failure 65 ("malformed or foreign registry: " <> common </> registryFileRelativePath)
-        Right Nothing | allowMissing -> pure Registry {commonGitDir = common, workspaces = []}
+        Left reason -> failure 65 ("malformed or foreign registry: " <> (common </> registryFileRelativePath) <> ": " <> reason)
+        Right Nothing | allowMissing -> pure Registry {commonGitDir = common, workspaces = [], runtime = []}
         Right Nothing -> failure 66 "epic worktree registry does not exist"
         Right (Just value) -> pure value
-    either (const (failure 65 ("malformed or foreign registry: " <> common </> registryFileRelativePath))) pure (validateRegistry common registry)
+    checkRegistry common registry
     mapM_ validateRecordBranches (workspaces registry)
     pure registry
+
+checkRegistry :: FilePath -> Registry -> IO ()
+checkRegistry common registry = case validateRegistry common registry of
+    Left reason -> failure 65 ("invalid registry: " <> (common </> registryFileRelativePath) <> ": " <> reason)
+    Right () -> pure ()
 
 validateRecordBranches :: WorkspaceRecord -> IO ()
 validateRecordBranches record = do
@@ -272,10 +279,10 @@ registerCommand options = do
         let conflicts = filter (\record -> recordEpic record == number || recordBranch record == Text.pack branch || recordPath record == path) (workspaces registry)
         case conflicts of
             [] -> do
-                selectedSlot <- slotForRegistration path number target registry
-                createRegistration common path registry WorkspaceRecord
+                (updated, reservation) <- reserveEpic common path number target registry
+                createRegistration common path updated WorkspaceRecord
                     { recordEpic = number, recordTargetBranch = Text.pack target, recordBranch = Text.pack branch
-                    , recordPath = path, recordSlot = selectedSlot }
+                    , recordPath = path, recordSlot = runtimeSlot reservation }
             [record] -> do
                 unless (record == WorkspaceRecord number (Text.pack target) (Text.pack branch) path (recordSlot record)) $
                     failure 65 "registration conflicts with existing workspace"
@@ -298,6 +305,7 @@ createRegistration common path registry record = do
                 failure 65 "unregistered worktree already contains an epic identity"
         else writeWorkspaceIdentityUnlocked path (identityFor record) `catch` writeFailed
     let updated = registry {workspaces = sortOn recordSlot (record : workspaces registry)}
+    checkRegistry common updated
     writeRegistryUnlocked common updated `catch` publishFailed
     pure record
   where
@@ -306,27 +314,82 @@ createRegistration common path registry record = do
     writeFailed :: IOException -> IO (); writeFailed _ = failure 73 "cannot write worktree identity; registry unchanged"
     publishFailed :: IOException -> IO (); publishFailed _ = failure 73 "cannot publish workspace registry; identity retained for resumable retry"
 
-slotForRegistration :: FilePath -> Int -> String -> Registry -> IO Int
-slotForRegistration path number target registry = do
+-- Parse Git's NUL-separated form; missing filesystem paths may still be
+-- present in the worktree list and do not qualify for reclamation.
+listedWorktrees :: FilePath -> IO (FilePath, [FilePath])
+listedWorktrees root = do
+    output <- runCommand 65 "git" ["-C", root, "worktree", "list", "--porcelain", "-z"]
+    let chunks [] = []
+        chunks value = case break (== '\0') value of
+            (chunk, []) -> [chunk]
+            (chunk, _:rest) -> chunk : chunks rest
+        paths = [drop 9 chunk | chunk <- chunks output, "worktree " `isPrefixOf` chunk]
+    case paths of
+        primary:rest | all isAbsolute paths && paths == nub paths && last output == '\0' -> pure (primary, rest)
+        _ -> failure 65 "could not establish Git worktree membership"
+
+reservationAt :: FilePath -> Registry -> Maybe RuntimeReservation
+reservationAt path = find ((== path) . runtimePath) . runtime
+
+readPortOffset :: IO (Maybe Int)
+readPortOffset = lookupEnv "BEPIS_WORKSPACE_PORT_OFFSET" >>= traverse parse
+  where
+    parse value = case readMaybe value of
+        Just offset | offset >= 0 && offset <= 40000 -> pure offset
+        _ -> failure 64 "port offset must be an integer from 0 through 40000"
+
+reserveEpic :: FilePath -> FilePath -> Int -> String -> Registry -> IO (Registry, RuntimeReservation)
+reserveEpic common path number target registry = do
+    paths <- listedWorktrees path
+    when (path == fst paths) (failure 65 "primary checkout cannot be registered as an epic")
     exists <- doesPathExist (path </> identityFileName)
-    if not exists then pure fallback else do
+    preferred <- if not exists then pure Nothing else do
         decoded <- readWorkspaceIdentity path `catch` unreadable
         case decoded of
-            Right identity | epic identity == number && targetBranch identity == Text.pack target
-                && slot identity `notElem` used -> pure (slot identity)
+            Right identity | epic identity == number && targetBranch identity == Text.pack target -> pure (Just (slot identity))
             _ -> failure 65 "unregistered worktree already contains an epic identity"
+    case reservationAt path registry of
+        Just entry | maybe True (== runtimeSlot entry) preferred -> pure (registry, entry)
+        Just _ -> failure 65 "epic identity disagrees with existing runtime slot"
+        Nothing -> do
+            offset <- fromMaybe 0 <$> readPortOffset
+            allocateReservation common paths registry path offset preferred
   where
-    used = map recordSlot (workspaces registry)
-    fallback = firstFreeSlot used
     unreadable :: IOException -> IO (Either String WorkspaceIdentity)
     unreadable _ = failure 65 "unregistered worktree already contains an unreadable epic identity"
 
-firstFreeSlot :: [Int] -> Int
-firstFreeSlot = findFree 1
+allocateReservation :: FilePath -> (FilePath, [FilePath]) -> Registry -> FilePath -> Int -> Maybe Int -> IO (Registry, RuntimeReservation)
+allocateReservation common (primary, linked) registry path offset preferred = do
+    unless (path == primary || path `elem` linked) (failure 65 "checkout missing from Git worktree list")
+    retained <- filterM keep (runtime registry)
+    let updated = registry {runtime = retained}
+        sameNumber entry = any ((== runtimeSlot entry) . runtimeSlot) retained
+        baseline = RuntimeReservation primary 0 0 [] []
+        allowed entry = validRuntimePorts (runtimeSlot entry) offset && not (sameNumber entry)
+            && (runtimeSlot entry == 0 || not (portConflicts baseline entry))
+            && (runtimeSlot entry == 0 && offset == 0 || not (any (portConflicts entry) retained))
+        candidates = case preferred of
+            Just fixed -> [fixed]
+            Nothing | path == primary -> [0]
+            Nothing -> [1..19177]
+    entry <- maybe (failure 65 "no collision-free runtime slot available for this checkout and port offset") pure
+        (find allowed [RuntimeReservation path candidate offset [] [] | candidate <- candidates])
+    let allocated = addReservation entry updated
+    checkRegistry common allocated
+    pure (allocated, entry)
   where
-    findFree candidate used
-        | candidate `elem` used = findFree (candidate + 1) used
-        | otherwise = candidate
+    keep entry
+        | runtimeSlot entry == 0 || runtimePath entry `elem` linked || any ((== runtimePath entry) . recordPath) (workspaces registry) = pure True
+        | otherwise = do
+            uid <- show <$> getEffectiveUserID
+            (states, postgres) <- defaultRuntimeOwnership uid (runtimePath entry)
+            not <$> runtimeAbsent entry
+                { runtimeStateDirs = nub (runtimeStateDirs entry <> states)
+                , runtimePostgresRoots = nub (runtimePostgresRoots entry <> [postgres])
+                }
+
+addReservation :: RuntimeReservation -> Registry -> Registry
+addReservation entry registry = registry {runtime = sortOn runtimeSlot (entry : filter ((/= runtimePath entry) . runtimePath) (runtime registry))}
 
 validateGitBranch :: String -> String -> IO ()
 validateGitBranch label branch = do
@@ -388,10 +451,10 @@ provisionCommand options = do
                     && recordBranch existing == Text.pack selectedBranch
                     && recordPath existing == selectedPath -> pure existing
                 [] -> do
-                    selectedSlot <- slotForRegistration selectedPath number base current
-                    createRegistration common selectedPath current WorkspaceRecord
+                    (updated, reservation) <- reserveEpic common selectedPath number base current
+                    createRegistration common selectedPath updated WorkspaceRecord
                         { recordEpic = number, recordTargetBranch = Text.pack base, recordBranch = Text.pack selectedBranch
-                        , recordPath = selectedPath, recordSlot = selectedSlot }
+                        , recordPath = selectedPath, recordSlot = runtimeSlot reservation }
                 _ -> failure 65 "registration conflicts with concurrently provisioned workspace"
     let report = object
             [ "epic" .= recordEpic record, "targetBranch" .= recordTargetBranch record, "baseCommit" .= baseCommit
@@ -499,16 +562,16 @@ type Configuration = [(String, String)]
 field :: String -> Configuration -> String
 field name values = fromMaybe "" (lookup name values)
 
-infoCommand :: [String] -> IO ()
-infoCommand arguments = do
+infoCommand :: Bool -> [String] -> IO ()
+infoCommand allocating arguments = do
     mode <- case arguments of
         [] -> pure "--human"
         [value] | value `elem` ["--human", "--json", "--shell"] -> pure value
-        ["-h"] -> putStrLn "Usage: dev-workspace-info [--human|--json|--shell]" >> exitWith ExitSuccess
-        ["--help"] -> putStrLn "Usage: dev-workspace-info [--human|--json|--shell]" >> exitWith ExitSuccess
+        ["-h"] -> putStrLn ("Usage: workspace " <> (if allocating then "runtime" else "info") <> " [--human|--json|--shell]") >> exitWith ExitSuccess
+        ["--help"] -> putStrLn ("Usage: workspace " <> (if allocating then "runtime" else "info") <> " [--human|--json|--shell]") >> exitWith ExitSuccess
         [value] -> failure 64 ("unknown info option: " <> value)
         _ -> failure 64 "info accepts at most one mode"
-    values <- workspaceConfiguration
+    values <- workspaceConfiguration allocating
     case mode of
         "--shell" -> mapM_ (\(name, value) -> putStrLn ("export " <> name <> "=" <> shellQuote value)) values
         "--json" -> printJson (configurationJson values)
@@ -518,38 +581,112 @@ infoCommand arguments = do
             <> " | OTLP :" <> field "IHP_ROSTER_DEV_OTLP_HTTP_PORT" values <> "\nstate: " <> field "DEVENV_AGENT_STATE_DIR" values
             <> "\npostgres: " <> field "PGHOST" values
 
-workspaceConfiguration :: IO Configuration
-workspaceConfiguration = do
+workspaceConfiguration :: Bool -> IO Configuration
+workspaceConfiguration allocating = do
     requested <- lookupEnv "BEPIS_WORKSPACE_REPO_ROOT" >>= maybe getCurrentDirectory pure
     (root, common) <- canonicalWorktree requested
-    identityExists <- doesPathExist (root </> identityFileName)
-    (kind, workspaceEpic, workspaceSlot) <- if identityExists
-        then do
-            registry <- loadRegistry common False
-            case filter ((== root) . recordPath) (workspaces registry) of
-                [record] -> do
+    requestedOffset <- readPortOffset
+    let resolve = do
+            paths@(primary, linked) <- listedWorktrees root
+            unless (root == primary || root `elem` linked) (failure 65 "checkout missing from Git worktree list")
+            registry <- loadRegistry common True
+            when (any (\entry -> (runtimeSlot entry == 0) /= (runtimePath entry == primary)) (runtime registry)) $
+                failure 65 "primary checkout does not match slot zero in the runtime registry"
+            let epicRecord = find ((== root) . recordPath) (workspaces registry)
+            marker <- doesPathExist (root </> identityFileName)
+            case epicRecord of
+                Nothing -> when marker (failure 65 "worktree has an unregistered epic identity")
+                Just record -> do
                     status <- recordStatus common record
-                    unless (status == Active) (failure 65 ("worktree does not have an active registry identity: " <> root))
-                    pure ("epic", show (recordEpic record), recordSlot record)
-                _ -> failure 65 ("worktree does not have an active registry identity: " <> root)
+                    unless (status == Active) (failure 65 ("worktree does not have an active epic identity: " <> root))
+            (checked, selected) <- case reservationAt root registry of
+                Just entry -> do
+                    unless (maybe True (== runtimePortOffset entry) requestedOffset) $
+                        failure 65 "requested port offset differs from the checkout's reserved port offset"
+                    pure (registry, entry)
+                Nothing | allocating -> allocateReservation common paths registry root (fromMaybe 0 requestedOffset) Nothing
+                Nothing | root == primary -> do
+                    let entry = RuntimeReservation root 0 (fromMaybe 0 requestedOffset) [] []
+                    unless (validRuntimePorts 0 (runtimePortOffset entry) && (runtimePortOffset entry == 0 || not (any (portConflicts entry) (runtime registry)))) $
+                        failure 65 "requested primary ports conflict with the runtime registry"
+                    pure (registry, entry)
+                Nothing -> failure 4 ("worktree has no runtime reservation; start it to allocate one: " <> root)
+            let kind | root == primary = "primary"
+                     | maybe False (const True) epicRecord = "epic"
+                     | otherwise = "worktree"
+                workspaceEpic = maybe "" (show . recordEpic) epicRecord
+            values <- configuredRuntime root kind workspaceEpic (runtimeSlot selected) (runtimePortOffset selected)
+            let statePath = field "DEVENV_AGENT_STATE_DIR" values
+                postgresRoots = [field "DEV_POSTGRES_ROOT" values | field "DEV_POSTGRES_MODE" values == "managed"]
+                evidenced = selected
+                    { runtimeStateDirs = nub (runtimeStateDirs selected <> [statePath])
+                    , runtimePostgresRoots = nub (runtimePostgresRoots selected <> postgresRoots)
+                    }
+                published = addReservation evidenced checked
+            uid <- show <$> getEffectiveUserID
+            defaults <- defaultRuntimeLocations uid root
+            otherDefaults <- mapM (defaultRuntimeLocations uid) (filter (/= root) (nub (primary : map runtimePath (runtime published))))
+            when (runtimePathOverlap (runtimeStateDirs evidenced) (runtimePostgresRoots evidenced)) $
+                failure 65 "runtime state and managed PostgreSQL paths must not overlap"
+            unless (all (\other -> not (runtimePathOverlap (statePath : postgresRoots) other)) otherDefaults) $
+                failure 65 "configured runtime or PostgreSQL path overlaps another workspace's default ownership"
+            checkRegistry common published
+            mapM_ rejectSymlinkPath (statePath : postgresRoots)
+            mapM_ (checkManagedPostgresRoot root uid) postgresRoots
+            if allocating then do
+                ensureNativeState statePath root uid
+                when (published /= registry) (writeRegistryUnlocked common published)
+            else do
+                unless (statePath `elem` runtimeStateDirs selected || statePath `elem` defaults) $
+                    failure 65 "runtime state override has not been reserved for this checkout; start the runtime first"
+                unless (all (\path -> path `elem` runtimePostgresRoots selected || path `elem` defaults) postgresRoots) $
+                    failure 65 "managed PostgreSQL override has not been reserved for this checkout; start the runtime first"
+            pure values
+    if allocating then withRegistryLock common resolve else resolve
+
+-- Never publish an override pointing to a foreign database. PostgreSQL owns
+-- initialization; an absent or empty directory may be initialized later.
+checkManagedPostgresRoot :: FilePath -> String -> FilePath -> IO ()
+checkManagedPostgresRoot workspace uid root = do
+    exists <- doesPathExist root
+    when exists $ do
+        directory <- doesDirectoryExist root
+        unless directory (failure 65 ("managed PostgreSQL root is not a directory: " <> root))
+        owner <- runCommand 65 "stat" ["-c", "%u", root]
+        unless (owner == uid) (failure 65 ("managed PostgreSQL root is not owned by this user: " <> root))
+        let marker = root </> ".bepis-dev-postgres"
+        marked <- doesFileExist marker
+        if marked then do
+            rejectSymlinkPath marker
+            workspaceId <- hashPrefix workspace
+            actual <- readFile marker
+            unless (actual == "bepis-dev-postgres-v1\nuid=" <> uid <> "\nproject=" <> workspaceId <> "\n") $
+                failure 65 ("managed PostgreSQL root belongs to another workspace: " <> root)
         else do
-            listing <- runCommand 66 "git" ["-C", root, "worktree", "list", "--porcelain"]
-            let firstLine = takeWhile (/= '\n') listing
-            primary <- canonicalizePath (drop 9 firstLine)
-            unless (root == primary) (failure 65 ("linked worktree is missing epic identity: " <> root))
-            pure ("primary", "", 0)
-    offsetText <- fromMaybe "0" <$> lookupEnv "BEPIS_WORKSPACE_PORT_OFFSET"
-    offset <- case readMaybe offsetText of
-        Just value | value >= (0 :: Int) && value <= 40000 -> pure value
-        _ -> failure 64 "port offset must be an integer from 0 through 40000"
+            contents <- getDirectoryContents root
+            unless (all (\entry -> entry == "." || entry == "..") contents) $
+                failure 65 ("unmarked managed PostgreSQL root is not empty: " <> root)
+
+defaultRuntimeLocations :: String -> FilePath -> IO [FilePath]
+defaultRuntimeLocations uid root = do
+    (states, postgres) <- defaultRuntimeOwnership uid root
+    pure (postgres : states)
+
+defaultRuntimeOwnership :: String -> FilePath -> IO ([FilePath], FilePath)
+defaultRuntimeOwnership uid root = do
+    workspaceId <- hashPrefix root
+    pure ([root </> ".devenv/agent", "/tmp/bepis-dev-runtime-" <> uid <> "-" <> workspaceId],
+          "/tmp/bepis-dev-postgres-" <> uid <> "-" <> workspaceId)
+
+configuredRuntime :: FilePath -> String -> String -> Int -> Int -> IO Configuration
+configuredRuntime root kind workspaceEpic workspaceSlot offset = do
     workspaceId <- hashPrefix root
     stateConfigured <- lookupEnv "BEPIS_WORKSPACE_STATE_CONFIGURED"
     configuredRoot <- lookupEnv "BEPIS_WORKSPACE_REPO_ROOT"
     configuredState <- lookupEnv "DEVENV_AGENT_STATE_DIR"
     stateOverride <- lookupEnv "BEPIS_WORKSPACE_STATE_ROOT"
-    configuredMarker <- maybe (pure False) (doesFileExist . (</> ".bepis-dev-runtime")) configuredState
     let (stateRoot, stateDir) = case (stateConfigured, configuredRoot, configuredState) of
-            (Just "1", Just configured, Just selected) | configured == root && configuredMarker -> (fromMaybe "" stateOverride, selected)
+            (Just "1", Just configured, Just selected) | configured == root -> (fromMaybe "" stateOverride, selected)
             (_, _, Just selected) | selected /= root </> ".devenv" </> "agent" ->
                 let absolute = if isAbsolute selected then normalise selected else normalise (root </> selected)
                 in (absolute, absolute </> "workspace-" <> workspaceId)
@@ -557,10 +694,8 @@ workspaceConfiguration = do
     uid <- show <$> getEffectiveUserID
     let finalStateRoot = replaceUid uid stateRoot
         finalStateDir = replaceUid uid stateDir
-    ensureNativeState finalStateDir root uid
     let appPort = 8000 + offset + 3 * workspaceSlot
         hooglePort = appPort + 2
-    when (hooglePort > 65535) (failure 64 "port offset and workspace slot exceed the TCP port range")
     postgresMode <- fromMaybe "managed" <$> lookupEnv "DEV_POSTGRES_MODE"
     postgresOverride <- lookupEnv "DEV_POSTGRES_ROOT"
     let defaultPostgres = "/tmp/bepis-dev-postgres-" <> uid <> "-" <> workspaceId
@@ -579,7 +714,10 @@ workspaceConfiguration = do
         mailhogPort = 8025 + offset + workspaceSlot
         appUrl = "http://127.0.0.1:" <> show appPort
         mailhogUrl = "http://127.0.0.1:" <> show mailhogPort
-        otelName = if workspaceSlot == 0 then "ihp-roster-dev" else "ihp-roster-dev-epic-" <> workspaceEpic
+        otelName = case kind of
+            "primary" -> "ihp-roster-dev"
+            "epic" -> "ihp-roster-dev-epic-" <> workspaceEpic
+            _ -> "ihp-roster-dev-worktree-" <> show workspaceSlot
         port base = show (base + offset + workspaceSlot)
         values =
             [ ("BEPIS_WORKSPACE_REPO_ROOT", root), ("BEPIS_WORKSPACE_KIND", kind), ("BEPIS_WORKSPACE_SLOT", show workspaceSlot)
@@ -590,12 +728,11 @@ workspaceConfiguration = do
             , ("MAILHOG_PORT", show mailhogPort), ("MAILHOG_BASE_URL", mailhogUrl), ("DEV_POSTGRES_MODE", postgresMode)
             , ("DEV_POSTGRES_ROOT", postgresRoot), ("DEV_POSTGRES_SOCKET", postgresSocket), ("PGHOST", postgresSocket)
             , ("DATABASE_URL", "postgresql:///app?host=" <> postgresSocket), ("BEPIS_WORKSPACE_OTEL_SERVICE_NAME", otelName)
+            , ("IHP_ROSTER_DEV_TEMPO_MEMBERLIST_PORT", show (7946 + workspaceSlot))
             , ("IHP_ROSTER_DEV_TEMPO_PORT", port 3200), ("IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT", port 9095)
             , ("IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT", port 14317), ("IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT", port 14318)
             , ("IHP_ROSTER_DEV_OTLP_GRPC_PORT", port 4317), ("IHP_ROSTER_DEV_OTLP_HTTP_PORT", port 4318)
             , ("IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT", port 13133), ("IHP_ROSTER_DEV_GRAFANA_PORT", port 3300) ]
-    when (read (field "IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT" values) > (65535 :: Int)) $
-        failure 64 "port offset and workspace slot exceed the TCP port range"
     pure values
 
 configurationJson :: Configuration -> Aeson.Value
@@ -608,7 +745,8 @@ configurationJson values = object
     , "postgresMode" .= field "DEV_POSTGRES_MODE" values, "postgresRoot" .= field "DEV_POSTGRES_ROOT" values
     , "postgresSocket" .= field "PGHOST" values, "databaseUrl" .= field "DATABASE_URL" values
     , "otelServiceName" .= field "BEPIS_WORKSPACE_OTEL_SERVICE_NAME" values, "grafanaPort" .= number "IHP_ROSTER_DEV_GRAFANA_PORT"
-    , "otlpHttpPort" .= number "IHP_ROSTER_DEV_OTLP_HTTP_PORT" ]
+    , "otlpHttpPort" .= number "IHP_ROSTER_DEV_OTLP_HTTP_PORT"
+    , "tempoMemberlistPort" .= number "IHP_ROSTER_DEV_TEMPO_MEMBERLIST_PORT" ]
   where
     number name = read (field name values) :: Int
     optionalNumber "" = Nothing :: Maybe Int

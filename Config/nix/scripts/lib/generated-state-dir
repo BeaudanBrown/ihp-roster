@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Locks and manifests belong to the checkout that owns the generated output.
+# Do not resolve a runtime slot or inherit another checkout's state root.
+root="$(cd -- "${1:?pass the checkout root}" && pwd -P)"
+state_dir="$root/.devenv/generated-code"
+if [[ -L "$root/.devenv" || -L "$state_dir" ]]; then
+    echo "generated-state-dir: refusing symlinked checkout state: $state_dir" >&2
+    exit 64
+fi
+printf '%s\n' "$state_dir"

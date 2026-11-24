@@ -13,7 +13,7 @@ stripe_dev_load_and_validate_config() {
 
     # The workspace owns local ports and runtime paths; .env owns only opt-in
     # Stripe configuration.
-    bepis_workspace_configure
+    bepis_workspace_start
 
     if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
         echo "Stripe development requires STRIPE_SECRET_KEY in .env." >&2

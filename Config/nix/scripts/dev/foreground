@@ -6,7 +6,7 @@ set -euo pipefail
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
 # shellcheck source=../lib/runtime.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
-bepis_workspace_configure
+bepis_workspace_start
 bepis_workspace_resource_reexec_dev "$(command -v dev-foreground)" "$@"
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 

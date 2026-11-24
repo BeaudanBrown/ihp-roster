@@ -9,7 +9,7 @@ set -euo pipefail
 # shellcheck source=../lib/stripe-dev.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe-dev.sh"
 
-bepis_workspace_configure
+bepis_workspace_start
 bepis_workspace_resource_reexec_dev "$(command -v dev-foreground-stripe-tunnel)" "$@"
 stripe_dev_load_and_validate_config
 STATE_DIR="$(dev-agent-state-dir)"
