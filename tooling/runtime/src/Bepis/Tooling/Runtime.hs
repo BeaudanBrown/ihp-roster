@@ -23,6 +23,7 @@ dispatch :: IO ()
 dispatch = do
     arguments <- getArgs
     case arguments of
+        ["ownership-token"] -> runtimeOwnershipToken >>= putStrLn . Text.unpack
         "process":"start":pidFile:ownerFile:logFile:label:cwd:"--":command:rest ->
             startOwned pidFile ownerFile logFile cwd label command rest >>= print
         "process":"start-result":pidFile:ownerFile:logFile:label:cwd:"--":command:rest -> do
@@ -91,4 +92,4 @@ waitLoop timeoutMilliseconds label logFile stillRunning command arguments = do
     loop
 
 usage :: String
-usage = "Usage: bepis-runtime process start PID OWNER LOG LABEL CWD -- COMMAND [ARGS...] | process start-result PID OWNER LOG LABEL CWD -- COMMAND [ARGS...] | process adopt PID OWNER LABEL CWD CHILD_PID | process observe PID OWNER LABEL CWD | process stop PID OWNER LABEL CWD GRACE_MS | wait-command TIMEOUT_MS LABEL LOG -- COMMAND [ARGS...]"
+usage = "Usage: bepis-runtime ownership-token | process start PID OWNER LOG LABEL CWD -- COMMAND [ARGS...] | process start-result PID OWNER LOG LABEL CWD -- COMMAND [ARGS...] | process adopt PID OWNER LABEL CWD CHILD_PID | process observe PID OWNER LABEL CWD | process stop PID OWNER LABEL CWD GRACE_MS | wait-command TIMEOUT_MS LABEL LOG -- COMMAND [ARGS...]"

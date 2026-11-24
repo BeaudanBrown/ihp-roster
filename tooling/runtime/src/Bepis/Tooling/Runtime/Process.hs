@@ -8,6 +8,7 @@ module Bepis.Tooling.Runtime.Process
     , RuntimeError (..)
     , observeOwned
     , releaseOwned
+    , runtimeOwnershipToken
     , startOwned
     , startOwnedResult
     , stopOwned
@@ -20,18 +21,20 @@ import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, IOException, catch, throwIO)
 import Control.Monad (unless, when)
 import Data.Aeson (FromJSON, ToJSON, decodeStrict', encode)
+import Data.Bits ((.&.), (.|.))
+import qualified Data.ByteString as Bytes
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Char (isDigit)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextEncoding
 import GHC.Generics (Generic)
+import Numeric (showHex)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, doesFileExist,
                          listDirectory, pathIsSymbolicLink, removeFile)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory)
-import System.IO (Handle, hClose)
+import System.IO (Handle, IOMode (ReadMode), hClose, withBinaryFile)
 import System.IO.Error (isDoesNotExistError)
 import System.Posix.IO (OpenFileFlags (append, cloexec, creat, nofollow), OpenMode (ReadOnly, WriteOnly), defaultFileFlags, fdToHandle, openFd)
 import System.Posix.Files (deviceID, fileID, getFileStatus, ownerReadMode, ownerWriteMode, unionFileModes)
@@ -279,7 +282,18 @@ ownedGroupExists group token cwd
         pure (pathAndUidOwned && tokenOwned)
 
 runtimeOwnershipToken :: IO Text.Text
-runtimeOwnershipToken = Text.strip . TextEncoding.decodeUtf8 <$> ByteString.readFile "/proc/sys/kernel/random/uuid"
+runtimeOwnershipToken = do
+    bytes <- withBinaryFile "/dev/urandom" ReadMode (\handle -> Bytes.hGet handle 16) `catch` entropyUnavailable
+    case Bytes.unpack bytes of
+        [a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p] -> pure (Text.pack (concat
+            [ render [a,b,c,d], "-", render [e,f], "-", render [(g .&. 0x0f) .|. 0x40,h]
+            , "-", render [(i .&. 0x3f) .|. 0x80,j], "-", render [k,l,m,n,o,p]
+            ]))
+        _ -> reject 74 "bepis-runtime: could not generate a runtime UUID: incomplete OS randomness"
+  where
+    render = concatMap (\byte -> (if byte < 16 then "0" else "") <> showHex byte "")
+    entropyUnavailable :: IOException -> IO Bytes.ByteString
+    entropyUnavailable _ = reject 74 "bepis-runtime: could not generate a runtime UUID: OS randomness unavailable"
 
 processHasOwnershipToken :: Int -> Text.Text -> IO Bool
 processHasOwnershipToken numericPid token = do

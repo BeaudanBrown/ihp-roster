@@ -17,6 +17,20 @@ cleanup() {
 trap cleanup EXIT
 fail() { echo "runtime-lifecycle-test: $*" >&2; exit 1; }
 
+# The shell and runtime share UUID generation without requiring /proc/sys.
+source "$repo_root/Config/nix/scripts/lib/runtime.sh"
+export BEPIS_RUNTIME_BINARY="$("$launcher" runtime --print-binary)"
+uuid_pattern='^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+first_token="$("$BEPIS_RUNTIME_BINARY" ownership-token)"
+unset BEPIS_RUNTIME_INVOCATION_TOKEN
+bepis_runtime_ensure_invocation_token
+second_token="$BEPIS_RUNTIME_INVOCATION_TOKEN"
+[[ "$first_token" =~ $uuid_pattern && "$second_token" =~ $uuid_pattern && "$first_token" != "$second_token" ]] || fail "expected distinct version 4 UUIDs"
+bepis_runtime_ensure_invocation_token
+[ "$BEPIS_RUNTIME_INVOCATION_TOKEN" = "$second_token" ] || fail "existing invocation token was replaced"
+(export BEPIS_RUNTIME_BINARY=false; unset BEPIS_RUNTIME_INVOCATION_TOKEN; bepis_runtime_ensure_invocation_token) >/dev/null 2>&1 && fail "token generation failure was ignored"
+unset BEPIS_RUNTIME_INVOCATION_TOKEN
+
 # Immediate child failure retains its bounded log but no false ownership state.
 set +e
 failure_output="$("$launcher" runtime process start "$fixture_root/fail.pid" "$fixture_root/fail.owner.json" "$fixture_root/fail.log" fail "$fixture_root" -- false 2>&1)"
@@ -184,6 +198,7 @@ set +e
     cd "$repo_root"
     PATH="$fixture_root/adapter-bin:$PATH" \
         BEPIS_RUNTIME_BINARY="$fixture_root/adapter-bin/runtime" \
+        BEPIS_RUNTIME_INVOCATION_TOKEN="$second_token" \
         BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
         DEVENV_AGENT_STATE_DIR="$fixture_root/adapter-state" \
         RUNTIME_CALL_LOG="$fixture_root/runtime-calls" \

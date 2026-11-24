@@ -27,7 +27,10 @@ bepis_runtime_owner_file() {
 
 bepis_runtime_ensure_invocation_token() {
     if [ -z "${BEPIS_RUNTIME_INVOCATION_TOKEN:-}" ]; then
-        BEPIS_RUNTIME_INVOCATION_TOKEN="$(tr -d '\n' </proc/sys/kernel/random/uuid)"
+        if ! BEPIS_RUNTIME_INVOCATION_TOKEN="$(bepis_runtime_command ownership-token)" || [ -z "$BEPIS_RUNTIME_INVOCATION_TOKEN" ]; then
+            echo "bepis-runtime: could not generate a runtime invocation UUID" >&2
+            return 74
+        fi
         export BEPIS_RUNTIME_INVOCATION_TOKEN
     fi
 }
