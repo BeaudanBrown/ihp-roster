@@ -4,7 +4,6 @@ Application/AccountSecurityEmail/Enqueue.hs	production	runtime	Main	Reachable fr
 Application/AccountSecurityEmail/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/AccountSecurityEmail/TokenCipher.hs	production	runtime	Main	Reachable from Main
 Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from Main
-Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Async/Error.hs	production	runtime	Main	Reachable from Main
 Application/Async/Heartbeat.hs	production	runtime	WorkerMain	Reachable from WorkerMain
@@ -12,7 +11,6 @@ Application/Async/Payload.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Bepis/Action.hs	production	runtime	Main	Reachable from Main
-Application/Bepis/Architecture.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Controller.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Fact.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Prelude.hs	production	runtime	Main	Reachable from Main
@@ -141,7 +139,6 @@ Application/Helper/FrontendContract/Surface/Admin/Generated/Resource.hs	producti
 Application/Helper/FrontendContract/Surface/Admin/HaskellAdapter.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Admin/Live.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Admin/Resource.hs	production	runtime	Main	Reachable from Main
-Application/Helper/FrontendContract/Surface/Architecture.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Helper/FrontendContract/Surface/Attributes.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Authorization.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/AuthorizationRequirement.hs	production	runtime	Main	Reachable from Main
@@ -388,7 +385,6 @@ Application/Script/BillingReconciliationSweep.hs	production	operational-script-c
 Application/Script/BootstrapAccount.hs	production	operational-script-closure	Application.Script.BootstrapAccount	Reachable from Application.Script.BootstrapAccount
 Application/Script/DataVicProbe.hs	development	integration-probe	-	Read-only v2 holiday candidate probe; no refresh cutover or database writes
 Application/Script/FwcMapdRefreshSweep.hs	production	operational-script-closure	Application.Script.FwcMapdRefreshSweep	Reachable from Application.Script.FwcMapdRefreshSweep
-Application/Script/GenerateBepisArchitectureContracts.hs	development	architecture-generator	-	Repository architecture generation only; runnable from the development shell
 Application/Script/GenerateFrontendContracts.hs	development	contract-generator	-	Checked frontend contract generation only; runnable from the development shell
 Application/Script/GenerateFrontendSurfaceAdapters.hs	development	contract-generator	-	Checked Haskell adapter generation only; runnable from the development shell
 Application/Script/LiveInvalidationOutboxPrune.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune

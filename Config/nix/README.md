@@ -79,7 +79,7 @@ After intentionally adding or changing a module or script:
 6. for production changes, run
    `bash ./bin/in-env production-package-smoke`.
 
-Development seeds, fixtures, generators, probes, and architecture tooling must
+Development seeds, fixtures, generators, and probes must
 not be promoted merely to make a build pass. Promotion requires a concrete
 production runtime, deployment, maintenance, recovery, or recurring-service
 consumer.
@@ -195,7 +195,7 @@ pure/BroadAcceptance with `LibreOfficeCalc`, not an HTTP/provider mock.
 
 ## Shared Verification Compiler Ownership
 
-Typecheck, Hspec, E2E and local architecture generation share the incremental
+Typecheck, Hspec, and E2E share the incremental
 verification graph. `haskell/ghc-build-run` acquires the same canonical sibling
 `.owner.lock` through native artifact command ownership before option preparation,
 compilation or private image copying. Cancellation retains ownership until the
@@ -204,10 +204,9 @@ compiler/TH/native input identity; GHC remains the freshness authority under the
 normal immutable Nix toolchain/package closure.
 
 Hspec's stable image lives at `build/Verification/bin/HspecMain` (or beneath
-`VERIFICATION_BUILD_DIR`); `hspec-baseline inventory` follows that default. Hspec,
-E2E and the local architecture generator execute independent copies after the
-build lease ends, never writable hardlinks to an image another build can replace.
-Packaged architecture generation remains independent. Runtime test results are
+`VERIFICATION_BUILD_DIR`); `hspec-baseline inventory` follows that default. Hspec and
+E2E execute independent copies after the build lease ends, never writable
+hardlinks to an image another build can replace. Runtime test results are
 not cached, and runtime/database ownership and isolation are unchanged. The
 normal serial-writer recommendation still applies outside these coordinated
 shared-graph owners. `scripts/verification-build.test.py` exercises real GHC,
@@ -363,8 +362,8 @@ commands while supplying only application-specific inventories and recipes.
 
 ## Frontend-contract tooling package
 
-`frontend-contract-tool-module-inventory.tsv` is the exact closure of the three
-contract, Surface-adapter, and architecture generator roots.
+`frontend-contract-tool-module-inventory.tsv` is the exact closure of the two
+contract and Surface-adapter generator roots.
 `frontend-contract-tooling-only-policy.tsv` is the reviewed, reason-bearing
 negative authority: those modules are forbidden from production reachability,
 and a new non-runtime tool module fails until explicitly classified there.
@@ -375,7 +374,7 @@ closure with
 review every ownership change.
 
 `.#frontend-contract-tools` compiles that closure independently and exposes
-exactly three generator binaries. Its source filter includes only the reviewed
+exactly two generator binaries. Its source filter includes only the reviewed
 Haskell closure, `Application/Schema.sql`, and `Makefile`: tooling-only edits do
 not change the production derivation, and unrelated runtime edits do not change
 the tooling derivation. Development commands compile the working tree by default
@@ -384,8 +383,8 @@ so uncommitted authoring remains usable; CI and `verify-full` set
 
 `frontend-contract-package-check` is blocking in both paths. It checks the
 exact binary set, retains interface/build-resource metrics, and reruns generated
-TypeScript, all generated Haskell adapters plus private proofs, and architecture
-emission through packaged binaries. Adapter validation reuses the locked
+TypeScript and all generated Haskell adapters plus private proofs through the
+packaged binaries. Adapter validation reuses the locked
 compiler dependency cache, not generated results: each invocation renders and
 compiles fresh modules/private proofs and compares the exact managed output.
 Temporary staging paths must not invalidate unchanged dependency configuration.

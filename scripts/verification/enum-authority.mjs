@@ -1,4 +1,4 @@
-import { listFiles, readText } from "./shared.mjs";
+import { listFiles, readText } from "./repository-source.mjs";
 
 const enumAuthorityPatterns = [
   ["unsafe enum parsing", /\bunsafeEnumFromText\b/],

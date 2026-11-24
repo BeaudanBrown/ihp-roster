@@ -187,15 +187,9 @@ For a mutation: declare Resources and fragment dependencies, emit focused typed
 resources, route passive updates through the mutation boundary, and test planning,
 authorization, actor response, and passive delivery at their canonical seams.
 
-## Architecture And Verification
-
-Use deterministic source-derived reports instead of prose inventories:
+## Verification
 
 ```bash
-printf '%s\n' '{"name":"realtime-coverage","args":{"surface":"all","detail":"summary"}}' \
-  | bash ./bin/in-env architecture-query
-printf '%s\n' '{"name":"realtime-flow","args":{"action":"UpdateRosterSlotAction"}}' \
-  | bash ./bin/in-env architecture-query
 bash ./bin/in-env frontend-contracts-check
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "LiveUpdate" --match "SurfaceInvalidation" --match "SurfaceDependency" --match "MutationBoundary"

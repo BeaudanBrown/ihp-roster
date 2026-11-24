@@ -17,9 +17,8 @@ contracts when changing their concerns:
 - `docs/adr/0006-operation-local-frontend-contract-evidence.md` — why request
   callers use generated operation-local evidence.
 
-Current declarations, generated interfaces, and consumers are discoverable with
-the source-derived commands under [Architecture navigation](#architecture-navigation).
-Do not copy their inventories or counts into prose.
+Use the declarations and generated interfaces below to trace consumers.
+[Verification](#verification) lists the focused request dependency check.
 
 ## Ownership Map
 
@@ -41,9 +40,6 @@ The contract pipeline has one authority at each stage:
 - `Application.Helper.FrontendContract.Contracts` generates
   `frontend/ts/generated/contracts.ts`. That file and private generated Haskell
   modules are outputs; never edit them directly.
-- `Surface.Architecture` emits semantic facts from checked IR. Deterministic
-  checks and focused architecture queries own current topology and closure
-  evidence.
 
 Feature controllers, views, and domain modules retain authorization, route
 construction, business validation, read models, rendered HTML, mutation effects,
@@ -331,24 +327,6 @@ completeness; prose does not.
 4. Render generated roles from Haskell and keep TypeScript generic,
    mount-scoped, exhaustive, and effect-free until validation succeeds.
 
-## Architecture Navigation
-
-Use deterministic evidence instead of prose inventories:
-
-```bash
-bash ./bin/in-env architecture-facts
-bash ./bin/in-env architecture-surface-request-closure --print-modules
-printf '%s\n' '{"name":"generated-contracts","args":{"target":"roster"}}' \
-  | bash ./bin/in-env architecture-query
-printf '%s\n' '{"name":"realtime-flow","args":{"action":"UpdateRosterSlotAction"}}' \
-  | bash ./bin/in-env architecture-query
-```
-
-The generated-contract query reports the checked reflection pipeline, selected
-Surface semantics, generated browser contracts, and consumers. The closure check
-owns exact request-facade module policy. Source and generated files remain the
-authority for exact declarations, exports, and topology.
-
 ## Verification
 
 Use focused checks during authoring, then the broader gates required by the
@@ -361,7 +339,7 @@ bash ./bin/in-env frontend-surface-compile-fail-check
 # A named compile-fail fixture is the focused loop:
 bash ./bin/in-env frontend-surface-compile-fail-check FrontendSurfaceWrongClosedScalarDomain
 bash ./bin/in-env frontend-surface-guardrails
-bash ./bin/in-env architecture-surface-request-closure --print-modules
+bash ./bin/in-env frontend-request-closure-check --print-modules
 bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check

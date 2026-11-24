@@ -3,7 +3,7 @@ set -euo pipefail
 
 tools_root="$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)"
 
-expected_bins=$'generate-bepis-architecture-contracts\ngenerate-frontend-contracts\ngenerate-frontend-surface-adapters'
+expected_bins=$'generate-frontend-contracts\ngenerate-frontend-surface-adapters'
 actual_bins="$(find "$tools_root/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
 if [ "$actual_bins" != "$expected_bins" ]; then
     echo "frontend-contract-package-check: tooling bin inventory mismatch" >&2
@@ -27,6 +27,5 @@ fi
 export FRONTEND_CONTRACT_TOOLS_ROOT="$tools_root"
 frontend-contracts-check
 frontend-surface-adapters-check
-architecture-contracts >/dev/null
 
-echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 3 tools)"
+echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 2 tools)"

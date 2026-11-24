@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [ "${ARCHITECTURE_CONTRACTS_CURRENT:-0}" != "1" ]; then
-    bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/contracts" >/dev/null
-fi
-
-node scripts/architecture/facts.mjs "$@"

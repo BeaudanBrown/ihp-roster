@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { repoRoot } from "./shared.mjs";
+import { repoRoot } from "./repository-source.mjs";
 
 const transportOwner = "Application/EmailDelivery.hs";
 
@@ -206,10 +206,10 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const errors = checkRepositoryEmailTransport();
   if (errors.length > 0) {
-    console.error(`Email transport architecture check failed with ${errors.length} error(s):`);
+    console.error(`Email transport check failed with ${errors.length} error(s):`);
     errors.forEach((error) => console.error(`- ${error}`));
     process.exitCode = 1;
   } else {
-    console.log("Email transport architecture check passed: one transport owner, closed producer registry, dual-format templates, zero legacy job kinds.");
+    console.log("Email transport check passed: one transport owner, closed producer registry, dual-format templates, zero legacy job kinds.");
   }
 }

@@ -56,9 +56,6 @@ echo "verify-full: isolated frontend-contract tooling package"
 # Retain the resolved tooling root for the later single production-closure
 # traversal, which proves tooling isolation without a second package build.
 source "$(command -v frontend-contract-package-check)"
-# The package check generated these contracts; later architecture validation
-# consumes that same checked output rather than regenerating it.
-export ARCHITECTURE_CONTRACTS_CURRENT=1
 
 echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings
@@ -70,8 +67,15 @@ frontend-surface-compile-fail-check
 echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
-echo "verify-full: current architecture authority"
-architecture-repository-check
+echo "verify-full: controller, layout, enum, and workflow wiring"
+repository-wiring-check
+
+echo "verify-full: focused frontend request dependencies"
+frontend-request-closure-check
+
+echo "verify-full: email transport and fixture reset coverage"
+email-transport-check
+node scripts/verification/fixture-reset-manifest.mjs
 
 echo "verify-full: optimized production package, artifacts, and isolation"
 production-package-smoke

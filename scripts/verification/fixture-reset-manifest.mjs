@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { repoRoot } from "./shared.mjs";
+import { repoRoot } from "./repository-source.mjs";
 
 function stripSqlComments(sql) {
   return sql

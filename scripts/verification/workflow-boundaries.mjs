@@ -1,4 +1,4 @@
-import { readText } from "./shared.mjs";
+import { readText } from "./repository-source.mjs";
 import { stripHaskellComments } from "./wiring-source.mjs";
 
 // Adopted modules only. This is dependency policy, not a runtime/effect registry.
@@ -67,7 +67,7 @@ export function inspectWorkflowBoundaries(loadSource = readText, adopted = workf
   const used = new Set();
   const names = new Set();
   const selectors = new Set();
-  const policySource = { path: "scripts/architecture/workflow-boundaries.mjs", line: 1 };
+  const policySource = { path: "scripts/verification/workflow-boundaries.mjs", line: 1 };
   const report = (rule, owner, source, message) => violations.push({ rule, owner, source, message });
   for (const [module, role, owner] of adopted) {
     if (!module || !["workflow", "response", "mutation", "application"].includes(role) || !owner?.trim() || roles.has(module)) {

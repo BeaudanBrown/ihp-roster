@@ -70,7 +70,6 @@
                     pkgs.ripgrep
                     # Full verification invokes isolated Nix package checks.
                     pkgs.nix
-                    pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
                     config.packages.bepis-tempo
                     pkgs.grafana-loki

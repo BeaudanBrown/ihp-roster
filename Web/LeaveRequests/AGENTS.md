@@ -14,7 +14,7 @@ unavailability views.
   relookup. Context is not authorization evidence.
 - Keep `Mutations.hs` as the single submission/review transaction and resource
   authority. Do not add a generic workflow layer around its review operation.
-  The adopted dependency roles are checked in `scripts/architecture/workflow-boundaries.mjs`.
+  The adopted dependency roles are checked in `scripts/verification/workflow-boundaries.mjs`.
 - Keep Profile and roster self-service integration in the shared
   `SelfService.hs` Surface renderer; context-owned views provide only mount
   placement and optional history selection.

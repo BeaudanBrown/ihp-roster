@@ -1,16 +1,6 @@
 #!/usr/bin/env node
-import fs from "node:fs";
-import path from "node:path";
-import { repoRoot } from "./shared.mjs";
-
-const factsPath = path.join(repoRoot, "output/architecture/facts.json");
-if (!fs.existsSync(factsPath)) {
-  console.error("Missing output/architecture/facts.json. Run architecture-facts first.");
-  process.exit(1);
-}
-
-const facts = JSON.parse(fs.readFileSync(factsPath, "utf8"));
-const modulesByName = new Map((facts.modules || []).map((module) => [module.name, module]));
+import { readText } from "./repository-source.mjs";
+import { stripHaskellComments } from "./wiring-source.mjs";
 
 const sharedRequestRuntimeClosure = [
   "Application.Error.Parser",
@@ -88,10 +78,11 @@ function applicationClosure(root) {
   while (pending.length > 0) {
     const name = pending.pop();
     if (seen.has(name)) continue;
-    const module = modulesByName.get(name);
-    if (!module) continue;
+    if (!/^(?:Application|Web|Test)\./.test(name)) continue;
     seen.add(name);
-    pending.push(...(module.imports || []));
+    const source = stripHaskellComments(readText(name.replaceAll(".", "/") + ".hs"));
+    const imports = source.matchAll(/^[ \t]*import\s+(?:safe\s+)?(?:qualified\s+)?([A-Z][A-Za-z0-9_.']*)/gm);
+    pending.push(...Array.from(imports, (match) => match[1]));
   }
   return [...seen].filter((name) => name.startsWith("Application.")).sort();
 }
@@ -122,4 +113,4 @@ for (const contract of closureContracts) {
 }
 
 if (failed) process.exit(1);
-console.log("Surface request closure architecture check passed.");
+console.log("Frontend request closure check passed.");

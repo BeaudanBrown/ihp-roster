@@ -248,8 +248,7 @@ may be correct as-is.
 Suggested next steps:
 
 1. Read root/local agent and subsystem documentation.
-2. Run project architecture hotspot, convention, generated-contract, and focused
-   neighborhood queries.
+2. Run focused repository wiring and generator checks for the affected boundaries.
 3. Inspect callers/tests/history for candidates before recording findings.
 4. Build the source-of-truth map and record rejected candidates as well as
    accepted ones.

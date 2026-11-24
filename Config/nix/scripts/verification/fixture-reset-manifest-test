@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+node --test scripts/verification/fixture-reset-manifest.test.mjs
+node scripts/verification/fixture-reset-manifest.mjs

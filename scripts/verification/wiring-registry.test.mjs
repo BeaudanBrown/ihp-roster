@@ -103,7 +103,7 @@ test("documented frontend exceptions exclude intentionally non-global bundles", 
   const facts = fixtureFacts();
   facts.frontend.layoutScripts.pop();
   facts.wiringRegistryPolicy.frontendLayoutExceptions = [
-    { value: "/app-roster.js", owner: "frontend", reason: "Loaded only by a feature-specific shell", source: source("scripts/architecture/wiring-policy.mjs", 20) },
+    { value: "/app-roster.js", owner: "frontend", reason: "Loaded only by a feature-specific shell", source: source("scripts/verification/wiring-policy.mjs", 20) },
   ];
   assert.deepEqual(checkWiringRegistries(facts), []);
 });
@@ -111,12 +111,12 @@ test("documented frontend exceptions exclude intentionally non-global bundles", 
 test("unused or duplicate exceptions fail instead of hiding policy drift", () => {
   const facts = fixtureFacts();
   facts.wiringRegistryPolicy.frontendLayoutExceptions = [
-    { value: "/app-ghost.js", owner: "frontend", reason: "No longer valid", source: source("scripts/architecture/wiring-policy.mjs", 20) },
-    { value: "/app-ghost.js", owner: "frontend", reason: "Duplicate", source: source("scripts/architecture/wiring-policy.mjs", 21) },
+    { value: "/app-ghost.js", owner: "frontend", reason: "No longer valid", source: source("scripts/verification/wiring-policy.mjs", 20) },
+    { value: "/app-ghost.js", owner: "frontend", reason: "Duplicate", source: source("scripts/verification/wiring-policy.mjs", 21) },
   ];
   assert.deepEqual(checkWiringRegistries(facts), [
-    "frontend Layout scripts exceptions: duplicate /app-ghost.js registered at scripts/architecture/wiring-policy.mjs:20, scripts/architecture/wiring-policy.mjs:21",
-    "frontend Layout scripts exceptions: unused /app-ghost.js declared at scripts/architecture/wiring-policy.mjs:20, scripts/architecture/wiring-policy.mjs:21",
+    "frontend Layout scripts exceptions: duplicate /app-ghost.js registered at scripts/verification/wiring-policy.mjs:20, scripts/verification/wiring-policy.mjs:21",
+    "frontend Layout scripts exceptions: unused /app-ghost.js declared at scripts/verification/wiring-policy.mjs:20, scripts/verification/wiring-policy.mjs:21",
   ]);
 });
 
@@ -124,10 +124,10 @@ test("exceptions require an accountable owner and a reason", () => {
   const facts = fixtureFacts();
   facts.frontend.layoutScripts.pop();
   facts.wiringRegistryPolicy.frontendLayoutExceptions = [
-    { value: "/app-roster.js", owner: "", reason: "", source: source("scripts/architecture/wiring-policy.mjs", 20) },
+    { value: "/app-roster.js", owner: "", reason: "", source: source("scripts/verification/wiring-policy.mjs", 20) },
   ];
   assert.deepEqual(checkWiringRegistries(facts), [
-    "frontend Layout scripts exceptions: /app-roster.js has no owner at scripts/architecture/wiring-policy.mjs:20",
-    "frontend Layout scripts exceptions: /app-roster.js has no reason at scripts/architecture/wiring-policy.mjs:20",
+    "frontend Layout scripts exceptions: /app-roster.js has no owner at scripts/verification/wiring-policy.mjs:20",
+    "frontend Layout scripts exceptions: /app-roster.js has no reason at scripts/verification/wiring-policy.mjs:20",
   ]);
 });
