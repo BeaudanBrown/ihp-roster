@@ -18,8 +18,6 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as 
 import Application.Helper.LiveUpdate
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
-import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
-import Application.PublicHolidays.Shadow (publicHolidayShadowJobKind)
 import Config
 import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
@@ -458,51 +456,17 @@ tests = aroundAll withDatabaseTestContext do
                 jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
-        it "deduplicates active public holiday shadow jobs without enqueuing anonymous imports" $ withContext do
-            withCleanDb do
-                homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdmin) True
-                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
-
-                _ <- withPasskeyVerifiedUser founder do
-                    callAction CreatePublicHolidayRefreshJobAction
-                response <- withPasskeyVerifiedUser founder do
-                    callAction CreatePublicHolidayRefreshJobAction
-
-                response `responseStatusShouldBe` status302
-                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayShadowJobKind) |> fetchCount
-                jobCount `shouldBe` 1
-                query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount >>= (`shouldBe` 0)
-
-        it "returns the public holiday section for HTMX public holiday refresh submissions" $ withContext do
-            withCleanDb do
-                homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-htmx@example.com" "staff" (Just SuperAdmin) True
-                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
-
-                response <- withPasskeyVerifiedUser founder do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction CreatePublicHolidayRefreshJobAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-public-holidays\""
-                response `responseBodyShouldContain` "Shadow fetch queued/running"
-                response `responseBodyShouldContain` "no dates imported"
-                response `responseBodyShouldContain` "hx-post=\"/CreatePublicHolidayRefreshJob\""
-
-        it "denies public holiday refresh creation to ordinary venue admins" $ withContext do
+        it "denies the public holiday status fragment to ordinary venue admins" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                admin <- createUserRecord "venue-admin-public-holiday-refresh@example.com" "admin" True
+                admin <- createUserRecord "venue-admin-public-holiday-status@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withUser admin do
-                    callAction CreatePublicHolidayRefreshJobAction
+                    callAction ShowPublicHolidaysSectionAction
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
-                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayShadowJobKind) |> fetchCount
-                jobCount `shouldBe` 0
 
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do
             withCleanDb do

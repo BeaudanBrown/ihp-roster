@@ -9,7 +9,6 @@ import Application.Async.Error (AppJobError (..))
 import Application.Async.Payload (requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.PublicHolidays.ActiveImport
-import Application.PublicHolidays.Sync (PublicHolidaySyncSummary (..))
 import Application.WageSourceAlert.Job (enqueueWageSourceFreshnessCheck)
 import Application.WageSourceAlert.Types (WageSourceKind (DataVicWageSource))
 import qualified Data.Aeson as Aeson

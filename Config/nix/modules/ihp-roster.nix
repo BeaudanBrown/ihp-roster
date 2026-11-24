@@ -1117,24 +1117,6 @@ in
       };
     };
 
-    publicHolidays.shadow = {
-      enable = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Enable authenticated read-only DataVic shadow jobs and existing holiday review monitoring.";
-      };
-      onCalendar = mkOption {
-        type = types.str;
-        default = "daily";
-        description = "Read-only shadow evaluation schedule; active importing uses the separate daily refresh timer.";
-      };
-      randomizedDelaySec = mkOption {
-        type = types.str;
-        default = "30m";
-        description = "Maximum randomized delay for shadow fetching.";
-      };
-    };
-
     fwcMapd.refresh = {
       enable = mkOption {
         type = types.bool;
@@ -1619,7 +1601,7 @@ in
           RandomizedDelaySec = cfg.rsa.reminders.randomizedDelaySec;
         };
       };
-      systemd.services.public-holiday-refresh-sweep = mkIf (cfg.publicHolidays.refresh.enable && !cfg.publicHolidays.shadow.enable) {
+      systemd.services.public-holiday-refresh-sweep = mkIf cfg.publicHolidays.refresh.enable {
         description = "Enqueue public holiday refresh jobs for ihp-roster";
         after = [ schemaReadyService ];
         requires = [ schemaReadyService ];
@@ -1642,37 +1624,12 @@ in
         }
         // cfg.additionalEnvVars;
       };
-      systemd.timers.public-holiday-refresh-sweep = mkIf (cfg.publicHolidays.refresh.enable && !cfg.publicHolidays.shadow.enable) {
+      systemd.timers.public-holiday-refresh-sweep = mkIf cfg.publicHolidays.refresh.enable {
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = cfg.publicHolidays.refresh.onCalendar;
           Persistent = true;
           RandomizedDelaySec = cfg.publicHolidays.refresh.randomizedDelaySec;
-        };
-      };
-      systemd.services.public-holiday-shadow-sweep = mkIf cfg.publicHolidays.shadow.enable {
-        description = "Enqueue read-only DataVic shadow jobs and reconcile holiday review monitoring";
-        after = [ schemaReadyService ];
-        requires = [ schemaReadyService ];
-        serviceConfig = {
-          Type = "oneshot";
-          EnvironmentFile = runtimeEnvironmentFiles;
-          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/PublicHolidayShadowSweep";
-          NoNewPrivileges = true;
-          PrivateTmp = true;
-        } // serviceUserConfig;
-        environment = {
-          DATABASE_URL = if cfg.databaseUrl != null then cfg.databaseUrl else "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
-          IHP_TELEMETRY_DISABLED = "1";
-          APP_BASE_URL = cfg.baseUrl;
-        } // cfg.additionalEnvVars;
-      };
-      systemd.timers.public-holiday-shadow-sweep = mkIf cfg.publicHolidays.shadow.enable {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = cfg.publicHolidays.shadow.onCalendar;
-          Persistent = true;
-          RandomizedDelaySec = cfg.publicHolidays.shadow.randomizedDelaySec;
         };
       };
       systemd.services.fwc-mapd-refresh-sweep = mkIf cfg.fwcMapd.refresh.enable {

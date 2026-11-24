@@ -2,7 +2,8 @@ module Test.PublicHolidayOverrideSpec where
 
 import Application.PublicHolidays.Override
 import Application.PublicHolidays.OverrideIncident
-import Application.PublicHolidays.Sync
+import Application.PublicHolidays.ActiveImport (PublicHolidaySyncSummary, importPublicHolidayCalendars)
+import Application.PublicHolidays.Client (DataVicDate (..))
 import Application.WageSourceFacts
 import Application.WageSourcePolicy
 import qualified Control.Exception as Exception
@@ -50,6 +51,13 @@ pureTests = describe "verified VIC calendar" do
 -- used by live payroll facts, not a parallel test-only date validator.
 calendar :: [PublicHoliday]
 calendar = [newRecord @PublicHoliday |> set #jurisdiction "VIC" |> set #holidayDate day |> set #name name | (day, name) <- verifiedVic2026Holidays]
+
+-- Predecessor cache: the reviewed dates except for the known missing Grand Final eve.
+preCorrectionCalendar :: [PublicHoliday]
+preCorrectionCalendar =
+    [ row |> set #importedAt (Just (addUTCTime (-86400) verifiedAt))
+    | row <- calendar, row.holidayDate /= fromGregorian 2026 9 25
+    ]
 
 verifiedAt :: UTCTime
 verifiedAt = UTCTime (fromGregorian 2026 9 15) (secondsToDiffTime 9000)
@@ -113,8 +121,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
         it "corrects only the known rows, retains import timestamps and records an idempotent audit" $ withContext do
             withCleanDb do
-                records <- loadDataVicHolidayFixture
-                _ <- importDataVicPublicHolidayRecordsForYears [2026] records
+                mapM_ createRecord preCorrectionCalendar
                 before <- query @PublicHoliday |> orderByAsc #holidayDate |> fetch
                 easterMonday <- newRecord @PublicHoliday |> set #jurisdiction "VIC" |> set #holidayDate (fromGregorian 2027 3 28) |> set #name "Easter Monday" |> createRecord
                 easterSunday <- newRecord @PublicHoliday |> set #jurisdiction "VIC" |> set #holidayDate (fromGregorian 2027 3 28) |> set #name "Easter Sunday" |> createRecord
@@ -162,8 +169,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
         it "rejects a mismatched migration atomically, without retaining the added Grand Final row" $ withContext do
             withCleanDb do
-                records <- loadDataVicHolidayFixture
-                _ <- importDataVicPublicHolidayRecordsForYears [2026] (drop 1 records)
+                mapM_ createRecord (drop 1 preCorrectionCalendar)
                 result <- Exception.try runCorrection :: IO (Either Exception.SomeException ())
                 result `shouldSatisfy` isLeft
                 query @PublicHolidayOverride |> fetchCount >>= (`shouldBe` 0)
@@ -171,11 +177,12 @@ databaseTests = aroundAll withDatabaseTestContext do
 
         it "blocks even valid provider replacements, including multi-year requests, without renewing dates" $ withContext do
             withCleanDb do
-                records <- loadDataVicHolidayFixture
-                _ <- importDataVicPublicHolidayRecordsForYears [2026] records
+                mapM_ createRecord preCorrectionCalendar
                 runCorrection
                 before <- query @PublicHoliday |> orderByAsc #id |> fetch
-                result <- Exception.try (importDataVicPublicHolidayRecordsForYears [2025, 2026, 2027] records) :: IO (Either Exception.SomeException PublicHolidaySyncSummary)
+                records <- loadDataVicHolidayFixture 2026
+                let candidate year = (year, [DataVicDate (fromGregorian year 1 1) "New Year's Day" Nothing Nothing "https://example.test/holidays"])
+                result <- Exception.try (importPublicHolidayCalendars verifiedAt [2025, 2026, 2027] [candidate 2025, (2026, records), candidate 2027]) :: IO (Either Exception.SomeException PublicHolidaySyncSummary)
                 result `shouldSatisfy` isLeft
                 after <- query @PublicHoliday |> orderByAsc #id |> fetch
                 map (\h -> (h.id, h.holidayDate, h.importedAt)) after `shouldBe` map (\h -> (h.id, h.holidayDate, h.importedAt)) before
