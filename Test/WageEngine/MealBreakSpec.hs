@@ -1,6 +1,7 @@
 module Test.WageEngine.MealBreakSpec where
 
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
@@ -19,7 +20,7 @@ tests =
             let day = fromGregorian 2026 1 5
                 calculation = calculationFor day (TimeOfDay 9 0 0) day (TimeOfDay 17 0 0) Nothing
 
-            sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 8 * 60 * 60
+            Seconds.sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` Seconds.fromMinutes 480
             calculation.earningsComponents
                 `shouldBe`
                     [ EarningsComponent
@@ -267,7 +268,7 @@ tests =
                 autumnWithBreak = calculationFor autumnSunday (TimeOfDay 0 0 0) autumnSunday (TimeOfDay 7 0 0) (Just autumnBreak)
                 springWithBreak = calculationFor springSunday (TimeOfDay 0 0 0) springSunday (TimeOfDay 8 0 0) (Just springBreak)
 
-            map resolvedIntervalElapsedSeconds [autumnBreak, springBreak] `shouldBe` [60 * 60, 60 * 60]
+            map resolvedIntervalElapsedSeconds [autumnBreak, springBreak] `shouldBe` replicate 2 (Seconds.fromMinutes 60)
             map paidSeconds [autumn, spring, autumnWithBreak, springWithBreak]
                 `shouldBe` [8 * 60 * 60, 7 * 60 * 60, 7 * 60 * 60, 6 * 60 * 60]
             map baseHourlyQuantity [autumn, spring, autumnWithBreak, springWithBreak] `shouldBe` [8, 7, 7, 6]
@@ -360,7 +361,7 @@ mealBreakForCivil startCivil endCivil =
         Right interval -> interval
 
 paidSeconds :: WageCalculation -> Rational
-paidSeconds = sum . map paidTimeDurationSeconds . (.paidTimeSegments)
+paidSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . (.paidTimeSegments)
 
 missedQuantity :: WageCalculation -> Rational
 missedQuantity = sum . map (.quantity) . missedComponents

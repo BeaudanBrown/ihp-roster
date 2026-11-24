@@ -19,6 +19,7 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     rosterShiftTimingElapsedSeconds,
                                     rosterShiftTimingEndTime,
                                     rosterShiftTimingStartTime)
+import qualified Application.VenueTime.Seconds as Seconds
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -218,7 +219,7 @@ timelineShiftFromSlot timelineWindow timingBySlotId slot =
             let start = rosterShiftTimingStartTime timing
                 end = rosterShiftTimingEndTime timing
                 startMin = normalizeTimelineMinute timelineWindow start
-                endMin = startMin + realToFrac (rosterShiftTimingElapsedSeconds timing) / 60
+                endMin = startMin + fromInteger (Seconds.toSeconds (rosterShiftTimingElapsedSeconds timing)) / 60
              in TimelineShift
                     { timelineShiftSlot = slot
                     , timelineShiftStartMin = startMin

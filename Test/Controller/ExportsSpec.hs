@@ -3,13 +3,18 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
+import Application.Helper.Export.Failure
+import Application.Helper.Export.WorkbookGeneration (generateWorkbookForVenue)
 import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
-import Application.Helper.TimesheetSelection
-import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
-                                    TimesheetIntegrityError (TimesheetTimingInvalid))
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetSelection
+import Application.Helper.View.Overlay (dialogOverlayMountId,
+                                        renderDialogOverlay)
+import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
+                                    TimesheetIntegrityError (TimesheetTimingInvalid))
+import qualified Application.WageEngine as Wage
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
@@ -26,8 +31,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.HSX.Markup (renderMarkupLazyText)
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status
@@ -39,6 +45,7 @@ import Web.Exports.Mutations (exportJobTouchedResources)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+import Web.View.Admin.ExportFailure (exportFailureDialog)
 
 archiveEntryText :: FilePath -> Zip.Archive -> IO Text
 archiveEntryText path archive =
@@ -63,6 +70,17 @@ emailFixture = do
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "renders every blocked timesheet with an escaped reason and an edit link" $ withContext $ withCurrentControllerContext do
+            let firstId = Id "00000000-0000-0000-0000-000000000001" :: Id TimesheetEntry
+                secondId = Id "00000000-0000-0000-0000-000000000002" :: Id TimesheetEntry
+                failure entryId = ExportEntryFailure entryId (fromGregorian 2026 11 4) (Just "Staff <Name>") Nothing Nothing "Saved interval <invalid>"
+                rendered = cs (renderMarkupLazyText (renderDialogOverlay (exportFailureDialog [failure firstId, failure secondId]))) :: Text
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction firstId))
+            rendered `shouldSatisfy` Text.isInfixOf (pathTo (EditTimesheetEntryAction secondId))
+            rendered `shouldSatisfy` Text.isInfixOf "Staff &lt;Name&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "Saved interval &lt;invalid&gt;"
+            rendered `shouldSatisfy` Text.isInfixOf "No payroll file was generated."
+            rendered `shouldSatisfy` Text.isInfixOf "Do not change valid times"
         it "emails a full selected template without settings, refreshes stale recipients and deduplicates confirmation retries" $ withContext do
             withCleanDb do
                 (venue, admin, template, group) <- emailFixture
@@ -1058,6 +1076,67 @@ tests = aroundAll withDatabaseTestContext do
                 mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,43.12,43.12"
                 mondayWages `shouldSatisfy` Text.isInfixOf "Total,268.12,268.12"
 
+        it "exports a persisted ten-minute missed-break penalty without nanosecond overrun" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Rounded missed break"
+                admin <- createUserRecord "rounded-missed-break@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue (Just admin) "Rounded" "Duration"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 19 30 0)
+                    , setTestEndTime (TimeOfDay 1 40 0)
+                    , setTestHadBreak True
+                    , setTestBreakMinutes 30
+                    , setTestBreakStartTime (Just (TimeOfDay 21 5 0))
+                    , setTestBreakEndTime (Just (TimeOfDay 21 35 0))
+                    ]
+                calculationResult <- loadApprovedTimesheetPayCalculation entry
+                calculation <- case calculationResult of
+                    Right (Just value) -> pure value
+                    other -> expectationFailure (cs (tshow other)) >> fail "Expected sealed calculation"
+                let missed = filter ((== Wage.MissedMealBreakAdditionCondition) . (.sourceCondition)) calculation.earningsComponents
+                map (.quantity) missed `shouldBe` [166666666667 / 1000000000000]
+                cents <- case buildHourlyWageCents [entry] (Map.singleton (unpackId entry.id) calculation) of
+                    Right value -> pure value
+                    Left failure -> expectationFailure (cs failure) >> fail "Hourly allocation failed"
+                sum (Map.elems cents) `shouldBe` round ((Wage.deriveFinalEarnings calculation.earningsComponents).finalEarningsTotalAmount * 100)
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+                job <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                job.status `shouldBe` exportJobStatusToText ExportReady
+                download <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction job.id) [("token", cs (tshow job.downloadToken))]
+                download `responseStatusShouldBe` status200
+                after <- loadApprovedTimesheetPayCalculation entry
+                after `shouldBe` calculationResult
+                buildHourlyWageCents [entry |> set #endsAt (addUTCTime (-60) entry.endsAt)] (Map.singleton (unpackId entry.id) calculation)
+                    `shouldSatisfy` isLeft
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0) ]
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                blocked <- generateWorkbookForVenue venue.id config
+                    [ entry |> set #endsAt (addUTCTime (-60) entry.endsAt)
+                    , second |> set #activePayCalculationId Nothing ]
+                    defaultPayrollWorkbookDefinition (fromGregorian 2025 1 6) (fromGregorian 2025 1 12)
+                case blocked of
+                    Left (ExportEntryFailures failures) -> do
+                        map (.entryFailureId) failures `shouldMatchList` [entry.id, second.id]
+                        map (.entryFailureStaffName) failures `shouldBe` replicate 2 (Just "Rounded Duration")
+                    _ -> expectationFailure "Expected all source and interval failures, not a partial workbook"
+                query @ExportJob |> fetchCount `shouldReturn` 1
+
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Venue"
@@ -1350,7 +1429,19 @@ tests = aroundAll withDatabaseTestContext do
                         , ("rangeEnd", "2025-01-12")
                         ]
 
-                response `responseStatusShouldBe` status302
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Payroll export blocked"
+                response `responseBodyShouldContain` "Source Blocked"
+                response `responseBodyShouldContain` "No payroll file was generated."
+                fragment <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                            , ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12") ]
+                lookup "HX-Retarget" (responseHeaders fragment) `shouldBe` Just (cs ("#" <> dialogOverlayMountId))
+                lookup "HX-Reswap" (responseHeaders fragment) `shouldBe` Just "innerHTML"
+                fragment `responseBodyShouldContain` "Source Blocked"
+                fragment `responseBodyShouldContain` "EditTimesheetEntry"
                 exportJobs <- query @ExportJob |> fetch
                 exportJobs `shouldBe` []
 

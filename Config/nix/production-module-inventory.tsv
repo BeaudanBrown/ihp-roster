@@ -87,6 +87,7 @@ Application/Helper/ControllerSupport.hs	production	runtime	Main	Reachable from M
 Application/Helper/EmailVerification.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Definitions.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Export/Failure.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/HourlyBreakdown.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Payloads.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/PayrollWorkbook.hs	production	runtime	Main	Reachable from Main
@@ -421,6 +422,7 @@ Application/VenueOnboardingInvitation/Mutations.hs	production	runtime	Main	Reach
 Application/VenueRole.hs	production	runtime	Main	Reachable from Main
 Application/VenueTime.hs	production	runtime	Main	Reachable from Main
 Application/VenueTime/Model.hs	production	runtime	Main	Reachable from Main
+Application/VenueTime/Seconds.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine/Adapter.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine/Components.hs	production	runtime	Main	Reachable from Main
@@ -600,6 +602,7 @@ Web/Timesheets/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Types.hs	production	runtime	Main	Reachable from Main
 Web/Users/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Common.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/ExportFailure.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Exports.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Invites.hs	production	runtime	Main	Reachable from Main

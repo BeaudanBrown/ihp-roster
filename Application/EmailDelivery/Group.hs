@@ -27,7 +27,7 @@ payrollReportMailKind = "payroll_report_group_v1"
 
 data GroupDeliveryRuntime = GroupDeliveryRuntime
     { groupDeliveryDisabled :: !(IO Bool)
-    , deliverGroupMail :: !(Mail -> IO ())
+    , deliverGroupMail      :: !(Mail -> IO ())
     }
 
 data GroupEnvelope = GroupEnvelope !Text !UUID
@@ -80,14 +80,13 @@ performGroupEmailDeliveryWith runtime job = do
         else do
             now <- getCurrentTime
             export <- case current.exportJobId of
-                Nothing -> pure Nothing
+                Nothing       -> pure Nothing
                 Just exportId -> fetchOneOrNothing (Id exportId :: Id ExportJob)
-            venue <- fetch (Id current.venueId :: Id Venue)
             let artifactValid = case export of
                     Nothing -> current.approvedEntryCount == 0 && isNothing current.exportJobId
                     Just artifact -> artifact.venueId == current.venueId && artifact.expiresAt > now && isJust artifact.fileContents && artifact.fileEncoding == "base64"
             if not artifactValid then terminal current PayrollReportFailed else
-                case (validatePayrollReportRecipients current.recipients, buildPayrollReportMail venue.name current export) of
+                case (validatePayrollReportRecipients current.recipients, buildPayrollReportMail current export) of
                     (Right _, Right mail) -> do
                         correlation <- prepareProviderCorrelation job
                         -- Commit uncertainty BEFORE any transport call. A crash here

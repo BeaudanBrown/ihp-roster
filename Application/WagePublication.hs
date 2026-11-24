@@ -9,8 +9,10 @@ module Application.WagePublication
     , staffHoursContributions
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -46,10 +48,10 @@ staffHoursContributions calculation =
     [ StaffHoursContribution
         { staffHoursDate = segment.paidTimeLocalDate
         , staffHoursBucketKind = bucketFor segment
-        , staffHoursQuantity = paidTimeDurationSeconds segment / 3600
+        , staffHoursQuantity = Seconds.toHours (paidTimeDurationSeconds segment)
         }
     | segment <- calculation.paidTimeSegments
-    , paidTimeDurationSeconds segment > 0
+    , paidTimeDurationSeconds segment > Seconds.fromSeconds 0
     ]
   where
     bucketFor segment
@@ -113,35 +115,37 @@ datedEarningsComponentsWithOrdinal calculation =
         case listToMaybe workedSegments of
             Nothing -> [(fallbackDate, component)]
             Just firstWorked ->
-                let missedStart = addUTCTime (6 * 60 * 60) firstWorked.paidTimeStart
-                    (remaining, contributions) = allocateMissed component component.quantity missedStart workedSegments
+                let missedStart = Seconds.addTo (Seconds.fromMinutes 360) firstWorked.paidTimeStart
+                    total = Seconds.fromStoredHours component.quantity
+                    (remaining, contributions) = allocateMissed total missedStart workedSegments
                     fallback =
-                        [ ( (resolvedInstantLocalTime (resolvedInstantFromUTC missedStart)).localDay
-                          , componentForQuantity component remaining
-                          )
-                        | remaining > 0
+                        [ ((resolvedInstantLocalTime (resolvedInstantFromUTC missedStart)).localDay, remaining)
+                        | remaining > Seconds.fromSeconds 0
                         ]
-                 in contributions <> fallback
+                 in if total == Seconds.fromSeconds 0
+                    then [(fallbackDate, component)]
+                    else map (\(date, duration) -> (date, componentForDuration component total duration)) (contributions <> fallback)
 
-    allocateMissed _ remaining _ [] = (remaining, [])
-    allocateMissed component remaining missedStart (segment : segments)
-        | remaining <= 0 = (0, [])
-        | segment.paidTimeEnd <= missedStart = allocateMissed component remaining missedStart segments
+    allocateMissed remaining _ [] = (remaining, [])
+    allocateMissed remaining missedStart (segment : segments)
+        | remaining <= Seconds.fromSeconds 0 = (Seconds.fromSeconds 0, [])
+        | segment.paidTimeEnd <= missedStart = allocateMissed remaining missedStart segments
         | otherwise =
             let contributionStart = max missedStart segment.paidTimeStart
-                available = toRational (diffUTCTime segment.paidTimeEnd contributionStart) / 3600
-                contributionQuantity = min remaining available
+                available = Seconds.between contributionStart segment.paidTimeEnd
+                contributionDuration = min remaining available
                 contribution =
-                    [ (segment.paidTimeLocalDate, componentForQuantity component contributionQuantity)
-                    | contributionQuantity > 0
+                    [ (segment.paidTimeLocalDate, contributionDuration)
+                    | contributionDuration > Seconds.fromSeconds 0
                     ]
-                (left, later) = allocateMissed component (remaining - contributionQuantity) missedStart segments
+                (left, later) = allocateMissed (Seconds.subtract remaining contributionDuration) missedStart segments
              in (left, contribution <> later)
 
-    componentForQuantity component contributionQuantity =
-        component
-            { quantity = contributionQuantity
-            , amount = contributionQuantity * toRational component.ratePerUnit
+    componentForDuration component total duration =
+        let share = Seconds.toHours duration / Seconds.toHours total
+         in component
+            { quantity = component.quantity * share
+            , amount = component.amount * share
             }
 
     qualifyingDates wanted =

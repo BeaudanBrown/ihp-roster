@@ -1,6 +1,7 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
+import Application.Helper.Export.Failure (ExportFailure (..))
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -9,8 +10,6 @@ import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOob)
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -23,11 +22,13 @@ import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               recordExportDownloadMutation,
                               requestFixedExportMutation,
                               requestFixedExportWithPayrollWorkbookDefinitionMutation)
-import Web.Exports.Responses
 import Web.Exports.PayrollReports
-import Web.Exports.Selection (openExportSelection, refreshExportSelection, changeExportSelectionGroup, generateSelectedExport)
+import Web.Exports.Responses
+import Web.Exports.Selection (changeExportSelectionGroup,
+                              generateSelectedExport, openExportSelection,
+                              refreshExportSelection)
 import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
-                                          editSavedWorkbookFromRequest)
+                                           editSavedWorkbookFromRequest)
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 exportDownloadUrl :: ExportJob -> Text
@@ -40,14 +41,7 @@ respondWithExportGenerationError ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
     IO ResponseReceived
-respondWithExportGenerationError message =
-    if isHtmxRequest
-        then do
-            setHeader ("HX-Reswap", "none")
-            respondHtml (renderToastOob ToastBottomCenter (errorToast message))
-        else do
-            setErrorMessage message
-            redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
+respondWithExportGenerationError = respondWithExportFailure . ExportMessage
 
 respondWithGeneratedExportDownload ::
     (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
@@ -180,16 +174,16 @@ instance Controller ExportsController where
                             Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
                             Right configuration ->
                                 requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= \case
-                                    Left message -> respondWithExportGenerationError message
+                                    Left failure -> respondWithExportFailure failure
                                     Right result -> respondWithGeneratedExportDownload result.liveMutationValue
                     (PayrollWorkbookXlsx, Nothing) ->
                         requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
+                            Left failure -> respondWithExportFailure failure
                             Right result -> respondWithGeneratedExportDownload result.liveMutationValue
                     (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
                     (_, Nothing) ->
                         requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                            Left message -> respondWithExportGenerationError message
+                            Left failure -> respondWithExportFailure failure
                             Right result -> respondWithGeneratedExportDownload result.liveMutationValue
 
     action currentAction@NewPayrollWorkbookConfigurationAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do

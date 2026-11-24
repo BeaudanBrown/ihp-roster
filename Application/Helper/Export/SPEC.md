@@ -58,8 +58,12 @@ cross-module safety and payroll contracts.
   boundaries.
 - Times and component dates project from authoritative instants plus the stored
   timezone. Operational date selects the export window and keeps the complete
-  entry in that window. Elapsed duration uses instant differences, so repeated
-  and skipped DST hours remain exact.
+  entry in that window. Elapsed duration uses `VenueTime.Seconds`: subtract
+  instants first, then round once to the nearest second (ties away from zero).
+  Repeated and skipped DST hours remain distinct. Splits round individually;
+  minute-precision business inputs conserve elapsed duration, while exceptional
+  fractional stored inputs require the [rollout audit](../../../docs/runbooks/business-duration-precision.md).
+  Approved stored hours/amounts remain financial authority, not elapsed seconds.
 - Hourly Staff Hours and Hourly Wage Totals share one Operational-day window. The
   current venue picker window is the minimum, approved entry boundaries expand
   it, and both ends round outward to clock hours. Every selected Operational date
@@ -79,7 +83,11 @@ cross-module safety and payroll contracts.
   zero. Net worked time plus minimum top-up is allocated over actual worked
   seconds, Hours reconcile at six decimals, and Wages reconcile exactly to sealed
   cents. Empty batches or any included-entry authority/timing/wage failure reject
-  the complete workbook.
+  the complete workbook. Manual workbook/hourly timing failures collect every
+  affected authorised entry before returning: staff, Operational date, local
+  interval, escaped reason and timesheet edit link. Native and HTMX responses
+  explicitly state no file was generated and direct valid-time discrepancies
+  to support; never suggest changing correct times to bypass validation.
 - Payroll Workbook presentation is selected by a versioned definition with a
   stable key and an ordered, duplicate-free, non-empty list of available sheet
   families. Version 1 supports Summary, employee/pay-bucket Hours, shift-type

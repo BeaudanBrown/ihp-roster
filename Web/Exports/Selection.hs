@@ -7,29 +7,31 @@ module Web.Exports.Selection
     ) where
 
 import Application.Helper.Export
-import Application.Helper.TimesheetSelection
-import Application.Helper.Url (appendQueryParams)
+import Application.Helper.Export.Failure (ExportFailure (..))
 import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Web.TimesheetSelection (fetchTimesheetSelectionRows)
+import Application.Helper.TimesheetSelection
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
+import IHP.ViewPrelude (Html)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (requestSelectedExportMutation)
+import Web.Exports.Responses (respondWithExportFailure)
+import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import Web.View.TimesheetSelection
-import IHP.ViewPrelude (Html)
 
 -- HTTP transport is confined to this workflow; Application consumes only the
 -- shared typed selection and never reads request parameters.
 data ExportSelectionRequest = ExportSelectionRequest
-    { rangeStart :: Day
-    , rangeEnd :: Day
-    , exportType :: ExportJobType
+    { rangeStart      :: Day
+    , rangeEnd        :: Day
+    , exportType      :: ExportJobType
     , configurationId :: Maybe UUID
-    , tokens :: [Text]
+    , tokens          :: [Text]
     }
 
 openExportSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
@@ -89,7 +91,8 @@ generateSelectedExport complete =
             case parseExplicitTimesheetSelection request.tokens of
                 Left failure -> showSelection False (Just (renderTimesheetSelectionFailure failure)) request
                 Right selection -> requestSelectedExportMutation selection request.exportType (Id <$> request.configurationId) request.rangeStart request.rangeEnd >>= \case
-                    Left message -> showSelection False (Just message) request
+                    Left (ExportMessage message) -> showSelection False (Just message) request
+                    Left failure@(ExportEntryFailures _) -> respondWithExportFailure failure
                     Right result -> complete result.liveMutationValue
 
 showSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Bool -> Maybe Text -> ExportSelectionRequest -> IO ResponseReceived

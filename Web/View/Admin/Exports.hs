@@ -10,7 +10,6 @@ module Web.View.Admin.Exports
 import Application.Helper.Export
 import Application.Helper.WeekBoundaries (weekdayIndexLabel)
 import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields)
-import Data.Time.Format (formatTime, defaultTimeLocale)
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionAttrs,

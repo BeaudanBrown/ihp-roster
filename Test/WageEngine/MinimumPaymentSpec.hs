@@ -2,6 +2,7 @@ module Test.WageEngine.MinimumPaymentSpec where
 
 import Application.PublicHolidays.Sync (importDataVicPublicHolidayRecordsForYears)
 import Application.VenueTime
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
@@ -387,10 +388,10 @@ workedSegments :: WageCalculation -> [PaidTimeSegment]
 workedSegments = filter ((== Worked) . (.paidTimeKind)) . (.paidTimeSegments)
 
 paidSeconds :: WageCalculation -> Rational
-paidSeconds = sum . map paidTimeDurationSeconds . (.paidTimeSegments)
+paidSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . (.paidTimeSegments)
 
 workedSeconds :: WageCalculation -> Rational
-workedSeconds = sum . map paidTimeDurationSeconds . workedSegments
+workedSeconds = fromInteger . Seconds.toSeconds . Seconds.sum . map paidTimeDurationSeconds . workedSegments
 
 hourlyDetails :: WageCalculation -> [(SourceCondition, Rational, Scientific)]
 hourlyDetails =

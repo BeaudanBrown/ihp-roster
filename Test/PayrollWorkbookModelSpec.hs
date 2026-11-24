@@ -1,9 +1,11 @@
 module Test.PayrollWorkbookModelSpec where
 
+import Application.Helper.Export.Failure
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine
 import qualified Application.WageEngine as WageEngine
 import qualified Data.Map.Strict as Map
@@ -19,6 +21,19 @@ import Test.Hspec
 tests :: Spec
 tests =
     describe "Payroll Workbook authoritative hourly model" do
+        it "collects all invalid timesheet intervals instead of stopping at the first" do
+            let day = fromGregorian 2025 1 6
+                firstEntry = testEntry firstEntryId testStaffId firstShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+                secondEntry = testEntry secondEntryId testStaffId secondShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+                outside = paidSegment Worked day (testUtc 2025 1 5 22) (testUtc 2025 1 6 1)
+                calculations = Map.fromList
+                    [ (firstEntryId, calculation firstEntryId day [outside] [hourlyComponent outside 9000])
+                    , (secondEntryId, calculation secondEntryId day [outside] [hourlyComponent outside 9000]) ]
+                failures = collectPayrollTimingFailures [firstEntry, secondEntry] Map.empty calculations
+            map (.entryFailureId) failures `shouldBe` [firstEntry.id, secondEntry.id]
+            map (.entryFailureDate) failures `shouldBe` [day, day]
+            map (.entryFailureMessage) failures `shouldSatisfy` all (Text.isInfixOf "worked segment falls outside")
+            collectPayrollTimingFailures [] Map.empty Map.empty `shouldBe` []
         it "aggregates shift types sharing one approval-pinned pay bucket and reconciles breaks, top-up hours, and cents" do
             let day = fromGregorian 2025 1 6
             let staff = testStaff testStaffId "Ada" "Lovelace"
@@ -274,7 +289,7 @@ dstModel day startsAt endsAt = do
         (Map.singleton firstEntryId bucket)
         (Map.singleton firstEntryId "Bar")
         [HourlyShiftTypeColumn firstShiftTypeId "Bar"]
-        (Map.singleton firstEntryId (calculation firstEntryId day [segment] [hourlyComponent segment (round (paidTimeDurationSeconds segment / 3600) * 3000)]))
+        (Map.singleton firstEntryId (calculation firstEntryId day [segment] [hourlyComponent segment (round (Seconds.toHours (paidTimeDurationSeconds segment)) * 3000)]))
         |> expectRight
 
 calculation :: UUID -> Day -> [PaidTimeSegment] -> [EarningsComponent] -> WageCalculation
@@ -291,7 +306,7 @@ calculation entryId day segments components =
 hourlyComponent :: PaidTimeSegment -> Integer -> EarningsComponent
 hourlyComponent segment cents =
     EarningsComponent
-        { quantity = paidTimeDurationSeconds segment / 3600
+        { quantity = Seconds.toHours (paidTimeDurationSeconds segment)
         , unitType = Hours
         , ratePerUnit = 30
         , amount = fromInteger cents / 100

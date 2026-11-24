@@ -26,6 +26,7 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Control.Exception as Exception
 import Data.Either (fromRight)
 import qualified Data.Text as Text
@@ -46,7 +47,7 @@ requireBlankTimesheetClassification = case paramOrNothing @Text "blankClassifica
     Just "none" -> pure TimesheetNoRosterGroup
     Just value -> case Text.stripPrefix "group:" value >>= UUID.fromText of
         Just groupId -> pure (TimesheetInRosterGroup groupId)
-        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+        Nothing      -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
     Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
 
 submittedTimesheetRosterGroupClassification :: (?request :: Request, ?respond :: Respond) => IO (Maybe TimesheetRosterGroupClassification)
@@ -314,7 +315,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
          in addDays (if breakEndTime <= breakStartTime && not (repeatedEndpointPairCanShareDate resolvedBreakStartDate breakStartTime breakEndTime) then 1 else 0) resolvedBreakStartDate
 
     validateElapsedDuration boundaries record
-        | authoritativeElapsedSeconds boundaries > 16 * 60 * 60 = record |> attachFailure #endsAt "Shift cannot exceed 16 elapsed hours"
+        | authoritativeElapsedSeconds boundaries > Seconds.fromMinutes (16 * 60) = record |> attachFailure #endsAt "Shift cannot exceed 16 elapsed hours"
         | otherwise = record
 
     attachBoundaryFailure failure record =

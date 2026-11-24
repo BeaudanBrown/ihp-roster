@@ -11,37 +11,38 @@ module Web.Exports.Mutations
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
-import Application.PayrollReports.Settings (withPayrollReportVenueLock)
-import Application.Helper.TimesheetSelection (TimesheetSelection)
+import Application.Helper.Export.Failure
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimesheetSelection (TimesheetSelection)
+import Application.PayrollReports.Settings (withPayrollReportVenueLock)
 import qualified Control.Exception as Exception
 import qualified Data.Set as Set
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
 
-requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestFixedExportMutation exportType rangeStart rangeEnd =
     requestExportMutation (requestFixedExport exportType rangeStart rangeEnd)
 
-requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestFixedExportWithPayrollWorkbookDefinitionMutation exportName definition rangeStart rangeEnd =
     requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition exportName definition rangeStart rangeEnd)
 
-requestSelectedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSelection -> ExportJobType -> Maybe (Id PayrollWorkbookConfiguration) -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestSelectedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSelection -> ExportJobType -> Maybe (Id PayrollWorkbookConfiguration) -> Day -> Day -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestSelectedExportMutation selection exportType configurationId rangeStart rangeEnd =
     case (exportType, configurationId) of
         (PayrollWorkbookXlsx, Just configurationId) ->
             fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
-                Left _ -> pure (Left "That Payroll Workbook configuration is unavailable. Close the dialog and choose an existing export.")
+                Left _ -> pure (Left (ExportMessage "That Payroll Workbook configuration is unavailable. Close the dialog and choose an existing export."))
                 Right configuration -> requestExportMutation (requestPayrollWorkbookXlsxExportWithSelection selection configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd)
-        (_, Just _) -> pure (Left "This configuration can only generate Payroll Workbooks.")
+        (_, Just _) -> pure (Left (ExportMessage "This configuration can only generate Payroll Workbooks."))
         (_, Nothing) -> requestExportMutation (requestFixedExportWithSelection selection exportType rangeStart rangeEnd)
 
 -- Keep the database context abstract until the durable transaction supplies it;
 -- a pre-built IO action would perform export writes on the outer connection.
-requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either Text ExportJob)) -> IO (Either Text (LiveMutationResult ExportJob))
+requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either ExportFailure ExportJob)) -> IO (Either ExportFailure (LiveMutationResult ExportJob))
 requestExportMutation requestExport = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor requestExport

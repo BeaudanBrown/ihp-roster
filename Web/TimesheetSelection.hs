@@ -1,11 +1,13 @@
 module Web.TimesheetSelection (fetchTimesheetSelectionRows, selectedWorkedHours) where
 
-import Application.Helper.Export.ReadModel (fetchStaffMap, fetchReportShiftTypes)
+import Application.Helper.Export.ReadModel (fetchReportShiftTypes,
+                                            fetchStaffMap)
 import Application.Helper.TimesheetSelection
+import qualified Application.VenueTime.Seconds as Seconds
 import qualified Data.Map.Strict as Map
-import Web.View.TimesheetSelection (TimesheetSelectionRow (..))
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.View.TimesheetSelection (TimesheetSelectionRow (..))
 
 fetchTimesheetSelectionRows :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO [TimesheetSelectionRow]
 fetchTimesheetSelectionRows entries = do
@@ -21,8 +23,8 @@ fetchTimesheetSelectionRows entries = do
         } | entry <- entries]
 
 selectedWorkedHours :: [TimesheetEntry] -> Double
-selectedWorkedHours entries = realToFrac (sum (map seconds entries)) / 3600
+selectedWorkedHours entries = fromRational (Seconds.toHours (Seconds.sum (map seconds entries)))
   where
-    seconds entry = diffUTCTime entry.endsAt entry.startsAt - case (entry.breakStartsAt, entry.breakEndsAt) of
-        (Just start, Just end) -> diffUTCTime end start
-        _ -> 0
+    seconds entry = Seconds.subtract (Seconds.between entry.startsAt entry.endsAt) (case (entry.breakStartsAt, entry.breakEndsAt) of
+        (Just start, Just end) -> Seconds.between start end
+        _                      -> Seconds.fromSeconds 0)

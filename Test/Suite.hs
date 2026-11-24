@@ -41,13 +41,13 @@ import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.Exports.WorkbookConfigurationsSpec
 import qualified Test.Controller.ExportsSpec
-import qualified Test.Controller.RecipientGroupsSpec
 import qualified Test.Controller.FeedbackSpec
 import qualified Test.Controller.FixedExportGoldenSpec
 import qualified Test.Controller.HelpSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.ProfilesSpec
+import qualified Test.Controller.RecipientGroupsSpec
 import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
@@ -92,11 +92,10 @@ import qualified Test.PageHelpSpec
 import qualified Test.PasskeySpec
 import qualified Test.PayRateSelectionSpec
 import qualified Test.PayrollReportEmailSpec
-import qualified Test.PayrollReportScheduleSpec
 import qualified Test.PayrollReportGenerationSpec
-import qualified Test.PayrollReportSettingsSpec
+import qualified Test.PayrollReportScheduleSpec
 import qualified Test.PayrollReportSelectionSpec
-import qualified Test.RecipientGroupsSpec
+import qualified Test.PayrollReportSettingsSpec
 import qualified Test.PayrollWorkbookConfigurationSpec
 import qualified Test.PayrollWorkbookModelSpec
 import qualified Test.PayrollWorkbookSpec
@@ -108,6 +107,7 @@ import qualified Test.PublicHolidayOverrideSpec
 import qualified Test.PublicHolidayShadowSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.PwaInstallSpec
+import qualified Test.RecipientGroupsSpec
 import qualified Test.ResendWebhookSpec
 import qualified Test.ResetIsolationSpec
 import qualified Test.RosterAwardDurationSpec
@@ -119,6 +119,7 @@ import qualified Test.RosterTemplateCaptureSpec
 import qualified Test.RosterTemplatesSpec
 import qualified Test.RosterWageDisplaySpec
 import qualified Test.SchemaSpec
+import qualified Test.SecondsSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
 import qualified Test.StripeContractSpec
@@ -510,6 +511,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "PayrollWorkbookModel", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.PayrollWorkbookModelSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "TimesheetsController", definitionEstimatedRuntimeSeconds = 11.3, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TimesheetsAndLeave, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A6, T1, T2, T5, T6], definitionPartialInvariants = []} Test.Controller.TimesheetsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "TimesheetWageDisplay", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.TimesheetWageDisplaySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "Seconds", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.SecondsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "VenueTime", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.VenueTimeSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PayHelpers", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PaySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PayRateSelection", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PayRateSelectionSpec.tests

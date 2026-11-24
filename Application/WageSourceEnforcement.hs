@@ -5,6 +5,7 @@ module Application.WageSourceEnforcement
     , WageEntryOutcome (..)
     , enforceFinalWageEntries
     , enforceFinalWageEntriesAt
+    , finalWageEntryResult
     , evaluateDraftWageEntriesAt
     , renderWageEntryFailure
     , renderWageEntryFailures
@@ -22,7 +23,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -67,13 +67,16 @@ enforceFinalWageEntries entries = do
 enforceFinalWageEntriesAt :: (?modelContext :: ModelContext) => PolicyClock -> [TimesheetEntry] -> IO (Either [WageEntryFailure] [WageCalculation])
 enforceFinalWageEntriesAt clock entries = do
     outcomes <- evaluateDraftWageEntriesAt clock entries
-    let failures = concatMap finalFailures outcomes
-    pure $ if null failures
-        then traverse (Bifunctor.first (: []) . outcomeCalculationAsFailure) outcomes
-        else Left failures
-  where
-    outcomeCalculationAsFailure outcome =
-        Bifunctor.first (WageCalculationFailed outcome.outcomeEntryId) outcome.outcomeCalculation
+    let results = map finalWageEntryResult outcomes
+        failures = concat (lefts results)
+    pure $ if null failures then Right (rights results) else Left failures
+
+-- | The same final-pay authority, retained per entry so export validation can
+-- collect independent interval failures without dropping source failures.
+finalWageEntryResult :: WageEntryOutcome -> Either [WageEntryFailure] WageCalculation
+finalWageEntryResult outcome = case finalFailures outcome of
+    [] -> Bifunctor.first (\message -> [WageCalculationFailed outcome.outcomeEntryId message]) outcome.outcomeCalculation
+    failures -> Left failures
 
 finalFailures :: WageEntryOutcome -> [WageEntryFailure]
 finalFailures outcome =

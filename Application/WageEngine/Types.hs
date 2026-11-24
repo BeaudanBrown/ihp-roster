@@ -34,6 +34,7 @@ module Application.WageEngine.Types
 where
 
 import Application.VenueTime (AwardSegment, ResolvedInterval, VenueTimeError)
+import qualified Application.VenueTime.Seconds as Seconds
 import Application.WageEngine.RateBook (AwardRateContext, EmploymentBasis,
                                         RateBookVersion, RateSourceIdentity,
                                         ValidatedRateKey)
@@ -171,8 +172,8 @@ data PaidTimeSegment = PaidTimeSegment
     }
     deriving (Eq, Show)
 
-paidTimeDurationSeconds :: PaidTimeSegment -> Rational
-paidTimeDurationSeconds segment = toRational (diffUTCTime segment.paidTimeEnd segment.paidTimeStart)
+paidTimeDurationSeconds :: PaidTimeSegment -> Seconds.Seconds
+paidTimeDurationSeconds segment = Seconds.between segment.paidTimeStart segment.paidTimeEnd
 
 data EarningsUnit
     = Hours
