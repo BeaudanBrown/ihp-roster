@@ -7,7 +7,7 @@ What this subsystem owns and deliberately does not.
 ## Start Here
 
 Link only the authoritative entry points needed for navigation. Point to
-architecture facts or queries instead of listing helpers, actions, assets,
+the owning source instead of listing helpers, actions, assets,
 fields, or consumers.
 
 ## Boundaries

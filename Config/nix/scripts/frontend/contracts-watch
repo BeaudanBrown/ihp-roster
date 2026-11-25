@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# Compatibility alias. Dev lifecycle uses frontend-generated-watch directly.
-exec frontend-generated-watch "$@"

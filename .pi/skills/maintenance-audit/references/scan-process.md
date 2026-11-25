@@ -123,16 +123,9 @@ repository's memory guidance. If baseline checks fail:
 - do not promise clean before/after equivalence against an unknown baseline;
 - create a separate bug/tooling issue only if the user wants it tracked.
 
-Inspect project-defined architecture capabilities before ad hoc greps. At
-minimum, use the available equivalents of:
-
-- hotspot/refactoring radar;
-- architecture convention report;
-- generated-contract report;
-- module neighborhoods for top candidates;
-- focused controller/request-flow/table queries where relevant.
-
-Architecture output is evidence with provenance and confidence, not an oracle.
+Use the inventory collector for discovery, then read the entrypoint, callers,
+and tests. Run `repository-wiring-check` for controller, Layout, and workflow
+policy; use generator freshness checks for checked-in contracts.
 
 ## 5. Perform the broad pass
 

@@ -30,7 +30,6 @@ Run commands through the project environment:
 bash ./bin/in-env verify-fast
 bash ./bin/in-env verify-tooling
 bash ./bin/in-env verify-full
-bash ./bin/in-env verify-all
 
 # Focused gates
 bash ./bin/in-env typecheck
@@ -39,7 +38,7 @@ bash ./bin/in-env e2e
 bash ./bin/in-env e2e-typecheck
 bash ./bin/in-env lint
 bash ./bin/in-env format
-bash ./bin/in-env ./bin/doc-drift-check
+bash ./bin/in-env documentation-repository-check
 
 # Frontend generation and checks
 bash ./bin/in-env frontend-build
@@ -59,9 +58,9 @@ bash ./bin/in-env production-build-profile --cores 12
 
 `verify-fast` is additive feedback. `verify-tooling` runs synthetic checker and
 harness self-tests; `verify-full` is the unconditional serial repository-authority
-gate; `verify-all` runs both tiers serially. `verify-full` orders cheap authority
+gate. `verify-full` orders cheap authority
 (freshness, manifest, HTTP, typed, wage/date, documentation), core Haskell
-(typecheck, complete Hspec, Weeder), generated/frontend checks, architecture,
+(typecheck, complete Hspec, Weeder), generated/frontend and wiring checks,
 production inspection/billing/deployment, then complete eight-shard Playwright.
 Local subsystem docs list narrower commands and test-selection rules.
 
@@ -69,8 +68,8 @@ Local subsystem docs list narrower commands and test-selection rules.
 validation including unused-code checks, frontend unit/DOM tests, and generated
 JS drift. `e2e-typecheck` is the focused static Playwright authority; browser
 execution remains owned by `e2e`. `verify-full`
-generates frontend contracts once through its isolated tooling package; later
-architecture checks consume that current output. Fingerprinted per-worktree
+checks generated frontend contracts through its isolated tooling package.
+Fingerprinted per-worktree
 verification caches retain successful compilation dependencies but never omit a
 validation subject. `dev-start` and
 `just dev` first use content fingerprints to generate only stale schema-derived

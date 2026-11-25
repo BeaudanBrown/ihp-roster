@@ -8,7 +8,6 @@ import Application.Fixture.Error
 import Application.Operator.Error
 import qualified Application.Script.BootstrapAccount as Bootstrap
 import qualified Application.Script.LiveInvalidationOutboxPrune as OutboxPrune
-import qualified Application.Script.ProfileLiveInvalidation as LiveProfile
 import qualified Application.Script.SeedDev as SeedDev
 import qualified Application.Script.SeedProfile as SeedProfile
 import qualified Application.Script.XeroPayItemProbe as XeroProbe
@@ -28,8 +27,6 @@ spec = do
                 `shouldBe` Left (InvalidScriptArgument "unknown seed scenario: --scenario=unknown")
             SeedProfile.parseProfileSeedArgs ["--venues=0"]
                 `shouldBe` Left (InvalidScriptArgument "--venues= value must be greater than zero")
-            LiveProfile.parseProfileLiveInvalidationArgs ["--scopes="]
-                `shouldBe` Left (InvalidScriptArgument "--scopes requires at least one value")
             XeroProbe.parseOptions XeroProbe.defaultProbeOptions ["--surprise"]
                 `shouldBe` Left (InvalidScriptArgument "unknown Xero pay-item probe option: --surprise")
             XeroProbe.validateProbeOptions XeroProbe.defaultProbeOptions

@@ -154,7 +154,6 @@
                     done <<'TOOLS'
 Application/Script/GenerateFrontendContracts|generate-frontend-contracts
 Application/Script/GenerateFrontendSurfaceAdapters|generate-frontend-surface-adapters
-Application/Script/GenerateBepisArchitectureContracts|generate-bepis-architecture-contracts
 TOOLS
                     runHook postBuild
                 '';

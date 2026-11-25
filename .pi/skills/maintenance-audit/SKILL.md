@@ -63,15 +63,14 @@ GitHub issue plan.
 
 1. Establish repository, target branch, baseline commit, scope, and an ignored
    run directory under `.pi/tmp/maintenance-audit/`.
-2. Inspect current instructions, architecture tooling, workstreams, and open or
+2. Inspect current instructions, focused verification, workstreams, and open or
    recently closed maintenance issues. Avoid duplicate tracking.
 3. If the user wants isolation from the start, dry-run and publish a provisional
    parent epic, create its Git worktree, register it, orient, present the
    frontier, and continue there unless orientation disallows selection, the user
    retained control, or a material decision needs input.
-4. Record baseline health. Run the inventory collector and current architecture
-   hotspot/convention/contract queries. Use focused checks before expensive
-   gates.
+4. Record baseline health. Run the inventory collector and the applicable
+   focused repository checks before expensive gates.
 5. Walk every material subsystem, not only large files. Trace representative
    request, domain, persistence, rendering, frontend, and test paths.
 6. Maintain an evidence register and a source-of-truth/derivation map in the
@@ -103,8 +102,7 @@ Keep these concerns separate:
 - **Ephemeral evidence:** `.pi/tmp/maintenance-audit/<run-id>/` (ignored).
 - **Implemented architectural truth:** code-adjacent `README.md`, `SPEC.md`, and
   `AGENTS.md`, plus ADRs where rationale must persist.
-- **Mechanical drift prevention:** existing verification or
-  `.pi/architecture.json` commands/queries.
+- **Mechanical drift prevention:** focused verification owned beside the affected boundary.
 
 Never commit the evidence register as a second task tracker. Closed GitHub audit
 cycles provide the historical record.

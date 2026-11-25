@@ -30,10 +30,9 @@ assert_contains() {
     [[ "$haystack" == *"$needle"* ]] || fail "expected marker was absent: $needle"
 }
 
-for command_name in dev-app dev-start dev-foreground dev-status dev-stop pwcli-auth-open; do
+for command_name in dev-start dev-foreground dev-status dev-stop pwcli-auth-open; do
     command -v "$command_name" >/dev/null 2>&1 || fail "named command unavailable: $command_name"
 done
-dev_app_command="$(command -v dev-app)"
 dev_start_command="$(command -v dev-start)"
 dev_foreground_command="$(command -v dev-foreground)"
 dev_status_command="$(command -v dev-status)"
@@ -176,13 +175,13 @@ contained_probe="$( (
         BEPIS_SYSTEMCTL_COMMAND="$fake_bin/systemctl" \
         BEPIS_SYSTEMD_RUN_COMMAND="$fake_bin/systemd-run" \
         DEV_RESOURCE_TEST_LOG="$resource_log" \
-        "$dev_app_command" --probe
+        bash "$fixture_repo/Config/nix/scripts/dev/web" --probe
 ) )"
 assert_contains "$contained_probe" "PORT=8000 APP_BASE_URL=http://127.0.0.1:8000"
 assert_contains "$(cat "$resource_log")" "systemd-run|--user --scope --quiet --collect --slice=bepis-"
 assert_contains "$(cat "$resource_log")" "-primary.slice"
 
-app_probe="$(run_for "$epic_path" "$dev_app_command" --probe)"
+app_probe="$(run_for "$epic_path" bash "$epic_path/Config/nix/scripts/dev/web" --probe)"
 assert_contains "$app_probe" "PORT=8003 APP_BASE_URL=http://127.0.0.1:8003 SMTP_PORT=1026"
 run_for "$fixture_repo" "$dev_start_command" >/dev/null
 run_for "$epic_path" "$dev_start_command" >/dev/null

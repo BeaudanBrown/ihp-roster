@@ -4,12 +4,10 @@ BillingReconciliationSweep	production	recurring-service	Config/nix/modules/ihp-r
 BootstrapAccount	production	deployment-maintenance	Config/nix/modules/ihp-roster.nix	Required by the deployed one-shot account bootstrap service
 DataVicProbe	development	integration-probe	bin/datavic-probe	Read-only v2 holiday candidate probe; no refresh cutover or database writes
 FwcMapdRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed FWC MAPD refresh timer
-GenerateBepisArchitectureContracts	development	architecture-generator	Config/nix/scripts/architecture/contracts	Repository architecture generation only; runnable from the development shell
 GenerateFrontendContracts	development	contract-generator	Config/nix/scripts/frontend/contracts	Checked frontend contract generation only; runnable from the development shell
 GenerateFrontendSurfaceAdapters	development	contract-generator	Config/nix/scripts/frontend/surface-adapters	Checked Haskell adapter generation only; runnable from the development shell
 LiveInvalidationOutboxPrune	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed durable live-invalidation outbox pruning timer
 PayrollReportSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Enqueues configured venue payroll report schedules; worker owns generation and delivery
-ProfileLiveInvalidation	development	performance-probe	Config/nix/scripts/profile/live-invalidation	Low-rate profiling probe only; runnable from the development shell
 PublicHolidayCutover	production	migration-recovery	Application/PublicHolidays/README.md	Operator-approved transactional DataVic activation with protected-calendar audit
 PublicHolidayRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed public-holiday refresh timer
 RsaReminderSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed roster shift acknowledgement reminder timer

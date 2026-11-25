@@ -108,8 +108,8 @@ normal deterministic specs.
 Desktop, canonical mobile, narrow Android, and tablet projects protect different
 layout/input behavior. Use `@canonical-mobile` only for device-independent
 assertions; keep overflow, breakpoint, touch, wheel, snapping, and dialog-fit
-checks profile-sensitive. Use structural assertions first and opt-in screenshot
-suites for visual diagnosis.
+checks profile-sensitive. Use structural assertions first and `screenshot-page`
+for ad hoc visual diagnosis.
 
 ## Verification And Diagnosis
 

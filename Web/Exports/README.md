@@ -50,6 +50,6 @@ specs after verifying the current worktree's runtime identity.
 
 See [export contracts](../../Application/Helper/Export/SPEC.md) and the shared
 [workflow role contract](../Controller/AGENTS.md#feature-workflow-contract).
-`architecture-facts` and the `conventions` query check the adopted import roles;
+`repository-wiring-check` checks the adopted import roles;
 keep request parsing and dialog models here without importing response or
 passive-publisher owners into the workflow.

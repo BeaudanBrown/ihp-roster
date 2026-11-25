@@ -24,7 +24,6 @@ class VerificationBuildTests(unittest.TestCase):
         self.put('Shared.hs', 'module Shared where\nvalue :: Int\nvalue = 1\n')
         for name in ('E2EAppMain', 'E2EWorkerMain', 'StripeProcessMockMain', 'HspecMain'):
             self.put(f'Test/{name}.hs', f'module Test.{name} where\nimport Shared\nmain :: IO ()\nmain = print value\n')
-        self.put('Application/Script/GenerateBepisArchitectureContracts.hs', 'module Application.Script.GenerateBepisArchitectureContracts where\nimport Shared\nmain :: IO ()\nmain = print value\n')
         for name in ('ghc.sh', 'verification.sh'):
             self.link(SCRIPTS / 'lib' / name, 'helpers/lib/' + name)
         self.link(SCRIPTS / 'haskell/ghc-build-run', 'helpers/haskell/ghc-build-run')
@@ -104,15 +103,12 @@ class VerificationBuildTests(unittest.TestCase):
         self.assertEqual(self.output(self.root / 'third/build/RunE2EWorker'), '2')
         self.assertEqual(self.output(self.root / 'third/build/StripeProcessMock'), '2')
 
-    def test_hspec_and_architecture_snapshots_survive_later_graph_publication(self):
+    def test_hspec_snapshot_survives_later_graph_publication(self):
         hspec = ['bash', str(SCRIPTS / 'haskell/hspec-build-image'), str(self.graph), str(self.root / 'hspec'), self.opts]
-        architecture = ['bash', str(SCRIPTS / 'architecture/build-image'), str(self.graph), self.opts, str(self.root / 'architecture-image')]
         self.passes(self.owned(hspec))
-        self.passes(self.owned(architecture))
         self.put('Shared.hs', 'module Shared where\nvalue :: Int\nvalue = 3\n')
         self.passes(self.images())
         self.assertEqual(self.output(self.root / 'hspec/build/Main'), '1')
-        self.assertEqual(self.output(self.root / 'architecture-image'), '1')
         self.assertEqual(self.output(self.root / 'run/build/RunE2EApp'), '3')
 
     def test_option_change_and_deleted_object_recompute_without_result_certificate(self):

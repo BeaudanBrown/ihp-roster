@@ -27,14 +27,10 @@ faster. Test absent/optional/mandatory prompts, delayed rendering, restored and
 stale cookies, logout, registration/recovery and impersonation. Confidence in
 the delay diagnosis is high; safe replacement semantics still need proof.
 
-### 2. Schedule duration-weighted isolated groups
+### 2. Rebalance Hspec suites using measured runtimes
 
-Consider whole file/project groups before splitting browser files. Assignment
-must account for hooks, cached sessions, serial suites and mutable fixture
-ownership—not merely test durations. Retrospective greedy allocation provides
-an optimistic hypothesis, not a benchmark: grouping overhead and cache locality
-change when assignments move. Compare exact test/project identity sets before
-and after, including retry and device-selection policy from `e2e/AGENTS.md`.
+Playwright retains native sharding; the opt-in browser experiment was retired
+without an accepted speedup ([#605](https://github.com/BeaudanBrown/ihp-roster/issues/605)).
 
 Refresh Hspec weights at their owner, `Test/Suite.hs`, rather than reordering
 source lists. Represent external calculator cost explicitly without changing

@@ -1,44 +1,8 @@
-# Architecture Map
+# Architecture Guide
 
-Use source-derived architecture tooling for implemented structure. Subsystem
-behavior belongs in nearby code and README/SPEC files; this document only maps
-major ownership boundaries and query entry points.
-
-## Deterministic Evidence
-
-Project commands are declared in `.pi/architecture.json`. Whole-project outputs
-are ignored under `output/architecture/`; focused query artifacts go under
-`.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
-
-```bash
-bash ./bin/in-env architecture-facts
-bash ./bin/in-env architecture-check-fresh
-```
-
-Use Pi's `architecture_queries` to discover current query names and arguments,
-then `architecture_query` for focused controller, request-flow, schema-table,
-module, realtime, generated-contract, or trace evidence. A missing facts artifact
-is generated automatically. Existing facts are accepted without regeneration
-only when their complete source, generated-contract, and parser/policy fingerprint
-is current; stale or legacy facts fail closed and direct callers must run
-`bash ./bin/in-env architecture-facts` before retrying. Queries report source
-provenance and confidence where relationships are heuristic. Do not treat a
-source scan as a compiler-perfect call graph or commit generated diagrams unless
-a ticket explicitly changes that policy.
-
-The architecture gate owns closed wiring parity:
-
-- controllers declared by `Web/Types.hs` are routed by `Web/Routes.hs` and
-  mounted by `Web/FrontController.hs` exactly once;
-- top-level `frontend/ts/app*.ts` entrypoints are loaded through
-  `Web/View/Layout.hs` exactly once;
-- authenticated navigation and runtime assets follow the Layout policy;
-- intentional wiring exceptions require an owner and reason in
-  `scripts/architecture/wiring-policy.mjs`.
-
-Generated JavaScript byte drift remains frontend-owned. Architecture facts and
-checks are implemented under `scripts/architecture/`; inspect those sources
-rather than copying their current entity or query inventories into prose.
+Use code and subsystem README/SPEC files for implemented structure.
+The focused `repository-wiring-check` checks controller, Layout, enum, and
+workflow policy directly from source.
 
 ## Bepis And IHP
 
@@ -48,14 +12,6 @@ middleware stay IHP-native. Bepis adds typed policy and effect meaning inside
 that lifecycle through `runBepis`, generated contracts, and helpers that emit
 facts while performing real authorization, audit, live-update, or response
 effects.
-
-Prefer typed behavior over parallel metadata. Architecture extraction should
-use, in order:
-
-1. Haskell-owned Bepis runner, fact, and generated contracts;
-2. app-owned Surface and frontend contract registries;
-3. source scans for usage locations;
-4. explicit low-confidence naming fallbacks.
 
 A custom typed controller dispatcher was deliberately deferred; see
 `controller-spec-prototype.md` for the rationale and revisit trigger.
@@ -91,8 +47,7 @@ ownership are explicit inventories under `Config/nix/`; ambient source files or
 packages in the development GHC environment are not production authority.
 Frontend-contract generators are a separate build output, while shared checked
 Haskell declarations remain the single runtime/tooling authority. Production
-app-library output is static-only and deterministic output/inventory budgets are
-blocking; builder RSS, cgroup memory, and swap are comparative evidence rather
+app-library output is static-only and structural inventory checks are blocking; builder RSS, cgroup memory, and swap are comparative evidence rather
 than release ceilings.
 
 See ADRs

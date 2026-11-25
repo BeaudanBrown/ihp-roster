@@ -354,21 +354,9 @@ output/profile-load/<run-id>/otel-summary.json
 output/profile-load/<run-id>/otel-summary.md
 ```
 
-## Runtime Mode Benchmark
+For controlled telemetry comparisons, run `profile-load` separately for each mode
+against the same seeded database on the same idle host.
 
-Use the four-mode runner to compare disabled, 1% sampled, always-on lightweight,
-and always-on diagnostic behavior against one seeded database:
-
-```bash
-bash ./bin/in-env otel-runtime-benchmark \
-  --scenario=roster-wide --rate=2 --duration=20s --vus=2
-```
-
-Artifacts are retained under `output/otel-runtime-benchmark/<run-id>/`, with one
-subdirectory per mode, sampled server CPU/RSS evidence in
-`runtime-resources.json`, and an aggregate `benchmark.json`. Repeat the matrix on
-the same idle host before drawing a release conclusion. The sampled-mode budget
-and queue/memory ceilings are defined in `docs/architecture/observability.md`.
 Exporter/Collector outage checks should point the app at a closed localhost
 port and confirm application checks complete while export failures remain
 bounded by the one-second exporter timeout.

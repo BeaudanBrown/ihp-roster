@@ -19,7 +19,7 @@ Read this before editing timesheet controllers, views, or helpers.
   Roster-prefill Save always creates an unapproved entry; approval remains a separate persisted-entry action.
 - Catch typed calendar conflicts outside the durable transaction only; returning
   `Left` inside it does not roll back. Preserve the inner approval rollback.
-- Adopted import roles are checked by `scripts/architecture/workflow-boundaries.mjs`;
+- Adopted import roles are checked by `scripts/verification/workflow-boundaries.mjs`;
   do not import response owners into workflows or HTTP views into mutations.
 - Roster-prefill candidates are transient projection values; persist only an
   explicitly created `TimesheetEntry` with immutable source provenance.
