@@ -80,10 +80,17 @@ test.describe('HTMX submit regressions', () => {
             response.request().method() === 'POST' && response.url().includes('/CreateLeaveRequest')
         );
 
-        await setFlatpickrDate(page, '#startDate', '2026-03-23');
-        await setFlatpickrDate(page, '#endDate', '2026-03-24');
-        await expect.poll(() => pickerDisplayValue(page.locator('#self-service-leave-form input[name="startDate"]'))).toBe('23/03/2026');
-        await expect.poll(() => pickerDisplayValue(page.locator('#self-service-leave-form input[name="endDate"]'))).toBe('24/03/2026');
+        // The profile lists only current and upcoming periods.
+        const today = new Date();
+        const upcomingDate = (days: number) => new Date(Date.UTC(
+            today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + days
+        )).toISOString().slice(0, 10);
+        const startDate = upcomingDate(7);
+        const endDate = upcomingDate(8);
+        await setFlatpickrDate(page, '#startDate', startDate);
+        await setFlatpickrDate(page, '#endDate', endDate);
+        await expect.poll(() => pickerDisplayValue(page.locator('#self-service-leave-form input[name="startDate"]'))).toBe(displayDate(startDate));
+        await expect.poll(() => pickerDisplayValue(page.locator('#self-service-leave-form input[name="endDate"]'))).toBe(displayDate(endDate));
         await page.fill('#notes', note);
         await page.getByRole('button', { name: 'Add unavailable time' }).click();
 
