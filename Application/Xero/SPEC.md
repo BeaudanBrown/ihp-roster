@@ -339,9 +339,30 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   risking reuse across independent draft updates.
 - Provider outcomes that cannot be confirmed are recorded as failed with explicit
   check-Xero guidance; persisted payloads are never replayed. Fresh preparation is
-  the only retry path. A pending reservation blocks concurrent writes for two
-  minutes, after which the next reconciliation fails it as abandoned and proceeds
-  from fresh provider state.
+  the only retry path. Before sending each reserved employee, the batch re-reads
+  the row under a short lock and commits `submitted_at` while still pending. It
+  skips an already claimed, failed or superseded reservation. Provider IO starts
+  after commit. Only an unclaimed reservation can be abandoned after two minutes;
+  age is not evidence that an already dispatched request was rejected by Xero.
+- **Deploy or roll back the dispatch guard:** pause new payroll submissions on
+  every instance and drain existing requests. Before resuming, account for all
+  pending rows from the outgoing binary. Do not assume a legacy row with null
+  `submitted_at` was never sent, or let an older binary age out a new claim.
+  Unresolved operations require incident reconciliation, not a rolling overlap.
+- **Interrupted claimed submission:** the owner must not submit the affected
+  employee/period again. Record the submission/run IDs, tenant, employee,
+  period, operation key, timestamp and last known outcome in the incident.
+  Prove the old worker stopped and establish the exact operation's final
+  disposition from provider evidence. An empty list or matching draft alone
+  does not prove that an outstanding create or replacement was rejected or
+  applied. If evidence is inconclusive, keep the claim and escalate to Xero.
+  Once confirmed, use a separately approved data repair: under a short row
+  lock verify the same pending row, operation key and claim timestamp before
+  recording the confirmed result (including the provider ID if applied, or
+  failure if definitively rejected). Preserve attempt history, linked entries,
+  evidence and timestamps; reconcile the parent run and incident in the same
+  repair. Never clear the timestamp to resend the old payload. Any later write
+  starts from a fresh preparation. There is no unattended unlock or repair UI.
 - OAuth/connection operations and typed payroll operations are separate projected
   clients. Payroll callers provide typed earnings-rate and timesheet drafts; the
   adapter owns v1 array and v2 object serialization. Whole-draft replacement stays

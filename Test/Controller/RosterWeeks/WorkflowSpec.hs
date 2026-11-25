@@ -1815,6 +1815,51 @@ tests = aroundAll withDatabaseTestContext do
                 slots <- query @RosterSlot |> filterWhere (#rosterDayId, unpackId rosterDay.id) |> fetchCount
                 slots `shouldBe` 1
 
+        it "retains Staff inventory without exposing draft counts on the page or either panel when Manager mode is off" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Inventory Venue"
+                manager <- createUserRecord "roster-manager-draft-inventory@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Morgan" "Manager"
+                assigned <- createStaffRecord venue Nothing "Olivia" "Other"
+                otherGroup <- createVenueRosterGroupWithDefaults venue "Other group" 2 True
+                venueOnly <- createStaffRecord venue Nothing "Harper" "Elsewhere"
+                syncStaffRosterGroupAssignments venueOnly [otherGroup.id]
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId manager.id)
+                    |> set #managerModeEnabled False
+                    |> createRecord
+                week <- createRosterWeekRecord venue 0 True
+                day <- createRosterDayRecord week 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                _ <- createRosterSlotRecord day slotName (Just assigned) 0
+
+                let anchor = tshow (testAnchorForOffset 0)
+                let groupParams = [("rosterGroupId", cs (tshow week.fixtureRosterGroupId))]
+                let readPanels = withUserAndCurrentVenue manager venue.id do
+                        page <- callActionWithParams (ShowRosterWindowAction anchor) groupParams
+                        groupPanel <- callActionWithParams (ShowRosterWeekStaffPanelFragmentAction anchor) groupParams
+                        venuePanel <- callActionWithParams (ShowRosterWeekStaffPanelFragmentAction anchor) (groupParams <> [("staffScope", "all")])
+                        pure (page, groupPanel, venuePanel)
+
+                (publishedPage, publishedGroup, publishedVenue) <- readPanels
+                forM_ [publishedPage, publishedGroup, publishedVenue] \response -> do
+                    response `responseBodyShouldContain` "roster-staff-shifts-actual\">1</span>"
+                    response `responseBodyShouldContain` "&quot;assignedShifts&quot;:1"
+
+                days <- query @RosterDay |> filterWhere (#rosterGroupId, week.fixtureRosterGroupId) |> fetch
+                _ <- mapM (updateRecord . set #publicationState Draft) days
+                (draftPage, draftGroup, draftVenue) <- readPanels
+                draftPage `responseBodyShouldContain` "This roster is still Draft."
+                forM_ [draftPage, draftGroup, draftVenue] \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Olivia&quot;"
+                    response `responseBodyShouldNotContain` "roster-staff-shifts-actual\">1</span>"
+                    response `responseBodyShouldNotContain` "&quot;assignedShifts&quot;:1"
+                forM_ [draftPage, draftGroup] \response ->
+                    response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Harper&quot;"
+                draftVenue `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Harper&quot;"
+
         it "renders safe Manager mode Settings when self-service Staff has zero roster groups" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Zero Group Manager Mode Venue"

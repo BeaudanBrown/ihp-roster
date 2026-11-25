@@ -3091,6 +3091,7 @@
         pendingFocused: /* @__PURE__ */ new Map(),
         pendingInteraction: /* @__PURE__ */ new Map(),
         pendingInteractionTimers: /* @__PURE__ */ new Map(),
+        pendingEcho: /* @__PURE__ */ new Map(),
         satisfiedVersions: /* @__PURE__ */ new Map()
       });
     }
@@ -3116,6 +3117,7 @@
       state.pendingInteractionTimers.clear();
       state.pendingInteraction.clear();
       state.pendingFocused.clear();
+      state.pendingEcho.clear();
       state.inFlight.forEach((slot) => slot.controller.abort());
       state.inFlight.clear();
     }
@@ -3280,18 +3282,18 @@
       const version = requestVersion(fragment);
       return version !== null && satisfiedVersion !== null && version <= satisfiedVersion;
     }
-    function mergeInFlightDemand(existing, fragment) {
+    function mergeInFlightDemand(state, existing, fragment) {
       const currentVersion = requestVersion(existing.fragment);
       const queuedVersion = existing.next ? requestVersion(existing.next) : null;
       const coveredVersion = Math.max(currentVersion ?? -1, queuedVersion ?? -1);
       const incomingVersion = requestVersion(fragment);
-      const sameUnversionedRequest = incomingVersion === null && currentVersion === null && fragment.url === existing.fragment.url;
-      if (incomingVersion !== null && coveredVersion >= 0 && incomingVersion <= coveredVersion || sameUnversionedRequest) {
-        if (incomingVersion === currentVersion && queuedVersion === null) {
-          if (incomingVersion === null) existing.retryOnFailure = fragment;
-          else if (fragment.requestOrigin === "passive" && existing.retryOnFailure?.requestOrigin !== "passive") existing.retryOnFailure = fragment;
+      if (incomingVersion !== null && incomingVersion <= coveredVersion) {
+        const echo = state.pendingEcho.get(fragment.targetId);
+        const echoVersion = echo ? requestVersion(echo) ?? -1 : -1;
+        if (incomingVersion > echoVersion || incomingVersion === echoVersion && fragment.requestOrigin === "passive") {
+          state.pendingEcho.set(fragment.targetId, fragment);
         }
-        emitDebugEvent(incomingVersion === null ? "fragment_request_coalesced" : "fragment_version_coalesced", {
+        emitDebugEvent("fragment_version_coalesced", {
           targetId: fragment.targetId,
           currentVersion,
           queuedVersion,
@@ -3315,7 +3317,7 @@
       }
       const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        mergeInFlightDemand(existing, fragment);
+        mergeInFlightDemand(state, existing, fragment);
         return;
       }
       const slot = {
@@ -3324,7 +3326,6 @@
         fetchedTarget: null,
         generation,
         next: null,
-        retryOnFailure: null,
         protectionChanged: false,
         applied: false,
         failed: false
@@ -3343,8 +3344,14 @@
         state.inFlight.delete(fragment.targetId);
         const satisfiedVersion2 = state.satisfiedVersions.get(fragment.targetId) ?? null;
         const queued = slot.next && !versionIsSatisfied(slot.next, satisfiedVersion2) ? slot.next : null;
-        const retry = slot.failed ? slot.retryOnFailure : null;
-        const next = queued ?? retry;
+        const echo = state.pendingEcho.get(fragment.targetId);
+        let next = queued;
+        if (echo && versionIsSatisfied(echo, satisfiedVersion2)) {
+          state.pendingEcho.delete(fragment.targetId);
+        } else if (echo && !next && !state.pendingInteraction.has(fragment.targetId) && !state.pendingFocused.has(fragment.targetId)) {
+          state.pendingEcho.delete(fragment.targetId);
+          next = echo;
+        }
         emitDebugEvent("fragment_request_settled", {
           targetId: fragment.targetId,
           applied: slot.applied,
@@ -3418,7 +3425,7 @@
       }
       const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        if (mergeInFlightDemand(existing, fragment) === "coalesced") return;
+        if (mergeInFlightDemand(state, existing, fragment) === "coalesced") return;
         if (deferForCurrentProtection(state, null, fragment, target)) return;
         return;
       }

@@ -29,6 +29,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
+import Application.Helper.View.Audience (currentUserIsManager)
 import Application.Helper.View.Staff (normalizedStaffDisplayBaseName,
                                       renderStaffLastInitial,
                                       staffDisplayBaseName)
@@ -411,7 +412,7 @@ fetchVisibleRosterReadModelFromSnapshot snapshot = do
                     rosterData
                         { assignmentFilters = defaultRosterAssignmentFilters
                         , staffMembers = []
-                        , panelStaff = []
+                        , panelStaff = if currentUserIsManager then rosterData.panelStaff else []
                         , rosterNotificationPanelData = Nothing
                         , allSlots = []
                         , slotConflicts = []
@@ -490,7 +491,8 @@ fetchRosterRenderDataForPlan renderPlan snapshot = do
     (panelStaff, templateLibrary, notificationPanelData, staffSelfServicePanel) <-
         case renderPlan of
             CompleteRosterProjection -> do
-                panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesWithPayState RosterStaffPanelCurrentGroup panelPayConfigurationRequiredIds panelStaffMembers visibleSlots)
+                let panelSlots = maybe [] (const visibleSlots) (visibleRosterWeekFromSnapshot snapshot)
+                panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesWithPayState RosterStaffPanelCurrentGroup panelPayConfigurationRequiredIds panelStaffMembers panelSlots)
                 templateLibrary <- fetchRosterPanelTemplateLibrary currentRosterGroup
                 notificationPanelData <- fetchRosterPanelNotificationData snapshot.snapshotAuthorizedScope weekStartDate rosterDays
                 staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig scope maybeCurrentViewerStaff (personalRosterSettings scope rosterGroups currentRosterGroup rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts))
@@ -760,7 +762,7 @@ fetchVisibleRosterStaffPanelRenderModelFromSnapshot panelScope snapshot = do
     let rosterGroups = snapshot.snapshotRosterGroups
     let currentRosterGroup = snapshot.snapshotRosterGroup
     let venueConfig = snapshot.snapshotVenueConfig
-    (currentGroupStaff, currentGroupPayConfigurationRequiredIds, assignedShiftCounts) <- fetchRosterStaffPanelFactsForAuthorizedScopeDirect snapshot.snapshotAuthorizedScope
+    (currentGroupStaff, currentGroupPayConfigurationRequiredIds, assignedShiftCounts) <- fetchRosterStaffPanelFactsForAuthorizedScopeDirect snapshot.snapshotAuthorizedScope visibleRosterWeek
     assignmentFilters <- profileActionSpan "roster.fragment.fetch_assignment_filters" fetchRosterAssignmentFilters
     let rosterLayoutMode = venueConfig.rosterLayoutMode
     let userRosterPayDisplayMode = snapshot.snapshotRosterPreferences.userRosterPayDisplayMode

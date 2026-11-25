@@ -807,20 +807,47 @@ test("a newer invalidation survives in-flight version coalescing", async () => {
     }
 });
 
-test("duplicate unversioned actor-local demand shares one in-flight request without becoming satisfied evidence", async () => {
+test("two unversioned preference saves apply the latest preference after the first read", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        const demand = { ...mounted.fragment, requestOrigin: "actor" as const };
+        fixture.refresher.activateOwner(demand.ownerEl);
+        fixture.refresher.request(demand);
+        fixture.refresher.request(demand);
+        assertEqual(fixture.controls.length, 1);
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment"><input id="highlight-on"></section>');
+        await settle();
+        assertEqual(fixture.controls.length, 2);
+        fixture.respond(fixture.controls[1]!, '<section id="shared-fragment"><input id="highlight-off"></section>');
+        await settle();
+        assertEqual(Boolean(fixture.document.getElementById("highlight-off")), true);
+        assertEqual(fixture.controls.length, 2);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("a queued version keeps its passive echo until that version actually applies", async () => {
     const fixture = installRefreshFixture();
     try {
         const mounted = fixture.mount();
         fixture.refresher.activateOwner(mounted.fragment.ownerEl);
-        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
-        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
-        assertEqual(fixture.controls.length, 1);
-        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">actor local</section>');
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor", requestVersion: 1 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor", requestVersion: 2 });
+        const echo = { ...mounted.fragment, requestOrigin: "passive" as const, requestVersion: 2 };
+        fixture.refresher.request(echo);
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">version one</section>');
         await settle();
-        assertEqual(fixture.controls.length, 1);
-
-        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
         assertEqual(fixture.controls.length, 2);
+        fixture.controls[1]!.fetch.resolve(new Response(null, { status: 503 }));
+        await settle();
+        assertEqual(fixture.controls.length, 3);
+        fixture.respond(fixture.controls[2]!, '<section id="shared-fragment"><input id="version-two"></section>');
+        await settle();
+        assertEqual(Boolean(fixture.document.getElementById("version-two")), true);
+        fixture.refresher.request(echo);
+        assertEqual(fixture.controls.length, 3);
     } finally {
         fixture.restore();
     }

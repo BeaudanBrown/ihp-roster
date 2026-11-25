@@ -10,7 +10,7 @@ import {
     shiftExportWeek,
 } from './support/exports';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
-import { runSql } from './support/database';
+import { querySql, runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -65,12 +65,41 @@ test.describe('Payroll export downloads', () => {
         expect(resetWeek).toEqual(currentWeek);
         const fileName = `payroll-workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
 
+        const exportJobs = () => Number(querySql("SELECT count(*) FROM export_jobs WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'"));
+        const reviewEffects = () => querySql(`SELECT
+            (SELECT count(*) FROM export_jobs WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'),
+            (SELECT count(*) FROM audit_events WHERE venue_id = 'a1000000-0000-0000-0000-000000000001' AND target_table = 'export_jobs'),
+            (SELECT count(*) FROM live_invalidation_events WHERE source = 'export.create')`);
+        const beforeReview = reviewEffects();
+        const jobsBeforeReview = exportJobs();
+        const params = {
+            selectionExportType: 'payroll_workbook_xlsx',
+            selectionRangeStart: currentWeek.weekStart,
+            selectionRangeEnd: currentWeek.weekEnd,
+            payrollWorkbookConfigurationId: 'a1000000-0000-0000-0000-000000000801',
+            selectedTimesheetEntries: '[]',
+        };
+        // Exercise the router with the authenticated session, not a mocked POST action.
+        for (const action of ['ConfirmTimesheetExportDownload', 'ConfirmTimesheetExportSelection', 'GenerateSelectedTimesheetExport']) {
+            for (const method of ['GET', 'HEAD']) {
+                const rejected = await page.request.fetch('/' + action, { method, params, maxRedirects: 0 });
+                expect(rejected.status()).toBe(405);
+                expect(rejected.headers().allow).toBe('POST');
+            }
+        }
+        expect(reviewEffects()).toBe(beforeReview);
+
+        const exportsUrl = page.url();
         const generationRequests: string[] = [];
         const recordExportRequest = (request: import('@playwright/test').Request) => {
-            if (request.url().includes('/ConfirmTimesheetExportDownload')) generationRequests.push(request.url());
+            if (request.url().includes('/ConfirmTimesheetExportDownload')) generationRequests.push(request.method());
         };
         page.on('request', recordExportRequest);
+        const reviewRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/CreateExportJob');
         await standardCard.getByRole('button', { name: 'Download', exact: true }).click();
+        const review = await reviewRequest;
+        expect(review.method()).toBe('POST');
+        expect(await review.headerValue('hx-request')).toBe('true');
         const warningDialog = page.getByRole('dialog', { name: 'Unapproved timesheets in this export period' });
         await expect(warningDialog).toBeVisible();
         await expect(warningDialog).toContainText('will not be included in the export');
@@ -79,10 +108,15 @@ test.describe('Payroll export downloads', () => {
         await warningDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
         await expect(warningDialog).toHaveCount(0);
         expect(generationRequests).toEqual([]);
-        page.off('request', recordExportRequest);
+        expect(reviewEffects()).toBe(beforeReview);
+        await expect(page).toHaveURL(exportsUrl);
+        expect(await currentReportWeek(page)).toEqual(currentWeek);
 
         const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download', true);
         expect(standardDownload.suggestedFilename()).toBe(fileName);
+        expect(generationRequests).toEqual(['POST']);
+        page.off('request', recordExportRequest);
+        expect(exportJobs()).toBe(jobsBeforeReview + 1);
 
         await gotoExports(page);
         await standardCard.getByRole('button', { name: 'Filtered…' }).click();

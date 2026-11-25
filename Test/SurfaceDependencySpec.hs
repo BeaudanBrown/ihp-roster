@@ -320,7 +320,19 @@ tests = do
                     , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
                     ]
 
-        it "promotes repeated roster day siblings to one mounted grid frame while one day stays narrow" do
+        it "keeps affected days addressable when only one same-scope viewer mounts a grid frame" do
+            let scope = rosterSurfaceScope (rosterScopeValue (fromWords 24 0 0 0) (Id (fromWords 25 0 0 0)) 3)
+            let firstDay = fromWords 26 0 0 0
+            let secondDay = fromWords 27 0 0 0
+            let dayKeys = map RosterLive.rosterDaySectionLiveFragment [firstDay, secondDay]
+            let gridViewer = liveTestSubscription scope (RosterLive.rosterGridFrameLiveFragment : dayKeys)
+            let daysOnlyViewer = liveTestSubscription scope dayKeys
+            let touched = Set.fromList (map rosterDayResource [firstDay, secondDay])
+
+            planSurfaceInvalidationsWithoutContext touched [gridViewer, daysOnlyViewer]
+                `shouldBe` [SurfaceInvalidationTarget scope dayKeys]
+
+        it "selects exactly the affected roster days even with a mounted grid frame" do
             let venueId = fromWords 24 0 0 0
             let rosterGroupUuid = fromWords 25 0 0 0
             let firstDayUuid = fromWords 26 0 0 0
@@ -336,7 +348,7 @@ tests = do
             passiveFragmentKeys (Set.singleton (rosterDayResource firstDayUuid)) scope candidates
                 `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDayUuid]
             passiveFragmentKeys (Set.fromList [rosterDayResource firstDayUuid, rosterDayResource secondDayUuid]) scope candidates
-                `shouldBe` [RosterLive.rosterGridFrameLiveFragment]
+                `shouldBe` map RosterLive.rosterDaySectionLiveFragment [firstDayUuid, secondDayUuid]
 
         it "selects the slots scroll owner only for slots-structure changes" do
             let venueId = fromWords 10 0 0 0

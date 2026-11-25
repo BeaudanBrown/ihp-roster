@@ -14,7 +14,9 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.IORef as IORef
 import qualified Data.Text as Text
+import Data.Time.Clock (addUTCTime)
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vector as Vector
@@ -56,6 +58,12 @@ tests =
     aroundAll withDatabaseTestContext $ around_ (withXeroCreateProtocol "v1") do
         describe "Xero draft timesheet submission" do
             (identitySpec, payrollSpec) <- runIO XeroMock.loadXeroOpenApiSpecs
+
+            describe "overlapping payroll batches" do
+                it "does not dispatch a queued reservation after another preparation supersedes it" $ withContext do
+                    withCleanDb (checkOverlappingBatches identitySpec payrollSpec WaitingEmployee)
+                it "does not take over an aged reservation while its provider write is in flight" $ withContext do
+                    withCleanDb (checkOverlappingBatches identitySpec payrollSpec InFlightEmployee)
 
             it "submits only explicitly selected staff and shifts" $ withContext do
                 withCleanDb do
@@ -548,6 +556,57 @@ tests =
                             submissions <- submissionsForRun run
                             sort (map (.status) submissions) `shouldBe` [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed]
                             run.errorSummary `shouldBe` Just "provider rejected the request."
+
+data OverlapTarget = WaitingEmployee | InFlightEmployee deriving Eq
+
+-- Re-enter the real preparation workflow from the first provider write. The
+-- outer map cannot advance until the inner submission returns. No threads,
+-- polling or sleeps; provider reads see no draft until that write returns.
+checkOverlappingBatches :: (?modelContext :: ModelContext) => XeroMock.OpenApiSpec -> XeroMock.OpenApiSpec -> OverlapTarget -> IO ()
+checkOverlappingBatches identitySpec payrollSpec target = do
+    fixture <- createPreviewFixture "weekly"
+        [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+        , EntrySpec 0 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+        ]
+    prepareConnectionForStrictMock fixture.connection
+    client <- currentXeroClient
+    writes <- IORef.newIORef []
+    competitor <- IORef.newIORef Nothing
+    let submit selectedFixture = do
+            prep <- createPreparationRunForFixture selectedFixture ReadyForPreview
+            Submission.submitXeroDraftTimesheetsForPreparation fixture.owner.id prep.id selectedFixture.request
+        create _ _ _ draft = do
+            let employee = draft.xeroTimesheetDraftEmployeeId
+            previous <- IORef.readIORef writes
+            IORef.modifyIORef' writes (employee :)
+            when (null previous) do
+                rows <- query @XeroTimesheetSubmission |> fetch
+                let matches row = (row.xeroEmployeeId == employee) == (target == InFlightEmployee)
+                case filter matches rows of
+                    [row] -> do
+                        void (row |> set #updatedAt (addUTCTime (-300) row.updatedAt) |> updateRecord)
+                        let entries = filter (\entry -> entry.staffId == row.staffId) fixture.entries
+                            selection = ExplicitSelection (map timesheetSelectionIdentity entries)
+                        result <- submit (fixture { request = fixture.request { readinessSelection = selection } })
+                        IORef.writeIORef competitor (Just result)
+                    _ -> fail "expected exactly one competing employee reservation"
+            pure (Right [XeroTimesheetRef (Just ("draft-" <> employee)) employee fixture.periodStart fixture.periodEnd (Just "DRAFT") Nothing Aeson.Null])
+    outcome <- XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [] [] [] \urls ->
+        withXeroRequestBaseUrlsForTest urls $
+            withXeroConfigForTest (Right testXeroConfig) $
+                withXeroClientForTest (client { fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Right []), createTimesheetDraftV1 = create }) (submit fixture)
+    -- Assert external effects first: a late DB uniqueness failure does not undo
+    -- a duplicate create already observed by the provider.
+    IORef.readIORef writes >>= (`shouldMatchList` ["employee-a", "employee-b"])
+    inner <- IORef.readIORef competitor >>= maybe (fail "competing submission did not finish") expectSubmissionResult
+    case (target, inner) of
+        (WaitingEmployee, Right (XeroTimesheetReviewedSubmissionCompleted _)) -> pure ()
+        (InFlightEmployee, Right (XeroTimesheetReviewedStateChanged snapshot)) ->
+            fmap (map (.reconciliationNoticeSeverity)) (reconciliationReviewNotices snapshot) `shouldBe` Right [ReconciliationBlocker]
+        _ -> expectationFailure (cs ("unexpected competing submission outcome: " <> show inner))
+    expectSubmissionResult outcome >>= \case
+        Right (XeroTimesheetReviewedSubmissionCompleted _) -> pure ()
+        other -> expectationFailure (cs ("unexpected original submission outcome: " <> show other))
 
 submitWithStrictResponses ::
     (?modelContext :: ModelContext) =>

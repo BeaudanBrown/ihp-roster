@@ -15,8 +15,8 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
-import Network.HTTP.Types.Status (status200)
-import Network.Wai (responseLBS)
+import Network.HTTP.Types.Status (status200, status405)
+import Network.Wai (requestMethod, responseLBS)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               recordExportDownloadMutation,
@@ -143,6 +143,12 @@ swapAt leftIndex rightIndex values =
         | index == rightIndex = leftValue
         | otherwise = value
 
+-- Confirm/Generate are not POST-only prefixes in IHP AutoRoute. Reject read
+-- methods here with a controlled 405, before parsing or generating anything.
+ensureExportPost :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
+ensureExportPost = unless (requestMethod ?request == "POST") $
+    respondAndExit (responseLBS status405 [("Allow", "POST"), ("Content-Type", "text/plain")] "Use POST to submit an export.")
+
 instance Controller ExportsController where
     beforeAction = bepisBeforeAction BepisAdminVenueController do
         annotateTelemetryAction
@@ -162,9 +168,12 @@ instance Controller ExportsController where
 
     action currentAction@OpenTimesheetExportSelectionAction = runBepis currentAction BepisFormAction openExportSelection
 
-    action currentAction@ConfirmTimesheetExportSelectionAction = runBepis currentAction BepisFormAction confirmExportSelection
+    action currentAction@ConfirmTimesheetExportSelectionAction = runBepis currentAction BepisFormAction do
+        ensureExportPost
+        confirmExportSelection
 
     action currentAction@ConfirmTimesheetExportDownloadAction = runBepis currentAction BepisExportAction do
+        ensureExportPost
         ensureVenueWritable
         case parseAppShellActionParams @AppShell.ConfirmTimesheetExportDownload of
             Left errors -> respondWithExportGenerationError (surfaceRequestFieldErrorsMessage errors)
@@ -185,6 +194,7 @@ instance Controller ExportsController where
         changeExportSelectionGroup day False
 
     action currentAction@GenerateSelectedTimesheetExportAction = runBepis currentAction BepisExportAction do
+        ensureExportPost
         ensureVenueWritable
         generateSelectedExport respondWithGeneratedExportDownload
 

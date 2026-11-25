@@ -30,8 +30,8 @@ import IHP.ModelSupport (unsafeSqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition)
-import Network.HTTP.Types.Status (status200, status302, status500)
-import Network.Wai (responseHeaders, responseStatus)
+import Network.HTTP.Types.Status (status200, status500)
+import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.Controller.Exports ()
@@ -713,13 +713,14 @@ generatePayrollExportJobForRange ::
     IO ExportJob
 generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
     assertSealedPayrollEntries venue
-    response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
+    response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id $ withRequestHeaders [("HX-Request", "true")] do
         initial <- callActionWithParams CreateExportJobAction
             [ ("exportType", cs (exportJobTypeToText exportType))
             , ("rangeStart", cs (tshow rangeStart))
             , ("rangeEnd", cs (tshow rangeEnd))
             ]
-        if responseStatus initial /= status200 then pure initial else do
+        initial `responseStatusShouldBe` status200
+        if isJust (lookup "HX-Redirect" (responseHeaders initial)) then pure initial else do
             initial `responseBodyShouldContain` "Unapproved timesheets in this export period"
             callActionWithParams ConfirmTimesheetExportDownloadAction
                 [ ("selectionExportType", cs (exportJobTypeToText exportType))
@@ -728,7 +729,8 @@ generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
                 , ("selectedTimesheetEntries", "[]")
                 ]
 
-    response `responseStatusShouldBe` status302
+    response `responseStatusShouldBe` status200
+    lookup "HX-Redirect" (responseHeaders response) `shouldSatisfy` maybe False (Text.isPrefixOf "/DownloadExportJob?" . cs)
 
     query @ExportJob
         |> filterWhere (#venueId, unpackId venue.id)

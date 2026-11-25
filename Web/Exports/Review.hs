@@ -10,16 +10,18 @@ import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.View.TimesheetReview
 import IHP.ViewPrelude (Html)
 import Web.Controller.Prelude
+import Web.Exports.Responses (adminExportsPath)
 
--- No export writes occur until the caller's continuation is submitted. Native
--- forms work too; HTMX downloads normally use swap=none, so retarget the warning.
+-- Warnings are dialogs, never standalone documents. A native request returns
+-- to its selected week; only the explicit continuation may generate the file.
 withExportReview :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Day -> Html -> IO ResponseReceived -> IO ResponseReceived
 withExportReview start end confirmationForm continue = do
     rows <- fetchUnapprovedTimesheets currentVenueId start end
-    if null rows then continue else do
-        when isHtmxRequest do
-            setHeader ("HX-Retarget", cs ("#" <> dialogOverlayMountId))
-            setHeader ("HX-Reswap", "innerHTML")
+    if null rows then continue
+    else if not isHtmxRequest then redirectToPath (adminExportsPath start)
+    else do
+        setHeader ("HX-Retarget", cs ("#" <> dialogOverlayMountId))
+        setHeader ("HX-Reswap", "innerHTML")
         respondHtml (renderUnapprovedTimesheetsConfirmation
             "Unapproved timesheets in this export period"
             "These timesheets are unapproved and will not be included in the export. Continue with the approved timesheets only?"

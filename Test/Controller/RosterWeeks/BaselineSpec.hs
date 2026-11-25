@@ -128,10 +128,10 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#userId, unpackId brManager.id)
                         |> fetchOneOrNothing
                     _ <- case maybePreference of
-                        Just preference -> preference |> set #showWageEstimates True |> updateRecord
+                        Just preference -> preference |> set #rosterPayDisplayMode RosterPayDaily |> updateRecord
                         Nothing -> newRecord @UserPreference
                             |> set #userId (unpackId brManager.id)
-                            |> set #showWageEstimates True
+                            |> set #rosterPayDisplayMode RosterPayDaily
                             |> createRecord
                     wageToolbarFragment <- withUserAndCurrentVenue brManager brVenue.id do
                         callAction (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
@@ -303,7 +303,11 @@ tests = aroundAll withDatabaseTestContext do
                     countTimingSpan "roster_direct_fetch_dated_slots" staffPanel `shouldBe` 0
                     countTimingSpan "roster_direct_fetch_window_lanes" staffPanel `shouldBe` 0
                     countTimingSpan "roster_direct_fetch_shift_types" staffPanel `shouldBe` 0
-                    staffPanel `responseBodyShouldContain` "Email roster"
+                    staffPanel `responseBodyShouldNotContain` "Email roster"
+                    settings <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterSettingsFragmentAction (tshow (testAnchorForOffset 0)))
+                    settings `responseStatusShouldBe` status200
+                    settings `responseBodyShouldContain` "Email roster"
 
         it "keeps reads and lane mutations on the anchor-date window" $ withContext do
             withCleanDb do

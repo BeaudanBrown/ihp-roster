@@ -19,7 +19,7 @@ async function ensureExportsSectionOpen(page: Page) {
 }
 
 export async function gotoExports(page: Page) {
-    await gotoWhenReady(page, '/Admin#exports', 'h1:has-text("Admin")');
+    await gotoWhenReady(page, '/Admin?showExports=true#exports', '#admin-exports-section');
     await ensureExportsSectionOpen(page);
 }
 

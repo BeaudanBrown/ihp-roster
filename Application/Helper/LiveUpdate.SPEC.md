@@ -59,10 +59,10 @@ second passive broadcast.
 `Surface.DependencyPlanner` is the singular pure actor/passive planner. It
 matches concrete resources to exact mounted/subscribed semantic keys using
 checked `DependsOn` metadata, collapses duplicates, and applies typed containment
-so a selected ancestor suppresses its matching descendant. One selected
-parameterized child remains narrow; two or more selected siblings of the same
-fragment kind promote to the nearest mounted typed ancestor, avoiding parallel
-requests that repeat the same parent read without introducing a second planner.
+so an independently selected ancestor suppresses its matching descendant.
+Affected siblings stay separate: mounting their ancestor does not select it.
+Same-scope viewers can mount different keys, so substituting one viewer's
+unaffected ancestor could leave another viewer with nothing to refresh.
 
 Broad domain effects expand to concrete resources in the producer or a focused
 feature helper. Cross-process effects must not depend only on the producer's
@@ -108,14 +108,15 @@ or stop aborts its work, while independent stale-completion checks fence reload,
 removal/replacement, HTMX processing, page-ready dispatch, and focus/state
 restoration. Same-scope subscriptions merge; invalidations may select multiple
 keys/mounts. Actor, passive, and resync demands carry their origin and available
-durable version into the generic refresher. A successful mounted replacement
-satisfies that version for its mount lifetime; matching actor/passive echoes and
-duplicate in-flight demands share one request, a newer version remains queued,
-and a failed actor request retains a matching passive retry. Unversioned
-actor-local work is never treated as durable evidence. Nested mount lifecycle
-follows current DOM recursively so new
-children initialize, removed descendants dispose, and subscription state
-matches mounted scopes.
+durable version into the generic refresher. Only a successful replacement for
+that mounted fragment satisfies a durable version for its lifetime. A matching
+passive echo arriving during an actor request stays pending: success suppresses
+the echo if its version has been applied; failure leaves it available to retry.
+A newer version remains queued. Unversioned demand arriving during a request
+requires a trailing refetch; an applied version cannot satisfy it, and an
+unversioned request supplies no durable version evidence. Nested mount lifecycle
+follows current DOM recursively so new children initialize, removed descendants
+dispose, and subscription state matches mounted scopes.
 
 `focus.ts` is the sole focused-field replacement owner. It applies the exact
 Haskell-declared protection, keeps only the latest deferred refresh, refetches on

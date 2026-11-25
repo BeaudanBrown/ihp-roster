@@ -9,6 +9,7 @@ module Application.Xero.Timesheets.Reservation
     , reserveXeroTimesheetSubmissionRun
     , reserveXeroTimesheetSubmissionRunWithProtocol
     , reviewXeroTimesheetReservations
+    , withCurrentSubmissionDispatch
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
@@ -60,7 +61,7 @@ reviewXeroTimesheetReservations ::
     [XeroTimesheetReservation] ->
     [XeroTimesheetRef] ->
     IO [XeroTimesheetReconciliationReview]
-reviewXeroTimesheetReservations reservations remoteTimesheets = do
+reviewXeroTimesheetReservations reservations remoteTimesheets = withTransaction do
     reconciliations <- mapM (reconcileReservation remoteTimesheets) reservations
     pure $ map toReview reconciliations
   where
@@ -223,6 +224,32 @@ reconcileReservation remoteTimesheets reservation = do
         decision = reconcileXeroTimesheet local scopedRemote
     pure (reservation, existing, decision)
 
+-- pending + no submittedAt = reserved but not sent. Commit the dispatch
+-- timestamp under a short row lock before performing any provider IO.
+withCurrentSubmissionDispatch ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetSubmission ->
+    (XeroTimesheetSubmission -> IO XeroTimesheetSubmission) ->
+    IO XeroTimesheetSubmission
+withCurrentSubmissionDispatch reserved send = do
+    claim <- withTransaction do
+        current <- lockSubmission reserved
+        if isWaitingReservation current then do
+            now <- getCurrentTime
+            Right <$> (current |> set #submittedAt (Just now) |> updateRecord)
+        else pure (Left current)
+    either pure send claim
+
+isWaitingReservation :: XeroTimesheetSubmission -> Bool
+isWaitingReservation row = xeroSubmissionIsInProgress row.status && isNothing row.submittedAt
+
+lockSubmission :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> IO XeroTimesheetSubmission
+lockSubmission submission = do
+    _locked :: [PG.Only UUID] <- unsafeSqlQuery
+        "SELECT id FROM xero_timesheet_submissions WHERE id = ? FOR UPDATE"
+        (PG.Only (unpackId submission.id))
+    fetch submission.id
+
 stalePendingTimeout :: NominalDiffTime
 stalePendingTimeout = 120
 
@@ -252,22 +279,28 @@ failAbandonedPendingSubmissionInCurrentTransaction ::
     XeroTimesheetSubmission ->
     IO XeroTimesheetSubmission
 failAbandonedPendingSubmissionInCurrentTransaction submission
-    | not (xeroSubmissionIsInProgress submission.status) = pure submission
+    | not (isWaitingReservation submission) = pure submission
     | otherwise = do
         now <- getCurrentTime
         if diffUTCTime now submission.updatedAt < stalePendingTimeout
             then pure submission
             else do
-                failed <-
-                    submission
-                        |> set #status XeroTimesheetSubmissionStatusEnumFailed
-                        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= abandonedPendingMessage, "outcome" Aeson..= ("uncertain" :: Text)])
-                        |> set #lastError (Just abandonedPendingMessage)
-                        |> set #submittedAt (Just now)
-                        |> updateRecord
-                refreshAbandonedSubmissionRun now failed
-                void (reconcileXeroSubmissionIncidentInCurrentTransaction now failed)
-                pure failed
+                current <- lockSubmission submission
+                if isWaitingReservation current && diffUTCTime now current.updatedAt >= stalePendingTimeout
+                    then abandon now current
+                    else pure current
+  where
+    abandon now current = do
+        failed <-
+            current
+                |> set #status XeroTimesheetSubmissionStatusEnumFailed
+                |> set #responsePayloadJson (Aeson.object ["error" Aeson..= abandonedPendingMessage, "outcome" Aeson..= ("uncertain" :: Text)])
+                |> set #lastError (Just abandonedPendingMessage)
+                |> set #submittedAt (Just now)
+                |> updateRecord
+        refreshAbandonedSubmissionRun now failed
+        void (reconcileXeroSubmissionIncidentInCurrentTransaction now failed)
+        pure failed
 
 refreshAbandonedSubmissionRun ::
     (?modelContext :: ModelContext) =>

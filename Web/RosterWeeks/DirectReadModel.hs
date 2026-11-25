@@ -417,12 +417,14 @@ fetchRosterWageSlotsForAuthorizedWindowDirect authorizedScope windowFacts =
             )
         pure (filterVisibleRosterSlots windowFacts.windowFactsDays allSlots)
 
-fetchRosterStaffPanelFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO ([Staff], Set.Set UUID.UUID, Map.Map UUID.UUID Int)
-fetchRosterStaffPanelFactsForAuthorizedScopeDirect authorizedScope = do
+fetchRosterStaffPanelFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> Maybe RosterWindowState -> IO ([Staff], Set.Set UUID.UUID, Map.Map UUID.UUID Int)
+fetchRosterStaffPanelFactsForAuthorizedScopeDirect authorizedScope visibleRosterWeek = do
     let scope = authorizedScope.authorizedRosterWindowScope
     groupStaff <- profileActionSpan "roster.direct.fetch_group_staff" (sortStaffForDisplay <$> fetchRosterGroupStaffForPanelDirect scope.rosterWindowRosterGroupId)
     payConfigurationRequiredIds <- profileActionSpan "roster.direct.fetch_staff_pay_remediation" (fetchStaffPayConfigurationRequiredIds groupStaff)
-    assignedShiftCounts <- profileActionSpan "roster.direct.fetch_assigned_shift_counts" (fetchRosterAssignedShiftCountsDirect scope)
+    assignedShiftCounts <- case visibleRosterWeek of
+        Nothing -> pure Map.empty
+        Just _ -> profileActionSpan "roster.direct.fetch_assigned_shift_counts" (fetchRosterAssignedShiftCountsDirect scope)
     pure (groupStaff, payConfigurationRequiredIds, assignedShiftCounts)
 
 fetchRosterAssignedShiftCountsDirect :: (?modelContext :: ModelContext) => RosterWindowScope -> IO (Map.Map UUID.UUID Int)

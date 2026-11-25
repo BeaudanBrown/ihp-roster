@@ -273,7 +273,7 @@ submitExistingSubmission ::
     XeroConnection ->
     XeroTimesheetSubmission ->
     IO XeroTimesheetSubmission
-submitExistingSubmission createProtocol xeroClient accessToken connection submission =
+submitExistingSubmission createProtocol xeroClient accessToken connection reserved = withCurrentSubmissionDispatch reserved \submission ->
     case persistedWriteOperation submission of
         Left message -> do
             now <- getCurrentTime

@@ -27,7 +27,6 @@ type FragmentRequestSlot = {
     fetchedTarget: HTMLElement | null;
     generation: number;
     next: LiveUpdateFragmentWithState | null;
-    retryOnFailure: LiveUpdateFragmentWithState | null;
     protectionChanged: boolean;
     applied: boolean;
     failed: boolean;
@@ -39,6 +38,7 @@ type OwnerRefreshState = {
     pendingFocused: Map<string, LiveUpdateFragmentWithState>;
     pendingInteraction: Map<string, LiveUpdateFragmentWithState>;
     pendingInteractionTimers: Map<string, ReturnType<Window["setTimeout"]>>;
+    pendingEcho: Map<string, LiveUpdateFragmentWithState>;
     satisfiedVersions: Map<string, number>;
 };
 
@@ -79,6 +79,7 @@ export function createLiveFragmentRefresher(options: {
             pendingFocused: new Map(),
             pendingInteraction: new Map(),
             pendingInteractionTimers: new Map(),
+            pendingEcho: new Map(),
             satisfiedVersions: new Map(),
         });
     }
@@ -114,6 +115,7 @@ export function createLiveFragmentRefresher(options: {
         state.pendingInteractionTimers.clear();
         state.pendingInteraction.clear();
         state.pendingFocused.clear();
+        state.pendingEcho.clear();
         state.inFlight.forEach((slot) => slot.controller.abort());
         state.inFlight.clear();
     }
@@ -298,20 +300,20 @@ export function createLiveFragmentRefresher(options: {
         return version !== null && satisfiedVersion !== null && version <= satisfiedVersion;
     }
 
-    function mergeInFlightDemand(existing: FragmentRequestSlot, fragment: LiveUpdateFragmentWithState): "coalesced" | "queued" {
+    function mergeInFlightDemand(state: OwnerRefreshState, existing: FragmentRequestSlot, fragment: LiveUpdateFragmentWithState): "coalesced" | "queued" {
         const currentVersion = requestVersion(existing.fragment);
         const queuedVersion = existing.next ? requestVersion(existing.next) : null;
         const coveredVersion = Math.max(currentVersion ?? -1, queuedVersion ?? -1);
         const incomingVersion = requestVersion(fragment);
-        const sameUnversionedRequest = incomingVersion === null
-            && currentVersion === null
-            && fragment.url === existing.fragment.url;
-        if ((incomingVersion !== null && coveredVersion >= 0 && incomingVersion <= coveredVersion) || sameUnversionedRequest) {
-            if (incomingVersion === currentVersion && queuedVersion === null) {
-                if (incomingVersion === null) existing.retryOnFailure = fragment;
-                else if (fragment.requestOrigin === "passive" && existing.retryOnFailure?.requestOrigin !== "passive") existing.retryOnFailure = fragment;
+        if (incomingVersion !== null && incomingVersion <= coveredVersion) {
+            // Keep one independent demand across request slots and protection deferrals.
+            // A queued or in-flight version is not evidence of a successful swap.
+            const echo = state.pendingEcho.get(fragment.targetId);
+            const echoVersion = echo ? requestVersion(echo) ?? -1 : -1;
+            if (incomingVersion > echoVersion || (incomingVersion === echoVersion && fragment.requestOrigin === "passive")) {
+                state.pendingEcho.set(fragment.targetId, fragment);
             }
-            emitDebugEvent(incomingVersion === null ? "fragment_request_coalesced" : "fragment_version_coalesced", {
+            emitDebugEvent("fragment_version_coalesced", {
                 targetId: fragment.targetId,
                 currentVersion,
                 queuedVersion,
@@ -336,7 +338,7 @@ export function createLiveFragmentRefresher(options: {
         }
         const existing = state.inFlight.get(fragment.targetId);
         if (existing) {
-            mergeInFlightDemand(existing, fragment);
+            mergeInFlightDemand(state, existing, fragment);
             return;
         }
 
@@ -346,7 +348,6 @@ export function createLiveFragmentRefresher(options: {
             fetchedTarget: null,
             generation,
             next: null,
-            retryOnFailure: null,
             protectionChanged: false,
             applied: false,
             failed: false,
@@ -368,8 +369,14 @@ export function createLiveFragmentRefresher(options: {
                 state.inFlight.delete(fragment.targetId);
                 const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
                 const queued = slot.next && !versionIsSatisfied(slot.next, satisfiedVersion) ? slot.next : null;
-                const retry = slot.failed ? slot.retryOnFailure : null;
-                const next = queued ?? retry;
+                const echo = state.pendingEcho.get(fragment.targetId);
+                let next = queued;
+                if (echo && versionIsSatisfied(echo, satisfiedVersion)) {
+                    state.pendingEcho.delete(fragment.targetId);
+                } else if (echo && !next && !state.pendingInteraction.has(fragment.targetId) && !state.pendingFocused.has(fragment.targetId)) {
+                    state.pendingEcho.delete(fragment.targetId);
+                    next = echo;
+                }
                 emitDebugEvent("fragment_request_settled", {
                     targetId: fragment.targetId,
                     applied: slot.applied,
@@ -457,7 +464,7 @@ export function createLiveFragmentRefresher(options: {
         }
         const existing = state.inFlight.get(fragment.targetId);
         if (existing) {
-            if (mergeInFlightDemand(existing, fragment) === "coalesced") return;
+            if (mergeInFlightDemand(state, existing, fragment) === "coalesced") return;
             if (deferForCurrentProtection(state, null, fragment, target)) return;
             return;
         }
