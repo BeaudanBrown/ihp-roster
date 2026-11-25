@@ -200,7 +200,10 @@ in
         e2e-postgres-lifecycle-test = script ../scripts/e2e/postgres-lifecycle-test;
         dev-postgres = script ../scripts/db/dev-postgres;
         e2e-runtime = script ../scripts/e2e/runtime;
-        e2e = script ../scripts/e2e/e2e;
+        e2e.exec = ''
+            export FONTCONFIG_FILE=${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}
+            ${(script ../scripts/e2e/e2e).exec}
+        '';
         e2e-fast = script ../scripts/e2e/e2e-fast;
         e2e-support-import-check = script ../scripts/e2e/support-import-check;
         e2e-typecheck = script ../scripts/e2e/typecheck;
