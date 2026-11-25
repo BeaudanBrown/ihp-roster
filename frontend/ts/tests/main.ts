@@ -15,6 +15,7 @@ import "./filter-selection.test";
 import "./time-picker.test";
 import "./ordered-range.test";
 import "./horizontal-scroll.test";
+import "./fit-camera.test";
 import "./passkeys.test";
 import "./pwa-install.test";
 import "./xero-candidate-filter.test";

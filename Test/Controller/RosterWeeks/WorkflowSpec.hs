@@ -2269,6 +2269,37 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status403
                 query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchCount >>= (`shouldBe` 0)
 
+        it "saves Fit whole week as a desired value for only the current worker" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                worker <- createUserRecord "roster-fit@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Worker" "Viewer"
+                week <- createRosterWeekRecord venue 0 True
+                let contextParams = [("anchorDate", "2025-01-06"), ("rosterGroupId", cs (tshow week.fixtureRosterGroupId))]
+                forM_ [[], [("fitWholeWeek", "not-boolean")]] \badFields -> do
+                    _ <- withUserAndCurrentVenue worker venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams UpdateRosterFitWholeWeekAction (contextParams <> badFields)
+                    query @UserPreference |> filterWhere (#userId, unpackId worker.id) |> fetchCount >>= (`shouldBe` 0)
+                other <- createUserRecord "other-fit@example.com" "staff" True
+                _ <- newRecord @UserPreference |> set #userId (unpackId other.id) |> set #rosterFitWholeWeek True |> createRecord
+                _ <- newRecord @UserPreference |> set #userId (unpackId worker.id) |> set #highlightOwnLiveShifts False |> createRecord
+                forM_ [True, True, False] \desired -> do
+                    response <- withUserAndCurrentVenue worker venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams UpdateRosterFitWholeWeekAction (contextParams <> [("fitWholeWeek", if desired then "true" else "false")])
+                    response `responseStatusShouldBe` status200
+                    lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                    preference <- query @UserPreference |> filterWhere (#userId, unpackId worker.id) |> fetchOne
+                    preference.rosterFitWholeWeek `shouldBe` desired
+                    preference.highlightOwnLiveShifts `shouldBe` False
+                    let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                    triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"fit-preference-control\"")
+                otherPreference <- query @UserPreference |> filterWhere (#userId, unpackId other.id) |> fetchOne
+                otherPreference.rosterFitWholeWeek `shouldBe` True
+                query @LiveInvalidationEvent |> filterWhere (#source, "roster.fit_whole_week") |> fetchCount >>= (`shouldBe` 3)
+
         it "allows an ordinary roster viewer to persist own Published-shift highlighting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

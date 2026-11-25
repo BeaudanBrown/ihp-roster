@@ -194,6 +194,7 @@ data RosterRenderData = RosterRenderData
     , rosterWagePrediction               :: Maybe RosterWagePrediction
     , rosterPayDisplayMode     :: RosterPayDisplayMode
     , showRosterWarnings    :: Bool
+    , fitWholeWeek :: Bool
     , highlightOwnLiveShifts :: Bool
     , currentViewerStaffKey :: Maybe Text
     , rosterPublicHolidays  :: Map Day Text
@@ -226,6 +227,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterWagePrediction               :: Maybe RosterWagePrediction
     , gridRosterPayDisplayMode     :: RosterPayDisplayMode
     , gridShowRosterWarnings    :: Bool
+    , gridFitWholeWeek :: Bool
     , gridHighlightOwnLiveShifts :: Bool
     , gridCurrentViewerStaffKey :: Maybe Text
     , gridPublicHolidays        :: Map Day Text

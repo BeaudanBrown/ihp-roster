@@ -13,6 +13,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterDialogOverlay
     , respondWithRosterFragments
     , respondWithRosterFragmentsUpdate
+    , respondWithFitWholeWeekUpdate
     , respondWithRosterOwnHighlightPreferenceUpdate
     , respondWithRosterResourceInvalidation
     , respondWithRosterToast
@@ -23,6 +24,8 @@ module Web.RosterWeeks.Responses
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
+import Application.Helper.FrontendContract.Surface.Roster.Live (rosterPersonalLiveScope)
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl (..), FrontendSurfaceMountConfig (..))
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -41,7 +44,7 @@ import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterCandidateMountedFragments,
+                                        rosterPersonalImpl, rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
@@ -126,6 +129,15 @@ respondWithRosterContent scope = do
 respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ResponseReceived
 respondWithRosterFragmentsUpdate scope fragments toast =
     respondWithRosterFragments scope fragments (renderToastOob ToastBottomCenter toast)
+
+respondWithFitWholeWeekUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult () -> IO ResponseReceived
+respondWithFitWholeWeekUpdate windowScope result = do
+    let scope = rosterFrontendScopeValue windowScope
+    let userId = unpackId effectiveCurrentUser.id
+    let mount = rosterPersonalImpl scope.rosterWeekVenueId userId scope.rosterWeekWindowStart scope.rosterWeekGroupId
+    setHeader ("HX-Reswap", "none")
+    setActorLiveResourcesRefresh (rosterPersonalLiveScope scope.rosterWeekVenueId userId) result.liveMutationTouchedResources mount.surfaceImplMountConfig.mountFragments
+    respondHtmlProfiled mempty
 
 respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> ToastOverlayConfig -> IO ResponseReceived
 respondWithRosterOwnHighlightPreferenceUpdate scope toast =

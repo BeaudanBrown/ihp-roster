@@ -320,6 +320,7 @@ data RosterWeeksController
     | ShowRosterDayTimelineContentFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekOverviewFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekContentFragmentAction { anchorDate :: !Text }
+    | ShowRosterFitPreferenceAction { anchorDate :: !Text }
     | ShowRosterWeekGridToolbarFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekGridFrameFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekDayColumnsFragmentAction { anchorDate :: !Text }
@@ -351,6 +352,7 @@ data RosterWeeksController
     | UpdateRosterWarningPreferenceAction
     | UpdateRosterWageEstimatePreferenceAction
     | ToggleRosterManagerModeAction
+    | UpdateRosterFitWholeWeekAction
     | UpdateRosterOwnLiveShiftHighlightPreferenceAction
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }

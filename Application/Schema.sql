@@ -203,6 +203,7 @@ CREATE TABLE user_preferences (
     manager_mode_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     timesheet_wage_display_mode wage_display_mode_enum DEFAULT 'hidden' NOT NULL,
     roster_pay_display_mode roster_pay_display_mode DEFAULT 'roster_pay_hidden' NOT NULL,
+    roster_fit_whole_week BOOLEAN DEFAULT FALSE NOT NULL,
     UNIQUE(user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
@@ -460,6 +461,7 @@ CREATE TABLE venue_config (
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    unavailable_staff_daily_maximum INT DEFAULT NULL,
     UNIQUE(venue_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
@@ -470,6 +472,8 @@ CREATE TABLE venue_config (
     CHECK (time_picker_start_minute_of_day <> time_picker_final_selectable_minute_of_day),
     CHECK (staff_timesheet_edit_window_days >= 0),
     CHECK (unavailable_staff_warning_threshold IS NULL OR ((unavailable_staff_warning_threshold >= 1) AND (unavailable_staff_warning_threshold <= 100))),
+    CONSTRAINT venue_config_daily_maximum_range CHECK ((unavailable_staff_daily_maximum >= 1) AND (unavailable_staff_daily_maximum <= 100)),
+    CONSTRAINT venue_config_warning_not_above_maximum CHECK (unavailable_staff_warning_threshold <= unavailable_staff_daily_maximum),
     CHECK (
         (default_staff_pay_assignment_mode = 'award_rate' AND default_staff_award_level_id IS NOT NULL)
         OR (default_staff_pay_assignment_mode = 'roster_only' AND default_staff_award_level_id IS NULL)
@@ -1249,6 +1253,21 @@ CREATE TABLE leave_requests (
     CHECK (notes IS NULL OR char_length(notes) <= 1000),
     CHECK (end_date > start_date)
 );
+CREATE TABLE leave_policy_confirmations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    actor_user_id UUID NOT NULL,
+    effective_user_id UUID NOT NULL,
+    venue_id UUID NOT NULL,
+    staff_id UUID NOT NULL,
+    binding TEXT NOT NULL,
+    conflicts JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (effective_user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE
+);
+CREATE INDEX leave_policy_confirmations_created_at_idx ON leave_policy_confirmations (created_at);
 CREATE TABLE leave_request_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,

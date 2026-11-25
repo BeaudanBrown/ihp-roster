@@ -12,6 +12,7 @@ import {
     openRoster,
     openRosterShiftDialog,
     resetCanonicalRosterAssignedShiftFixture,
+    seedFitDayRows, setFitWholeWeek,
     saveRosterShiftDialog,
 } from './support/roster';
 import { runSql } from './support/database';
@@ -172,6 +173,38 @@ test.describe('Roster live fragments', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
     test.beforeEach(({}, testInfo) => resetCanonicalRosterFixtureForMutator(testInfo.title));
     test.afterEach(({}, testInfo) => resetCanonicalRosterFixtureForMutator(testInfo.title));
+
+    test('preserves independent Fit inspection and the passive viewer’s open dialog', async ({ browser }) => {
+        seedFitDayRows();
+        const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+        const [actor, passive] = await Promise.all(contexts.map(context => context.newPage()));
+        try {
+            await actor.setViewportSize({ width: 1024, height: 768 });
+            await passive.setViewportSize({ width: 390, height: 844 });
+            await openRoster(actor);
+            await openRoster(passive, { weekOffset: 5 });
+            const checkbox = (page: Page) => page.locator('#roster-fit-whole-week');
+            const week = passive.url();
+            await setFitWholeWeek(actor, false);
+            await expect(checkbox(passive)).not.toBeChecked();
+            await openRosterShiftDialog(passive, passive.locator('[data-roster-shift-launcher="true"]').first());
+            const focus = passive.locator('#roster-shift-staff-id');
+            await focus.focus();
+            await setFitWholeWeek(actor, true);
+            await expect(passive.locator('.roster-fit-viewport')).toHaveClass(/is-fit-measured/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(focus).toBeFocused();
+            await expect(passive).toHaveURL(week);
+            const passiveTransform = () => passive.locator('.roster-grid-frame').evaluate(el => getComputedStyle(el).transform);
+            const original = await passiveTransform();
+            await actor.locator('.roster-fit-viewport').press('=');
+            expect(await passiveTransform()).toBe(original);
+            await setFitWholeWeek(actor, false);
+            await expect(checkbox(passive)).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+        } finally {
+            if (await actor.locator('#roster-fit-whole-week').count()) await setFitWholeWeek(actor, false);
+            await Promise.all(contexts.map(context => context.close()));
+        }
+    });
 
     test(assignmentLiveUpdateTitle, async ({ browser }) => {
         const actorContext = await browser.newContext();

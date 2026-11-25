@@ -1,27 +1,30 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.Header
-    ( renderRosterGridHeader
+    ( renderFitWholeWeekFragment
+    , renderRosterGridHeader
     ) where
 
-import Application.Helper.ControllerContext (currentUserIsSuperAdmin,
+import Application.Helper.ControllerContext (effectiveCurrentUser, currentUserIsSuperAdmin,
                                              hasManagementMode)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount, FrontendSurfaceActionRoute (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.View.ToggleButton
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Dom (rosterWeekShellId)
-import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef)
-import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl)
+import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef, rosterPersonalImpl)
+import Web.RosterWeeks.Paths (rosterFitWholeWeekUrl, rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Types (RosterGridViewMode (..),
                               RosterViewCapabilities (..),
                               RosterWindowState (..))
@@ -34,8 +37,8 @@ rosterActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterActionRoute actionUrl =
     (defaultFrontendSurfaceActionRoute (actionUrl))
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowState -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
-renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowState -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Maybe Bool -> Html
+renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl fitPreference =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarRootAttrs = dropzoneAttrs
@@ -45,12 +48,28 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
             , weekToolbarNavigation = renderRosterWeekControls currentRosterGroup weekStartDate gridViewMode
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
-            , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
+            , weekToolbarAuxiliary = maybe mempty (renderFrontendSurfaceMount fitMount . renderFitWholeWeekFragment weekStartDate currentRosterGroup.id) fitPreference <> renderRosterWeekWageSummary rosterWagePrediction
             }
+        fitMount = rosterPersonalImpl currentRosterGroup.venueId (unpackId effectiveCurrentUser.id) weekStartDate currentRosterGroup.id
         dropzoneAttrs = if hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
             then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDeleteShiftDropzoneRef "delete"
             else []
      in toolbarHtml
+
+renderFitWholeWeekFragment :: Day -> Id RosterGroup -> Bool -> Html
+renderFitWholeWeekFragment anchor groupId checked = [hsx|
+    <div id={targetId} {...activeAttrs}>{form}</div>
+    |]
+  where
+    targetId = surfaceFragmentTargetId @Surface.RosterPersonalSurface @Surface.FitPreferenceControl noSurfaceFields
+    activeAttrs = if checked then roleAttrs (surfaceBrowserRoleValue @Surface.RosterPersonalSurface @Surface.FitActiveRole) else []
+    form = renderFrontendSurfaceActionForm (RosterAction.setRosterFitWholeWeekAction fields)
+        ((rosterActionRoute url) { actionRouteStandardUrl = Just url, actionRouteExtraAttrs = [("class", "mb-0")] })
+        (renderAppToggleButton ((defaultAppToggleButtonConfig "roster-fit-whole-week"
+            (surfaceToggleScalarField @Surface.FitWholeWeek fields True False) checked [hsx|Fit whole week|])
+            { appToggleKeepCheckbox = True, appToggleSubmitPolicy = ToggleSubmitImmediate, appToggleButtonClass = "btn-sm" }))
+    url = rosterFitWholeWeekUrl anchor groupId
+    fields = RosterAction.setRosterFitWholeWeekActionFields checked
 
 renderRosterSidePanelToggle :: Html
 renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs

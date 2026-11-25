@@ -18,6 +18,8 @@ module Web.RosterWeeks.Paths
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterManagerModePreferenceUrl
+    , rosterFitPreferenceFragmentUrl
+    , rosterFitWholeWeekUrl
     , rosterOwnLiveShiftHighlightPreferenceUrl
     , rosterTimelineWindowUrl
     , rosterDayTimelineContentFragmentUrl
@@ -248,6 +250,13 @@ rosterWageEstimatePreferenceUrl anchorDate rosterGroupId =
 rosterManagerModePreferenceUrl :: Day -> Id RosterGroup -> Text
 rosterManagerModePreferenceUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo ToggleRosterManagerModeAction) (rosterWindowActionQuery anchorDate rosterGroupId)
+
+rosterFitPreferenceFragmentUrl :: Day -> Id RosterGroup -> Text
+rosterFitPreferenceFragmentUrl anchor groupId = replaceQueryParams (pathTo ShowRosterFitPreferenceAction { anchorDate = tshow anchor }) (rosterWindowActionQuery anchor groupId)
+
+rosterFitWholeWeekUrl :: Day -> Id RosterGroup -> Text
+rosterFitWholeWeekUrl anchorDate rosterGroupId =
+    appendQueryParams (pathTo UpdateRosterFitWholeWeekAction) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterOwnLiveShiftHighlightPreferenceUrl :: Day -> Id RosterGroup -> Text
 rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =

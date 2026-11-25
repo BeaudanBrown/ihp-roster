@@ -18,7 +18,8 @@ import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
-                                renderDialogOverlayClearOob, renderToastOob,
+                                renderDialogOverlayClearOob, renderToastOob, dialogOverlayMountId,
+                                renderDialogOverlayBodyOnly,
                                 successToast)
 import qualified Data.Set as Set
 import Web.Controller.Prelude
@@ -29,18 +30,21 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      staffCandidateMountedFragments,
                                      staffSurfaceScope)
 import Web.View.LeaveRequests.New
-import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
+import Web.View.LeaveRequests.Policy
+import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment, staffLeaveRequestFormFragmentId)
 
 respondWithLeaveSubmissionResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> RequestedLeaveSubmission -> IO ResponseReceived
 respondWithLeaveSubmissionResult responseContext = \case
     LeaveSubmissionMissingStaff -> respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
     LeaveSubmissionInvalid invalid -> renderInvalid invalid
-    LeaveSubmissionFinished valid outcome -> case outcome of
+    LeaveSubmissionEditDraft draft -> renderInvalid draft
+    LeaveSubmissionFinished staff valid outcome -> case outcome of
         LeaveSubmissionStaffInactive -> do
             setErrorMessage "This staff member is no longer active."
             redirectToPath (leaveFallbackPath responseContext)
-        LeaveSubmissionBlocked blackout ->
-            renderInvalid (attachFailure #startDate ("Unavailable submissions are blocked for these dates: " <> blackout.reason) valid)
+        LeaveSubmissionInvalidConfirmation -> renderInvalid (attachFailure #startDate invalidConfirmationMessage valid)
+        LeaveSubmissionBlocked conflicts Nothing -> renderInvalid (attachFailure #startDate (policyRejection valid conflicts) valid)
+        LeaveSubmissionBlocked conflicts (Just token) -> respondWithPolicyConfirmation (SubmitDraft responseContext) staff valid conflicts token
         LeaveSubmissionCreated result ->
             if isHtmxRequest
                 then respondWithLeaveMutationSuccess responseContext result.liveMutationTouchedResources "Unavailable period submitted"
@@ -51,7 +55,23 @@ respondWithLeaveSubmissionResult responseContext = \case
     renderInvalid leaveRequest =
         if isHtmxRequest
             then respondWithLeaveRequestValidationFailure responseContext leaveRequest
-            else render NewView { .. }
+            else case responseContext of
+                LeaveStaffResponseContext -> render (LeavePolicyPage (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest))
+                LeaveSelfServiceResponseContext -> render (LeavePolicyPage (renderSelfServiceLeaveFormFragment Nothing leaveRequest))
+                LeavePageResponseContext -> render NewView { .. }
+
+invalidConfirmationMessage :: Text
+invalidConfirmationMessage = "This confirmation is no longer valid. Review the request again."
+
+respondWithPolicyConfirmation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => PolicyOperation -> Staff -> LeaveRequest -> LeavePolicyConflicts -> Text -> IO ResponseReceived
+respondWithPolicyConfirmation operation staff draft conflicts token = do
+    let body = renderPolicyConfirmation operation staff draft conflicts token
+    if isHtmxRequest
+        then do
+            setHeader ("HX-Retarget", cs ("#" <> dialogOverlayMountId))
+            setHeader ("HX-Reswap", "innerHTML")
+            respondHtml (renderDialogOverlayBodyOnly "Confirm unavailability exception" "" body)
+        else render (LeavePolicyPage body)
 
 respondWithSelfServiceLeaveDeletionResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Maybe (LiveMutationResult LeaveRequest) -> IO ResponseReceived
 respondWithSelfServiceLeaveDeletionResult staff deletionResult =
@@ -129,12 +149,21 @@ respondWithNativeLeaveDeletion fallback deletionResult = do
         Nothing -> setErrorMessage leaveDeletionUnavailableMessage
     redirectToPath fallback
 
-respondWithLeaveReviewResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveReviewDecision -> Maybe (LiveMutationResult ReviewedLeaveRequest) -> IO ResponseReceived
-respondWithLeaveReviewResult decision = \case
-    Nothing -> do
+respondWithLeaveReviewResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LeaveReviewDecision -> LeaveRequest -> LeaveReviewResult -> IO ResponseReceived
+respondWithLeaveReviewResult decision draft = \case
+    LeaveReviewBlocked conflicts (Just token) -> do
+        staff <- fetch (Id draft.staffId :: Id Staff)
+        respondWithPolicyConfirmation ReinstateRequest staff draft conflicts token
+    LeaveReviewBlocked conflicts Nothing -> do
+        setErrorMessage (policyRejection draft conflicts)
+        redirectTo LeaveRequestsAction
+    LeaveReviewInvalidConfirmation -> do
+        setErrorMessage invalidConfirmationMessage
+        redirectTo LeaveRequestsAction
+    LeaveReviewUnavailable -> do
         setErrorMessage "This unavailable period can no longer be reviewed."
         redirectTo LeaveRequestsAction
-    Just result ->
+    LeaveReviewCompleted result ->
         if isHtmxRequest
             then respondWithLeaveRequestsContent result.liveMutationTouchedResources successMessage
             else do
@@ -159,7 +188,7 @@ respondWithStaffLeaveActorInvalidation staff touchedResources successMessage = d
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (staffSurfaceScope scope) touchedResources (staffCandidateMountedFragments scope)
-    respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
+    respondHtmlProfiled (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
 
 leaveFallbackPath :: LeaveResponseContext -> Text
 leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
@@ -167,10 +196,14 @@ leaveFallbackPath LeaveSelfServiceResponseContext = pathTo EditProfileAction <> 
 leaveFallbackPath LeaveStaffResponseContext = pathTo RosterWeeksAction
 
 respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> LeaveRequest -> IO ResponseReceived
-respondWithLeaveRequestValidationFailure responseContext leaveRequest = case responseContext of
-    LeavePageResponseContext -> respondHtml (renderNewLeaveRequestDialog leaveRequest)
-    LeaveSelfServiceResponseContext -> respondHtml (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
-    LeaveStaffResponseContext -> respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
+respondWithLeaveRequestValidationFailure responseContext leaveRequest = do
+    let (target, swap, body) = case responseContext of
+            LeavePageResponseContext -> (dialogOverlayMountId, "innerHTML", renderNewLeaveRequestDialog leaveRequest)
+            LeaveSelfServiceResponseContext -> (selfServiceLeaveFormFragmentId, "outerHTML", renderSelfServiceLeaveFormFragment Nothing leaveRequest <> renderDialogOverlayClearOob)
+            LeaveStaffResponseContext -> (staffLeaveRequestFormFragmentId, "outerHTML", renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest <> renderDialogOverlayClearOob)
+    setHeader ("HX-Retarget", cs ("#" <> target))
+    setHeader ("HX-Reswap", swap)
+    respondHtml body
 
 respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> Set.Set SurfaceResourceValue -> Text -> IO ResponseReceived
 respondWithLeaveMutationSuccess responseContext touchedResources successMessage = case responseContext of
@@ -187,7 +220,7 @@ respondWithLeaveMutationSuccess responseContext touchedResources successMessage 
                     (selfServiceLeaveSurfaceScope scope)
                     touchedResources
                     [selfServiceLeaveFormMountedFragment, selfServiceLeaveHistoryMountedFragment]
-                respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
+                respondHtmlProfiled (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
     LeaveStaffResponseContext -> do
         maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
         case maybeStaff of

@@ -22,6 +22,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , PreviewRosterTemplateApplicationActionOperation
     , PreviewRosterTemplateCaptureActionOperation
     , RemoveRosterRowActionOperation
+    , SetRosterFitWholeWeekActionOperation
     , ShowRosterNotificationConfirmationActionOperation
     , SortRosterWeekActionOperation
     , SwitchRosterGroupActionOperation
@@ -65,6 +66,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseOpenCopyRosterWeekConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , parsePreviewRosterTemplateCaptureActionParams
+    , parseSetRosterFitWholeWeekActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterManagerModeActionParams
@@ -79,6 +81,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , previewRosterTemplateCaptureActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
+    , setRosterFitWholeWeekAction
+    , setRosterFitWholeWeekActionFields
     , showRosterNotificationConfirmationAction
     , showRosterNotificationConfirmationActionFields
     , sortRosterWeekAction
@@ -613,6 +617,37 @@ removeRosterRowActionEvidence =
 removeRosterRowAction :: ActionFields RemoveRosterRowActionOperation -> FrontendSurfaceAction
 removeRosterRowAction =
     frontendSurfaceActionFromEvidence removeRosterRowActionEvidence
+
+data SetRosterFitWholeWeekActionOperation
+
+type instance ActionSurface SetRosterFitWholeWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker SetRosterFitWholeWeekActionOperation = Types1.SetRosterFitWholeWeek
+type instance ActionFieldSpecs SetRosterFitWholeWeekActionOperation =
+    '[ 'Field Types1.FitWholeWeek 'WireBool
+     ]
+
+setRosterFitWholeWeekActionFields ::
+    Bool ->
+    ActionFields SetRosterFitWholeWeekActionOperation
+setRosterFitWholeWeekActionFields fitWholeWeek =
+    actionFields
+        (surfaceField @Types1.FitWholeWeek fitWholeWeek)
+        noSurfaceFields
+
+setRosterFitWholeWeekActionEvidence :: ActionEvidence SetRosterFitWholeWeekActionOperation
+setRosterFitWholeWeekActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "SetRosterFitWholeWeek" "set-roster-fit-whole-week" [SurfaceIR.FieldIR "FitWholeWeek" "fitWholeWeek" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+
+setRosterFitWholeWeekAction :: ActionFields SetRosterFitWholeWeekActionOperation -> FrontendSurfaceAction
+setRosterFitWholeWeekAction =
+    frontendSurfaceActionFromEvidence setRosterFitWholeWeekActionEvidence
+
+parseSetRosterFitWholeWeekActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields SetRosterFitWholeWeekActionOperation)
+parseSetRosterFitWholeWeekActionParams =
+    parseActionParams
+        @SetRosterFitWholeWeekActionOperation
 
 data ShowRosterNotificationConfirmationActionOperation
 

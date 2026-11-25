@@ -1153,7 +1153,9 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "Valid shift window"
                 pageResponse `responseBodyShouldContain` "Minute-precision shift times"
-                pageResponse `responseBodyShouldContain` "Unavailable-staff warning threshold"
+                pageResponse `responseBodyShouldContain` "Warn at"
+                pageResponse `responseBodyShouldContain` "Maximum per day"
+                pageResponse `responseBodyShouldContain` "name=\"unavailableStaffDailyMaximum\""
                 pageResponse `responseBodyShouldContain` "name=\"unavailableStaffWarningThreshold\""
                 pageResponse `responseBodyShouldContain` "value=\"\""
                 pageResponse `responseBodyShouldContain` "Disabled"
@@ -1269,6 +1271,23 @@ tests = aroundAll withDatabaseTestContext do
                 disabledResponse `responseStatusShouldBe` status302
                 disabledConfig <- fetch enabledConfig.id
                 disabledConfig.unavailableStaffWarningThreshold `shouldBe` Nothing
+                disabledConfig.unavailableStaffDailyMaximum `shouldBe` Nothing
+
+                let savePair warning dailyMax = do
+                        response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callActionWithParams UpdateUnavailableStaffWarningThresholdAction
+                                [("unavailableStaffWarningThreshold", warning), ("unavailableStaffDailyMaximum", dailyMax)]
+                        response `responseStatusShouldBe` status302
+                        saved <- fetch originalConfig.id
+                        pure (saved.unavailableStaffWarningThreshold, saved.unavailableStaffDailyMaximum)
+                savePair "" "1" `shouldReturn` (Nothing, Just 1)
+                savePair "5" "5" `shouldReturn` (Just 5, Just 5)
+                savePair "6" "5" `shouldReturn` (Just 5, Just 5)
+                savePair "1" "101" `shouldReturn` (Just 5, Just 5)
+                savePair "" "0" `shouldReturn` (Just 5, Just 5)
+                savePair "" "bad" `shouldReturn` (Just 5, Just 5)
+                savePair "100" "" `shouldReturn` (Just 100, Nothing)
+                savePair "" "" `shouldReturn` (Nothing, Nothing)
                 auditCountAfter <- query @AuditEvent |> fetchCount
                 auditCountAfter `shouldBe` auditCountBefore
 

@@ -91,7 +91,7 @@ renderVisibleUnavailabilityBlackouts :: [UnavailabilityBlackout] -> Html
 renderVisibleUnavailabilityBlackouts blackouts = [hsx|
     <div class="alert alert-warning mb-0">
         <h5 class="mb-2">Unavailable submission blackout periods</h5>
-        <p class="small mb-2">New unavailable time cannot overlap these inclusive dates.</p>
+        <p class="small mb-2">New requests covering these dates require a manager’s confirmation.</p>
         <ul class="small mb-0">
             {forEach blackouts renderVisibleUnavailabilityBlackout}
         </ul>

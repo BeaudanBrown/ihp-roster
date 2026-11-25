@@ -140,6 +140,13 @@ Implementation authority is `TemplateCapture.hs`, `TemplateApplication.hs`, thei
 
 ## Presentation And Interaction
 
+Day rows offer one **Fit whole week** checkbox to workers and managers. The
+preference defaults off and follows the effective user across devices. Only
+the Boolean is saved; week, scroll, zoom, focus and overlays stay local. Day
+columns and the day timeline keep their normal presentation. The private live
+subscription refreshes only the authorized checkbox fragment for the receiving
+window, never a shared roster-group preference.
+
 Registered `RosterSurface` contracts own fragments, resources, roles, action
 fields, drag/drop compatibility, overlays, tabs, sorting, SidePanel visibility,
 column editing, image export, week overview, and typed request context. Haskell owns

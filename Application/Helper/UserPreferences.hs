@@ -16,6 +16,7 @@ module Application.Helper.UserPreferences
     , rosterLayoutModes
     , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserRosterPayDisplayMode
+    , saveCurrentUserFitWholeWeek
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetShowApproved
     , upsertCurrentUserTimesheetWageDisplayMode
@@ -25,6 +26,7 @@ import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
                                       hasManagementMode)
 import Application.Helper.Hasql (isUniqueViolation)
+import Control.Monad (void)
 import qualified Control.Exception as Exception
 import Generated.Types
 import IHP.ControllerPrelude
@@ -32,6 +34,7 @@ import IHP.ControllerPrelude
 data UserRosterPreferences = UserRosterPreferences
     { userShowRosterWarnings     :: Bool
     , userRosterPayDisplayMode      :: RosterPayDisplayMode
+    , userFitWholeWeek :: Bool
     , userHighlightOwnLiveShifts :: Bool
     }
 
@@ -48,6 +51,7 @@ normaliseUserRosterPreferences maybePreferences =
           -- conflict highlighting hidden, preserving the default disabled state.
           userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
         , userRosterPayDisplayMode = maybe RosterPayHidden (.rosterPayDisplayMode) maybePreferences
+        , userFitWholeWeek = maybe False (.rosterFitWholeWeek) maybePreferences
         , userHighlightOwnLiveShifts = maybe True (.highlightOwnLiveShifts) maybePreferences
         }
 
@@ -173,6 +177,12 @@ upsertCurrentUserRosterPayDisplayMode rosterPayDisplayMode = do
                 |> set #rosterPayDisplayMode rosterPayDisplayMode
                 |> set #showWageEstimates (rosterPayDisplayMode /= RosterPayHidden)
                 |> createRecord
+
+saveCurrentUserFitWholeWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> IO ()
+saveCurrentUserFitWholeWeek desired = do
+    let userId = unpackId effectiveCurrentUser.id
+    -- One field-only upsert: concurrent first saves cannot lose another setting.
+    void $ unsafeSqlExec "INSERT INTO user_preferences (user_id, roster_fit_whole_week) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET roster_fit_whole_week = EXCLUDED.roster_fit_whole_week" (userId, desired)
 
 upsertCurrentUserHighlightOwnLiveShifts ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>

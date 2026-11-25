@@ -11,6 +11,7 @@ data AuditEventType
     = TimesheetApprovedAudit
     | TimesheetUnapprovedAudit
     | TimesheetApprovalResetAudit
+    | LeavePolicyOverrideAudit
     | LeaveApprovedAudit
     | LeaveDeniedAudit
     | LeaveDeletedAudit
@@ -74,6 +75,7 @@ auditEventTypeText FeedbackUnvotedAudit = "feedback_unvoted"
 auditEventTypeText TimesheetApprovedAudit = "timesheet_approved"
 auditEventTypeText TimesheetUnapprovedAudit = "timesheet_unapproved"
 auditEventTypeText TimesheetApprovalResetAudit = "timesheet_approval_reset"
+auditEventTypeText LeavePolicyOverrideAudit = "leave_policy_override"
 auditEventTypeText LeaveApprovedAudit = "leave_approved"
 auditEventTypeText LeaveDeniedAudit = "leave_denied"
 auditEventTypeText LeaveDeletedAudit = "leave_deleted"

@@ -12,6 +12,7 @@ import {
     firstRosterDayRemoveButton,
     openRoster,
     openRosterSettings,
+    seedFitDayRows, setFitWholeWeek,
 } from './support/roster';
 import { expectContainerToManageHorizontalOverflow, expectNoHorizontalViewportOverflow } from './support/responsive';
 import { runSql } from './support/database';
@@ -53,10 +54,57 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
 
 test.describe('Roster mobile baseline', () => {
     test.beforeEach(async ({ page }) => {
+        seedFitDayRows();
         await openRoster(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
         await expect(page.locator('.roster-grid')).toBeVisible();
+    });
+
+    test('fit gestures inspect without launching a shift and ordinary taps still open it', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        const view = page.locator('.roster-fit-viewport');
+        const frame = view.locator('.roster-grid-frame');
+        const transform = () => frame.evaluate(el => getComputedStyle(el).transform);
+        try {
+            await setFitWholeWeek(page, true);
+            const start = await transform();
+            await view.focus();
+            await page.keyboard.press('=');
+            await expect.poll(transform).not.toBe(start);
+            await page.keyboard.press('Home');
+            const launcher = view.locator('[data-roster-shift-launcher="true"]').first();
+            await launcher.hover();
+            const box = await launcher.boundingBox();
+            if (!box) throw new Error('Missing fitted shift launcher');
+            const x = box.x + box.width / 2, y = box.y + box.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.wheel(0, -320);
+            await expect.poll(transform).not.toBe(start);
+            await page.mouse.down();
+            await page.mouse.move(x - 40, y - 30, { steps: 6 });
+            await page.mouse.up();
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            await view.focus();
+            await page.keyboard.press('Home');
+            // Chromium touch events exercise native pointer capture and synthesized click.
+            const session = await page.context().newCDPSession(page);
+            try {
+                await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 0 }, { x: x + 15, y, id: 1 }] });
+                await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x - 12, y, id: 0 }, { x: x + 32, y, id: 1 }] });
+                await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                await expect.poll(transform).not.toBe(start);
+                await expect(page.getByRole('dialog')).toHaveCount(0);
+            } finally {
+                await session.detach();
+            }
+            await view.press('Home');
+            await launcher.click();
+            await expect(page.getByRole('dialog')).toBeVisible();
+            await page.keyboard.press('Escape');
+        } finally {
+            await setFitWholeWeek(page, false);
+        }
     });
 
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {

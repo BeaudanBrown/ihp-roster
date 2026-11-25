@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
     , CreateUnavailabilityBlackoutActionOperation
     , DeleteUnavailabilityBlackoutActionOperation
     , DenyLeaveRequestActionOperation
+    , ResolveLeavePolicyActionOperation
     , UpdateUnavailabilityBlackoutActionOperation
     , approveLeaveRequestAction
     , approveLeaveRequestActionFields
@@ -26,7 +27,11 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
     , denyLeaveRequestActionFields
     , parseArchiveLeaveRequestsPageActionParams
     , parseCreateUnavailabilityBlackoutActionParams
+    , parseResolveLeavePolicyActionParams
     , parseUpdateUnavailabilityBlackoutActionParams
+    , resolveLeavePolicyAction
+    , resolveLeavePolicyActionFields
+    , resolveLeavePolicyActionParamsPresent
     , updateUnavailabilityBlackoutAction
     , updateUnavailabilityBlackoutActionFields
     ) where
@@ -189,6 +194,48 @@ denyLeaveRequestActionEvidence =
 denyLeaveRequestAction :: ActionFields DenyLeaveRequestActionOperation -> FrontendSurfaceAction
 denyLeaveRequestAction =
     frontendSurfaceActionFromEvidence denyLeaveRequestActionEvidence
+
+data ResolveLeavePolicyActionOperation
+
+type instance ActionSurface ResolveLeavePolicyActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+type instance ActionMarker ResolveLeavePolicyActionOperation = Types1.ResolveLeavePolicy
+type instance ActionFieldSpecs ResolveLeavePolicyActionOperation =
+    '[ 'Field Types1.PolicyToken 'WireText
+     , 'Field Types1.ReturnToEdit 'WireBool
+     ]
+
+resolveLeavePolicyActionFields ::
+    Text ->
+    Bool ->
+    ActionFields ResolveLeavePolicyActionOperation
+resolveLeavePolicyActionFields policyToken returnToEdit =
+    actionFields
+        (surfaceField @Types1.PolicyToken policyToken)
+        ( surfaceField @Types1.ReturnToEdit returnToEdit
+            &: noSurfaceFields
+        )
+
+resolveLeavePolicyActionEvidence :: ActionEvidence ResolveLeavePolicyActionOperation
+resolveLeavePolicyActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ResolveLeavePolicy" "resolve-leave-policy" [SurfaceIR.FieldIR "PolicyToken" "policyToken" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ReturnToEdit" "returnToEdit" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "this" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+resolveLeavePolicyAction :: ActionFields ResolveLeavePolicyActionOperation -> FrontendSurfaceAction
+resolveLeavePolicyAction =
+    frontendSurfaceActionFromEvidence resolveLeavePolicyActionEvidence
+
+resolveLeavePolicyActionParamsPresent ::
+    (?request :: Request) =>
+    Bool
+resolveLeavePolicyActionParamsPresent =
+    actionParamsPresent
+        @ResolveLeavePolicyActionOperation
+
+parseResolveLeavePolicyActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ResolveLeavePolicyActionOperation)
+parseResolveLeavePolicyActionParams =
+    parseActionParams
+        @ResolveLeavePolicyActionOperation
 
 data UpdateUnavailabilityBlackoutActionOperation
 

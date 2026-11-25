@@ -43,6 +43,7 @@ import IHP.Prelude (Text)
 type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
      , RosterAdapterFamily
+     , RosterPersonalAdapterFamily
      , RosterDayTimelineAdapterFamily
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
@@ -78,6 +79,7 @@ registeredSurfaceActorOnlyFragments =
 type RegisteredSurfaceScopeAdapterHomes =
     '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
+     , SurfaceScopeAdapterHome RosterPersonalAdapterFamily Roster.RosterPersonal
      , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
@@ -116,6 +118,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
+     , SurfaceFragmentAdapterHome RosterPersonalAdapterFamily Roster.FitPreferenceControl
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSidePanelContent
@@ -171,6 +174,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
+     , SurfaceResourceAdapterHome RosterPersonalAdapterFamily Roster.FitWeekPreference
      , SurfaceResourceAdapterHome RosterDayTimelineAdapterFamily Roster.TimePickerConfig
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
@@ -216,6 +220,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterManagerMode allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SetRosterFitWholeWeek allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
@@ -252,6 +257,7 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route id and canonical query context")
     , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ResolveLeavePolicy requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest

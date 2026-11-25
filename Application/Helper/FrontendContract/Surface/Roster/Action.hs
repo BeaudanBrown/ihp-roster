@@ -44,6 +44,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
     , parseToggleRosterAssignmentFiltersActionParams
+    , parseSetRosterFitWholeWeekActionParams
     , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
@@ -61,8 +62,11 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
+    , SetRosterFitWholeWeekActionOperation
     , ToggleRosterOwnLiveShiftHighlightActionOperation
+    , setRosterFitWholeWeekAction
     , toggleRosterOwnLiveShiftHighlightAction
+    , setRosterFitWholeWeekActionFields
     , toggleRosterOwnLiveShiftHighlightActionFields
     , ToggleRosterStaffScopeActionOperation
     , toggleRosterStaffScopeAction
@@ -89,6 +93,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             NavigateRosterWeekActionOperation,
                                                                             PreviewRosterTemplateCaptureActionOperation,
                                                                             ToggleRosterAssignmentFiltersActionOperation,
+                                                                            SetRosterFitWholeWeekActionOperation,
                                                                             ToggleRosterOwnLiveShiftHighlightActionOperation,
                                                                             ToggleRosterStaffScopeActionOperation,
                                                                             ToggleRosterWageEstimatesActionOperation,
@@ -130,6 +135,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             parsePreviewRosterTemplateCaptureActionParams,
                                                                             parseShowRosterNotificationConfirmationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
+                                                                            parseSetRosterFitWholeWeekActionParams,
                                                                             parseToggleRosterOwnLiveShiftHighlightActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
@@ -150,7 +156,9 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             toggleRosterAssignmentFiltersActionFields,
                                                                             toggleRosterDayClosedAction,
                                                                             toggleRosterDayClosedActionFields,
+                                                                            setRosterFitWholeWeekAction,
                                                                             toggleRosterOwnLiveShiftHighlightAction,
+                                                                            setRosterFitWholeWeekActionFields,
                                                                             toggleRosterOwnLiveShiftHighlightActionFields,
                                                                             toggleRosterStaffScopeAction,
                                                                             toggleRosterStaffScopeActionFields,

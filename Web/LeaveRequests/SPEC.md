@@ -45,8 +45,20 @@
   staff. Blackout validation replaces only the submitted form, retaining its
   surrounding open editor and other unfinished forms. A successful save returns
   the saved period to its collapsed summary.
-- Any new unavailable range overlapping a blackout is rejected in full, with no
-  role override. Existing requests remain valid when a later blackout is added.
+- A blackout intersection or a newly exceeded daily maximum blocks the whole
+  draft. Staff receive affected dates but no other staff identities. Managers
+  and above can go back to edit or confirm one exception for any scoped target,
+  including themselves. This never changes the blackout. Existing requests remain
+  valid when a later blackout is added.
+- The optional maximum per day (1–100) is independent of warnings; when both
+  are set, warning cannot exceed maximum. Count distinct eligible people per
+  venue-local date from today, not forms. A person already counted on a date
+  consumes no additional place. Approval of a denied request can require a
+  capacity exception, but never a blackout exception.
+- Confirmations bind actor, venue, target, operation, draft and conflicts.
+  Reauthorize and recompute under the venue policy lock; new or worse conflicts
+  require another confirmation. One accepted confirmation commits one audited
+  submission or review; preview, Back to edit and replay add no requests.
 - The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.
   Warnings count distinct active, unarchived staff with pending or approved
   requests per calendar date, never block submission, and are manager-visible

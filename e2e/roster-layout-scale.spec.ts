@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { openRoster } from './support/roster';
+import { openRoster, seedFitDayRows, setFitWholeWeek } from './support/roster';
 
 type RosterLayoutMetrics = {
     viewportWidth: number;
@@ -66,6 +66,28 @@ async function measureRosterLayout(page: Page, options: { slotCount?: number } =
 }
 
 test.describe('Roster layout scale baseline', () => {
+    test('fits every row and lane below the toolbar across screen sizes', async ({ page }) => {
+        seedFitDayRows();
+        await openRoster(page);
+        try {
+            await setFitWholeWeek(page, true);
+            for (const [width, height] of [[1024, 768], [768, 640], [390, 844]] as const) {
+                await page.setViewportSize({ width, height });
+                await expect.poll(() => page.locator('.roster-fit-viewport').evaluate(view => {
+                    const bounds = view.getBoundingClientRect();
+                    const parts = view.querySelectorAll('.roster-grid-frame, .roster-grid-header, [data-roster-row], [data-roster-shift-launcher]');
+                    return bounds.height > 1 && bounds.bottom <= innerHeight && parts.length > 7 && Array.from(parts).every(part => {
+                        const box = part.getBoundingClientRect();
+                        return box.left >= bounds.left - 1 && box.right <= bounds.right + 1
+                            && box.top >= bounds.top - 1 && box.bottom <= bounds.bottom + 1;
+                    });
+                })).toBe(true);
+            }
+        } finally {
+            await setFitWholeWeek(page, false);
+        }
+        await expect(page.locator('.roster-slots-scroller')).toHaveCSS('overflow-x', 'auto');
+    });
     test('keeps normal roster layout contained across desktop widths', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await openRoster(page, { ensureEditable: false });

@@ -3,6 +3,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
     , matchRosterLayoutConfigResource
     , matchRosterTemplateLibraryResource
     , matchRosterWeekBoundaryConfigResource
+    , fitWeekPreferenceResource
     , rosterDayResource
     , rosterEndTimesConfigResource
     , rosterLayoutConfigResource
@@ -18,7 +19,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
     ) where
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
-import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (rosterDayResource,
+import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (fitWeekPreferenceResource, rosterDayResource,
                                                                               rosterEndTimesConfigResource,
                                                                               rosterGroupStaffResource,
                                                                               rosterLayoutConfigResource,

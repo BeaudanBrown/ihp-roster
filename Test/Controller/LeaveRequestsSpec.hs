@@ -47,6 +47,15 @@ leaveTabCountShouldBe response label countId count = do
     tab `shouldSatisfy` Text.isInfixOf ("aria-describedby=\"" <> countId <> "\"")
     tab `shouldSatisfy` Text.isInfixOf ("id=\"" <> countId <> "\">" <> tshow count <> "</span>")
 
+confirmationTokenFrom :: Response -> IO Text
+confirmationTokenFrom response = do
+    body <- cs . LByteString.unpack <$> responseBody response
+    let marker = "name=\"policyToken\" value=\""
+    body `shouldSatisfy` Text.isInfixOf marker
+    let token = Text.takeWhile (/= '"') (snd (Text.breakOnEnd marker body))
+    token `shouldNotBe` ""
+    pure token
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "LeaveRequestsController" do
@@ -190,6 +199,40 @@ tests = aroundAll withDatabaseTestContext do
                 adjacentResponse `responseStatusShouldBe` status302
                 query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 2)
 
+        it "serializes the fifth place across different staff and counts people, not requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Fifth place race"
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #unavailableStaffWarningThreshold (Just 5) |> set #unavailableStaffDailyMaximum (Just 5) |> updateRecord
+                day <- addDays 2 <$> currentVenueCalendarDay config
+                let end = addDays 1 day
+                forM_ ["One", "Two", "Three", "Four"] \name -> do
+                    staff <- createStaffRecord venue Nothing name "Present"
+                    _ <- createLeaveRequestRecord venue staff day end LeaveRequestStatusEnumApproved
+                    pure ()
+                let setup name = do
+                        user <- createUserRecord (name <> "@example.com") "staff" True
+                        _ <- createVenueMembershipRecord venue user Worker
+                        staff <- createStaffRecord venue (Just user) name "Racer"
+                        pure (user, staff)
+                (first, firstStaff) <- setup "first-racer"
+                (second, _) <- setup "second-racer"
+                let submit user = withUserAndCurrentVenue user venue.id do
+                        callActionWithParams CreateLeaveRequestAction
+                            [("responseContext", "self-service"), ("startDate", cs (tshow day)), ("endDate", cs (tshow end)), ("notes", "Race")]
+                results <- runConcurrentActionsFromBarrier [submit first, submit second]
+                lefts results `shouldSatisfy` null
+                admitted <- query @LeaveRequest |> filterWhere (#status, LeaveRequestStatusEnumPending) |> fetchOne
+                let winner = if admitted.staffId == unpackId firstStaff.id then first else second
+                _ <- submit winner
+                query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 6)
+                manager <- createUserRecord "race-manager@example.com" "manager" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Race" "Manager"
+                fragment <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("fragment", "leave-availability-warnings")]
+                fragment `responseBodyShouldContain` "5 staff unavailable"
+
         it "serializes concurrent overlapping blackout creation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent Blackout Venue"
@@ -268,6 +311,8 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 blockedResponse `responseStatusShouldBe` status200
                 blockedResponse `responseBodyShouldContain` "Annual fire inspection"
+                blockedResponse `responseBodyShouldContain` "Need this date"
+                blockedResponse `responseBodyShouldNotContain` "Add request anyway"
                 query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
 
                 beforeResponse <- withUserAndCurrentVenue worker venue.id do
@@ -281,7 +326,7 @@ tests = aroundAll withDatabaseTestContext do
                 beforeResponse `responseStatusShouldBe` status200
                 query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 1)
 
-        it "lets managers and support enter staff requests without overriding blackouts" $ withContext do
+        it "previews scoped exceptions without writing, retains the draft and consumes confirmation only once" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout No Override Venue"
                 manager <- createUserRecord "blackout-manager@example.com" "manager" True
@@ -290,6 +335,10 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Target" "Staff"
                 today <- utctDay <$> getCurrentTime
                 let blockedDate = addDays 5 today
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #unavailableStaffWarningThreshold Nothing |> set #unavailableStaffDailyMaximum (Just 1) |> updateRecord
+                counted <- createStaffRecord venue Nothing "Existing" "Person"
+                _ <- createLeaveRequestRecord venue counted blockedDate (addDays 1 blockedDate) LeaveRequestStatusEnumApproved
                 _ <- newRecord @UnavailabilityBlackout
                     |> set #venueId (unpackId venue.id)
                     |> set #startDate blockedDate
@@ -315,6 +364,21 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CreateLeaveRequestAction requestParams
                 supportResponse `responseStatusShouldBe` status200
                 supportResponse `responseBodyShouldContain` "Mandatory training day"
+                managerResponse `responseBodyShouldContain` "2 unavailable (maximum 1)"
+                managerResponse `responseBodyShouldContain` "Add request anyway"
+                managerResponse `responseBodyShouldContain` "Back to edit"
+                supportResponse `responseBodyShouldContain` "Add request anyway"
+                token <- confirmationTokenFrom managerResponse
+                let decision edit = [("policyToken", cs token), ("returnToEdit", edit)]
+                back <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction (requestParams <> decision "true")
+                back `responseBodyShouldContain` "Manager entry"
+                back `responseBodyShouldNotContain` "Add request anyway"
+                wrongActor <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams CreateLeaveRequestAction (requestParams <> decision "false")
+                wrongActor `responseBodyShouldContain` "no longer valid"
+                query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
                 supportManagementResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams CreateUnavailabilityBlackoutAction
                         [ ("startDate", cs (tshow (addDays 1 blockedDate)))
@@ -322,8 +386,55 @@ tests = aroundAll withDatabaseTestContext do
                         , ("reason", "Support override period")
                         ]
                 supportManagementResponse `responseStatusShouldBe` status302
+                confirmed <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateLeaveRequestAction (requestParams <> decision "false")
+                confirmed `responseStatusShouldBe` status302
+                _ <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateLeaveRequestAction (requestParams <> decision "false")
                 query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 2)
-                query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
+                requests <- query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                map (.status) requests `shouldBe` [LeaveRequestStatusEnumPending]
+                query @LeaveRequestEvent |> fetchCount >>= (`shouldBe` 1)
+                audit <- query @AuditEvent |> filterWhere (#eventType, "leave_policy_override") |> fetchOne
+                audit.actorUserId `shouldBe` unpackId manager.id
+                tshow audit.payload `shouldSatisfy` Text.isInfixOf "Mandatory training day"
+                tshow audit.payload `shouldSatisfy` Text.isInfixOf "projected"
+
+        it "rechecks denied approval against a worse overage, then approves that request once" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Approval policy venue"
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #unavailableStaffWarningThreshold Nothing |> set #unavailableStaffDailyMaximum (Just 1) |> updateRecord
+                manager <- createUserRecord "reinstating@example.com" "manager" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                day <- addDays 2 <$> currentVenueCalendarDay config
+                let end = addDays 1 day
+                counted <- createStaffRecord venue Nothing "Already" "Counted"
+                target <- createStaffRecord venue Nothing "Approval" "Target"
+                _ <- createLeaveRequestRecord venue counted day end LeaveRequestStatusEnumPending
+                draft <- createLeaveRequestRecord venue target day end LeaveRequestStatusEnumDenied
+                let submit params = withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams (ApproveLeaveRequestAction draft.id) params
+                    confirm token = submit [("policyToken", cs token), ("returnToEdit", "false")]
+                preview <- submit []
+                preview `responseBodyShouldContain` "2 unavailable (maximum 1)"
+                oldToken <- confirmationTokenFrom preview
+                other <- createStaffRecord venue Nothing "Other" "Person"
+                _ <- createLeaveRequestRecord venue other day end LeaveRequestStatusEnumApproved
+                worse <- confirm oldToken
+                worse `responseBodyShouldContain` "3 unavailable (maximum 1)"
+                before <- fetch draft.id
+                before.status `shouldBe` LeaveRequestStatusEnumDenied
+                token <- confirmationTokenFrom worse
+                _ <- confirm token
+                _ <- confirm token
+                after <- fetch draft.id
+                after.status `shouldBe` LeaveRequestStatusEnumApproved
+                query @LeaveRequest |> fetchCount >>= (`shouldBe` 3)
+                exceptions <- query @AuditEvent |> filterWhere (#eventType, "leave_policy_override") |> fetch
+                map (.actorUserId) exceptions `shouldBe` [unpackId manager.id]
+                map (.targetId) exceptions `shouldBe` [unpackId draft.id]
 
         it "lets admins edit and remove blackouts while managers cannot manage them" $ withContext do
             withCleanDb do

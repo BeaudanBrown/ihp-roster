@@ -12,8 +12,9 @@ import {
 } from '../frontend/ts/generated/contracts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
-import { openRoster, openRosterSettings } from './support/roster';
+import { openRoster, openRosterSettings, seedFitDayRows, setFitWholeWeek } from './support/roster';
 import { runSql } from './support/database';
+import { E2E_TIMEOUT } from './timeouts';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -28,6 +29,7 @@ test.describe('Roster week overview', () => {
     });
 
     test('exports the Published roster as colour and print PNGs from the roster actions menu', async ({ page }) => {
+        test.setTimeout(E2E_TIMEOUT.slowTest);
         runSql(`
             UPDATE roster_slots
             SET staff_id = NULL, assignment_state = 'open'
@@ -51,6 +53,7 @@ test.describe('Roster week overview', () => {
             ON CONFLICT (id) DO UPDATE
             SET roster_day_id = EXCLUDED.roster_day_id, name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, deleted_at = NULL;
         `);
+        seedFitDayRows();
         await openRoster(page, { weekOffset: 1 });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
@@ -62,6 +65,8 @@ test.describe('Roster week overview', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
         try {
+            await setFitWholeWeek(page, true);
+            await page.locator('.roster-fit-viewport').press('=');
             await openRosterSettings(page);
             const exportButtons = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
             await expect(exportButtons).toHaveCount(2);
@@ -182,6 +187,7 @@ test.describe('Roster week overview', () => {
         } finally {
             await page.reload();
             await expect(page.locator('#roster-week-shell')).toBeVisible();
+            await setFitWholeWeek(page, false);
             if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });

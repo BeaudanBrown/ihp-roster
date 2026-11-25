@@ -526,6 +526,7 @@ Web/LeaveRequests/AvailabilityWarnings.hs	production	runtime	Main	Reachable from
 Web/LeaveRequests/Blackouts.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/LeaveRequests/Policy.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/ReadModel.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Request.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Responses.hs	production	runtime	Main	Reachable from Main
@@ -622,6 +623,7 @@ Web/View/Help/Show.hs	production	runtime	Main	Reachable from Main
 Web/View/Layout.hs	production	runtime	Main	Reachable from Main
 Web/View/LeaveRequests/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/LeaveRequests/New.hs	production	runtime	Main	Reachable from Main
+Web/View/LeaveRequests/Policy.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/Management.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/NewSetup.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/SetupModal.hs	production	runtime	Main	Reachable from Main

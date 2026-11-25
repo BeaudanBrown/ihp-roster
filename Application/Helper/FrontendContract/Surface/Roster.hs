@@ -22,6 +22,12 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterStaffPanel
     , RosterSettingsContent
     , RosterSurface
+    , RosterPersonalSurface
+    , RosterPersonal
+    , UserId
+    , FitWeekPreference
+    , FitPreferenceControl
+    , FitActiveRole
     , RosterDayTimelineSurface
     , RosterWeekShell
     , RosterWageRail
@@ -106,6 +112,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , Active
     , ImageExportTriggerRole
     , ImageExportConfigRole
+    , FitViewportRole
     , ImageExportProjectionRole
     , ImageExportRowRole
     , ImageExportCellRole
@@ -178,6 +185,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
     , ToggleRosterManagerMode
+    , SetRosterFitWholeWeek
+    , FitWholeWeek
     , ToggleRosterOwnLiveShiftHighlight
     , SortRosterWeek
     , ToggleRosterWeekLiveStatus
@@ -241,6 +250,22 @@ instance InputValue RosterStaffScopeValue where
 
 data Roster
 data RosterDayTimeline
+
+-- Separate from the shared week scope: a setting is private to its effective user,
+-- but each mounted device supplies its own authorized fragment URLs.
+data RosterPersonal
+data UserId
+data FitWeekPreference
+data FitPreferenceControl
+data FitActiveRole
+
+type FitWeekPreferenceResource = Resource FitWeekPreference '[ Field UserId 'WireUUID ]
+type RosterPersonalSurface = Surface RosterPersonal
+    '[ Scope RosterPersonal '[ Field VenueId 'WireUUID, Field UserId 'WireUUID ]
+        '[ 'Authorize 'CurrentVenueUser '[ VenueId, UserId ] ]
+     , BrowserRole FitActiveRole
+     , Fragment FitPreferenceControl '[] '[ 'MountTarget FitPreferenceControl '[], 'Eager, 'Live, 'DependsOn FitWeekPreferenceResource '[ 'FromScope UserId ] ]
+     ]
 
 data RosterWeek
 data RosterWeekStructure
@@ -354,6 +379,8 @@ data Active
 
 data ImageExportTriggerRole
 data ImageExportConfigRole
+data FitViewportRole
+
 data ImageExportProjectionRole
 data ImageExportRowRole
 data ImageExportCellRole
@@ -434,6 +461,8 @@ data SwitchRosterGroup
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
 data ToggleRosterManagerMode
+data SetRosterFitWholeWeek
+data FitWholeWeek
 data ToggleRosterOwnLiveShiftHighlight
 data SortRosterWeek
 data ToggleRosterWeekLiveStatus
@@ -528,6 +557,8 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
+         , ContainsSurface RosterPersonal
          ]
      , Fragment RosterGridFrame
         '[]
@@ -632,6 +663,13 @@ type RosterActionBundle =
          ]
      , Action ToggleRosterManagerMode
         '[ Field ManagerModeEnabled 'WireBool ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action SetRosterFitWholeWeek
+        '[ Field FitWholeWeek 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -907,6 +945,7 @@ type RosterChromeBrowserBundle =
 type RosterImageExportBrowserBundle =
     '[ BrowserRole ImageExportTriggerRole
      , BrowserRole ImageExportConfigRole
+     , BrowserRole FitViewportRole
      , BrowserRole ImageExportProjectionRole
      , BrowserRole ImageExportRowRole
      , BrowserRole ImageExportCellRole

@@ -35,6 +35,7 @@ module Web.RosterWeeks.FrontendSurface
     , rosterDayTimelineIntentForms
     , rosterDayTimelineSurfaceImpl
     , rosterIntentForms
+    , rosterPersonalImpl
     , rosterSurfaceImpl
     , rosterSurfaceFragmentKeys
     ) where
@@ -56,7 +57,7 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
+import Web.RosterWeeks.Paths (rosterFitPreferenceFragmentUrl, rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterTimelineMoveShiftUrl,
@@ -115,6 +116,16 @@ rosterMountedFragmentPlanFromRenderData hasTemplateLibrary rosterDays renderInde
             (rowIndex, _) <- fromMaybe [] (Map.lookup (unpackId rosterDay.id) renderIndexes.rosterDayRowsByDayId)
             pure (rosterDay.id, rowIndex)
         }
+
+rosterPersonalImpl :: UUID.UUID -> UUID.UUID -> Day -> Id RosterGroup -> SurfaceImpl Surface.RosterPersonalSurface
+rosterPersonalImpl venueId userId anchor groupId =
+    mkSurfaceImplFromValues @Surface.RosterPersonalSurface @Surface.RosterPersonal
+        "primary"
+        (surfaceField @Surface.VenueId venueId &: surfaceField @Surface.UserId userId &: noSurfaceFields)
+        noSurfaceFields
+        [ frontendSurfaceMountedFragmentFor @Surface.RosterPersonalSurface @Surface.FitPreferenceControl
+            noSurfaceFields noSurfaceFields (rosterFitPreferenceFragmentUrl anchor groupId) FrontendSurfaceReplace
+        ]
 
 rosterSurfaceImpl :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImpl Surface.RosterSurface
 rosterSurfaceImpl scope plan =

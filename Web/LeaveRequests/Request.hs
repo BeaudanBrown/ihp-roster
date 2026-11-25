@@ -3,7 +3,9 @@ module Web.LeaveRequests.Request
     , RequestedLeaveSubmission (..)
     , LeaveSubmissionResult (..)
     , LeaveReviewDecision (..)
-    , ReviewedLeaveRequest
+    , LeaveReviewResult (..)
+    , LeavePolicyConflicts (..)
+    , requestedLeaveReview
     , requestedLeaveResponseContext
     , ensureLeaveProfileAccess
     , fetchDeletableLeaveRequest
@@ -11,6 +13,8 @@ module Web.LeaveRequests.Request
     , submitRequestedLeave
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Policy
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as PolicyAction
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
@@ -22,7 +26,8 @@ import Data.Coerce (coerce)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     LeaveSubmissionResult (..),
-                                    ReviewedLeaveRequest, submitLeaveRequest)
+                                    LeavePolicyConflicts (..), LeaveReviewResult (..),
+                                    reviewLeaveRequest, submitLeaveRequest)
 import Web.LeaveRequests.SelfService (selfServiceLeaveFormFragmentId)
 
 -- Response context is not authority: controllers invoke the existing access
@@ -36,7 +41,8 @@ data LeaveResponseContext
 data RequestedLeaveSubmission
     = LeaveSubmissionMissingStaff
     | LeaveSubmissionInvalid LeaveRequest
-    | LeaveSubmissionFinished LeaveRequest LeaveSubmissionResult
+    | LeaveSubmissionEditDraft LeaveRequest
+    | LeaveSubmissionFinished Staff LeaveRequest LeaveSubmissionResult
 
 -- Preserve the valid draft beside the existing mutation result for blackout
 -- feedback. Mutations alone own staff locks, overlap rejection and publication.
@@ -55,7 +61,26 @@ submitRequestedLeave responseContext = do
                     Just (Right submitted) -> buildLeaveRequestFromSurface submitted baseLeaveRequest
             leaveRequest |> ifValid \case
                 Left invalid -> pure (LeaveSubmissionInvalid invalid)
-                Right valid -> LeaveSubmissionFinished valid <$> submitLeaveRequest valid
+                Right valid -> case requestedPolicyDecision of
+                    EditDraft -> pure (LeaveSubmissionEditDraft valid)
+                    InvalidDecision -> pure (LeaveSubmissionFinished staff valid LeaveSubmissionInvalidConfirmation)
+                    CheckPolicy token -> LeaveSubmissionFinished staff valid <$> submitLeaveRequest token valid
+
+data RequestedPolicyDecision = CheckPolicy (Maybe Text) | EditDraft | InvalidDecision
+
+requestedPolicyDecision :: (?request :: Request) => RequestedPolicyDecision
+requestedPolicyDecision
+    | not PolicyAction.resolveLeavePolicyActionParamsPresent = CheckPolicy Nothing
+    | otherwise = case PolicyAction.parseResolveLeavePolicyActionParams of
+        Left _ -> InvalidDecision
+        Right fields
+            | surfaceFieldValue @Policy.ReturnToEdit fields -> EditDraft
+            | otherwise -> CheckPolicy (Just (surfaceFieldValue @Policy.PolicyToken fields))
+
+requestedLeaveReview :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => LeaveReviewDecision -> LeaveRequest -> IO LeaveReviewResult
+requestedLeaveReview decision leaveRequest = case requestedPolicyDecision of
+    CheckPolicy token -> reviewLeaveRequest token decision leaveRequest
+    _ -> pure LeaveReviewInvalidConfirmation
 
 data SurfaceLeaveRequest = SurfaceLeaveRequest
     { surfaceLeaveStartDate :: !Day

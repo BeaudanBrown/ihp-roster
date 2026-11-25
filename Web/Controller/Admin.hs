@@ -451,20 +451,20 @@ instance Controller AdminController where
 
     action currentAction@UpdateUnavailableStaffWarningThresholdAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        venueConfig <- fetchVenueConfig
         case AdminAction.parseUpdateUnavailableStaffWarningThresholdActionParams of
             Left errors -> reportSurfaceRequestErrors errors
             Right fields -> do
                 let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
-                if maybe True (\value -> value >= 1 && value <= 100) threshold
-                    then do
-                        _ <- setUnavailableStaffWarningThresholdMutation venueConfig threshold
-                        setSuccessMessage $
-                            maybe
-                                "Unavailable-staff warnings disabled."
-                                (\value -> "Managers will be warned at " <> tshow value <> " unavailable staff.")
-                                threshold
-                    else setErrorMessage "Enter a threshold from 1 to 100, or leave it blank to disable warnings."
+                let dailyMaximum = surfaceFieldValue @Surface.UnavailableStaffDailyMaximum fields
+                let inRange = maybe True (\value -> value >= 1 && value <= 100)
+                if not (inRange threshold && inRange dailyMaximum)
+                    then setErrorMessage "Enter a whole number from 1 to 100 for each setting, or leave it blank."
+                    else case (threshold, dailyMaximum) of
+                        (Just warning, Just limit) | warning > limit ->
+                            setErrorMessage "Warn at cannot be higher than Maximum per day."
+                        _ -> do
+                            _ <- setUnavailableStaffWarningThresholdMutation threshold dailyMaximum
+                            setSuccessMessage "Unavailability settings saved."
         respondToVenueSettingsMutation
 
     action currentAction@UpdateRosterTimePickerWindowAction = runBepis currentAction BepisMutationAction do

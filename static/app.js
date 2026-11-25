@@ -14,6 +14,9 @@
   function isRosterSurfaceScope(value) {
     return isRosterRosterWeekScope(value);
   }
+  function isRosterPersonalSurfaceScope(value) {
+    return isRosterPersonalRosterPersonalScope(value);
+  }
   function isRosterDayTimelineSurfaceScope(value) {
     return isRosterDayTimelineRosterDayTimelineScope(value);
   }
@@ -74,6 +77,9 @@
   function isRosterSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-settings-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
   }
+  function isRosterPersonalSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "fit-preference-control" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
   function isRosterDayTimelineSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
   }
@@ -129,10 +135,10 @@
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-reference-sync" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-timesheet-preparation-wait" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-pay-item-import-wait" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-staff-mappings-wait" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["referenceSyncJobId"], ["referenceSyncJobId"]) && typeof value["params"]["referenceSyncJobId"] === "string");
   }
   function isSurfaceScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback" && isFeedbackSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope);
+    return isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-personal" && isRosterPersonalSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback" && isFeedbackSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope);
   }
   function isSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback" && isFeedbackSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params });
+    return isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-personal" && isRosterPersonalSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback" && isFeedbackSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "feedback-moderation" && isFeedbackModerationSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-recipient-groups" && isAdminRecipientGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params });
   }
   function __canonicalFrontendContractJson(value) {
     if (Array.isArray(value)) return `[${value.map(__canonicalFrontendContractJson).join(",")}]`;
@@ -545,6 +551,9 @@
   function isRosterRosterWeekScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
   }
+  function isRosterPersonalRosterPersonalScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "userId"], ["venueId", "userId"]) && typeof value["venueId"] === "string" && typeof value["userId"] === "string";
+  }
   function isRosterDayTimelineRosterDayTimelineScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"])) && typeof value["rosterDayId"] === "string";
   }
@@ -638,6 +647,7 @@
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
   var rosterImageExportTriggerDomAttr = "data-bepis-roster-image-export-trigger";
   var rosterImageExportConfigDomAttr = "data-bepis-roster-image-export-config";
+  var rosterFitViewportDomAttr = "data-bepis-roster-fit-viewport";
   var rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection";
   var rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row";
   var rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell";
@@ -665,6 +675,7 @@
   var rosterWeekOverviewClosureDomAttr = "data-bepis-roster-week-overview-closure";
   var rosterWeekOverviewCalendarDayDomAttr = "data-bepis-roster-week-overview-calendar-day";
   var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
+  var rosterPersonalFitActiveDomAttr = "data-bepis-roster-personal-fit-active";
   var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
   var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
   var leaveRequestsLeaveStaffPanelSortRootDomAttr = "data-bepis-leave-requests-leave-staff-panel-sort-root";
@@ -749,11 +760,11 @@
   function isLeaveSidePanelTabsKey(value) {
     return typeof value === "string" && ["staff", "settings"].includes(value);
   }
-  var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-settings-content", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-pay-warning-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-recipient-groups": ["admin-recipient-groups"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
+  var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-personal": [], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-personal": [], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-personal": [], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-personal": [], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-recipient-groups": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-settings-content", "roster-template-library", "roster-day-section", "roster-row"], "roster-personal": ["fit-preference-control"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-pay-warning-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-recipient-groups": ["admin-recipient-groups"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
   }
@@ -769,6 +780,9 @@
   }
   function isRosterMountedFragmentConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isRosterPersonalMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster-personal" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
   }
   function isRosterDayTimelineMountedFragmentConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster-day-timeline" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
@@ -830,6 +844,9 @@
   function isRosterMountConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)));
   }
+  function isRosterPersonalMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-personal" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterPersonalMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-personal", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster-personal" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-personal", fragment.fragmentKey.kind)));
+  }
   function isRosterDayTimelineMountConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-day-timeline" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterDayTimelineMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster-day-timeline" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)));
   }
@@ -885,7 +902,7 @@
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-xero" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)));
   }
   function isFrontendSurfaceMountConfig(value) {
-    return isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isFeedbackMountConfig(value) || isFeedbackModerationMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminRecipientGroupsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value);
+    return isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterPersonalMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isFeedbackMountConfig(value) || isFeedbackModerationMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminRecipientGroupsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value);
   }
   function parseFrontendSurfaceMountConfig(value) {
     if (isFrontendSurfaceMountConfig(value)) return value;
@@ -1275,11 +1292,11 @@
       }));
       return true;
     }
-    function reconcile(mount, activeDialog) {
-      const previousDialog = activeDialogs.get(mount) ?? null;
-      activeDialogs.set(mount, activeDialog);
+    function reconcile(mount2, activeDialog) {
+      const previousDialog = activeDialogs.get(mount2) ?? null;
+      activeDialogs.set(mount2, activeDialog);
       if (previousDialog === null || previousDialog === activeDialog) return false;
-      return dismiss(previousDialog, mount, activeDialog);
+      return dismiss(previousDialog, mount2, activeDialog);
     }
     return { dismiss, reconcile };
   }
@@ -2171,9 +2188,9 @@
     root.addEventListener(interactionSessionEndEventName, handleEnd);
     return {
       findForTarget(target) {
-        const mount = target.closest(`[${attrs.surface}]`);
-        if (!isElementLike(mount)) return null;
-        return sessionsByMountId.get(mount.id) ?? null;
+        const mount2 = target.closest(`[${attrs.surface}]`);
+        if (!isElementLike(mount2)) return null;
+        return sessionsByMountId.get(mount2.id) ?? null;
       },
       hasActiveSession() {
         return sessionsByMountId.size > 0;
@@ -2732,8 +2749,8 @@
     const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferFallbackTimeoutMs : null);
     return { action, session, timeoutMs };
   }
-  function readInteractionConflictPolicies(mount) {
-    const raw = mount.getAttribute(attrs2.conflictPolicies);
+  function readInteractionConflictPolicies(mount2) {
+    const raw = mount2.getAttribute(attrs2.conflictPolicies);
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
@@ -2744,9 +2761,9 @@
     }
   }
   function matchingConflictPolicy(session, fragment, target) {
-    const mount = target.closest(`[${attrs2.surface}]`);
-    if (!mount) return null;
-    const policies = readInteractionConflictPolicies(mount);
+    const mount2 = target.closest(`[${attrs2.surface}]`);
+    if (!mount2) return null;
+    const policies = readInteractionConflictPolicies(mount2);
     return policies.find((policy) => {
       const sessionMatches = policy.session === "*" || policy.session === session.sessionKind;
       const targetMatches = policy.targetId === "*" || policy.targetId === fragment.targetId;
@@ -3451,24 +3468,24 @@
     }
     return mounts;
   }
-  function surfaceDefinitionsForMount(mount, registry) {
-    const surface = mount.getAttribute(surfaceDomAttr);
+  function surfaceDefinitionsForMount(mount2, registry) {
+    const surface = mount2.getAttribute(surfaceDomAttr);
     return isFrontendSurfaceName(surface) ? registry[surface] : [];
   }
-  function ownedSurfaceRoleElements(owner, mount, attribute) {
-    return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter(isSurfaceElementLike).filter((element) => closestSurfaceMount(element) === mount);
+  function ownedSurfaceRoleElements(owner, mount2, attribute) {
+    return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter(isSurfaceElementLike).filter((element) => closestSurfaceMount(element) === mount2);
   }
-  function closestOwnedSurfaceRole(target, mount, attribute) {
+  function closestOwnedSurfaceRole(target, mount2, attribute) {
     const candidate = target.closest(`[${attribute}]`);
-    return isSurfaceElementLike(candidate) && closestSurfaceMount(candidate) === mount ? candidate : null;
+    return isSurfaceElementLike(candidate) && closestSurfaceMount(candidate) === mount2 ? candidate : null;
   }
   function closestSurfaceRole(target, attribute) {
     const candidate = target.closest(`[${attribute}]`);
     return isSurfaceElementLike(candidate) ? candidate : null;
   }
   function closestSurfaceMount(target) {
-    const mount = target.closest(`[${surfaceDomAttr}]`);
-    return isSurfaceElementLike(mount) ? mount : null;
+    const mount2 = target.closest(`[${surfaceDomAttr}]`);
+    return isSurfaceElementLike(mount2) ? mount2 : null;
   }
   function isSurfaceElementLike(value) {
     if (value === null || typeof value !== "object") return false;
@@ -3503,28 +3520,28 @@
       return state;
     }
     function reconcile(root) {
-      for (const mount of surfaceMountsWithin(root)) {
-        for (const definition of definitionsForMount(mount)) {
-          for (const sortRoot of ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute)) {
+      for (const mount2 of surfaceMountsWithin(root)) {
+        for (const definition of definitionsForMount(mount2)) {
+          for (const sortRoot of ownedSurfaceRoleElements(mount2, mount2, definition.rootRoleAttribute)) {
             if (sortRoot.getAttribute(definition.rootRoleAttribute) !== "true") {
               report(diagnostic2(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
               continue;
             }
             const state = stateFor3(sortRoot, definition);
-            applySort({ mount, root: sortRoot, definition }, state);
+            applySort({ mount: mount2, root: sortRoot, definition }, state);
           }
         }
       }
     }
     function activate(target) {
       if (!isSurfaceElementLike(target)) return false;
-      const mount = closestSurfaceMount(target);
-      if (!mount) return false;
-      for (const definition of definitionsForMount(mount)) {
-        const control = closestOwnedSurfaceRole(target, mount, definition.controlRoleAttribute);
+      const mount2 = closestSurfaceMount(target);
+      if (!mount2) return false;
+      for (const definition of definitionsForMount(mount2)) {
+        const control = closestOwnedSurfaceRole(target, mount2, definition.controlRoleAttribute);
         if (!control) continue;
         const sortRoot = closestSurfaceRole(control, definition.rootRoleAttribute);
-        if (!sortRoot || closestSurfaceMount(sortRoot) !== mount) continue;
+        if (!sortRoot || closestSurfaceMount(sortRoot) !== mount2) continue;
         const rawKey = control.getAttribute(definition.controlRoleAttribute);
         const key = rawKey !== null && definition.isKey(rawKey) ? definition.keys.find((candidate) => candidate.key === rawKey) : void 0;
         if (!key) {
@@ -3536,7 +3553,7 @@
           key: key.key,
           direction: current.key === key.key ? oppositeDirection(current.direction) : definition.defaultDirection
         };
-        if (!applySort({ mount, root: sortRoot, definition }, next)) return false;
+        if (!applySort({ mount: mount2, root: sortRoot, definition }, next)) return false;
         const rootStates = statesByRoot.get(sortRoot);
         rootStates?.set(definition.name, next);
         return true;
@@ -3651,8 +3668,8 @@
       }
     }
   }
-  function definitionsForMount(mount) {
-    return surfaceDefinitionsForMount(mount, FrontendSurfaceCompleteSetSortRegistry);
+  function definitionsForMount(mount2) {
+    return surfaceDefinitionsForMount(mount2, FrontendSurfaceCompleteSetSortRegistry);
   }
   var browserRuntimeEnabled = false;
   function enableFrontendSurfaceCompleteSetSort() {
@@ -3671,9 +3688,9 @@
   var attrs3 = InteractionDom.attributes;
   function submitCommittedInteractionIntent(intent, logger = console) {
     if (intent.phase !== "commit") return { ok: false, reason: "intent phase is not commit" };
-    const mount = resolveInteractionMount(intent);
-    if (!mount) return fail(logger, `No interaction mount found for intent ${intent.intent}`);
-    const form = findIntentForm(mount, intent.intent);
+    const mount2 = resolveInteractionMount(intent);
+    if (!mount2) return fail(logger, `No interaction mount found for intent ${intent.intent}`);
+    const form = findIntentForm(mount2, intent.intent);
     if (!form) return fail(logger, `No interaction form found for intent ${intent.intent}`);
     const validation = validateIntentFields(form, intent.fields);
     if (!validation.ok) return fail(logger, validation.reason);
@@ -3702,8 +3719,8 @@
     const closest = element.closest?.(attrSelector(attrs3.surface)) ?? null;
     return isElementLike2(closest) ? closest : null;
   }
-  function findIntentForm(mount, intentName) {
-    for (const form of queryAll(mount, attrSelector(attrs3.intentForm))) {
+  function findIntentForm(mount2, intentName) {
+    for (const form of queryAll(mount2, attrSelector(attrs3.intentForm))) {
       if (form.getAttribute(attrs3.intent) === intentName || form.getAttribute(attrs3.intentForm) === intentName) {
         return form;
       }
@@ -3840,9 +3857,9 @@
   function readActivationIntentPayload(event, expectedTrigger) {
     const marker = closestSurfaceActivationRef(event.target);
     if (!marker) return null;
-    const mount = closestInteractionMount2(marker);
-    if (!mount) return null;
-    const surface = mount.getAttribute(attrs4.surface);
+    const mount2 = closestInteractionMount2(marker);
+    if (!mount2) return null;
+    const surface = mount2.getAttribute(attrs4.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
     const ref = marker.getAttribute(attrs4.activationRef);
     const definition = FrontendSurfaceInteractionRegistry[surface].activationRefs.find((candidate) => candidate.ref === ref);
@@ -3854,7 +3871,7 @@
       phase: "commit",
       intent: definition.intent,
       fields,
-      mount,
+      mount: mount2,
       marker,
       sourceEvent: event
     };
@@ -3882,8 +3899,8 @@
     return isElementLike3(marker) ? marker : null;
   }
   function closestInteractionMount2(marker) {
-    const mount = marker.closest(`[${attrs4.surface}]`);
-    return isElementLike3(mount) ? mount : null;
+    const mount2 = marker.closest(`[${attrs4.surface}]`);
+    return isElementLike3(mount2) ? mount2 : null;
   }
   function readSurfaceActivationFields(marker, event, valueField) {
     if (!valueField) return {};
@@ -4113,9 +4130,9 @@
     if (isDisabled(marker)) return null;
     const interactiveControl = closestInteractiveControl(event.target);
     if (interactiveControl && interactiveControl !== marker) return null;
-    const mount = closestInteractionMount3(marker);
-    if (!mount) return null;
-    const surface = mount.getAttribute(attrs5.surface);
+    const mount2 = closestInteractionMount3(marker);
+    if (!mount2) return null;
+    const surface = mount2.getAttribute(attrs5.surface);
     if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
     const sourceRef = marker.getAttribute(attrs5.sourceRef);
     const source = FrontendSurfaceInteractionRegistry[surface].sourceRefs.find((candidate) => candidate.ref === sourceRef);
@@ -4124,7 +4141,7 @@
     if (!sourceKey) return null;
     const compatibleDropzoneRefs = compatibleDropzoneRefsForSource(surface, source);
     const targetField = FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
-    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceRef: source.ref, compatibleDropzoneRefs, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
+    return buildPointerSession({ event: pointerEvent, marker, mount: mount2, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceRef: source.ref, compatibleDropzoneRefs, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
   }
   function buildPointerSession(input) {
     const startClientX = numberValue(input.event.clientX);
@@ -4367,8 +4384,8 @@
   function cssString(value) {
     return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
   }
-  function disposableLayerByName(mount, layerName) {
-    for (const layer of mount.querySelectorAll(disposableLayerSelector)) {
+  function disposableLayerByName(mount2, layerName) {
+    for (const layer of mount2.querySelectorAll(disposableLayerSelector)) {
       if (layer.getAttribute(attrs5.disposableLayer) === layerName) return layer;
     }
     return null;
@@ -4418,11 +4435,11 @@
     return isElementLike4(control) ? control : null;
   }
   function closestInteractionMount3(marker) {
-    const mount = marker.closest(`[${attrs5.surface}]`);
-    return isElementLike4(mount) ? mount : null;
+    const mount2 = marker.closest(`[${attrs5.surface}]`);
+    return isElementLike4(mount2) ? mount2 : null;
   }
-  function clearDisposableLayers(mount) {
-    for (const layer of mount.querySelectorAll(disposableLayerSelector)) clearElement(layer);
+  function clearDisposableLayers(mount2) {
+    for (const layer of mount2.querySelectorAll(disposableLayerSelector)) clearElement(layer);
   }
   function setDocumentInteractionActive(session, active) {
     const root = session.mount.ownerDocument?.documentElement;
@@ -4570,26 +4587,26 @@
   function diagnostic3(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function definitionRoots(mount, definition) {
-    return ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute);
+  function definitionRoots(mount2, definition) {
+    return ownedSurfaceRoleElements(mount2, mount2, definition.rootRoleAttribute);
   }
   function resolveRoot(root) {
-    const mount = closestSurfaceMount(root);
-    if (!mount) return null;
-    for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
-      const candidate = closestOwnedSurfaceRole(root, mount, definition.rootRoleAttribute);
-      if (candidate) return { mount, root: candidate, definition };
+    const mount2 = closestSurfaceMount(root);
+    if (!mount2) return null;
+    for (const definition of surfaceDefinitionsForMount(mount2, FrontendSurfaceSidePanelRegistry)) {
+      const candidate = closestOwnedSurfaceRole(root, mount2, definition.rootRoleAttribute);
+      if (candidate) return { mount: mount2, root: candidate, definition };
     }
     return null;
   }
   function resolveToggle(target) {
-    const mount = closestSurfaceMount(target);
-    if (!mount) return null;
-    for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
-      const toggle = closestOwnedSurfaceRole(target, mount, definition.toggleRoleAttribute);
+    const mount2 = closestSurfaceMount(target);
+    if (!mount2) return null;
+    for (const definition of surfaceDefinitionsForMount(mount2, FrontendSurfaceSidePanelRegistry)) {
+      const toggle = closestOwnedSurfaceRole(target, mount2, definition.toggleRoleAttribute);
       if (!toggle) continue;
-      const root = closestOwnedSurfaceRole(toggle, mount, definition.rootRoleAttribute);
-      if (root) return { resolved: { mount, root, definition }, toggle };
+      const root = closestOwnedSurfaceRole(toggle, mount2, definition.rootRoleAttribute);
+      if (root) return { resolved: { mount: mount2, root, definition }, toggle };
     }
     return null;
   }
@@ -4708,9 +4725,9 @@
   }
   function rootsWithin(root) {
     const roots = [];
-    for (const mount of surfaceMountsWithin(root)) {
-      for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
-        for (const sidePanelRoot of definitionRoots(mount, definition)) {
+    for (const mount2 of surfaceMountsWithin(root)) {
+      for (const definition of surfaceDefinitionsForMount(mount2, FrontendSurfaceSidePanelRegistry)) {
+        for (const sidePanelRoot of definitionRoots(mount2, definition)) {
           if (!roots.includes(sidePanelRoot)) roots.push(sidePanelRoot);
         }
       }
@@ -4904,9 +4921,9 @@
     });
     document.addEventListener("click", (event) => {
       if (!active || !(event.target instanceof Element) || !active.content.contains(event.target)) return;
-      const mount = closestSurfaceMount(event.target);
-      if (!mount) return;
-      for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceLinkedHighlightRegistry)) {
+      const mount2 = closestSurfaceMount(event.target);
+      if (!mount2) return;
+      for (const definition of surfaceDefinitionsForMount(mount2, FrontendSurfaceLinkedHighlightRegistry)) {
         if (!definition.pinRoleAttribute) continue;
         const pin = event.target.closest(`[${definition.pinRoleAttribute}]`);
         if (!pin) continue;
@@ -5038,30 +5055,30 @@
   }
   function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter4) {
     const activeKeysByMount = /* @__PURE__ */ new WeakMap();
-    function rememberedKey(mount, definition) {
-      return activeKeysByMount.get(mount)?.get(definition.name) ?? definition.defaultKey;
+    function rememberedKey(mount2, definition) {
+      return activeKeysByMount.get(mount2)?.get(definition.name) ?? definition.defaultKey;
     }
-    function setRememberedKey(mount, definition, key) {
-      let activeKeys = activeKeysByMount.get(mount);
+    function setRememberedKey(mount2, definition, key) {
+      let activeKeys = activeKeysByMount.get(mount2);
       if (!activeKeys) {
         activeKeys = /* @__PURE__ */ new Map();
-        activeKeysByMount.set(mount, activeKeys);
+        activeKeysByMount.set(mount2, activeKeys);
       }
       activeKeys.set(definition.name, key);
     }
     function remember(target) {
       if (!isSurfaceElementLike(target)) return false;
-      const mount = closestSurfaceMount(target);
-      if (!mount) return false;
-      for (const definition of definitionsForMount2(mount)) {
-        const tab = closestOwnedSurfaceRole(target, mount, definition.tabRoleAttribute);
+      const mount2 = closestSurfaceMount(target);
+      if (!mount2) return false;
+      for (const definition of definitionsForMount2(mount2)) {
+        const tab = closestOwnedSurfaceRole(target, mount2, definition.tabRoleAttribute);
         if (!tab) continue;
         const key = tab.getAttribute(definition.tabRoleAttribute);
         if (key === null || !definition.isKey(key)) {
           report(diagnostic4(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
           return false;
         }
-        setRememberedKey(mount, definition, key);
+        setRememberedKey(mount2, definition, key);
         return true;
       }
       return false;
@@ -5069,14 +5086,14 @@
     function capture(root) {
       const mountIndexes = /* @__PURE__ */ new Map();
       const snapshots = [];
-      for (const mount of surfaceMountsWithin(root)) {
-        const surface = mount.getAttribute(surfaceDomAttr);
+      for (const mount2 of surfaceMountsWithin(root)) {
+        const surface = mount2.getAttribute(surfaceDomAttr);
         if (surface === null) continue;
         const mountIndex = mountIndexes.get(surface) ?? 0;
         mountIndexes.set(surface, mountIndex + 1);
-        for (const definition of definitionsForMount2(mount)) {
-          const selectedTab = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute).find((tab) => tab.getAttribute("aria-selected") === "true");
-          const key = selectedTab?.getAttribute(definition.tabRoleAttribute) ?? rememberedKey(mount, definition);
+        for (const definition of definitionsForMount2(mount2)) {
+          const selectedTab = ownedSurfaceRoleElements(mount2, mount2, definition.tabRoleAttribute).find((tab) => tab.getAttribute("aria-selected") === "true");
+          const key = selectedTab?.getAttribute(definition.tabRoleAttribute) ?? rememberedKey(mount2, definition);
           if (!definition.isKey(key)) continue;
           snapshots.push({ surface, mountIndex, tabSet: definition.name, key });
         }
@@ -5085,21 +5102,21 @@
     }
     function restore(root, snapshots) {
       const mountIndexes = /* @__PURE__ */ new Map();
-      for (const mount of surfaceMountsWithin(root)) {
-        const surface = mount.getAttribute(surfaceDomAttr);
+      for (const mount2 of surfaceMountsWithin(root)) {
+        const surface = mount2.getAttribute(surfaceDomAttr);
         if (surface === null) continue;
         const mountIndex = mountIndexes.get(surface) ?? 0;
         mountIndexes.set(surface, mountIndex + 1);
-        for (const definition of definitionsForMount2(mount)) {
+        for (const definition of definitionsForMount2(mount2)) {
           const snapshot = snapshots.find((candidate) => candidate.surface === surface && candidate.mountIndex === mountIndex && candidate.tabSet === definition.name && definition.isKey(candidate.key));
-          if (snapshot) setRememberedKey(mount, definition, snapshot.key);
+          if (snapshot) setRememberedKey(mount2, definition, snapshot.key);
         }
       }
     }
     function reconcile(root) {
-      for (const mount of surfaceMountsWithin(root)) {
-        for (const definition of definitionsForMount2(mount)) {
-          const tabs = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute);
+      for (const mount2 of surfaceMountsWithin(root)) {
+        for (const definition of definitionsForMount2(mount2)) {
+          const tabs = ownedSurfaceRoleElements(mount2, mount2, definition.tabRoleAttribute);
           if (tabs.length === 0) continue;
           const tabsByKey = /* @__PURE__ */ new Map();
           let valid = true;
@@ -5116,19 +5133,19 @@
           }
           for (const [key, matchingTabs] of tabsByKey) {
             if (matchingTabs.length <= 1) continue;
-            report(diagnostic4(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
+            report(diagnostic4(mount2, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
             valid = false;
           }
           if (!valid) continue;
-          const remembered = rememberedKey(mount, definition);
+          const remembered = rememberedKey(mount2, definition);
           const desiredKey = tabsByKey.has(remembered) ? remembered : definition.defaultKey;
           if (desiredKey !== remembered) {
-            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
-            setRememberedKey(mount, definition, desiredKey);
+            report(diagnostic4(mount2, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
+            setRememberedKey(mount2, definition, desiredKey);
           }
           const desiredTabs = tabsByKey.get(desiredKey) ?? [];
           if (desiredTabs.length === 0) {
-            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
+            report(diagnostic4(mount2, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
             continue;
           }
           const desiredTab = desiredTabs[0];
@@ -5139,8 +5156,8 @@
     }
     return { remember, capture, restore, reconcile };
   }
-  function definitionsForMount2(mount) {
-    return surfaceDefinitionsForMount(mount, FrontendSurfaceTabSetRegistry);
+  function definitionsForMount2(mount2) {
+    return surfaceDefinitionsForMount(mount2, FrontendSurfaceTabSetRegistry);
   }
   var browserRuntimeEnabled3 = false;
   function enableFrontendSurfaceTabSets() {
@@ -6657,8 +6674,8 @@
       let nearest = null;
       for (const item of items) {
         const rect2 = item.getBoundingClientRect();
-        const distance = Math.abs(rect2.left + rect2.width / 2 - center);
-        if (nearest === null || distance < nearest.distance) nearest = { element: item, distance };
+        const distance2 = Math.abs(rect2.left + rect2.width / 2 - center);
+        if (nearest === null || distance2 < nearest.distance) nearest = { element: item, distance: distance2 };
       }
       if (nearest === null) return;
       const rect = nearest.element.getBoundingClientRect();
@@ -6955,11 +6972,11 @@
   ];
   function createLinkedHighlightController(options = {}) {
     const statesByMount = /* @__PURE__ */ new WeakMap();
-    function stateFor3(mount, definition) {
-      let mountStates = statesByMount.get(mount);
+    function stateFor3(mount2, definition) {
+      let mountStates = statesByMount.get(mount2);
       if (!mountStates) {
         mountStates = /* @__PURE__ */ new Map();
-        statesByMount.set(mount, mountStates);
+        statesByMount.set(mount2, mountStates);
       }
       let state = mountStates.get(definition.name);
       if (!state) {
@@ -7028,33 +7045,33 @@
       const queryRoot = root;
       const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isElementLike5);
       if (isElementLike5(root) && root.getAttribute(surfaceDomAttr) !== null) mounts.unshift(root);
-      for (const mount of mounts) {
-        for (const definition of definitionsForMount3(mount)) {
-          const state = stateFor3(mount, definition);
-          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) {
+      for (const mount2 of mounts) {
+        for (const definition of definitionsForMount3(mount2)) {
+          const state = stateFor3(mount2, definition);
+          if (state.pinnedKey && !sourceExists(mount2, definition, state.pinnedKey)) {
             state.pinnedKey = null;
             if (definition.pinRoleAttribute) {
               options.onPinChange?.({
-                mount,
+                mount: mount2,
                 pinRoleAttribute: definition.pinRoleAttribute,
                 pinnedKey: null
               });
             }
           }
-          if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
-          if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
+          if (state.hoverKey && !sourceExists(mount2, definition, state.hoverKey)) state.hoverKey = null;
+          if (state.focusKey && !sourceExists(mount2, definition, state.focusKey)) state.focusKey = null;
         }
-        refreshMount(mount);
+        refreshMount(mount2);
       }
     }
-    function refreshMount(mount) {
-      const definitions = definitionsForMount3(mount);
-      clearEffectClasses(mount);
+    function refreshMount(mount2) {
+      const definitions = definitionsForMount3(mount2);
+      clearEffectClasses(mount2);
       for (const definition of definitions) {
-        const state = stateFor3(mount, definition);
-        const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey ?? defaultKeyFor(mount, definition);
-        if (activeKey) applyEffects(mount, definition, activeKey);
-        syncPinControls(mount, definition, state.pinnedKey);
+        const state = stateFor3(mount2, definition);
+        const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey ?? defaultKeyFor(mount2, definition);
+        if (activeKey) applyEffects(mount2, definition, activeKey);
+        syncPinControls(mount2, definition, state.pinnedKey);
       }
     }
     return {
@@ -7069,24 +7086,24 @@
   }
   function sourceContext(target) {
     if (!isElementLike5(target)) return null;
-    const mount = closestSurfaceMount2(target);
-    if (!mount) return null;
-    for (const definition of definitionsForMount3(mount)) {
-      const source = closestOwnedRole(target, mount, definition.sourceRoleAttribute);
+    const mount2 = closestSurfaceMount2(target);
+    if (!mount2) return null;
+    for (const definition of definitionsForMount3(mount2)) {
+      const source = closestOwnedRole(target, mount2, definition.sourceRoleAttribute);
       const membershipKey = source?.getAttribute(definition.sourceRoleAttribute) ?? "";
-      if (source && membershipKey !== "") return { mount, definition, source, membershipKey };
+      if (source && membershipKey !== "") return { mount: mount2, definition, source, membershipKey };
     }
     return null;
   }
   function pinContext(target) {
     if (!isElementLike5(target)) return null;
-    const mount = closestSurfaceMount2(target);
-    if (!mount) return null;
-    for (const definition of definitionsForMount3(mount)) {
+    const mount2 = closestSurfaceMount2(target);
+    if (!mount2) return null;
+    for (const definition of definitionsForMount3(mount2)) {
       if (!definition.pinRoleAttribute) continue;
-      const pin = closestOwnedRole(target, mount, definition.pinRoleAttribute);
+      const pin = closestOwnedRole(target, mount2, definition.pinRoleAttribute);
       const membershipKey = pin?.getAttribute(definition.pinRoleAttribute) ?? "";
-      if (pin && membershipKey !== "") return { mount, definition, pin, membershipKey };
+      if (pin && membershipKey !== "") return { mount: mount2, definition, pin, membershipKey };
     }
     return null;
   }
@@ -7095,38 +7112,38 @@
     const relatedSource = closestOwnedRole(relatedTarget, context.mount, context.definition.sourceRoleAttribute);
     return relatedSource?.getAttribute(context.definition.sourceRoleAttribute) === context.membershipKey;
   }
-  function closestOwnedRole(target, mount, attribute) {
+  function closestOwnedRole(target, mount2, attribute) {
     const candidate = target.closest(`[${attribute}]`);
     if (!isElementLike5(candidate)) return null;
-    return closestSurfaceMount2(candidate) === mount ? candidate : null;
+    return closestSurfaceMount2(candidate) === mount2 ? candidate : null;
   }
   function closestSurfaceMount2(target) {
-    const mount = target.closest(`[${surfaceDomAttr}]`);
-    return isElementLike5(mount) ? mount : null;
+    const mount2 = target.closest(`[${surfaceDomAttr}]`);
+    return isElementLike5(mount2) ? mount2 : null;
   }
-  function definitionsForMount3(mount) {
-    const surface = mount.getAttribute(surfaceDomAttr);
+  function definitionsForMount3(mount2) {
+    const surface = mount2.getAttribute(surfaceDomAttr);
     return isFrontendSurfaceName(surface) ? FrontendSurfaceLinkedHighlightRegistry[surface] : [];
   }
-  function defaultKeyFor(mount, definition) {
+  function defaultKeyFor(mount2, definition) {
     if (!definition.defaultRoleAttribute || !definition.activations.includes("default")) return null;
-    const defaultOwner = Array.from(mount.querySelectorAll(`[${definition.defaultRoleAttribute}]`)).filter(isElementLike5).find((element) => closestSurfaceMount2(element) === mount);
+    const defaultOwner = Array.from(mount2.querySelectorAll(`[${definition.defaultRoleAttribute}]`)).filter(isElementLike5).find((element) => closestSurfaceMount2(element) === mount2);
     const defaultKey = defaultOwner?.getAttribute(definition.defaultRoleAttribute) ?? "";
     return defaultKey === "" ? null : defaultKey;
   }
-  function sourceExists(mount, definition, membershipKey) {
-    return elementsForKey(mount, definition.sourceRoleAttribute, membershipKey).length > 0;
+  function sourceExists(mount2, definition, membershipKey) {
+    return elementsForKey(mount2, definition.sourceRoleAttribute, membershipKey).length > 0;
   }
-  function clearEffectClasses(mount) {
+  function clearEffectClasses(mount2) {
     const highlightedElements = /* @__PURE__ */ new Set();
     for (const className of effectClasses) {
-      Array.from(mount.querySelectorAll(`.${className}`)).filter(isElementLike5).filter((element) => closestSurfaceMount2(element) === mount).forEach((element) => highlightedElements.add(element));
+      Array.from(mount2.querySelectorAll(`.${className}`)).filter(isElementLike5).filter((element) => closestSurfaceMount2(element) === mount2).forEach((element) => highlightedElements.add(element));
     }
     highlightedElements.forEach((element) => element.classList.remove(...effectClasses));
   }
-  function applyEffects(mount, definition, membershipKey) {
-    const sources = elementsForKey(mount, definition.sourceRoleAttribute, membershipKey);
-    const members = elementsForKey(mount, definition.memberRoleAttribute, membershipKey);
+  function applyEffects(mount2, definition, membershipKey) {
+    const sources = elementsForKey(mount2, definition.sourceRoleAttribute, membershipKey);
+    const members = elementsForKey(mount2, definition.memberRoleAttribute, membershipKey);
     for (const effect of definition.effects) {
       applyEffect(effect, definition, sources, members);
     }
@@ -7161,17 +7178,17 @@
       orderedMembers[orderedMembers.length - 1]?.classList.add(lastMemberHighlightClass);
     }
   }
-  function syncPinControls(mount, definition, pinnedKey) {
+  function syncPinControls(mount2, definition, pinnedKey) {
     if (!definition.pinRoleAttribute) return;
-    for (const pin of ownedRoleElements(mount, definition.pinRoleAttribute)) {
+    for (const pin of ownedRoleElements(mount2, definition.pinRoleAttribute)) {
       pin.setAttribute("aria-pressed", pin.getAttribute(definition.pinRoleAttribute) === pinnedKey ? "true" : "false");
     }
   }
-  function elementsForKey(mount, attribute, membershipKey) {
-    return ownedRoleElements(mount, attribute).filter((element) => element.getAttribute(attribute) === membershipKey);
+  function elementsForKey(mount2, attribute, membershipKey) {
+    return ownedRoleElements(mount2, attribute).filter((element) => element.getAttribute(attribute) === membershipKey);
   }
-  function ownedRoleElements(mount, attribute) {
-    return Array.from(mount.querySelectorAll(`[${attribute}]`)).filter(isElementLike5).filter((element) => closestSurfaceMount2(element) === mount);
+  function ownedRoleElements(mount2, attribute) {
+    return Array.from(mount2.querySelectorAll(`[${attribute}]`)).filter(isElementLike5).filter((element) => closestSurfaceMount2(element) === mount2);
   }
   function isElementLike5(value) {
     if (value === null || typeof value !== "object") return false;
@@ -7535,7 +7552,7 @@
     stage.className = "roster-export-stage";
     const surface = document.createElement("div");
     surface.className = `roster-export-surface ${exportSurfaceClass(config.imageExportStyle)}`;
-    const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
+    const measuredWidth = source.offsetWidth;
     const exportWidth = Math.max(
       config.imageExportMinimumWidth,
       Math.min(config.imageExportMaximumWidth, measuredWidth)
@@ -7787,7 +7804,218 @@
     });
   }
 
+  // frontend/ts/roster/fit-camera.ts
+  function fitScale(e) {
+    return Math.min(1, e.availableWidth / e.width, e.availableHeight / e.height);
+  }
+  function constrain(camera, e) {
+    const scale = Math.min(4, Math.max(fitScale(e), camera.scale));
+    return {
+      scale,
+      x: Math.min(Math.max(0, e.width * scale - e.availableWidth), Math.max(0, camera.x)),
+      y: Math.min(Math.max(0, e.height * scale - e.availableHeight), Math.max(0, camera.y))
+    };
+  }
+  function anchoredZoom(camera, e, requested, from, to) {
+    const { scale } = constrain({ ...camera, scale: requested }, e);
+    const ratio = scale / camera.scale;
+    return constrain({ scale, x: (camera.x + from.x) * ratio - to.x, y: (camera.y + from.y) * ratio - to.y }, e);
+  }
+
+  // frontend/ts/roster/fit-gestures.ts
+  var distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  var midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  function bindFitGestures(view, actions, signal) {
+    const options = { signal, capture: true };
+    const points = /* @__PURE__ */ new Map();
+    let gesture = false;
+    function local(event) {
+      const bounds = view.getBoundingClientRect();
+      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    }
+    view.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !(event.target instanceof Element)) return;
+      event.stopPropagation();
+      event.target.setPointerCapture(event.pointerId);
+      gesture = points.size > 0;
+      points.set(event.pointerId, local(event));
+    }, options);
+    view.addEventListener("pointermove", (event) => {
+      const last = points.get(event.pointerId);
+      if (!last) return;
+      const next = local(event);
+      if (!gesture && distance(last, next) < 6) return;
+      gesture = true;
+      const other = Array.from(points).find(([id]) => id !== event.pointerId)?.[1];
+      if (points.size === 2 && other) {
+        const span = distance(last, other);
+        if (span >= 1) actions.zoom(distance(next, other) / span, midpoint(last, other), midpoint(next, other));
+      } else if (points.size === 1) actions.pan(last.x - next.x, last.y - next.y);
+      points.set(event.pointerId, next);
+    }, options);
+    for (const eventName of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      view.addEventListener(eventName, (event) => points.delete(event.pointerId), options);
+    }
+    view.addEventListener("dragstart", (event) => event.preventDefault(), options);
+    view.addEventListener("click", (event) => {
+      if (!gesture || event.detail === 0) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, options);
+    view.addEventListener("wheel", (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.clientHeight : 1;
+      const anchor = local(event);
+      actions.zoom(Math.exp(-event.deltaY * unit * 2e-3), anchor, anchor);
+    }, { ...options, passive: false });
+    view.addEventListener("keydown", (event) => {
+      if (event.target !== view || event.ctrlKey || event.metaKey || event.altKey) return;
+      const center = { x: view.clientWidth / 2, y: view.clientHeight / 2 };
+      const key = event.key;
+      if (key === "+" || key === "=") actions.zoom(1.4, center, center);
+      else if (key === "-") actions.zoom(1 / 1.4, center, center);
+      else if (key === "0" || key === "Home") actions.fit();
+      else if (key === "ArrowLeft") actions.pan(-80, 0);
+      else if (key === "ArrowRight") actions.pan(80, 0);
+      else if (key === "ArrowUp") actions.pan(0, -80);
+      else if (key === "ArrowDown") actions.pan(0, 80);
+      else return;
+      event.preventDefault();
+    }, options);
+  }
+
+  // frontend/ts/roster/fit-week.ts
+  var mountSelector = `[${surfaceDomAttr}][${surfaceConfigDomAttr}]`;
+  var home = () => ({ camera: { x: 0, y: 0, scale: 1 }, fitted: true });
+  function mount(view, inspection, lanesId) {
+    const frame = view.querySelector(`[${rosterColumnEditorDomAttr}]`);
+    if (!frame || frame.parentElement !== view) return null;
+    const originalLanes = document.getElementById(lanesId);
+    if (!originalLanes || !frame.contains(originalLanes)) return null;
+    const originalScroll = originalLanes.scrollLeft;
+    view.classList.add("roster-fit-viewport");
+    view.tabIndex = 0;
+    view.setAttribute("role", "region");
+    const abort = new AbortController();
+    let extent;
+    function draw(next) {
+      const c = inspection.camera = constrain(next, extent);
+      view.style.setProperty("--fit-height", Math.ceil(Math.min(extent.availableHeight, extent.height * c.scale)) + "px");
+      view.style.setProperty("--fit-transform", "translate(" + -c.x + "px," + -c.y + "px) scale(" + c.scale + ")");
+    }
+    function availableHeight() {
+      const shelf = view.closest(mountSelector)?.querySelector(`[${rosterSidePanelShelfToggleDomAttr}]`)?.getBoundingClientRect();
+      const bottom = shelf && shelf.height > 0 ? Math.min(window.innerHeight, shelf.top) : window.innerHeight;
+      return Math.max(1, bottom - Math.max(0, view.getBoundingClientRect().top) - 8);
+    }
+    function measure() {
+      if (!frame || !view.isConnected || !view.clientWidth) return;
+      const lanes = document.getElementById(lanesId);
+      if (!lanes || !frame.contains(lanes)) return;
+      disposeHorizontalScroll(lanes);
+      view.classList.remove("is-fit-measured");
+      const tracks = getComputedStyle(frame).gridTemplateColumns.split(/\s+/).slice(0, -1);
+      const laneWidth = lanes.scrollWidth;
+      const width = tracks.reduce((sum, value) => sum + parseFloat(value), laneWidth);
+      if (!Number.isFinite(width) || width <= 0) return;
+      view.style.setProperty("--fit-width", width + "px");
+      view.style.setProperty("--fit-tracks", [...tracks, laneWidth + "px"].join(" "));
+      view.classList.add("is-fit-measured");
+      lanes.scrollLeft = 0;
+      extent = {
+        width,
+        height: Math.max(1, frame.offsetHeight),
+        availableWidth: view.clientWidth,
+        availableHeight: availableHeight()
+      };
+      draw(inspection.fitted ? { scale: fitScale(extent), x: 0, y: 0 } : inspection.camera);
+    }
+    function pan(dx, dy) {
+      if (!extent) return;
+      const c = inspection.camera;
+      draw({ ...c, x: c.x + dx, y: c.y + dy });
+    }
+    bindFitGestures(view, {
+      pan,
+      zoom(factor, from, to) {
+        if (!extent) return;
+        const c = inspection.camera;
+        draw(anchoredZoom(c, extent, c.scale * factor, from, to));
+        inspection.fitted = inspection.camera.scale === fitScale(extent);
+      },
+      fit() {
+        inspection.fitted = true;
+        measure();
+      }
+    }, abort.signal);
+    view.addEventListener("focusin", (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target === view || !event.target.matches(":focus-visible")) return;
+      const field = event.target.getBoundingClientRect();
+      const bounds = view.getBoundingClientRect();
+      const delta = (before, after) => before < 0 ? before : Math.max(0, after);
+      pan(delta(field.left - bounds.left, field.right - bounds.right), delta(field.top - bounds.top, field.bottom - bounds.bottom));
+    }, { signal: abort.signal });
+    measure();
+    const observer2 = new ResizeObserver(measure);
+    observer2.observe(frame);
+    observer2.observe(view);
+    window.addEventListener("resize", measure, { signal: abort.signal });
+    window.addEventListener("scroll", () => {
+      if (!extent) return;
+      extent.availableHeight = availableHeight();
+      draw(inspection.fitted ? { scale: fitScale(extent), x: 0, y: 0 } : inspection.camera);
+    }, { signal: abort.signal, passive: true });
+    function stop() {
+      abort.abort();
+      observer2.disconnect();
+      view.classList.remove("roster-fit-viewport", "is-fit-measured");
+      view.removeAttribute("tabindex");
+      view.removeAttribute("role");
+      for (const property of ["--fit-tracks", "--fit-width", "--fit-transform", "--fit-height"]) view.style.removeProperty(property);
+      if (view.isConnected) {
+        const lanes = document.getElementById(lanesId);
+        if (lanes && view.contains(lanes)) {
+          lanes.scrollLeft = originalScroll;
+          initializeHorizontalScroll(lanes);
+        }
+      }
+    }
+    return { view, frame, inspection, measure, stop };
+  }
+  function enableRosterFitWeek() {
+    if (typeof document === "undefined") return;
+    let active = null;
+    let owner = null;
+    function reconcile() {
+      const view = document.querySelector("[" + rosterFitViewportDomAttr + '="true"]');
+      const surface = view?.closest(mountSelector);
+      const enabled = surface?.querySelector("[" + rosterPersonalFitActiveDomAttr + '="true"]');
+      if (!enabled || !view) {
+        active?.stop();
+        active = null;
+        owner = null;
+        return;
+      }
+      if (active && active.view === view && view.contains(active.frame)) {
+        active.measure();
+        return;
+      }
+      const config = surface ? readFrontendSurfaceMountElement(surface) : null;
+      const nextOwner = config?.scopeKey ?? null;
+      const lanes = config?.fragments.find((fragment) => fragment.fragmentKey.kind === "roster-slots-grid");
+      const inspection = active && nextOwner === owner ? active.inspection : home();
+      active?.stop();
+      owner = nextOwner;
+      active = view && lanes ? mount(view, inspection, lanes.targetId) : null;
+    }
+    onAppPageReady(reconcile);
+    onHtmxLoad(reconcile);
+    if (document.readyState !== "loading") reconcile();
+  }
+
   // frontend/ts/app-roster.ts
+  enableRosterFitWeek();
   enableRosterWeekOverview();
   enableRosterColumnEditMode();
   enableRosterImageExport();

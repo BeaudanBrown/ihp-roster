@@ -75,6 +75,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RosterWeekStartsOn
     , RosterCalendarRevision
     , UnavailableStaffWarningThreshold
+    , UnavailableStaffDailyMaximum
     , Email
     , RangeStart
     , RangeEnd
@@ -165,6 +166,7 @@ data TimePickerEnd
 data RosterWeekStartsOn
 data RosterCalendarRevision
 data UnavailableStaffWarningThreshold
+data UnavailableStaffDailyMaximum
 data Email
 data RangeStart
 data RangeEnd
@@ -265,7 +267,9 @@ type AdminVenueSettingsSurface =
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
              ]
          , Action UpdateUnavailableStaffWarningThreshold
-            '[ OptionalField UnavailableStaffWarningThreshold 'WireInt ]
+            '[ OptionalField UnavailableStaffWarningThreshold 'WireInt
+             , OptionalField UnavailableStaffDailyMaximum 'WireInt
+             ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
              , 'HtmxSwap 'HtmxNoSwap

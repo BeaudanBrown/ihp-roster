@@ -254,7 +254,7 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        reviewLeaveRequest ApproveLeave leaveRequest >>= respondWithLeaveReviewResult ApproveLeave
+        requestedLeaveReview ApproveLeave leaveRequest >>= respondWithLeaveReviewResult ApproveLeave leaveRequest
 
     action currentAction@DenyLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -263,7 +263,7 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        reviewLeaveRequest DenyLeave leaveRequest >>= respondWithLeaveReviewResult DenyLeave
+        requestedLeaveReview DenyLeave leaveRequest >>= respondWithLeaveReviewResult DenyLeave leaveRequest
 
 isManagerLeaveDeletion :: (?request :: Request) => Bool
 isManagerLeaveDeletion = paramOrNothing @Text "responseContext" == Just "manager"

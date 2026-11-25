@@ -195,10 +195,11 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
         unavailableStaffWarningThresholdSettingRoute
         [hsx|
         <div class="admin-setting-row-copy">
-            <label class="fw-semibold" for="venue-unavailable-staff-warning-threshold">Unavailable-staff warning threshold</label>
-            <p class="small app-muted mb-0">Warn managers when this many active staff are unavailable on the same date. Leave blank to keep warnings Disabled.</p>
+            <div class="fw-semibold">Daily unavailability</div>
+            <p class="small app-muted mb-0">Warn managers when the count reaches Warn at. Above Maximum per day, adding another person requires manager confirmation. Leave either blank to disable it. Existing requests stay unchanged.</p>
         </div>
         <div class="admin-setting-row-control">
+            <label class="form-label small mb-1" for="venue-unavailable-staff-warning-threshold">Warn at</label>
             <input id="venue-unavailable-staff-warning-threshold"
                    class="form-control form-control-sm"
                    type="number"
@@ -207,10 +208,19 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
                    name={surfaceFieldNameFrom @Surface.UnavailableStaffWarningThreshold fields}
                    value={maybe "" tshow venueConfig.unavailableStaffWarningThreshold}
                    placeholder="Disabled" />
+            <label class="form-label small mt-2 mb-1" for="venue-unavailable-staff-daily-maximum">Maximum per day</label>
+            <input id="venue-unavailable-staff-daily-maximum"
+                   class="form-control form-control-sm"
+                   type="number"
+                   min="1"
+                   max="100"
+                   name={surfaceFieldNameFrom @Surface.UnavailableStaffDailyMaximum fields}
+                   value={maybe "" tshow venueConfig.unavailableStaffDailyMaximum}
+                   placeholder="Disabled" />
         </div>
     |]
   where
-    fields = AdminAction.updateUnavailableStaffWarningThresholdActionFields venueConfig.unavailableStaffWarningThreshold
+    fields = AdminAction.updateUnavailableStaffWarningThresholdActionFields venueConfig.unavailableStaffWarningThreshold venueConfig.unavailableStaffDailyMaximum
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =

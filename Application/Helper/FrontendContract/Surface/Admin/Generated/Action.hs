@@ -919,19 +919,23 @@ type instance ActionSurface UpdateUnavailableStaffWarningThresholdActionOperatio
 type instance ActionMarker UpdateUnavailableStaffWarningThresholdActionOperation = Types2.UpdateUnavailableStaffWarningThreshold
 type instance ActionFieldSpecs UpdateUnavailableStaffWarningThresholdActionOperation =
     '[ 'OptionalField Types2.UnavailableStaffWarningThreshold 'WireInt
+     , 'OptionalField Types2.UnavailableStaffDailyMaximum 'WireInt
      ]
 
 updateUnavailableStaffWarningThresholdActionFields ::
     Maybe Int ->
+    Maybe Int ->
     ActionFields UpdateUnavailableStaffWarningThresholdActionOperation
-updateUnavailableStaffWarningThresholdActionFields unavailableStaffWarningThreshold =
+updateUnavailableStaffWarningThresholdActionFields unavailableStaffWarningThreshold unavailableStaffDailyMaximum =
     actionFields
         (surfaceOptionalField @Types2.UnavailableStaffWarningThreshold unavailableStaffWarningThreshold)
-        noSurfaceFields
+        ( surfaceOptionalField @Types2.UnavailableStaffDailyMaximum unavailableStaffDailyMaximum
+            &: noSurfaceFields
+        )
 
 updateUnavailableStaffWarningThresholdActionEvidence :: ActionEvidence UpdateUnavailableStaffWarningThresholdActionOperation
 updateUnavailableStaffWarningThresholdActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateUnavailableStaffWarningThreshold" "update-unavailable-staff-warning-threshold" [SurfaceIR.FieldIR "UnavailableStaffWarningThreshold" "unavailableStaffWarningThreshold" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-venue-settings-fragment" ["admin-venue-settings-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "venue setting inputs submit on change")])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateUnavailableStaffWarningThreshold" "update-unavailable-staff-warning-threshold" [SurfaceIR.FieldIR "UnavailableStaffWarningThreshold" "unavailableStaffWarningThreshold" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "UnavailableStaffDailyMaximum" "unavailableStaffDailyMaximum" (SurfaceIR.WireIntIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-venue-settings-fragment" ["admin-venue-settings-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "venue setting inputs submit on change")])
 
 updateUnavailableStaffWarningThresholdAction :: ActionFields UpdateUnavailableStaffWarningThresholdActionOperation -> FrontendSurfaceAction
 updateUnavailableStaffWarningThresholdAction =

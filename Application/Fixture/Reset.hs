@@ -71,6 +71,7 @@ applicationTableNames =
     , "roster_notification_runs"
     , "staff_shift_preferences"
     , "leave_requests"
+    , "leave_policy_confirmations"
     , "leave_request_events"
     , "unavailability_blackouts"
     , "audit_events"

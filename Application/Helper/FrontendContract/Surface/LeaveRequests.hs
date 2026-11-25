@@ -56,6 +56,9 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , ArchiveLeaveRequestsPage
     , ArchivePage
     , ApproveLeaveRequest
+    , ResolveLeavePolicy
+    , PolicyToken
+    , ReturnToEdit
     , DenyLeaveRequest
     , CreateUnavailabilityBlackout
     , UpdateUnavailabilityBlackout
@@ -99,6 +102,9 @@ data Leave
 data LeaveTargetSuffix
 data ArchiveLeaveRequestsPage
 data ApproveLeaveRequest
+data ResolveLeavePolicy
+data PolicyToken
+data ReturnToEdit
 data DenyLeaveRequest
 data CreateUnavailabilityBlackout
 data UpdateUnavailabilityBlackout
@@ -209,6 +215,13 @@ type LeaveRequestsSurface =
              , 'HtmxTarget ('HtmxId LeaveArchivePageContent)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlTrue
+             ]
+         , Action ResolveLeavePolicy
+            '[ Field PolicyToken 'WireText, Field ReturnToEdit 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget 'HtmxThis
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action ApproveLeaveRequest
             '[]

@@ -10,6 +10,10 @@ const mountedDialogSelector = `${dialogOverlaySelector} [${dialogMountDomAttr}]`
 
 export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
 
+export function seedFitDayRows() {
+    runSql("UPDATE venue_config SET roster_layout_mode = 'day_rows', updated_at = NOW() WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
+}
+
 export function resetCanonicalRosterAssignedShiftFixture() {
     runSql(`
         UPDATE venue_config
@@ -129,6 +133,15 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
     } else {
         await expect(page.locator('.roster-day-columns')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
     }
+}
+
+export async function setFitWholeWeek(page: Page, enabled: boolean) {
+    const checkbox = page.locator('#roster-fit-whole-week');
+    if (await checkbox.isChecked() !== enabled) {
+        await page.locator('label[for="roster-fit-whole-week"]').click();
+    }
+    await expect(page.locator('.roster-fit-viewport')).toHaveCount(enabled ? 1 : 0, { timeout: E2E_TIMEOUT.liveUpdate });
+    if (enabled) await expect(page.locator('.roster-fit-viewport')).toHaveClass(/is-fit-measured/);
 }
 
 export async function waitForRosterWeekShell(page: Page) {

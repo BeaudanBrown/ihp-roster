@@ -37,6 +37,7 @@ data AppToggleButtonConfig = AppToggleButtonConfig
     , appToggleLabel        :: !AppToggleButtonLabel
     , appToggleButtonClass  :: !Text
     , appToggleInputClass   :: !Text
+    , appToggleKeepCheckbox :: !Bool
     , appToggleRoleSwitch   :: !Bool
     , appToggleSubmitPolicy :: !ToggleSubmissionPolicy
     , appToggleBreakRegion  :: !(Maybe ToggleBreakRegion)
@@ -50,6 +51,7 @@ defaultAppToggleButtonConfig inputId fieldBinding checked label = AppToggleButto
     , appToggleLabel = AppToggleStaticLabel label
     , appToggleButtonClass = ""
     , appToggleInputClass = ""
+    , appToggleKeepCheckbox = False
     , appToggleRoleSwitch = False
     , appToggleSubmitPolicy = ToggleSubmitDeferred
     , appToggleBreakRegion = Nothing
@@ -98,8 +100,8 @@ renderAppToggleContent isSwitch label = [hsx|
     switchIndicator = [hsx|<span class="app-toggle-indicator app-toggle-indicator--switch" aria-hidden="true"></span>|]
 
 appToggleUsesSwitch :: AppToggleButtonConfig -> Bool
-appToggleUsesSwitch AppToggleButtonConfig { appToggleRoleSwitch, appToggleSubmitPolicy } =
-    appToggleRoleSwitch || appToggleSubmitPolicy == ToggleSubmitImmediate
+appToggleUsesSwitch AppToggleButtonConfig { appToggleKeepCheckbox, appToggleRoleSwitch, appToggleSubmitPolicy } =
+    not appToggleKeepCheckbox && (appToggleRoleSwitch || appToggleSubmitPolicy == ToggleSubmitImmediate)
 
 renderAppToggleLabel :: Bool -> AppToggleButtonLabel -> Html
 renderAppToggleLabel _ (AppToggleStaticLabel label) = label

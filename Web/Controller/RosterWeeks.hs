@@ -82,6 +82,7 @@ import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
                                         rosterMoveShiftIntentForm,
                                         rosterTimelineMoveShiftIntentForm)
+import Web.View.RosterWeeks.Header (renderFitWholeWeekFragment)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
@@ -100,7 +101,7 @@ import Web.RosterWeeks.Responses (respondToRosterSlotMutation,
                                   respondWithRosterDialogOverlay,
                                   respondWithRosterFragments,
                                   respondWithRosterFragmentsUpdate,
-                                  respondWithRosterOwnHighlightPreferenceUpdate,
+                                  respondWithFitWholeWeekUpdate, respondWithRosterOwnHighlightPreferenceUpdate,
                                   respondWithRosterResourceInvalidation,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Service
@@ -282,6 +283,12 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
         respondWithRosterContent scope
+
+    action currentAction@ShowRosterFitPreferenceAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchor <- parseIsoDayRouteParam anchorDateParam
+        group <- resolveRequestedRosterGroup
+        prefs <- fetchCurrentUserRosterPreferences
+        respondHtmlProfiled (renderFitWholeWeekFragment anchor group.id prefs.userFitWholeWeek)
 
     action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
@@ -1033,6 +1040,19 @@ instance Controller RosterWeeksController where
                         setHeader ("HX-Redirect", cs canonicalUrl)
                         renderPlain ""
                     else redirectToPath canonicalUrl
+
+    action currentAction@UpdateRosterFitWholeWeekAction = runBepis currentAction BepisPreferenceAction do
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
+        case RosterAction.parseSetRosterFitWholeWeekActionParams of
+            Left errors -> do
+                let message = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest then respondWithRosterToast message "app-toast-error"
+                    else setErrorMessage message >> redirectToRosterWindow scope
+            Right fields -> do
+                result <- saveFitWholeWeekMutation (surfaceFieldValue @Surface.FitWholeWeek fields)
+                if isHtmxRequest then respondWithFitWholeWeekUpdate scope result
+                    else redirectToRosterWindow scope
 
     action currentAction@UpdateRosterOwnLiveShiftHighlightPreferenceAction = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup

@@ -3,6 +3,7 @@ module Application.UnavailabilityBlackout.Mutations
     , createUnavailabilityBlackoutInCurrentTransaction
     , deleteUnavailabilityBlackoutInCurrentTransaction
     , findOverlappingUnavailabilityBlackout
+    , overlappingUnavailabilityBlackouts
     , lockVenueUnavailabilityBlackoutInCurrentTransaction
     , updateUnavailabilityBlackoutInCurrentTransaction
     ) where
@@ -34,16 +35,17 @@ findOverlappingUnavailabilityBlackout ::
     IO (Maybe UnavailabilityBlackout)
 findOverlappingUnavailabilityBlackout venueId firstDate lastDate excludedId =
     case excludedId of
-        Nothing -> baseQuery |> fetchOneOrNothing
-        Just blackoutId -> baseQuery |> filterWhereNot (#id, blackoutId) |> fetchOneOrNothing
-  where
-    baseQuery =
-        query @UnavailabilityBlackout
-            |> filterWhere (#venueId, venueId)
-            |> filterWhereLessThanOrEqualTo (#startDate, lastDate)
-            |> filterWhereGreaterThanOrEqualTo (#endDate, firstDate)
-            |> orderByAsc #startDate
-            |> orderByAsc #id
+        Nothing -> overlappingUnavailabilityBlackouts venueId firstDate lastDate |> fetchOneOrNothing
+        Just blackoutId -> overlappingUnavailabilityBlackouts venueId firstDate lastDate |> filterWhereNot (#id, blackoutId) |> fetchOneOrNothing
+
+overlappingUnavailabilityBlackouts :: UUID -> Day -> Day -> QueryBuilder "unavailability_blackouts"
+overlappingUnavailabilityBlackouts venueId firstDate lastDate =
+    query @UnavailabilityBlackout
+        |> filterWhere (#venueId, venueId)
+        |> filterWhereLessThanOrEqualTo (#startDate, lastDate)
+        |> filterWhereGreaterThanOrEqualTo (#endDate, firstDate)
+        |> orderByAsc #startDate
+        |> orderByAsc #id
 
 createUnavailabilityBlackoutInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
