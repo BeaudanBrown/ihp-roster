@@ -17,9 +17,8 @@ test('profile server enforces isolation and opts into query logging only for dia
       const env = {
         ...process.env,
         DEBUG: inheritedDebug,
-        PORT: '20000',
-        PROFILE_APP_PORT: '20000',
-        PROFILE_PRIMARY_APP_PORT: '8000',
+        PORT: '8000',
+        BEPIS_RUNNER_PORT: '20000',
         PROFILE_SERVER_EXECUTABLE: server,
       };
       delete env.IHP_ROSTER_PROFILING;
@@ -28,13 +27,13 @@ test('profile server enforces isolation and opts into query logging only for dia
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.stdout, expected);
     }
+    const env = { ...process.env, PORT: '8000', PROFILE_SERVER_EXECUTABLE: server };
+    delete env.BEPIS_RUNNER_PORT;
     const inherited = spawnSync('bash', ['Config/nix/scripts/profile/test-server'], {
-      cwd: repoRoot,
-      env: { ...process.env, PORT: '8000', PROFILE_APP_PORT: '8000', PROFILE_PRIMARY_APP_PORT: '8000', PROFILE_SERVER_EXECUTABLE: server },
-      encoding: 'utf8',
+      cwd: repoRoot, env, encoding: 'utf8',
     });
-    assert.equal(inherited.status, 64);
-    assert.match(inherited.stderr, /must not inherit primary app port/);
+    assert.notEqual(inherited.status, 0);
+    assert.match(inherited.stderr, /requires a native runner port lease/);
   } finally {
     fs.rmSync(binDir, { recursive: true, force: true });
   }
