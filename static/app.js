@@ -1134,8 +1134,8 @@
     const page = installPage();
     if (!page) return;
     if (inApp) {
-      const home = page.querySelector(selector(pwaInstallHomeDomAttr));
-      if (home instanceof HTMLAnchorElement && home.origin === window.location.origin) window.location.replace(home.href);
+      const home2 = page.querySelector(selector(pwaInstallHomeDomAttr));
+      if (home2 instanceof HTMLAnchorElement && home2.origin === window.location.origin) window.location.replace(home2.href);
       return;
     }
     if (!initializedPages.has(page)) {

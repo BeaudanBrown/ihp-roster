@@ -854,6 +854,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
             `shouldBe` [ "timesheets"
                        , "roster"
+                       , "roster-personal"
                        , "roster-day-timeline"
                        , "leave-requests"
                        , "self-service-leave"
@@ -1135,6 +1136,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "toggle-roster-warnings"
                        , "toggle-roster-wage-estimates"
                        , "toggle-roster-manager-mode"
+                       , "set-roster-fit-whole-week"
                        , "toggle-roster-own-live-shift-highlight"
                        , "sort-roster-week"
                        , "toggle-roster-week-live-status"
@@ -1194,6 +1196,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-column-edit-done"
                        , "data-bepis-roster-image-export-trigger"
                        , "data-bepis-roster-image-export-config"
+                       , "data-bepis-roster-fit-viewport"
                        , "data-bepis-roster-image-export-projection"
                        , "data-bepis-roster-image-export-row"
                        , "data-bepis-roster-image-export-cell"

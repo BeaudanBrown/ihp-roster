@@ -137,7 +137,16 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "roster-admin-settings-owner@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- fetchSlotNameRecord venue "Early"
-                _ <- createRosterWeekRecord venue 0 False
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                let fetchToolbar viewParams = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow rosterWeek.fixtureWindowStart))
+                            (("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId)) : viewParams)
+                rowsToolbar <- fetchToolbar []
+                rowsToolbar `responseBodyShouldContain` "Fit whole week"
+                timelineToolbar <- fetchToolbar [("rosterView", "timeline"), ("dayDate", "2025-01-07")]
+                timelineToolbar `responseBodyShouldContain` "Today"
+                timelineToolbar `responseBodyShouldNotContain` "Fit whole week"
 
                 warningResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -155,17 +164,17 @@ tests = aroundAll withDatabaseTestContext do
                             (UpdateRosterLayoutPreferenceAction)
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
-                let refreshesPersonalRosterSettings response = do
+                let refreshesRosterSettings response = do
                         let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
-                refreshesPersonalRosterSettings warningResponse
-                refreshesPersonalRosterSettings wageResponse
-                let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders layoutResponse)
-                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
-                layoutTriggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
+                refreshesRosterSettings warningResponse
+                refreshesRosterSettings wageResponse
+                refreshesRosterSettings layoutResponse
+                columnsToolbar <- fetchToolbar []
+                columnsToolbar `responseBodyShouldContain` "This week"
+                columnsToolbar `responseBodyShouldNotContain` "Fit whole week"
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
