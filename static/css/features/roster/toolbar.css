@@ -1,5 +1,23 @@
 /* Roster toolbar, export button, assignment filters, and week navigation controls. */
 
+@media (min-width: 992px) {
+    /* Keep the panel toggle beside the week navigation; reflow wages and fit controls inside their track. */
+    .roster-grid-header .app-week-toolbar-settings {
+        flex-shrink: 0;
+    }
+
+    .roster-grid-header .app-week-toolbar-aux {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: var(--app-space-1);
+    }
+
+    .roster-grid-header .roster-wage-summary {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+}
+
 .roster-export-button[disabled] {
     opacity: 0.7;
 }
