@@ -17,8 +17,7 @@ test.use({ baseURL: webauthnBaseURL });
 test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
-    test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }, testInfo) => {
-        test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
+    test.beforeEach(async ({ page }) => {
         runSql(`
             DELETE FROM payroll_workbook_configurations
             WHERE name IN ('Wages then Summary', 'Hours then Wages');
@@ -46,7 +45,10 @@ test.describe('Payroll export downloads', () => {
         `);
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
+    });
 
+    test('seeded workbook export warning rejects reads, cancels without effects, and continues once', async ({ page }, testInfo) => {
+        test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
         const standardCard = payrollReportCard(page, 'Payroll Workbook');
         await expect(standardCard).toHaveCount(1);
         await expect(standardCard).toContainText('Sheets: Summary → Hours by Staff → Hours by Shift Type → Wages by Staff → Wages by Shift Type');
@@ -170,7 +172,11 @@ test.describe('Payroll export downloads', () => {
         expect(await readZipEntryText(filteredDownload, 'xl/worksheets/sheet1.xml'))
             .toEqual(await readZipEntryText(standardDownload, 'xl/worksheets/sheet1.xml'));
 
-        await gotoExports(page);
+    });
+
+    test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }) => {
+        test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
+        const currentWeek = await currentReportWeek(page);
         await page.getByRole('button', { name: 'Create new export' }).click();
         const addDialog = page.getByRole('dialog', { name: 'Add export' });
         await expect(addDialog).toBeVisible();
